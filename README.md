@@ -10,7 +10,8 @@ Currently supports:
 
 **WARNING:** Very early & unstable.
 
-![Screenshot](assets/screen-diff.png)
+![Symbol Screenshot](assets/screen-symbols.png)
+![Diff Screenshot](assets/screen-diff.png)
 
 ### License
 
