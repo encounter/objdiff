@@ -1,0 +1,61 @@
+name: Build
+
+on: [ push, pull_request ]
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        toolchain: [ stable, 1.61.0, nightly ]
+      fail-fast: false
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.toolchain }}
+          override: true
+          components: rustfmt, clippy
+      - uses: EmbarkStudios/cargo-deny-action@v1
+      - uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --all-features
+      - uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-features
+
+  build:
+    name: Build
+    strategy:
+      matrix:
+        platform: [ ubuntu-latest, macos-latest, windows-latest ]
+        toolchain: [ stable, 1.61.0, nightly ]
+      fail-fast: false
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.toolchain }}
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --release --all-features
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release --all-features
+      - uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.platform }}-${{ matrix.toolchain }}
+          path: |
+            target/release/objdiff
+            target/release/objdiff.exe
