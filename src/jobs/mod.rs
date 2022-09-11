@@ -9,13 +9,15 @@ use std::{
 
 use anyhow::Result;
 
-use crate::jobs::build::BuildResult;
+use crate::jobs::{bindiff::BinDiffResult, build::BuildResult};
 
+pub mod bindiff;
 pub mod build;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Job {
     Build,
+    BinDiff,
 }
 pub static JOB_ID: AtomicUsize = AtomicUsize::new(0);
 pub struct JobState {
@@ -37,6 +39,7 @@ pub struct JobStatus {
 pub enum JobResult {
     None,
     Build(Box<BuildResult>),
+    BinDiff(Box<BinDiffResult>),
 }
 
 fn should_cancel(rx: &Receiver<()>) -> bool {

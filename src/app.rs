@@ -10,11 +10,12 @@ use std::{
 };
 
 use eframe::Frame;
+use egui::Widget;
 use notify::{RecursiveMode, Watcher};
 
 use crate::{
     jobs::{
-        build::{queue_build, BuildResult},
+        build::{queue_build, BuildResult, BuildStatus},
         Job, JobResult, JobState,
     },
     views::{
@@ -30,6 +31,13 @@ pub enum View {
     FunctionDiff,
 }
 
+#[derive(Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub enum DiffKind {
+    #[default]
+    SplitObj,
+    WholeBinary,
+}
+
 #[derive(Default, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct ViewState {
@@ -43,17 +51,24 @@ pub struct ViewState {
     pub selected_symbol: Option<String>,
     #[serde(skip)]
     pub current_view: View,
+    #[serde(skip)]
+    pub show_config: bool,
     // Config
+    pub diff_kind: DiffKind,
     pub reverse_fn_order: bool,
 }
 
 #[derive(Default, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct AppConfig {
+    // Split obj
     pub project_dir: Option<PathBuf>,
     pub build_asm_dir: Option<PathBuf>,
     pub build_src_dir: Option<PathBuf>,
     pub build_obj: Option<String>,
+    // Whole binary
+    pub left_obj: Option<PathBuf>,
+    pub right_obj: Option<PathBuf>,
     #[serde(skip)]
     pub project_dir_change: bool,
 }
@@ -118,6 +133,9 @@ impl eframe::App for App {
                     if ui.button("Quit").clicked() {
                         frame.close();
                     }
+                    if ui.button("Show config").clicked() {
+                        view_state.show_config = !view_state.show_config;
+                    }
                 });
             });
         });
@@ -148,6 +166,34 @@ impl eframe::App for App {
             });
         }
 
+        egui::Window::new("Config").open(&mut view_state.show_config).show(ctx, |ui| {
+            ui.label("Diff type:");
+
+            if egui::RadioButton::new(
+                view_state.diff_kind == DiffKind::SplitObj,
+                "Split object diff",
+            )
+            .ui(ui)
+            .on_hover_text("Compare individual object files")
+            .clicked()
+            {
+                view_state.diff_kind = DiffKind::SplitObj;
+            }
+
+            if egui::RadioButton::new(
+                view_state.diff_kind == DiffKind::WholeBinary,
+                "Whole binary diff",
+            )
+            .ui(ui)
+            .on_hover_text("Compare two full binaries")
+            .clicked()
+            {
+                view_state.diff_kind = DiffKind::WholeBinary;
+            }
+
+            ui.separator();
+        });
+
         if view_state.jobs.iter().any(|job| {
             if let Some(handle) = &job.handle {
                 return !handle.is_finished();
@@ -156,7 +202,6 @@ impl eframe::App for App {
         }) {
             ctx.request_repaint();
         } else {
-            ctx.request_repaint();
             ctx.request_repaint_after(Duration::from_millis(100));
         }
     }
@@ -186,6 +231,20 @@ impl eframe::App for App {
                             }
                             JobResult::Build(state) => {
                                 self.view_state.build = Some(state);
+                            }
+                            JobResult::BinDiff(state) => {
+                                self.view_state.build = Some(Box::new(BuildResult {
+                                    first_status: BuildStatus {
+                                        success: true,
+                                        log: "".to_string(),
+                                    },
+                                    second_status: BuildStatus {
+                                        success: true,
+                                        log: "".to_string(),
+                                    },
+                                    first_obj: Some(state.first_obj),
+                                    second_obj: Some(state.second_obj),
+                                }));
                             }
                         }
                     }

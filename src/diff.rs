@@ -1,87 +1,18 @@
 use std::collections::BTreeMap;
 
 use anyhow::Result;
-use ppc750cl::{disasm_iter, Argument};
 
 use crate::{
     editops::{editops_find, LevEditType},
     obj::{
-        ObjInfo, ObjIns, ObjInsArg, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo, ObjInsDiff,
-        ObjInsDiffKind, ObjReloc, ObjRelocKind, ObjSection, ObjSectionKind, ObjSymbol,
-        ObjSymbolFlags,
+        mips, ppc, ObjArchitecture, ObjInfo, ObjInsArg, ObjInsArgDiff, ObjInsBranchFrom,
+        ObjInsBranchTo, ObjInsDiff, ObjInsDiffKind, ObjReloc, ObjSection, ObjSectionKind,
+        ObjSymbol, ObjSymbolFlags,
     },
 };
 
-// Relative relocation, can be Simm or BranchDest
-fn is_relative_arg(arg: &ObjInsArg) -> bool {
-    matches!(arg, ObjInsArg::Arg(arg) if matches!(arg, Argument::Simm(_) | Argument::BranchDest(_)))
-}
-
-// Relative or absolute relocation, can be Uimm, Simm or Offset
-fn is_rel_abs_arg(arg: &ObjInsArg) -> bool {
-    matches!(arg, ObjInsArg::Arg(arg) if matches!(arg, Argument::Uimm(_) | Argument::Simm(_) | Argument::Offset(_)))
-}
-
-fn is_offset_arg(arg: &ObjInsArg) -> bool { matches!(arg, ObjInsArg::Arg(Argument::Offset(_))) }
-
-fn process_code(data: &[u8], address: u64, relocs: &[ObjReloc]) -> Result<(Vec<u8>, Vec<ObjIns>)> {
-    let ins_count = data.len() / 4;
-    let mut ops = Vec::<u8>::with_capacity(ins_count);
-    let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
-    for mut ins in disasm_iter(data, address as u32) {
-        let reloc = relocs.iter().find(|r| (r.address as u32 & !3) == ins.addr);
-        if let Some(reloc) = reloc {
-            // Zero out relocations
-            ins.code = match reloc.kind {
-                ObjRelocKind::PpcEmbSda21 => ins.code & !0x1FFFFF,
-                ObjRelocKind::PpcRel24 => ins.code & !0x3FFFFFC,
-                ObjRelocKind::PpcRel14 => ins.code & !0xFFFC,
-                ObjRelocKind::PpcAddr16Hi
-                | ObjRelocKind::PpcAddr16Ha
-                | ObjRelocKind::PpcAddr16Lo => ins.code & !0xFFFF,
-                _ => ins.code,
-            };
-        }
-        let simplified = ins.simplified();
-        let mut args: Vec<ObjInsArg> =
-            simplified.args.iter().map(|a| ObjInsArg::Arg(a.clone())).collect();
-        if let Some(reloc) = reloc {
-            match reloc.kind {
-                ObjRelocKind::PpcEmbSda21 => {
-                    args = vec![args[0].clone(), ObjInsArg::Reloc];
-                }
-                ObjRelocKind::PpcRel24 | ObjRelocKind::PpcRel14 => {
-                    let arg = args
-                        .iter_mut()
-                        .rfind(|a| is_relative_arg(a))
-                        .ok_or_else(|| anyhow::Error::msg("Failed to locate rel arg for reloc"))?;
-                    *arg = ObjInsArg::Reloc;
-                }
-                ObjRelocKind::PpcAddr16Hi
-                | ObjRelocKind::PpcAddr16Ha
-                | ObjRelocKind::PpcAddr16Lo => {
-                    let arg = args.iter_mut().rfind(|a| is_rel_abs_arg(a)).ok_or_else(|| {
-                        anyhow::Error::msg("Failed to locate rel/abs arg for reloc")
-                    })?;
-                    *arg =
-                        if is_offset_arg(arg) { ObjInsArg::RelocOffset } else { ObjInsArg::Reloc };
-                }
-                _ => {}
-            }
-        }
-        ops.push(simplified.ins.op as u8);
-        let suffix = simplified.ins.suffix();
-        insts.push(ObjIns {
-            ins: simplified.ins,
-            mnemonic: format!("{}{}", simplified.mnemonic, suffix),
-            args,
-            reloc: reloc.cloned(),
-        });
-    }
-    Ok((ops, insts))
-}
-
 pub fn diff_code(
+    arch: ObjArchitecture,
     left_data: &[u8],
     right_data: &[u8],
     left_symbol: &mut ObjSymbol,
@@ -89,12 +20,30 @@ pub fn diff_code(
     left_relocs: &[ObjReloc],
     right_relocs: &[ObjReloc],
 ) -> Result<()> {
-    let left_code =
-        &left_data[left_symbol.address as usize..(left_symbol.address + left_symbol.size) as usize];
-    let (left_ops, left_insts) = process_code(left_code, left_symbol.address, left_relocs)?;
-    let right_code = &right_data
-        [right_symbol.address as usize..(right_symbol.address + right_symbol.size) as usize];
-    let (right_ops, right_insts) = process_code(right_code, right_symbol.address, right_relocs)?;
+    let left_code = &left_data[left_symbol.section_address as usize
+        ..(left_symbol.section_address + left_symbol.size) as usize];
+    let right_code = &right_data[right_symbol.section_address as usize
+        ..(right_symbol.section_address + right_symbol.size) as usize];
+    let ((left_ops, left_insts), (right_ops, right_insts)) = match arch {
+        ObjArchitecture::PowerPc => (
+            ppc::process_code(left_code, left_symbol.address, left_relocs)?,
+            ppc::process_code(right_code, right_symbol.address, right_relocs)?,
+        ),
+        ObjArchitecture::Mips => (
+            mips::process_code(
+                left_code,
+                left_symbol.address,
+                left_symbol.address + left_symbol.size,
+                left_relocs,
+            )?,
+            mips::process_code(
+                right_code,
+                right_symbol.address,
+                left_symbol.address + left_symbol.size,
+                right_relocs,
+            )?,
+        ),
+    };
 
     let mut left_diff = Vec::<ObjInsDiff>::new();
     let mut right_diff = Vec::<ObjInsDiff>::new();
@@ -111,7 +60,7 @@ pub fn diff_code(
             let left_addr = op.first_start as u32 * 4;
             let right_addr = op.second_start as u32 * 4;
             while let (Some(left), Some(right)) = (cur_left, cur_right) {
-                if (left.ins.addr - left_symbol.address as u32) < left_addr {
+                if (left.address - left_symbol.address as u32) < left_addr {
                     left_diff.push(ObjInsDiff { ins: Some(left.clone()), ..ObjInsDiff::default() });
                     right_diff
                         .push(ObjInsDiff { ins: Some(right.clone()), ..ObjInsDiff::default() });
@@ -122,10 +71,10 @@ pub fn diff_code(
                 cur_right = right_iter.next();
             }
             if let (Some(left), Some(right)) = (cur_left, cur_right) {
-                if (left.ins.addr - left_symbol.address as u32) != left_addr {
+                if (left.address - left_symbol.address as u32) != left_addr {
                     return Err(anyhow::Error::msg("Instruction address mismatch (left)"));
                 }
-                if (right.ins.addr - right_symbol.address as u32) != right_addr {
+                if (right.address - right_symbol.address as u32) != right_addr {
                     return Err(anyhow::Error::msg("Instruction address mismatch (right)"));
                 }
                 match op.op_type {
@@ -178,7 +127,11 @@ pub fn diff_code(
     }
 
     let total = left_insts.len();
-    let percent = ((total - diff_state.diff_count) as f32 / total as f32) * 100.0;
+    let percent = if diff_state.diff_count >= total {
+        0.0
+    } else {
+        ((total - diff_state.diff_count) as f32 / total as f32) * 100.0
+    };
     left_symbol.match_percent = percent;
     right_symbol.match_percent = percent;
 
@@ -194,17 +147,22 @@ fn resolve_branches(vec: &mut [ObjInsDiff]) {
     let mut addr_map = BTreeMap::<u32, usize>::new();
     for (i, ins_diff) in vec.iter().enumerate() {
         if let Some(ins) = &ins_diff.ins {
-            addr_map.insert(ins.ins.addr, i);
+            addr_map.insert(ins.address, i);
         }
     }
     // Generate branches
     let mut branches = BTreeMap::<usize, ObjInsBranchFrom>::new();
     for (i, ins_diff) in vec.iter_mut().enumerate() {
         if let Some(ins) = &ins_diff.ins {
-            if ins.ins.is_blr() || ins.reloc.is_some() {
-                continue;
-            }
-            if let Some(ins_idx) = ins.ins.branch_dest().and_then(|dest| addr_map.get(&dest)) {
+            // if ins.ins.is_blr() || ins.reloc.is_some() {
+            //     continue;
+            // }
+            if let Some(ins_idx) = ins
+                .args
+                .iter()
+                .find_map(|a| if let ObjInsArg::BranchOffset(offs) = a { Some(offs) } else { None })
+                .and_then(|offs| addr_map.get(&((ins.address as i32 + offs) as u32)))
+            {
                 if let Some(branch) = branches.get_mut(ins_idx) {
                     ins_diff.branch_to =
                         Some(ObjInsBranchTo { ins_idx: *ins_idx, branch_idx: branch.branch_idx });
@@ -253,15 +211,8 @@ fn arg_eq(
     right_diff: &ObjInsDiff,
 ) -> bool {
     return match left {
-        ObjInsArg::Arg(l) => match right {
-            ObjInsArg::Arg(r) => match r {
-                Argument::BranchDest(_) => {
-                    // Compare dest instruction idx after diffing
-                    left_diff.branch_to.as_ref().map(|b| b.ins_idx)
-                        == right_diff.branch_to.as_ref().map(|b| b.ins_idx)
-                }
-                _ => format!("{}", l) == format!("{}", r),
-            },
+        ObjInsArg::PpcArg(l) => match right {
+            ObjInsArg::PpcArg(r) => format!("{}", l) == format!("{}", r),
             _ => false,
         },
         ObjInsArg::Reloc => {
@@ -271,12 +222,20 @@ fn arg_eq(
                     right_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
                 )
         }
-        ObjInsArg::RelocOffset => {
-            matches!(right, ObjInsArg::RelocOffset)
+        ObjInsArg::RelocWithBase => {
+            matches!(right, ObjInsArg::RelocWithBase)
                 && reloc_eq(
                     left_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
                     right_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
                 )
+        }
+        ObjInsArg::MipsArg(ls) => {
+            matches!(right, ObjInsArg::MipsArg(rs) if ls == rs)
+        }
+        ObjInsArg::BranchOffset(_) => {
+            // Compare dest instruction idx after diffing
+            left_diff.branch_to.as_ref().map(|b| b.ins_idx)
+                == right_diff.branch_to.as_ref().map(|b| b.ins_idx)
         }
     };
 }
@@ -303,7 +262,7 @@ fn compare_ins(
 ) -> Result<InsDiffResult> {
     let mut result = InsDiffResult::default();
     if let (Some(left_ins), Some(right_ins)) = (&left.ins, &right.ins) {
-        if left_ins.args.len() != right_ins.args.len() || left_ins.ins.op != right_ins.ins.op {
+        if left_ins.args.len() != right_ins.args.len() || left_ins.op != right_ins.op {
             // Totally different op
             result.kind = ObjInsDiffKind::Replace;
             state.diff_count += 1;
@@ -324,8 +283,10 @@ fn compare_ins(
                     state.diff_count += 1;
                 }
                 let a_str = match a {
-                    ObjInsArg::Arg(arg) => format!("{}", arg),
-                    ObjInsArg::Reloc | ObjInsArg::RelocOffset => String::new(),
+                    ObjInsArg::PpcArg(arg) => format!("{}", arg),
+                    ObjInsArg::Reloc | ObjInsArg::RelocWithBase => String::new(),
+                    ObjInsArg::MipsArg(str) => str.clone(),
+                    ObjInsArg::BranchOffset(arg) => format!("{}", arg),
                 };
                 let a_diff = if let Some(idx) = state.left_args_idx.get(&a_str) {
                     ObjInsArgDiff { idx: *idx }
@@ -336,8 +297,10 @@ fn compare_ins(
                     ObjInsArgDiff { idx }
                 };
                 let b_str = match b {
-                    ObjInsArg::Arg(arg) => format!("{}", arg),
-                    ObjInsArg::Reloc | ObjInsArg::RelocOffset => String::new(),
+                    ObjInsArg::PpcArg(arg) => format!("{}", arg),
+                    ObjInsArg::Reloc | ObjInsArg::RelocWithBase => String::new(),
+                    ObjInsArg::MipsArg(str) => str.clone(),
+                    ObjInsArg::BranchOffset(arg) => format!("{}", arg),
                 };
                 let b_diff = if let Some(idx) = state.right_args_idx.get(&b_str) {
                     ObjInsArgDiff { idx: *idx }
@@ -380,6 +343,7 @@ pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo) -> Result<()> {
                     right_symbol.diff_symbol = Some(left_symbol.name.clone());
                     if left_section.kind == ObjSectionKind::Code {
                         diff_code(
+                            left.architecture,
                             &left_section.data,
                             &right_section.data,
                             left_symbol,

@@ -25,13 +25,39 @@ fn write_text(str: &str, color: Color32, job: &mut LayoutJob) {
 
 fn write_reloc(reloc: &ObjReloc, job: &mut LayoutJob) {
     let name = reloc.target.demangled_name.as_ref().unwrap_or(&reloc.target.name);
-    write_text(name, Color32::LIGHT_GRAY, job);
     match reloc.kind {
-        ObjRelocKind::PpcAddr16Lo => write_text("@l", Color32::GRAY, job),
-        ObjRelocKind::PpcAddr16Hi => write_text("@h", Color32::GRAY, job),
-        ObjRelocKind::PpcAddr16Ha => write_text("@ha", Color32::GRAY, job),
-        ObjRelocKind::PpcEmbSda21 => write_text("@sda21", Color32::GRAY, job),
-        _ => {}
+        ObjRelocKind::PpcAddr16Lo => {
+            write_text(name, Color32::LIGHT_GRAY, job);
+            write_text("@l", Color32::GRAY, job);
+        }
+        ObjRelocKind::PpcAddr16Hi => {
+            write_text(name, Color32::LIGHT_GRAY, job);
+            write_text("@h", Color32::GRAY, job);
+        }
+        ObjRelocKind::PpcAddr16Ha => {
+            write_text(name, Color32::LIGHT_GRAY, job);
+            write_text("@ha", Color32::GRAY, job);
+        }
+        ObjRelocKind::PpcEmbSda21 => {
+            write_text(name, Color32::LIGHT_GRAY, job);
+            write_text("@sda21", Color32::GRAY, job);
+        }
+        ObjRelocKind::MipsHi16 => {
+            write_text("%hi(", Color32::GRAY, job);
+            write_text(name, Color32::LIGHT_GRAY, job);
+            write_text(")", Color32::GRAY, job);
+        }
+        ObjRelocKind::MipsLo16 => {
+            write_text("%lo(", Color32::GRAY, job);
+            write_text(name, Color32::LIGHT_GRAY, job);
+            write_text(")", Color32::GRAY, job);
+        }
+        ObjRelocKind::Absolute
+        | ObjRelocKind::PpcRel24
+        | ObjRelocKind::PpcRel14
+        | ObjRelocKind::Mips26 => {
+            write_text(name, Color32::LIGHT_GRAY, job);
+        }
     };
 }
 
@@ -51,7 +77,7 @@ fn write_ins(
         ObjInsDiffKind::Insert => Color32::GREEN,
     };
     write_text(
-        &ins.mnemonic,
+        &format!("{:<11}", ins.mnemonic),
         match diff_kind {
             ObjInsDiffKind::OpMismatch => Color32::LIGHT_BLUE,
             _ => base_color,
@@ -72,16 +98,12 @@ fn write_ins(
             base_color
         };
         match arg {
-            ObjInsArg::Arg(arg) => match arg {
+            ObjInsArg::PpcArg(arg) => match arg {
                 Argument::Offset(val) => {
                     write_text(&format!("{}", val), color, job);
                     write_text("(", base_color, job);
                     writing_offset = true;
                     continue;
-                }
-                Argument::BranchDest(dest) => {
-                    let addr = dest.0 + ins.ins.addr as i32 - base_addr as i32;
-                    write_text(&format!("{:x}", addr), color, job);
                 }
                 Argument::Uimm(_) | Argument::Simm(_) => {
                     write_text(&format!("{}", arg), color, job);
@@ -93,11 +115,18 @@ fn write_ins(
             ObjInsArg::Reloc => {
                 write_reloc(ins.reloc.as_ref().unwrap(), job);
             }
-            ObjInsArg::RelocOffset => {
+            ObjInsArg::RelocWithBase => {
                 write_reloc(ins.reloc.as_ref().unwrap(), job);
                 write_text("(", base_color, job);
                 writing_offset = true;
                 continue;
+            }
+            ObjInsArg::MipsArg(str) => {
+                write_text(str.strip_prefix('$').unwrap_or(str), color, job);
+            }
+            ObjInsArg::BranchOffset(offset) => {
+                let addr = offset + ins.address as i32 - base_addr as i32;
+                write_text(&format!("{:x}", addr), color, job);
             }
         }
         if writing_offset {
@@ -112,10 +141,10 @@ fn ins_hover_ui(ui: &mut egui::Ui, ins: &ObjIns) {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap = Some(false);
 
-        ui.label(format!("{:02X?}", ins.ins.code.to_be_bytes()));
+        ui.label(format!("{:02X?}", ins.code.to_be_bytes()));
 
         for arg in &ins.args {
-            if let ObjInsArg::Arg(arg) = arg {
+            if let ObjInsArg::PpcArg(arg) = arg {
                 match arg {
                     Argument::Uimm(v) => {
                         ui.label(format!("{} == {}", v, v.0));
@@ -153,7 +182,7 @@ fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
         // if ui.button("Copy hex").clicked() {}
 
         for arg in &ins.args {
-            if let ObjInsArg::Arg(arg) = arg {
+            if let ObjInsArg::PpcArg(arg) = arg {
                 match arg {
                     Argument::Uimm(v) => {
                         if ui.button(format!("Copy \"{}\"", v)).clicked() {
@@ -236,7 +265,7 @@ fn asm_row_ui(ui: &mut egui::Ui, ins_diff: &ObjInsDiff, symbol: &ObjSymbol) {
             ObjInsDiffKind::Insert => Color32::GREEN,
         };
         write_text(
-            &format!("{:<6}", format!("{:x}:", ins.ins.addr - symbol.address as u32)),
+            &format!("{:<6}", format!("{:x}:", ins.address - symbol.address as u32)),
             base_color,
             &mut job,
         );

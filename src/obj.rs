@@ -1,3 +1,6 @@
+pub mod mips;
+pub mod ppc;
+
 use std::path::PathBuf;
 
 use flagset::{flags, FlagSet};
@@ -31,9 +34,11 @@ pub struct ObjSection {
 }
 #[derive(Debug, Clone)]
 pub enum ObjInsArg {
-    Arg(ppc750cl::Argument),
+    PpcArg(ppc750cl::Argument),
+    MipsArg(String),
     Reloc,
-    RelocOffset,
+    RelocWithBase,
+    BranchOffset(i32),
 }
 #[derive(Debug, Copy, Clone)]
 pub struct ObjInsArgDiff {
@@ -66,10 +71,13 @@ pub enum ObjInsDiffKind {
 }
 #[derive(Debug, Clone)]
 pub struct ObjIns {
-    pub ins: ppc750cl::Ins,
+    pub address: u32,
+    pub code: u32,
+    pub op: u8,
     pub mnemonic: String,
     pub args: Vec<ObjInsArg>,
     pub reloc: Option<ObjReloc>,
+    pub branch_dest: Option<u32>,
 }
 #[derive(Debug, Clone, Default)]
 pub struct ObjInsDiff {
@@ -88,6 +96,7 @@ pub struct ObjSymbol {
     pub name: String,
     pub demangled_name: Option<String>,
     pub address: u64,
+    pub section_address: u64,
     pub size: u64,
     pub size_known: bool,
     pub flags: ObjSymbolFlagSet,
@@ -97,8 +106,14 @@ pub struct ObjSymbol {
     pub instructions: Vec<ObjInsDiff>,
     pub match_percent: f32,
 }
+#[derive(Debug, Copy, Clone)]
+pub enum ObjArchitecture {
+    PowerPc,
+    Mips,
+}
 #[derive(Debug, Clone)]
 pub struct ObjInfo {
+    pub architecture: ObjArchitecture,
     pub path: PathBuf,
     pub sections: Vec<ObjSection>,
     pub common: Vec<ObjSymbol>,
@@ -116,6 +131,9 @@ pub enum ObjRelocKind {
     // PpcAddr14,
     PpcRel14,
     PpcEmbSda21,
+    Mips26,
+    MipsHi16,
+    MipsLo16,
 }
 #[derive(Debug, Clone)]
 pub struct ObjReloc {

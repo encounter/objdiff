@@ -66,21 +66,28 @@ fn symbol_ui(
             ..Default::default()
         });
     }
-    job.append("] (", 0.0, TextFormat {
+    job.append("] ", 0.0, TextFormat {
         font_id: font_id.clone(),
         color: Color32::GRAY,
         ..Default::default()
     });
-    job.append(&format!("{:.0}%", symbol.match_percent), 0.0, TextFormat {
-        font_id: font_id.clone(),
-        color: match_color_for_symbol(symbol),
-        ..Default::default()
-    });
-    job.append(") ", 0.0, TextFormat {
-        font_id: font_id.clone(),
-        color: Color32::GRAY,
-        ..Default::default()
-    });
+    if symbol.match_percent > 0.0 {
+        job.append("(", 0.0, TextFormat {
+            font_id: font_id.clone(),
+            color: Color32::GRAY,
+            ..Default::default()
+        });
+        job.append(&format!("{:.0}%", symbol.match_percent), 0.0, TextFormat {
+            font_id: font_id.clone(),
+            color: match_color_for_symbol(symbol),
+            ..Default::default()
+        });
+        job.append(") ", 0.0, TextFormat {
+            font_id: font_id.clone(),
+            color: Color32::GRAY,
+            ..Default::default()
+        });
+    }
     job.append(name, 0.0, TextFormat { font_id, color: Color32::WHITE, ..Default::default() });
     let response = SelectableLabel::new(selected, job).ui(ui);
     if response.clicked() {
