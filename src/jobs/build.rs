@@ -2,7 +2,7 @@ use std::{
     path::Path,
     process::Command,
     str::from_utf8,
-    sync::{Arc, mpsc::Receiver, RwLock},
+    sync::{mpsc::Receiver, Arc, RwLock},
 };
 
 use anyhow::{Context, Error, Result};
@@ -11,7 +11,7 @@ use crate::{
     app::AppConfig,
     diff::diff_objs,
     elf,
-    jobs::{Job, JobResult, JobState, queue_job, Status, update_status},
+    jobs::{queue_job, update_status, Job, JobResult, JobState, Status},
     obj::ObjInfo,
 };
 
@@ -30,7 +30,11 @@ fn run_make(cwd: &Path, arg: &Path, config: &AppConfig) -> BuildStatus {
     match (|| -> Result<BuildStatus> {
         let make = if config.custom_make.is_empty() { "make" } else { &config.custom_make };
         #[cfg(not(windows))]
-        let mut command = Command::new(make).current_dir(cwd).arg(arg);
+        {
+            let mut command = Command::new(make);
+            command.current_dir(cwd).arg(arg);
+            command
+        }
         #[cfg(windows)]
         let mut command = {
             use path_slash::PathExt;
