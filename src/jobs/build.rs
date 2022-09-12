@@ -2,7 +2,7 @@ use std::{
     path::Path,
     process::Command,
     str::from_utf8,
-    sync::{mpsc::Receiver, Arc, RwLock},
+    sync::{Arc, mpsc::Receiver, RwLock},
 };
 
 use anyhow::{Context, Error, Result};
@@ -11,7 +11,7 @@ use crate::{
     app::AppConfig,
     diff::diff_objs,
     elf,
-    jobs::{queue_job, update_status, Job, JobResult, JobState, Status},
+    jobs::{Job, JobResult, JobState, queue_job, Status, update_status},
     obj::ObjInfo,
 };
 
@@ -26,13 +26,36 @@ pub struct BuildResult {
     pub second_obj: Option<ObjInfo>,
 }
 
-fn run_make(cwd: &Path, arg: &Path) -> BuildStatus {
+fn run_make(cwd: &Path, arg: &Path, config: &AppConfig) -> BuildStatus {
     match (|| -> Result<BuildStatus> {
-        let output = Command::new("make")
-            .current_dir(cwd)
-            .arg(arg)
-            .output()
-            .context("Failed to execute build")?;
+        let make = if config.custom_make.is_empty() { "make" } else { &config.custom_make };
+        #[cfg(not(windows))]
+        let mut command = Command::new(make).current_dir(cwd).arg(arg);
+        #[cfg(windows)]
+        let mut command = {
+            use path_slash::PathExt;
+            use std::os::windows::process::CommandExt;
+            let mut command = if config.selected_wsl_distro.is_some() {
+                Command::new("wsl")
+            } else {
+                Command::new(make)
+            };
+            if let Some(distro) = &config.selected_wsl_distro {
+                command
+                    .arg("--cd")
+                    .arg(cwd)
+                    .arg("-d")
+                    .arg(distro)
+                    .arg("--")
+                    .arg(make)
+                    .arg(arg.to_slash_lossy().as_ref());
+            } else {
+                command.current_dir(cwd).arg(arg);
+            }
+            command.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
+            command
+        };
+        let output = command.output().context("Failed to execute build")?;
         let stdout = from_utf8(&output.stdout).context("Failed to process stdout")?;
         let stderr = from_utf8(&output.stderr).context("Failed to process stderr")?;
         Ok(BuildStatus {
@@ -72,10 +95,10 @@ fn run_build(
         src_path.strip_prefix(project_dir).context("Failed to create relative src obj path")?;
 
     update_status(status, format!("Building asm {}", obj_path), 0, 5, &cancel)?;
-    let first_status = run_make(project_dir, asm_path_rel);
+    let first_status = run_make(project_dir, asm_path_rel, &config);
 
     update_status(status, format!("Building src {}", obj_path), 1, 5, &cancel)?;
-    let second_status = run_make(project_dir, src_path_rel);
+    let second_status = run_make(project_dir, src_path_rel, &config);
 
     let mut first_obj = if first_status.success {
         update_status(status, format!("Loading asm {}", obj_path), 2, 5, &cancel)?;

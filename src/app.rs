@@ -61,6 +61,11 @@ pub struct ViewState {
 #[derive(Default, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct AppConfig {
+    pub custom_make: String,
+    // WSL2 settings
+    #[serde(skip)]
+    pub available_wsl_distros: Option<Vec<String>>,
+    pub selected_wsl_distro: Option<String>,
     // Split obj
     pub project_dir: Option<PathBuf>,
     pub build_asm_dir: Option<PathBuf>,
@@ -156,7 +161,6 @@ impl eframe::App for App {
             });
         } else {
             egui::SidePanel::left("side_panel").show(ctx, |ui| {
-                ui.heading("Config");
                 config_ui(ui, config, view_state);
                 jobs_ui(ui, view_state);
             });
@@ -194,7 +198,9 @@ impl eframe::App for App {
             ui.separator();
         });
 
-        if view_state.jobs.iter().any(|job| {
+        // Windows + request_repaint_after breaks dialogs:
+        // https://github.com/emilk/egui/issues/2003
+        if cfg!(windows) || view_state.jobs.iter().any(|job| {
             if let Some(handle) = &job.handle {
                 return !handle.is_finished();
             }
