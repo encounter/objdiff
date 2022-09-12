@@ -55,7 +55,7 @@ fn run_make(cwd: &Path, arg: &Path, config: &AppConfig) -> BuildStatus {
                     .arg(make)
                     .arg(arg.to_slash_lossy().as_ref());
             } else {
-                command.current_dir(cwd).arg(arg);
+                command.current_dir(cwd).arg(arg.to_slash_lossy().as_ref());
             }
             command.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
             command
