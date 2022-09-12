@@ -1,7 +1,8 @@
-use std::process::Command;
+#[cfg(windows)]
 use std::string::FromUtf16Error;
 use std::sync::{Arc, RwLock};
 
+#[cfg(windows)]
 use anyhow::{Context, Result};
 
 use crate::{
@@ -20,7 +21,7 @@ fn process_utf16(bytes: &[u8]) -> Result<String, FromUtf16Error> {
 
 #[cfg(windows)]
 fn wsl_cmd(args: &[&str]) -> Result<String> {
-    use std::os::windows::process::CommandExt;
+    use std::{os::windows::process::CommandExt, process::Command};
     let output = Command::new("wsl")
         .args(args)
         .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)
@@ -72,6 +73,11 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
                     ui.selectable_value(selected_wsl_distro, Some(distro.clone()), distro);
                 }
             });
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = available_wsl_distros;
+        let _ = selected_wsl_distro;
     }
 
     ui.label("Custom make program:");

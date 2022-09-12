@@ -30,15 +30,16 @@ fn run_make(cwd: &Path, arg: &Path, config: &AppConfig) -> BuildStatus {
     match (|| -> Result<BuildStatus> {
         let make = if config.custom_make.is_empty() { "make" } else { &config.custom_make };
         #[cfg(not(windows))]
-        {
+        let mut command = {
             let mut command = Command::new(make);
             command.current_dir(cwd).arg(arg);
             command
-        }
+        };
         #[cfg(windows)]
         let mut command = {
-            use path_slash::PathExt;
             use std::os::windows::process::CommandExt;
+
+            use path_slash::PathExt;
             let mut command = if config.selected_wsl_distro.is_some() {
                 Command::new("wsl")
             } else {

@@ -200,12 +200,14 @@ impl eframe::App for App {
 
         // Windows + request_repaint_after breaks dialogs:
         // https://github.com/emilk/egui/issues/2003
-        if cfg!(windows) || view_state.jobs.iter().any(|job| {
-            if let Some(handle) = &job.handle {
-                return !handle.is_finished();
-            }
-            false
-        }) {
+        if cfg!(windows)
+            || view_state.jobs.iter().any(|job| {
+                if let Some(handle) = &job.handle {
+                    return !handle.is_finished();
+                }
+                false
+            })
+        {
             ctx.request_repaint();
         } else {
             ctx.request_repaint_after(Duration::from_millis(100));
