@@ -1,3 +1,4 @@
+pub mod elf;
 pub mod mips;
 pub mod ppc;
 
@@ -142,9 +143,3 @@ pub struct ObjReloc {
     pub target: ObjSymbol,
     pub target_section: Option<String>,
 }
-// #[derive(Debug, Clone)]
-// pub struct ObjInsDiff {
-//     pub kind: ObjInsDiffKind,
-//     pub left: Option<ObjIns>,
-//     pub right: Option<ObjIns>,
-// }

@@ -15,7 +15,7 @@ use notify::{RecursiveMode, Watcher};
 
 use crate::{
     jobs::{
-        build::{queue_build, BuildResult, BuildStatus},
+        objdiff::{queue_build, BuildStatus, ObjDiffResult},
         Job, JobResult, JobState,
     },
     views::{
@@ -44,7 +44,7 @@ pub struct ViewState {
     #[serde(skip)]
     pub jobs: Vec<JobState>,
     #[serde(skip)]
-    pub build: Option<Box<BuildResult>>,
+    pub build: Option<Box<ObjDiffResult>>,
     #[serde(skip)]
     pub highlighted_symbol: Option<String>,
     #[serde(skip)]
@@ -68,9 +68,10 @@ pub struct AppConfig {
     pub selected_wsl_distro: Option<String>,
     // Split obj
     pub project_dir: Option<PathBuf>,
-    pub build_asm_dir: Option<PathBuf>,
-    pub build_src_dir: Option<PathBuf>,
-    pub build_obj: Option<String>,
+    pub target_obj_dir: Option<PathBuf>,
+    pub base_obj_dir: Option<PathBuf>,
+    pub obj_path: Option<String>,
+    pub build_target: bool,
     // Whole binary
     pub left_obj: Option<PathBuf>,
     pub right_obj: Option<PathBuf>,
@@ -237,11 +238,11 @@ impl eframe::App for App {
                                     log::error!("{:?}", err);
                                 }
                             }
-                            JobResult::Build(state) => {
+                            JobResult::ObjDiff(state) => {
                                 self.view_state.build = Some(state);
                             }
                             JobResult::BinDiff(state) => {
-                                self.view_state.build = Some(Box::new(BuildResult {
+                                self.view_state.build = Some(Box::new(ObjDiffResult {
                                     first_status: BuildStatus {
                                         success: true,
                                         log: "".to_string(),
@@ -287,13 +288,13 @@ impl eframe::App for App {
                 }
             }
 
-            if let Some(build_obj) = &config.build_obj {
+            if let Some(build_obj) = &config.obj_path {
                 if self.modified.load(Ordering::Relaxed) {
                     if !self
                         .view_state
                         .jobs
                         .iter()
-                        .any(|j| j.job_type == Job::Build && j.handle.is_some())
+                        .any(|j| j.job_type == Job::ObjDiff && j.handle.is_some())
                     {
                         self.view_state
                             .jobs

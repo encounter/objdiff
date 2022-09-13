@@ -9,14 +9,14 @@ use std::{
 
 use anyhow::Result;
 
-use crate::jobs::{bindiff::BinDiffResult, build::BuildResult};
+use crate::jobs::{bindiff::BinDiffResult, objdiff::ObjDiffResult};
 
 pub mod bindiff;
-pub mod build;
+pub mod objdiff;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Job {
-    Build,
+    ObjDiff,
     BinDiff,
 }
 pub static JOB_ID: AtomicUsize = AtomicUsize::new(0);
@@ -38,7 +38,7 @@ pub struct JobStatus {
 }
 pub enum JobResult {
     None,
-    Build(Box<BuildResult>),
+    ObjDiff(Box<ObjDiffResult>),
     BinDiff(Box<BinDiffResult>),
 }
 

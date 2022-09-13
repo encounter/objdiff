@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 
 use crate::{
     app::{AppConfig, DiffKind, ViewState},
-    jobs::{bindiff::queue_bindiff, build::queue_build},
+    jobs::{bindiff::queue_bindiff, objdiff::queue_build},
 };
 
 #[cfg(windows)]
@@ -50,12 +50,13 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
         available_wsl_distros,
         selected_wsl_distro,
         project_dir,
-        project_dir_change,
-        build_asm_dir,
-        build_src_dir,
-        build_obj,
+        target_obj_dir,
+        base_obj_dir,
+        obj_path,
+        build_target,
         left_obj,
         right_obj,
+        project_dir_change,
     } = &mut *config_guard;
 
     ui.heading("Build config");
@@ -92,9 +93,9 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
             if let Some(path) = rfd::FileDialog::new().pick_folder() {
                 *project_dir = Some(path);
                 *project_dir_change = true;
-                *build_asm_dir = None;
-                *build_src_dir = None;
-                *build_obj = None;
+                *target_obj_dir = None;
+                *base_obj_dir = None;
+                *obj_path = None;
             }
         }
         if let Some(dir) = project_dir {
@@ -104,58 +105,59 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
         ui.separator();
 
         if let Some(project_dir) = project_dir {
-            if ui.button("Select asm build dir").clicked() {
+            if ui.button("Select target build dir").clicked() {
                 if let Some(path) = rfd::FileDialog::new().set_directory(&project_dir).pick_folder()
                 {
-                    *build_asm_dir = Some(path);
-                    *build_obj = None;
+                    *target_obj_dir = Some(path);
+                    *obj_path = None;
                 }
             }
-            if let Some(dir) = build_asm_dir {
+            if let Some(dir) = target_obj_dir {
                 ui.label(dir.to_string_lossy());
             }
+            ui.checkbox(build_target, "Build target");
 
             ui.separator();
 
-            if ui.button("Select src build dir").clicked() {
+            if ui.button("Select base build dir").clicked() {
                 if let Some(path) = rfd::FileDialog::new().set_directory(&project_dir).pick_folder()
                 {
-                    *build_src_dir = Some(path);
-                    *build_obj = None;
+                    *base_obj_dir = Some(path);
+                    *obj_path = None;
                 }
             }
-            if let Some(dir) = build_src_dir {
+            if let Some(dir) = base_obj_dir {
                 ui.label(dir.to_string_lossy());
             }
 
             ui.separator();
         }
 
-        if let Some(build_src_dir) = build_src_dir {
+        if let Some(base_dir) = base_obj_dir {
             if ui.button("Select obj").clicked() {
                 if let Some(path) = rfd::FileDialog::new()
-                    .set_directory(&build_src_dir)
+                    .set_directory(&base_dir)
                     .add_filter("Object file", &["o", "elf"])
                     .pick_file()
                 {
                     let mut new_build_obj: Option<String> = None;
-                    if let Ok(obj_path) = path.strip_prefix(&build_src_dir) {
+                    if let Ok(obj_path) = path.strip_prefix(&base_dir) {
                         new_build_obj = Some(obj_path.display().to_string());
-                    } else if let Some(build_asm_dir) = build_asm_dir {
+                    } else if let Some(build_asm_dir) = target_obj_dir {
                         if let Ok(obj_path) = path.strip_prefix(&build_asm_dir) {
                             new_build_obj = Some(obj_path.display().to_string());
                         }
                     }
                     if let Some(new_build_obj) = new_build_obj {
-                        *build_obj = Some(new_build_obj.clone());
+                        *obj_path = Some(new_build_obj.clone());
                         view_state.jobs.push(queue_build(new_build_obj, config.clone()));
                     }
                 }
             }
-            if let Some(build_obj) = build_obj {
-                ui.label(&*build_obj);
+            if let Some(obj) = obj_path {
+                ui.label(&*obj);
                 if ui.button("Build").clicked() {
-                    view_state.jobs.push(queue_build(build_obj.clone(), config.clone()));
+                    view_state.jobs.push(queue_build(obj.clone(), config.clone()));
                 }
             }
 

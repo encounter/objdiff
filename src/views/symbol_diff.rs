@@ -6,7 +6,7 @@ use egui_extras::{Size, StripBuilder};
 
 use crate::{
     app::{View, ViewState},
-    jobs::build::BuildStatus,
+    jobs::objdiff::BuildStatus,
     obj::{ObjInfo, ObjSymbol, ObjSymbolFlags},
 };
 
@@ -18,6 +18,13 @@ pub fn match_color_for_symbol(symbol: &ObjSymbol) -> Color32 {
     } else {
         Color32::RED
     }
+}
+
+const FONT_SIZE: f32 = 14.0;
+const FONT_ID: FontId = FontId::new(FONT_SIZE, FontFamily::Monospace);
+
+fn write_text(str: &str, color: Color32, job: &mut LayoutJob) {
+    job.append(str, 0.0, TextFormat { font_id: FONT_ID, color, ..Default::default() });
 }
 
 fn symbol_ui(
@@ -34,61 +41,28 @@ fn symbol_ui(
     if let Some(sym) = highlighted_symbol {
         selected = sym == &symbol.name;
     }
-    let font_id = FontId::new(14.0, FontFamily::Monospace);
-    job.append("[", 0.0, TextFormat {
-        font_id: font_id.clone(),
-        color: Color32::GRAY,
-        ..Default::default()
-    });
+    write_text("[", Color32::GRAY, &mut job);
     if symbol.flags.0.contains(ObjSymbolFlags::Common) {
-        job.append("c", 0.0, TextFormat {
-            font_id: font_id.clone(),
-            color: Color32::from_rgb(0, 255, 255),
-            ..Default::default()
-        });
+        write_text("c", Color32::from_rgb(0, 255, 255), &mut job);
     } else if symbol.flags.0.contains(ObjSymbolFlags::Global) {
-        job.append("g", 0.0, TextFormat {
-            font_id: font_id.clone(),
-            color: Color32::GREEN,
-            ..Default::default()
-        });
+        write_text("g", Color32::GREEN, &mut job);
     } else if symbol.flags.0.contains(ObjSymbolFlags::Local) {
-        job.append("l", 0.0, TextFormat {
-            font_id: font_id.clone(),
-            color: Color32::GRAY,
-            ..Default::default()
-        });
+        write_text("l", Color32::GRAY, &mut job);
     }
     if symbol.flags.0.contains(ObjSymbolFlags::Weak) {
-        job.append("w", 0.0, TextFormat {
-            font_id: font_id.clone(),
-            color: Color32::GRAY,
-            ..Default::default()
-        });
+        write_text("w", Color32::GRAY, &mut job);
     }
-    job.append("] ", 0.0, TextFormat {
-        font_id: font_id.clone(),
-        color: Color32::GRAY,
-        ..Default::default()
-    });
+    write_text("] ", Color32::GRAY, &mut job);
     if symbol.match_percent > 0.0 {
-        job.append("(", 0.0, TextFormat {
-            font_id: font_id.clone(),
-            color: Color32::GRAY,
-            ..Default::default()
-        });
-        job.append(&format!("{:.0}%", symbol.match_percent), 0.0, TextFormat {
-            font_id: font_id.clone(),
-            color: match_color_for_symbol(symbol),
-            ..Default::default()
-        });
-        job.append(") ", 0.0, TextFormat {
-            font_id: font_id.clone(),
-            color: Color32::GRAY,
-            ..Default::default()
-        });
+        write_text("(", Color32::GRAY, &mut job);
+        write_text(
+            &format!("{:.0}%", symbol.match_percent),
+            match_color_for_symbol(symbol),
+            &mut job,
+        );
+        write_text(") ", Color32::GRAY, &mut job);
     }
-    job.append(name, 0.0, TextFormat { font_id, color: Color32::WHITE, ..Default::default() });
+    write_text(name, Color32::WHITE, &mut job);
     let response = SelectableLabel::new(selected, job).ui(ui);
     if response.clicked() {
         *selected_symbol = Some(symbol.name.clone());
@@ -175,7 +149,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
                                     Some(egui::TextStyle::Monospace);
                                 ui.style_mut().wrap = Some(false);
 
-                                ui.label("Build asm:");
+                                ui.label("Build target:");
                                 if result.first_status.success {
                                     ui.label("OK");
                                 } else {
@@ -190,7 +164,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
                                     Some(egui::TextStyle::Monospace);
                                 ui.style_mut().wrap = Some(false);
 
-                                ui.label("Build src:");
+                                ui.label("Build base:");
                                 if result.second_status.success {
                                     ui.label("OK");
                                 } else {

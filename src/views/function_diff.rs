@@ -324,7 +324,7 @@ pub fn function_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) {
                                     Color32::WHITE,
                                     demangled.as_ref().unwrap_or(selected_symbol),
                                 );
-                                ui.label("Diff asm:");
+                                ui.label("Diff target:");
                                 ui.separator();
                             });
                         });
@@ -342,7 +342,7 @@ pub fn function_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) {
                                         );
                                     }
                                 }
-                                ui.label("Diff src:");
+                                ui.label("Diff base:");
                                 ui.separator();
                             });
                         });

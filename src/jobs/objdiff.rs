@@ -10,16 +10,15 @@ use anyhow::{Context, Error, Result};
 use crate::{
     app::AppConfig,
     diff::diff_objs,
-    elf,
     jobs::{queue_job, update_status, Job, JobResult, JobState, Status},
-    obj::ObjInfo,
+    obj::{elf, ObjInfo},
 };
 
 pub struct BuildStatus {
     pub success: bool,
     pub log: String,
 }
-pub struct BuildResult {
+pub struct ObjDiffResult {
     pub first_status: BuildStatus,
     pub second_status: BuildStatus,
     pub first_obj: Option<ObjInfo>,
@@ -78,58 +77,61 @@ fn run_build(
     cancel: Receiver<()>,
     obj_path: String,
     config: Arc<RwLock<AppConfig>>,
-) -> Result<Box<BuildResult>> {
+) -> Result<Box<ObjDiffResult>> {
     let config = config.read().map_err(|_| Error::msg("Failed to lock app config"))?.clone();
     let project_dir =
         config.project_dir.as_ref().ok_or_else(|| Error::msg("Missing project dir"))?;
-    let mut asm_path = config
-        .build_asm_dir
+    let mut target_path = config
+        .target_obj_dir
         .as_ref()
-        .ok_or_else(|| Error::msg("Missing build asm dir"))?
+        .ok_or_else(|| Error::msg("Missing target obj dir"))?
         .to_owned();
-    asm_path.push(&obj_path);
-    let mut src_path = config
-        .build_src_dir
-        .as_ref()
-        .ok_or_else(|| Error::msg("Missing build src dir"))?
-        .to_owned();
-    src_path.push(&obj_path);
-    let asm_path_rel =
-        asm_path.strip_prefix(project_dir).context("Failed to create relative asm obj path")?;
-    let src_path_rel =
-        src_path.strip_prefix(project_dir).context("Failed to create relative src obj path")?;
+    target_path.push(&obj_path);
+    let mut base_path =
+        config.base_obj_dir.as_ref().ok_or_else(|| Error::msg("Missing base obj dir"))?.to_owned();
+    base_path.push(&obj_path);
+    let target_path_rel = target_path
+        .strip_prefix(project_dir)
+        .context("Failed to create relative target obj path")?;
+    let base_path_rel =
+        base_path.strip_prefix(project_dir).context("Failed to create relative base obj path")?;
 
-    update_status(status, format!("Building asm {}", obj_path), 0, 5, &cancel)?;
-    let first_status = run_make(project_dir, asm_path_rel, &config);
+    let total = if config.build_target { 5 } else { 4 };
+    let first_status = if config.build_target {
+        update_status(status, format!("Building target {}", obj_path), 0, total, &cancel)?;
+        run_make(project_dir, target_path_rel, &config)
+    } else {
+        BuildStatus { success: true, log: String::new() }
+    };
 
-    update_status(status, format!("Building src {}", obj_path), 1, 5, &cancel)?;
-    let second_status = run_make(project_dir, src_path_rel, &config);
+    update_status(status, format!("Building base {}", obj_path), 1, total, &cancel)?;
+    let second_status = run_make(project_dir, base_path_rel, &config);
 
     let mut first_obj = if first_status.success {
-        update_status(status, format!("Loading asm {}", obj_path), 2, 5, &cancel)?;
-        Some(elf::read(&asm_path)?)
+        update_status(status, format!("Loading target {}", obj_path), 2, total, &cancel)?;
+        Some(elf::read(&target_path)?)
     } else {
         None
     };
 
     let mut second_obj = if second_status.success {
-        update_status(status, format!("Loading src {}", obj_path), 3, 5, &cancel)?;
-        Some(elf::read(&src_path)?)
+        update_status(status, format!("Loading base {}", obj_path), 3, total, &cancel)?;
+        Some(elf::read(&base_path)?)
     } else {
         None
     };
 
     if let (Some(first_obj), Some(second_obj)) = (&mut first_obj, &mut second_obj) {
-        update_status(status, "Performing diff".to_string(), 4, 5, &cancel)?;
+        update_status(status, "Performing diff".to_string(), 4, total, &cancel)?;
         diff_objs(first_obj, second_obj)?;
     }
 
-    update_status(status, "Complete".to_string(), 5, 5, &cancel)?;
-    Ok(Box::new(BuildResult { first_status, second_status, first_obj, second_obj }))
+    update_status(status, "Complete".to_string(), total, total, &cancel)?;
+    Ok(Box::new(ObjDiffResult { first_status, second_status, first_obj, second_obj }))
 }
 
 pub fn queue_build(obj_path: String, config: Arc<RwLock<AppConfig>>) -> JobState {
-    queue_job(Job::Build, move |status, cancel| {
-        run_build(status, cancel, obj_path, config).map(JobResult::Build)
+    queue_job(Job::ObjDiff, move |status, cancel| {
+        run_build(status, cancel, obj_path, config).map(JobResult::ObjDiff)
     })
 }

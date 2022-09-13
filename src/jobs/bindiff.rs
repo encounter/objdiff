@@ -5,9 +5,8 @@ use anyhow::{Error, Result};
 use crate::{
     app::AppConfig,
     diff::diff_objs,
-    elf,
     jobs::{queue_job, update_status, Job, JobResult, JobState, Status},
-    obj::ObjInfo,
+    obj::{elf, ObjInfo},
 };
 
 pub struct BinDiffResult {
@@ -21,15 +20,15 @@ fn run_build(
     config: Arc<RwLock<AppConfig>>,
 ) -> Result<Box<BinDiffResult>> {
     let config = config.read().map_err(|_| Error::msg("Failed to lock app config"))?.clone();
-    let left_path = config.left_obj.as_ref().ok_or_else(|| Error::msg("Missing left obj path"))?;
-    let right_path =
-        config.right_obj.as_ref().ok_or_else(|| Error::msg("Missing right obj path"))?;
+    let target_path =
+        config.left_obj.as_ref().ok_or_else(|| Error::msg("Missing target obj path"))?;
+    let base_path = config.right_obj.as_ref().ok_or_else(|| Error::msg("Missing base obj path"))?;
 
-    update_status(status, "Loading left obj".to_string(), 0, 3, &cancel)?;
-    let mut left_obj = elf::read(left_path)?;
+    update_status(status, "Loading target obj".to_string(), 0, 3, &cancel)?;
+    let mut left_obj = elf::read(target_path)?;
 
-    update_status(status, "Loading right obj".to_string(), 1, 3, &cancel)?;
-    let mut right_obj = elf::read(right_path)?;
+    update_status(status, "Loading base obj".to_string(), 1, 3, &cancel)?;
+    let mut right_obj = elf::read(base_path)?;
 
     update_status(status, "Performing diff".to_string(), 2, 3, &cancel)?;
     diff_objs(&mut left_obj, &mut right_obj)?;
