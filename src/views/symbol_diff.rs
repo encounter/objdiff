@@ -27,6 +27,35 @@ fn write_text(str: &str, color: Color32, job: &mut LayoutJob) {
     job.append(str, 0.0, TextFormat { font_id: FONT_ID, color, ..Default::default() });
 }
 
+fn symbol_context_menu_ui(ui: &mut Ui, symbol: &ObjSymbol) {
+    ui.scope(|ui| {
+        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+        ui.style_mut().wrap = Some(false);
+
+        if let Some(name) = &symbol.demangled_name {
+            if ui.button(format!("Copy \"{}\"", name)).clicked() {
+                ui.output().copied_text = name.clone();
+                ui.close_menu();
+            }
+        }
+        if ui.button(format!("Copy \"{}\"", symbol.name)).clicked() {
+            ui.output().copied_text = symbol.name.clone();
+            ui.close_menu();
+        }
+    });
+}
+
+fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol) {
+    ui.scope(|ui| {
+        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+        ui.style_mut().wrap = Some(false);
+
+        ui.colored_label(Color32::WHITE, format!("Name: {}", symbol.name));
+        ui.colored_label(Color32::WHITE, format!("Address: {:x}", symbol.address));
+        ui.colored_label(Color32::WHITE, format!("Size: {:x}", symbol.size));
+    });
+}
+
 fn symbol_ui(
     ui: &mut Ui,
     symbol: &ObjSymbol,
@@ -63,7 +92,10 @@ fn symbol_ui(
         write_text(") ", Color32::GRAY, &mut job);
     }
     write_text(name, Color32::WHITE, &mut job);
-    let response = SelectableLabel::new(selected, job).ui(ui);
+    let response = SelectableLabel::new(selected, job)
+        .ui(ui)
+        .context_menu(|ui| symbol_context_menu_ui(ui, symbol))
+        .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, symbol));
     if response.clicked() {
         *selected_symbol = Some(symbol.name.clone());
         *current_view = View::FunctionDiff;
@@ -125,10 +157,13 @@ fn symbol_list_ui(
 }
 
 fn build_log_ui(ui: &mut Ui, status: &BuildStatus) {
-    ui.scope(|ui| {
-        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-        ui.style_mut().wrap = Some(false);
-        ui.colored_label(Color32::from_rgb(255, 0, 0), &status.log);
+    ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
+        ui.scope(|ui| {
+            ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+            ui.style_mut().wrap = Some(false);
+
+            ui.colored_label(Color32::from_rgb(255, 0, 0), &status.log);
+        });
     });
 }
 
