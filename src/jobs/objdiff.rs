@@ -6,9 +6,10 @@ use std::{
 };
 
 use anyhow::{Context, Error, Result};
+use time::OffsetDateTime;
 
 use crate::{
-    app::AppConfig,
+    app::{AppConfig, DiffConfig},
     diff::diff_objs,
     jobs::{queue_job, update_status, Job, JobResult, JobState, Status},
     obj::{elf, ObjInfo},
@@ -23,6 +24,7 @@ pub struct ObjDiffResult {
     pub second_status: BuildStatus,
     pub first_obj: Option<ObjInfo>,
     pub second_obj: Option<ObjInfo>,
+    pub time: OffsetDateTime,
 }
 
 fn run_make(cwd: &Path, arg: &Path, config: &AppConfig) -> BuildStatus {
@@ -75,10 +77,11 @@ fn run_make(cwd: &Path, arg: &Path, config: &AppConfig) -> BuildStatus {
 fn run_build(
     status: &Status,
     cancel: Receiver<()>,
-    obj_path: String,
     config: Arc<RwLock<AppConfig>>,
+    diff_config: DiffConfig,
 ) -> Result<Box<ObjDiffResult>> {
     let config = config.read().map_err(|_| Error::msg("Failed to lock app config"))?.clone();
+    let obj_path = config.obj_path.as_ref().ok_or_else(|| Error::msg("Missing obj path"))?;
     let project_dir =
         config.project_dir.as_ref().ok_or_else(|| Error::msg("Missing project dir"))?;
     let mut target_path = config
@@ -86,10 +89,10 @@ fn run_build(
         .as_ref()
         .ok_or_else(|| Error::msg("Missing target obj dir"))?
         .to_owned();
-    target_path.push(&obj_path);
+    target_path.push(obj_path);
     let mut base_path =
         config.base_obj_dir.as_ref().ok_or_else(|| Error::msg("Missing base obj dir"))?.to_owned();
-    base_path.push(&obj_path);
+    base_path.push(obj_path);
     let target_path_rel = target_path
         .strip_prefix(project_dir)
         .context("Failed to create relative target obj path")?;
@@ -107,6 +110,8 @@ fn run_build(
     update_status(status, format!("Building base {}", obj_path), 1, total, &cancel)?;
     let second_status = run_make(project_dir, base_path_rel, &config);
 
+    let time = OffsetDateTime::now_utc();
+
     let mut first_obj = if first_status.success {
         update_status(status, format!("Loading target {}", obj_path), 2, total, &cancel)?;
         Some(elf::read(&target_path)?)
@@ -123,15 +128,15 @@ fn run_build(
 
     if let (Some(first_obj), Some(second_obj)) = (&mut first_obj, &mut second_obj) {
         update_status(status, "Performing diff".to_string(), 4, total, &cancel)?;
-        diff_objs(first_obj, second_obj)?;
+        diff_objs(first_obj, second_obj, &diff_config)?;
     }
 
     update_status(status, "Complete".to_string(), total, total, &cancel)?;
-    Ok(Box::new(ObjDiffResult { first_status, second_status, first_obj, second_obj }))
+    Ok(Box::new(ObjDiffResult { first_status, second_status, first_obj, second_obj, time }))
 }
 
-pub fn queue_build(obj_path: String, config: Arc<RwLock<AppConfig>>) -> JobState {
+pub fn queue_build(config: Arc<RwLock<AppConfig>>, diff_config: DiffConfig) -> JobState {
     queue_job(Job::ObjDiff, move |status, cancel| {
-        run_build(status, cancel, obj_path, config).map(JobResult::ObjDiff)
+        run_build(status, cancel, config, diff_config).map(JobResult::ObjDiff)
     })
 }

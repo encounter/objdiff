@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 
 use crate::{
+    app::DiffConfig,
     editops::{editops_find, LevEditType},
     obj::{
         mips, ppc, ObjArchitecture, ObjInfo, ObjInsArg, ObjInsArgDiff, ObjInsBranchFrom,
@@ -336,7 +337,7 @@ fn find_symbol<'a>(symbols: &'a mut [ObjSymbol], name: &str) -> Option<&'a mut O
     symbols.iter_mut().find(|s| s.name == name)
 }
 
-pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo) -> Result<()> {
+pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo, _diff_config: &DiffConfig) -> Result<()> {
     for left_section in &mut left.sections {
         if let Some(right_section) = find_section(right, &left_section.name) {
             for left_symbol in &mut left_section.symbols {

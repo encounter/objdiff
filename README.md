@@ -7,6 +7,7 @@ A tool for decompilation projects.
 
 Currently supports:
 - PowerPC 750CL (GameCube & Wii)
+- MIPS (Nintendo 64)
 
 **WARNING:** Very early & unstable.
 

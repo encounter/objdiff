@@ -12,6 +12,7 @@ use std::{
 use eframe::Frame;
 use egui::Widget;
 use notify::{RecursiveMode, Watcher};
+use time::{OffsetDateTime, UtcOffset};
 
 use crate::{
     jobs::{
@@ -38,7 +39,14 @@ pub enum DiffKind {
     WholeBinary,
 }
 
-#[derive(Default, serde::Deserialize, serde::Serialize)]
+#[derive(Default, Clone)]
+pub struct DiffConfig {
+    // TODO
+    // pub stripped_symbols: Vec<String>,
+    // pub mapped_symbols: HashMap<String, String>,
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct ViewState {
     #[serde(skip)]
@@ -53,9 +61,33 @@ pub struct ViewState {
     pub current_view: View,
     #[serde(skip)]
     pub show_config: bool,
+    #[serde(skip)]
+    pub diff_config: DiffConfig,
+    #[serde(skip)]
+    pub search: String,
+    #[serde(skip)]
+    pub utc_offset: UtcOffset,
     // Config
     pub diff_kind: DiffKind,
     pub reverse_fn_order: bool,
+}
+
+impl Default for ViewState {
+    fn default() -> Self {
+        Self {
+            jobs: vec![],
+            build: None,
+            highlighted_symbol: None,
+            selected_symbol: None,
+            current_view: Default::default(),
+            show_config: false,
+            diff_config: Default::default(),
+            search: Default::default(),
+            utc_offset: UtcOffset::UTC,
+            diff_kind: Default::default(),
+            reverse_fn_order: false,
+        }
+    }
 }
 
 #[derive(Default, Clone, serde::Deserialize, serde::Serialize)]
@@ -107,7 +139,7 @@ const CONFIG_KEY: &str = "app_config";
 
 impl App {
     /// Called once before the first frame.
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, utc_offset: UtcOffset) -> Self {
         // This is also where you can customized the look at feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
 
@@ -120,6 +152,7 @@ impl App {
                 config.project_dir_change = true;
             }
             app.config = Arc::new(RwLock::new(config));
+            app.view_state.utc_offset = utc_offset;
             app
         } else {
             Self::default()
@@ -149,16 +182,20 @@ impl eframe::App for App {
         if view_state.current_view == View::FunctionDiff
             && matches!(&view_state.build, Some(b) if b.first_status.success && b.second_status.success)
         {
-            egui::SidePanel::left("side_panel").show(ctx, |ui| {
-                if ui.button("Back").clicked() {
-                    view_state.current_view = View::SymbolDiff;
-                }
-                ui.separator();
-                jobs_ui(ui, view_state);
-            });
+            // egui::SidePanel::left("side_panel").show(ctx, |ui| {
+            //     if ui.button("Back").clicked() {
+            //         view_state.current_view = View::SymbolDiff;
+            //     }
+            //     ui.separator();
+            //     jobs_ui(ui, view_state);
+            // });
 
             egui::CentralPanel::default().show(ctx, |ui| {
-                function_diff_ui(ui, view_state);
+                if function_diff_ui(ui, view_state) {
+                    view_state
+                        .jobs
+                        .push(queue_build(config.clone(), view_state.diff_config.clone()));
+                }
             });
         } else {
             egui::SidePanel::left("side_panel").show(ctx, |ui| {
@@ -253,6 +290,7 @@ impl eframe::App for App {
                                     },
                                     first_obj: Some(state.first_obj),
                                     second_obj: Some(state.second_obj),
+                                    time: OffsetDateTime::now_utc(),
                                 }));
                             }
                         }
@@ -267,7 +305,10 @@ impl eframe::App for App {
             let mut i = 0;
             while i < self.view_state.jobs.len() {
                 let job = &self.view_state.jobs[i];
-                if job.should_remove && job.handle.is_none() {
+                if job.should_remove
+                    && job.handle.is_none()
+                    && job.status.read().unwrap().error.is_none()
+                {
                     self.view_state.jobs.remove(i);
                 } else {
                     i += 1;
@@ -288,20 +329,19 @@ impl eframe::App for App {
                 }
             }
 
-            if let Some(build_obj) = &config.obj_path {
-                if self.modified.load(Ordering::Relaxed) {
-                    if !self
-                        .view_state
-                        .jobs
-                        .iter()
-                        .any(|j| j.job_type == Job::ObjDiff && j.handle.is_some())
-                    {
-                        self.view_state
-                            .jobs
-                            .push(queue_build(build_obj.clone(), self.config.clone()));
-                    }
-                    self.modified.store(false, Ordering::Relaxed);
+            if config.obj_path.is_some() && self.modified.load(Ordering::Relaxed) {
+                if !self
+                    .view_state
+                    .jobs
+                    .iter()
+                    .any(|j| j.job_type == Job::ObjDiff && j.handle.is_some())
+                {
+                    self.view_state.jobs.push(queue_build(
+                        self.config.clone(),
+                        self.view_state.diff_config.clone(),
+                    ));
                 }
+                self.modified.store(false, Ordering::Relaxed);
             }
         }
     }

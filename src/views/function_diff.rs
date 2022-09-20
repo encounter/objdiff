@@ -4,9 +4,11 @@ use cwdemangle::demangle;
 use egui::{text::LayoutJob, Color32, Label, Sense};
 use egui_extras::{Size, StripBuilder, TableBuilder};
 use ppc750cl::Argument;
+use time::format_description;
 
 use crate::{
-    app::ViewState,
+    app::{View, ViewState},
+    jobs::Job,
     obj::{
         ObjInfo, ObjIns, ObjInsArg, ObjInsArgDiff, ObjInsDiff, ObjInsDiffKind, ObjReloc,
         ObjRelocKind, ObjSymbol,
@@ -305,11 +307,57 @@ fn asm_table_ui(
     Some(())
 }
 
-pub fn function_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) {
+pub fn function_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
+    let mut rebuild = false;
     if let (Some(result), Some(selected_symbol)) = (&view_state.build, &view_state.selected_symbol)
     {
-        StripBuilder::new(ui).size(Size::exact(40.0)).size(Size::remainder()).vertical(
-            |mut strip| {
+        StripBuilder::new(ui)
+            .size(Size::exact(20.0))
+            .size(Size::exact(40.0))
+            .size(Size::remainder())
+            .vertical(|mut strip| {
+                strip.strip(|builder| {
+                    builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
+                        strip.cell(|ui| {
+                            ui.horizontal(|ui| {
+                                if ui.button("Back").clicked() {
+                                    view_state.current_view = View::SymbolDiff;
+                                }
+                            });
+                        });
+                        strip.cell(|ui| {
+                            ui.horizontal(|ui| {
+                                if ui.button("Build").clicked() {
+                                    rebuild = true;
+                                }
+                                ui.scope(|ui| {
+                                    ui.style_mut().override_text_style =
+                                        Some(egui::TextStyle::Monospace);
+                                    ui.style_mut().wrap = Some(false);
+                                    if view_state
+                                        .jobs
+                                        .iter()
+                                        .any(|job| job.job_type == Job::ObjDiff)
+                                    {
+                                        ui.label("Building...");
+                                    } else {
+                                        ui.label("Last built:");
+                                        let format =
+                                            format_description::parse("[hour]:[minute]:[second]")
+                                                .unwrap();
+                                        ui.label(
+                                            result
+                                                .time
+                                                .to_offset(view_state.utc_offset)
+                                                .format(&format)
+                                                .unwrap(),
+                                        );
+                                    }
+                                });
+                            });
+                        });
+                    });
+                });
                 strip.strip(|builder| {
                     builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
                         let demangled = demangle(selected_symbol);
@@ -359,7 +407,7 @@ pub fn function_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) {
                         asm_table_ui(table, left_obj, right_obj, selected_symbol);
                     }
                 });
-            },
-        );
+            });
     }
+    rebuild
 }

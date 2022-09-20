@@ -149,15 +149,19 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
                         }
                     }
                     if let Some(new_build_obj) = new_build_obj {
-                        *obj_path = Some(new_build_obj.clone());
-                        view_state.jobs.push(queue_build(new_build_obj, config.clone()));
+                        *obj_path = Some(new_build_obj);
+                        view_state
+                            .jobs
+                            .push(queue_build(config.clone(), view_state.diff_config.clone()));
                     }
                 }
             }
             if let Some(obj) = obj_path {
                 ui.label(&*obj);
                 if ui.button("Build").clicked() {
-                    view_state.jobs.push(queue_build(obj.clone(), config.clone()));
+                    view_state
+                        .jobs
+                        .push(queue_build(config.clone(), view_state.diff_config.clone()));
                 }
             }
 

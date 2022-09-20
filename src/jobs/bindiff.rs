@@ -3,7 +3,7 @@ use std::sync::{mpsc::Receiver, Arc, RwLock};
 use anyhow::{Error, Result};
 
 use crate::{
-    app::AppConfig,
+    app::{AppConfig, DiffConfig},
     diff::diff_objs,
     jobs::{queue_job, update_status, Job, JobResult, JobState, Status},
     obj::{elf, ObjInfo},
@@ -31,7 +31,7 @@ fn run_build(
     let mut right_obj = elf::read(base_path)?;
 
     update_status(status, "Performing diff".to_string(), 2, 3, &cancel)?;
-    diff_objs(&mut left_obj, &mut right_obj)?;
+    diff_objs(&mut left_obj, &mut right_obj, &DiffConfig::default() /* TODO */)?;
 
     update_status(status, "Complete".to_string(), 3, 3, &cancel)?;
     Ok(Box::new(BinDiffResult { first_obj: left_obj, second_obj: right_obj }))
