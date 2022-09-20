@@ -181,6 +181,10 @@ fn resolve_branches(vec: &mut [ObjInsDiff]) {
     }
 }
 
+fn address_eq(left: &ObjSymbol, right: &ObjSymbol) -> bool {
+    left.address as i64 + left.addend == right.address as i64 + right.addend
+}
+
 fn reloc_eq(left_reloc: Option<&ObjReloc>, right_reloc: Option<&ObjReloc>) -> bool {
     if let (Some(left), Some(right)) = (left_reloc, right_reloc) {
         if left.kind != right.kind {
@@ -190,7 +194,7 @@ fn reloc_eq(left_reloc: Option<&ObjReloc>, right_reloc: Option<&ObjReloc>) -> bo
         match (&left.target_section, &right.target_section) {
             (Some(sl), Some(sr)) => {
                 // Match if section and name or address match
-                sl == sr && (name_matches || left.target.address == right.target.address)
+                sl == sr && (name_matches || address_eq(&left.target, &right.target))
             }
             (Some(_), None) => false,
             (None, Some(_)) => {

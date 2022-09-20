@@ -101,6 +101,7 @@ pub struct ObjSymbol {
     pub size: u64,
     pub size_known: bool,
     pub flags: ObjSymbolFlagSet,
+    pub addend: i64,
 
     // Diff
     pub diff_symbol: Option<String>,

@@ -1,7 +1,7 @@
 use std::default::Default;
 
 use cwdemangle::demangle;
-use egui::{text::LayoutJob, Color32, FontFamily, FontId, Label, Sense, TextFormat};
+use egui::{text::LayoutJob, Color32, Label, Sense};
 use egui_extras::{Size, StripBuilder, TableBuilder};
 use ppc750cl::Argument;
 
@@ -11,52 +11,50 @@ use crate::{
         ObjInfo, ObjIns, ObjInsArg, ObjInsArgDiff, ObjInsDiff, ObjInsDiffKind, ObjReloc,
         ObjRelocKind, ObjSymbol,
     },
-    views::symbol_diff::match_color_for_symbol,
+    views::{symbol_diff::match_color_for_symbol, write_text, COLOR_RED, FONT_SIZE},
 };
 
-const FONT_SIZE: f32 = 14.0;
-const FONT_ID: FontId = FontId::new(FONT_SIZE, FontFamily::Monospace);
-
-const COLOR_RED: Color32 = Color32::from_rgb(200, 40, 41);
-
-fn write_text(str: &str, color: Color32, job: &mut LayoutJob) {
-    job.append(str, 0.0, TextFormat { font_id: FONT_ID, color, ..Default::default() });
+fn write_reloc_name(reloc: &ObjReloc, color: Color32, job: &mut LayoutJob) {
+    let name = reloc.target.demangled_name.as_ref().unwrap_or(&reloc.target.name);
+    write_text(name, Color32::LIGHT_GRAY, job);
+    if reloc.target.addend != 0 {
+        write_text(&format!("+{:X}", reloc.target.addend), color, job);
+    }
 }
 
-fn write_reloc(reloc: &ObjReloc, job: &mut LayoutJob) {
-    let name = reloc.target.demangled_name.as_ref().unwrap_or(&reloc.target.name);
+fn write_reloc(reloc: &ObjReloc, color: Color32, job: &mut LayoutJob) {
     match reloc.kind {
         ObjRelocKind::PpcAddr16Lo => {
-            write_text(name, Color32::LIGHT_GRAY, job);
-            write_text("@l", Color32::GRAY, job);
+            write_reloc_name(reloc, color, job);
+            write_text("@l", color, job);
         }
         ObjRelocKind::PpcAddr16Hi => {
-            write_text(name, Color32::LIGHT_GRAY, job);
-            write_text("@h", Color32::GRAY, job);
+            write_reloc_name(reloc, color, job);
+            write_text("@h", color, job);
         }
         ObjRelocKind::PpcAddr16Ha => {
-            write_text(name, Color32::LIGHT_GRAY, job);
-            write_text("@ha", Color32::GRAY, job);
+            write_reloc_name(reloc, color, job);
+            write_text("@ha", color, job);
         }
         ObjRelocKind::PpcEmbSda21 => {
-            write_text(name, Color32::LIGHT_GRAY, job);
-            write_text("@sda21", Color32::GRAY, job);
+            write_reloc_name(reloc, color, job);
+            write_text("@sda21", color, job);
         }
         ObjRelocKind::MipsHi16 => {
-            write_text("%hi(", Color32::GRAY, job);
-            write_text(name, Color32::LIGHT_GRAY, job);
-            write_text(")", Color32::GRAY, job);
+            write_text("%hi(", color, job);
+            write_reloc_name(reloc, color, job);
+            write_text(")", color, job);
         }
         ObjRelocKind::MipsLo16 => {
-            write_text("%lo(", Color32::GRAY, job);
-            write_text(name, Color32::LIGHT_GRAY, job);
-            write_text(")", Color32::GRAY, job);
+            write_text("%lo(", color, job);
+            write_reloc_name(reloc, color, job);
+            write_text(")", color, job);
         }
         ObjRelocKind::Absolute
         | ObjRelocKind::PpcRel24
         | ObjRelocKind::PpcRel14
         | ObjRelocKind::Mips26 => {
-            write_text(name, Color32::LIGHT_GRAY, job);
+            write_reloc_name(reloc, color, job);
         }
     };
 }
@@ -113,10 +111,10 @@ fn write_ins(
                 }
             },
             ObjInsArg::Reloc => {
-                write_reloc(ins.reloc.as_ref().unwrap(), job);
+                write_reloc(ins.reloc.as_ref().unwrap(), base_color, job);
             }
             ObjInsArg::RelocWithBase => {
-                write_reloc(ins.reloc.as_ref().unwrap(), job);
+                write_reloc(ins.reloc.as_ref().unwrap(), base_color, job);
                 write_text("(", base_color, job);
                 writing_offset = true;
                 continue;

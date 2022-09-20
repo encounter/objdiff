@@ -1,6 +1,6 @@
 use egui::{
-    text::LayoutJob, CollapsingHeader, Color32, FontFamily, FontId, Rgba, ScrollArea,
-    SelectableLabel, TextFormat, Ui, Widget,
+    text::LayoutJob, CollapsingHeader, Color32, Rgba, ScrollArea,
+    SelectableLabel, Ui, Widget,
 };
 use egui_extras::{Size, StripBuilder};
 
@@ -8,6 +8,7 @@ use crate::{
     app::{View, ViewState},
     jobs::objdiff::BuildStatus,
     obj::{ObjInfo, ObjSymbol, ObjSymbolFlags},
+    views::write_text,
 };
 
 pub fn match_color_for_symbol(symbol: &ObjSymbol) -> Color32 {
@@ -18,13 +19,6 @@ pub fn match_color_for_symbol(symbol: &ObjSymbol) -> Color32 {
     } else {
         Color32::RED
     }
-}
-
-const FONT_SIZE: f32 = 14.0;
-const FONT_ID: FontId = FontId::new(FONT_SIZE, FontFamily::Monospace);
-
-fn write_text(str: &str, color: Color32, job: &mut LayoutJob) {
-    job.append(str, 0.0, TextFormat { font_id: FONT_ID, color, ..Default::default() });
 }
 
 fn symbol_context_menu_ui(ui: &mut Ui, symbol: &ObjSymbol) {
@@ -104,6 +98,16 @@ fn symbol_ui(
     }
 }
 
+fn symbol_matches_search(symbol: &ObjSymbol, search_str: &str) -> bool {
+    search_str.is_empty()
+        || symbol.name.contains(search_str)
+        || symbol
+            .demangled_name
+            .as_ref()
+            .map(|s| s.to_ascii_lowercase().contains(search_str))
+            .unwrap_or(false)
+}
+
 fn symbol_list_ui(
     ui: &mut Ui,
     obj: &ObjInfo,
@@ -111,7 +115,11 @@ fn symbol_list_ui(
     selected_symbol: &mut Option<String>,
     current_view: &mut View,
     reverse_function_order: bool,
+    search: &mut String,
 ) {
+    ui.text_edit_singleline(search);
+    let lower_search = search.to_ascii_lowercase();
+
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         ui.scope(|ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
@@ -131,6 +139,9 @@ fn symbol_list_ui(
                     .show(ui, |ui| {
                         if section.name == ".text" && reverse_function_order {
                             for symbol in section.symbols.iter().rev() {
+                                if !symbol_matches_search(symbol, &lower_search) {
+                                    continue;
+                                }
                                 symbol_ui(
                                     ui,
                                     symbol,
@@ -141,6 +152,9 @@ fn symbol_list_ui(
                             }
                         } else {
                             for symbol in &section.symbols {
+                                if !symbol_matches_search(symbol, &lower_search) {
+                                    continue;
+                                }
                                 symbol_ui(
                                     ui,
                                     symbol,
@@ -168,11 +182,12 @@ fn build_log_ui(ui: &mut Ui, status: &BuildStatus) {
 }
 
 pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
-    if let (Some(result), highlighted_symbol, selected_symbol, current_view) = (
+    if let (Some(result), highlighted_symbol, selected_symbol, current_view, search) = (
         &view_state.build,
         &mut view_state.highlighted_symbol,
         &mut view_state.selected_symbol,
         &mut view_state.current_view,
+        &mut view_state.search,
     ) {
         StripBuilder::new(ui).size(Size::exact(40.0)).size(Size::remainder()).vertical(
             |mut strip| {
@@ -223,6 +238,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
                                             selected_symbol,
                                             current_view,
                                             view_state.reverse_fn_order,
+                                            search,
                                         );
                                     });
                                 }
@@ -241,6 +257,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
                                             selected_symbol,
                                             current_view,
                                             view_state.reverse_fn_order,
+                                            search,
                                         );
                                     });
                                 }

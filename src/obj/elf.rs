@@ -22,7 +22,7 @@ fn to_obj_section_kind(kind: SectionKind) -> ObjSectionKind {
     }
 }
 
-fn to_obj_symbol(obj_file: &File<'_>, symbol: &Symbol<'_, '_>) -> Result<ObjSymbol> {
+fn to_obj_symbol(obj_file: &File<'_>, symbol: &Symbol<'_, '_>, addend: i64) -> Result<ObjSymbol> {
     let mut name = symbol.name().context("Failed to process symbol name")?;
     if name.is_empty() {
         println!("Found empty sym: {:?}", symbol);
@@ -56,6 +56,7 @@ fn to_obj_symbol(obj_file: &File<'_>, symbol: &Symbol<'_, '_>) -> Result<ObjSymb
         size: symbol.size(),
         size_known: symbol.size() != 0,
         flags,
+        addend,
         diff_symbol: None,
         instructions: vec![],
         match_percent: 0.0,
@@ -118,7 +119,7 @@ fn symbols_by_section(obj_file: &File<'_>, section: &ObjSection) -> Result<Vec<O
                         continue;
                     }
                 }
-                result.push(to_obj_symbol(obj_file, &symbol)?);
+                result.push(to_obj_symbol(obj_file, &symbol, 0)?);
             }
         }
     }
@@ -140,7 +141,7 @@ fn common_symbols(obj_file: &File<'_>) -> Result<Vec<ObjSymbol>> {
     let mut result = Vec::<ObjSymbol>::new();
     for symbol in obj_file.symbols() {
         if symbol.is_common() {
-            result.push(to_obj_symbol(obj_file, &symbol)?);
+            result.push(to_obj_symbol(obj_file, &symbol, 0)?);
         }
     }
     Ok(result)
@@ -169,7 +170,7 @@ fn find_section_symbol(
             }
             continue;
         }
-        return to_obj_symbol(obj_file, &symbol);
+        return to_obj_symbol(obj_file, &symbol, 0);
     }
     let (name, offset) = closest_symbol
         .and_then(|s| s.name().map(|n| (n, s.address())).ok())
@@ -177,13 +178,14 @@ fn find_section_symbol(
         .unwrap_or(("<unknown>", 0));
     let offset_addr = address - offset;
     Ok(ObjSymbol {
-        name: if offset_addr > 0 { format!("{}+{:#X}", name, address) } else { name.to_string() },
+        name: name.to_string(),
         demangled_name: None,
         address,
         section_address: address - section.address(),
         size: 0,
         size_known: false,
         flags: Default::default(),
+        addend: offset_addr as i64,
         diff_symbol: None,
         instructions: vec![],
         match_percent: 0.0,
@@ -257,7 +259,7 @@ fn relocations_by_section(
         // println!("Reloc: {:?}, symbol: {:?}", reloc, symbol);
         let target = match symbol.kind() {
             SymbolKind::Text | SymbolKind::Data | SymbolKind::Unknown => {
-                to_obj_symbol(obj_file, &symbol)
+                to_obj_symbol(obj_file, &symbol, reloc.addend())
             }
             SymbolKind::Section => {
                 let addend = if reloc.has_implicit_addend() {
