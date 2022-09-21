@@ -133,6 +133,7 @@ pub enum ObjRelocKind {
     // PpcAddr14,
     PpcRel14,
     PpcEmbSda21,
+    Mips32,
     Mips26,
     MipsHi16,
     MipsLo16,

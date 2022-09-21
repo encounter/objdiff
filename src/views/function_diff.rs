@@ -55,6 +55,7 @@ fn write_reloc(reloc: &ObjReloc, color: Color32, job: &mut LayoutJob) {
         ObjRelocKind::Absolute
         | ObjRelocKind::PpcRel24
         | ObjRelocKind::PpcRel14
+        | ObjRelocKind::Mips32
         | ObjRelocKind::Mips26 => {
             write_reloc_name(reloc, color, job);
         }
