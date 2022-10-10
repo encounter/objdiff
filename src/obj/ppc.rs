@@ -74,11 +74,10 @@ pub fn process_code(
             }
         }
         ops.push(simplified.ins.op as u8);
-        let suffix = simplified.ins.suffix();
         insts.push(ObjIns {
             address: simplified.ins.addr,
             code: simplified.ins.code,
-            mnemonic: format!("{}{}", simplified.mnemonic, suffix),
+            mnemonic: format!("{}{}", simplified.mnemonic, simplified.suffix),
             args,
             reloc: reloc.cloned(),
             op: 0,

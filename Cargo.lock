@@ -1723,7 +1723,7 @@ dependencies = [
 [[package]]
 name = "ppc750cl"
 version = "0.2.0"
-source = "git+https://github.com/encounter/ppc750cl?rev=20abce13e43f8d4ff4840732f9c92dda26ebe2ce#20abce13e43f8d4ff4840732f9c92dda26ebe2ce"
+source = "git+https://github.com/encounter/ppc750cl?rev=4d8e4733319312abf47cde193d7386e55744bdf8#4d8e4733319312abf47cde193d7386e55744bdf8"
 dependencies = [
  "num-traits",
  "serde",
