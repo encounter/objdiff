@@ -361,6 +361,7 @@ fn create_watcher(
                         Some(OsStr::new("cpp")),
                         Some(OsStr::new("h")),
                         Some(OsStr::new("hpp")),
+                        Some(OsStr::new("s")),
                     ];
                     if event.paths.iter().any(|p| watch_extensions.contains(&p.extension())) {
                         modified.store(true, Ordering::Relaxed);

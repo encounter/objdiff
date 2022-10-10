@@ -181,7 +181,7 @@ fn find_section_symbol(
     Ok(ObjSymbol {
         name: name.to_string(),
         demangled_name: None,
-        address,
+        address: offset,
         section_address: address - section.address(),
         size: 0,
         size_known: false,
