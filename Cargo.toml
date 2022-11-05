@@ -20,11 +20,11 @@ thiserror = "1.0.33"
 flagset = "0.4.3"
 object = "0.29.0"
 notify = "5.0.0"
-cwdemangle = { git = "https://github.com/encounter/cwdemangle", rev = "ba448f403320f32b808e0dcf3040c6424664acab" }
+cwdemangle = { git = "https://github.com/encounter/cwdemangle", rev = "64e8b3e083343783c5b3b6329ea940f375b057b3" }
 log = "0.4.17"
 rfd = { version = "0.10.0" } # , default-features = false, features = ['xdg-portal']
 egui_extras = "0.19.0"
-ppc750cl = { git = "https://github.com/encounter/ppc750cl", rev = "4d8e4733319312abf47cde193d7386e55744bdf8" }
+ppc750cl = { git = "https://github.com/encounter/ppc750cl", rev = "aa631a33de7882c679afca89350898b87cb3ba3f" }
 rabbitizer = { git = "https://github.com/encounter/rabbitizer-rs", rev = "10c279b2ef251c62885b1dcdcfe740b0db8e9956" }
 time = { version = "0.3.14", features = ["formatting", "local-offset"] }
 

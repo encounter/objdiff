@@ -520,8 +520,8 @@ checksum = "b365fabc795046672053e29c954733ec3b05e4be654ab130fe8f1f94d7051f35"
 
 [[package]]
 name = "cwdemangle"
-version = "0.1.2"
-source = "git+https://github.com/encounter/cwdemangle?rev=ba448f403320f32b808e0dcf3040c6424664acab#ba448f403320f32b808e0dcf3040c6424664acab"
+version = "0.1.3"
+source = "git+https://github.com/encounter/cwdemangle?rev=64e8b3e083343783c5b3b6329ea940f375b057b3#64e8b3e083343783c5b3b6329ea940f375b057b3"
 dependencies = [
  "argh",
 ]
@@ -1723,7 +1723,7 @@ dependencies = [
 [[package]]
 name = "ppc750cl"
 version = "0.2.0"
-source = "git+https://github.com/encounter/ppc750cl?rev=4d8e4733319312abf47cde193d7386e55744bdf8#4d8e4733319312abf47cde193d7386e55744bdf8"
+source = "git+https://github.com/encounter/ppc750cl?rev=aa631a33de7882c679afca89350898b87cb3ba3f#aa631a33de7882c679afca89350898b87cb3ba3f"
 dependencies = [
  "num-traits",
  "serde",

@@ -4,6 +4,10 @@ use anyhow::{Context, Result};
 use cwdemangle::demangle;
 use flagset::Flags;
 use object::{
+    elf::{
+        R_MIPS_26, R_MIPS_HI16, R_MIPS_LO16, R_PPC_ADDR16_HA, R_PPC_ADDR16_HI, R_PPC_ADDR16_LO,
+        R_PPC_EMB_SDA21, R_PPC_REL14, R_PPC_REL24,
+    },
     Architecture, File, Object, ObjectSection, ObjectSymbol, RelocationKind, RelocationTarget,
     SectionKind, Symbol, SymbolKind, SymbolSection,
 };
@@ -50,7 +54,7 @@ fn to_obj_symbol(obj_file: &File<'_>, symbol: &Symbol<'_, '_>, addend: i64) -> R
     };
     Ok(ObjSymbol {
         name: name.to_string(),
-        demangled_name: demangle(name),
+        demangled_name: demangle(name, &Default::default()),
         address: symbol.address(),
         section_address,
         size: symbol.size(),
@@ -62,18 +66,6 @@ fn to_obj_symbol(obj_file: &File<'_>, symbol: &Symbol<'_, '_>, addend: i64) -> R
         match_percent: 0.0,
     })
 }
-
-const R_PPC_ADDR16_LO: u32 = 4;
-const R_PPC_ADDR16_HI: u32 = 5;
-const R_PPC_ADDR16_HA: u32 = 6;
-const R_PPC_REL24: u32 = 10;
-const R_PPC_REL14: u32 = 11;
-const R_PPC_EMB_SDA21: u32 = 109;
-
-const R_MIPS_32: u32 = 2;
-const R_MIPS_26: u32 = 4;
-const R_MIPS_HI16: u32 = 5;
-const R_MIPS_LO16: u32 = 6;
 
 fn filter_sections(obj_file: &File<'_>) -> Result<Vec<ObjSection>> {
     let mut result = Vec::<ObjSection>::new();
@@ -232,7 +224,6 @@ fn relocations_by_section(
                     }
                 },
                 ObjArchitecture::Mips => match kind {
-                    R_MIPS_32 => ObjRelocKind::Mips32,
                     R_MIPS_26 => ObjRelocKind::Mips26,
                     R_MIPS_HI16 => ObjRelocKind::MipsHi16,
                     R_MIPS_LO16 => ObjRelocKind::MipsLo16,
@@ -269,11 +260,8 @@ fn relocations_by_section(
                         section.data[address as usize..address as usize + 4].try_into()?,
                     );
                     match kind {
-                        ObjRelocKind::Absolute => addend * 4,
-                        ObjRelocKind::MipsHi16 | ObjRelocKind::MipsLo16 => {
-                            (addend & 0x0000FFFF) * 4
-                        }
-                        ObjRelocKind::Mips32 => addend * 4,
+                        ObjRelocKind::Absolute => addend,
+                        ObjRelocKind::MipsHi16 | ObjRelocKind::MipsLo16 => addend & 0x0000FFFF,
                         ObjRelocKind::Mips26 => (addend & 0x03FFFFFF) * 4,
                         _ => todo!(),
                     }

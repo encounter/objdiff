@@ -1,6 +1,5 @@
 use egui::{
-    text::LayoutJob, CollapsingHeader, Color32, Rgba, ScrollArea,
-    SelectableLabel, Ui, Widget,
+    text::LayoutJob, CollapsingHeader, Color32, Rgba, ScrollArea, SelectableLabel, Ui, Widget,
 };
 use egui_extras::{Size, StripBuilder};
 

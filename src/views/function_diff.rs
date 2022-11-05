@@ -55,7 +55,6 @@ fn write_reloc(reloc: &ObjReloc, color: Color32, job: &mut LayoutJob) {
         ObjRelocKind::Absolute
         | ObjRelocKind::PpcRel24
         | ObjRelocKind::PpcRel14
-        | ObjRelocKind::Mips32
         | ObjRelocKind::Mips26 => {
             write_reloc_name(reloc, color, job);
         }
@@ -361,7 +360,7 @@ pub fn function_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
                 });
                 strip.strip(|builder| {
                     builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
-                        let demangled = demangle(selected_symbol);
+                        let demangled = demangle(selected_symbol, &Default::default());
                         strip.cell(|ui| {
                             ui.scope(|ui| {
                                 ui.style_mut().override_text_style =
