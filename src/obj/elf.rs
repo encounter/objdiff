@@ -91,6 +91,8 @@ fn filter_sections(obj_file: &File<'_>) -> Result<Vec<ObjSection>> {
             index: section.index().0,
             symbols: Vec::new(),
             relocations: Vec::new(),
+            data_diff: vec![],
+            match_percent: 0.0,
         });
     }
     result.sort_by(|a, b| a.name.cmp(&b.name));

@@ -6,7 +6,7 @@ use egui_extras::{Size, StripBuilder};
 use crate::{
     app::{View, ViewState},
     jobs::objdiff::BuildStatus,
-    obj::{ObjInfo, ObjSymbol, ObjSymbolFlags},
+    obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags},
     views::write_text,
 };
 
@@ -52,6 +52,7 @@ fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol) {
 fn symbol_ui(
     ui: &mut Ui,
     symbol: &ObjSymbol,
+    section: Option<&ObjSection>,
     highlighted_symbol: &mut Option<String>,
     selected_symbol: &mut Option<String>,
     current_view: &mut View,
@@ -90,8 +91,15 @@ fn symbol_ui(
         .context_menu(|ui| symbol_context_menu_ui(ui, symbol))
         .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, symbol));
     if response.clicked() {
-        *selected_symbol = Some(symbol.name.clone());
-        *current_view = View::FunctionDiff;
+        if let Some(section) = section {
+            if section.kind == ObjSectionKind::Code {
+                *selected_symbol = Some(symbol.name.clone());
+                *current_view = View::FunctionDiff;
+            } else if section.kind == ObjSectionKind::Data {
+                *selected_symbol = Some(section.name.clone());
+                *current_view = View::DataDiff;
+            }
+        }
     } else if response.hovered() {
         *highlighted_symbol = Some(symbol.name.clone());
     }
@@ -127,7 +135,14 @@ fn symbol_list_ui(
             if !obj.common.is_empty() {
                 CollapsingHeader::new(".comm").default_open(true).show(ui, |ui| {
                     for symbol in &obj.common {
-                        symbol_ui(ui, symbol, highlighted_symbol, selected_symbol, current_view);
+                        symbol_ui(
+                            ui,
+                            symbol,
+                            None,
+                            highlighted_symbol,
+                            selected_symbol,
+                            current_view,
+                        );
                     }
                 });
             }
@@ -144,6 +159,7 @@ fn symbol_list_ui(
                                 symbol_ui(
                                     ui,
                                     symbol,
+                                    Some(section),
                                     highlighted_symbol,
                                     selected_symbol,
                                     current_view,
@@ -157,6 +173,7 @@ fn symbol_list_ui(
                                 symbol_ui(
                                     ui,
                                     symbol,
+                                    Some(section),
                                     highlighted_symbol,
                                     selected_symbol,
                                     current_view,

@@ -32,6 +32,10 @@ pub struct ObjSection {
     pub index: usize,
     pub symbols: Vec<ObjSymbol>,
     pub relocations: Vec<ObjReloc>,
+
+    // Diff
+    pub data_diff: Vec<ObjDataDiff>,
+    pub match_percent: f32,
 }
 #[derive(Debug, Clone)]
 pub enum ObjInsArg {
@@ -91,6 +95,20 @@ pub struct ObjInsDiff {
     pub branch_to: Option<ObjInsBranchTo>,
     /// Arg diffs
     pub arg_diff: Vec<Option<ObjInsArgDiff>>,
+}
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
+pub enum ObjDataDiffKind {
+    #[default]
+    None,
+    Replace,
+    Delete,
+    Insert,
+}
+#[derive(Debug, Clone, Default)]
+pub struct ObjDataDiff {
+    pub data: Vec<u8>,
+    pub kind: ObjDataDiffKind,
+    pub len: usize,
 }
 #[derive(Debug, Clone)]
 pub struct ObjSymbol {

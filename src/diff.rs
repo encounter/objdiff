@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, mem::take};
 
 use anyhow::Result;
 
@@ -6,9 +6,9 @@ use crate::{
     app::DiffConfig,
     editops::{editops_find, LevEditType},
     obj::{
-        mips, ppc, ObjArchitecture, ObjInfo, ObjInsArg, ObjInsArgDiff, ObjInsBranchFrom,
-        ObjInsBranchTo, ObjInsDiff, ObjInsDiffKind, ObjReloc, ObjSection, ObjSectionKind,
-        ObjSymbol, ObjSymbolFlags,
+        mips, ppc, ObjArchitecture, ObjDataDiff, ObjDataDiffKind, ObjInfo, ObjInsArg,
+        ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo, ObjInsDiff, ObjInsDiffKind, ObjReloc,
+        ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags,
     },
 };
 
@@ -340,13 +340,13 @@ fn find_symbol<'a>(symbols: &'a mut [ObjSymbol], name: &str) -> Option<&'a mut O
 pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo, _diff_config: &DiffConfig) -> Result<()> {
     for left_section in &mut left.sections {
         if let Some(right_section) = find_section(right, &left_section.name) {
-            for left_symbol in &mut left_section.symbols {
-                if let Some(right_symbol) =
-                    find_symbol(&mut right_section.symbols, &left_symbol.name)
-                {
-                    left_symbol.diff_symbol = Some(right_symbol.name.clone());
-                    right_symbol.diff_symbol = Some(left_symbol.name.clone());
-                    if left_section.kind == ObjSectionKind::Code {
+            if left_section.kind == ObjSectionKind::Code {
+                for left_symbol in &mut left_section.symbols {
+                    if let Some(right_symbol) =
+                        find_symbol(&mut right_section.symbols, &left_symbol.name)
+                    {
+                        left_symbol.diff_symbol = Some(right_symbol.name.clone());
+                        right_symbol.diff_symbol = Some(left_symbol.name.clone());
                         diff_code(
                             left.architecture,
                             &left_section.data,
@@ -358,8 +358,189 @@ pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo, _diff_config: &DiffCon
                         )?;
                     }
                 }
+            } else if left_section.kind == ObjSectionKind::Data {
+                diff_data(left_section, right_section);
             }
         }
     }
     Ok(())
+}
+
+fn diff_data(left: &mut ObjSection, right: &mut ObjSection) {
+    let edit_ops = editops_find(&left.data, &right.data);
+    if edit_ops.is_empty() && !left.data.is_empty() {
+        left.data_diff = vec![ObjDataDiff {
+            data: left.data.clone(),
+            kind: ObjDataDiffKind::None,
+            len: left.data.len(),
+        }];
+        right.data_diff = vec![ObjDataDiff {
+            data: right.data.clone(),
+            kind: ObjDataDiffKind::None,
+            len: right.data.len(),
+        }];
+        return;
+    }
+
+    let mut left_diff = Vec::<ObjDataDiff>::new();
+    let mut right_diff = Vec::<ObjDataDiff>::new();
+    let mut left_cur = 0usize;
+    let mut right_cur = 0usize;
+    let mut cur_op = LevEditType::Keep;
+    let mut cur_left_data = Vec::<u8>::new();
+    let mut cur_right_data = Vec::<u8>::new();
+    for op in edit_ops {
+        if left_cur < op.first_start {
+            left_diff.push(ObjDataDiff {
+                data: left.data[left_cur..op.first_start].to_vec(),
+                kind: ObjDataDiffKind::None,
+                len: op.first_start - left_cur,
+            });
+            left_cur = op.first_start;
+        }
+        if right_cur < op.second_start {
+            right_diff.push(ObjDataDiff {
+                data: right.data[right_cur..op.second_start].to_vec(),
+                kind: ObjDataDiffKind::None,
+                len: op.second_start - right_cur,
+            });
+            right_cur = op.second_start;
+        }
+        if cur_op != op.op_type {
+            match cur_op {
+                LevEditType::Keep => {}
+                LevEditType::Replace => {
+                    let left_data = take(&mut cur_left_data);
+                    let right_data = take(&mut cur_right_data);
+                    let left_data_len = left_data.len();
+                    let right_data_len = right_data.len();
+                    left_diff.push(ObjDataDiff {
+                        data: left_data,
+                        kind: ObjDataDiffKind::Replace,
+                        len: left_data_len,
+                    });
+                    right_diff.push(ObjDataDiff {
+                        data: right_data,
+                        kind: ObjDataDiffKind::Replace,
+                        len: right_data_len,
+                    });
+                }
+                LevEditType::Insert => {
+                    let right_data = take(&mut cur_right_data);
+                    let right_data_len = right_data.len();
+                    left_diff.push(ObjDataDiff {
+                        data: vec![],
+                        kind: ObjDataDiffKind::Insert,
+                        len: right_data_len,
+                    });
+                    right_diff.push(ObjDataDiff {
+                        data: right_data,
+                        kind: ObjDataDiffKind::Insert,
+                        len: right_data_len,
+                    });
+                }
+                LevEditType::Delete => {
+                    let left_data = take(&mut cur_left_data);
+                    let left_data_len = left_data.len();
+                    left_diff.push(ObjDataDiff {
+                        data: left_data,
+                        kind: ObjDataDiffKind::Delete,
+                        len: left_data_len,
+                    });
+                    right_diff.push(ObjDataDiff {
+                        data: vec![],
+                        kind: ObjDataDiffKind::Delete,
+                        len: left_data_len,
+                    });
+                }
+            }
+        }
+        match op.op_type {
+            LevEditType::Replace => {
+                cur_left_data.push(left.data[left_cur]);
+                cur_right_data.push(right.data[right_cur]);
+                left_cur += 1;
+                right_cur += 1;
+            }
+            LevEditType::Insert => {
+                cur_right_data.push(right.data[right_cur]);
+                right_cur += 1;
+            }
+            LevEditType::Delete => {
+                cur_left_data.push(left.data[left_cur]);
+                left_cur += 1;
+            }
+            LevEditType::Keep => unreachable!(),
+        }
+        cur_op = op.op_type;
+    }
+    // if left_cur < left.data.len() {
+    //     let len = left.data.len() - left_cur;
+    //     left_diff.push(ObjDataDiff {
+    //         data: left.data[left_cur..].to_vec(),
+    //         kind: ObjDataDiffKind::Delete,
+    //         len,
+    //     });
+    //     right_diff.push(ObjDataDiff { data: vec![], kind: ObjDataDiffKind::Delete, len });
+    // } else if right_cur < right.data.len() {
+    //     let len = right.data.len() - right_cur;
+    //     left_diff.push(ObjDataDiff { data: vec![], kind: ObjDataDiffKind::Insert, len });
+    //     right_diff.push(ObjDataDiff {
+    //         data: right.data[right_cur..].to_vec(),
+    //         kind: ObjDataDiffKind::Insert,
+    //         len,
+    //     });
+    // }
+
+    // TODO: merge with above
+    match cur_op {
+        LevEditType::Keep => {}
+        LevEditType::Replace => {
+            let left_data = take(&mut cur_left_data);
+            let right_data = take(&mut cur_right_data);
+            let left_data_len = left_data.len();
+            let right_data_len = right_data.len();
+            left_diff.push(ObjDataDiff {
+                data: left_data,
+                kind: ObjDataDiffKind::Replace,
+                len: left_data_len,
+            });
+            right_diff.push(ObjDataDiff {
+                data: right_data,
+                kind: ObjDataDiffKind::Replace,
+                len: right_data_len,
+            });
+        }
+        LevEditType::Insert => {
+            let right_data = take(&mut cur_right_data);
+            let right_data_len = right_data.len();
+            left_diff.push(ObjDataDiff {
+                data: vec![],
+                kind: ObjDataDiffKind::Insert,
+                len: right_data_len,
+            });
+            right_diff.push(ObjDataDiff {
+                data: right_data,
+                kind: ObjDataDiffKind::Insert,
+                len: right_data_len,
+            });
+        }
+        LevEditType::Delete => {
+            let left_data = take(&mut cur_left_data);
+            let left_data_len = left_data.len();
+            left_diff.push(ObjDataDiff {
+                data: left_data,
+                kind: ObjDataDiffKind::Delete,
+                len: left_data_len,
+            });
+            right_diff.push(ObjDataDiff {
+                data: vec![],
+                kind: ObjDataDiffKind::Delete,
+                len: left_data_len,
+            });
+        }
+    }
+
+    left.data_diff = left_diff;
+    right.data_diff = right_diff;
 }

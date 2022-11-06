@@ -20,16 +20,18 @@ use crate::{
         Job, JobResult, JobState,
     },
     views::{
-        config::config_ui, function_diff::function_diff_ui, jobs::jobs_ui,
+        config::config_ui, data_diff::data_diff_ui, function_diff::function_diff_ui, jobs::jobs_ui,
         symbol_diff::symbol_diff_ui,
     },
 };
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Default, Eq, PartialEq)]
 pub enum View {
     #[default]
     SymbolDiff,
     FunctionDiff,
+    DataDiff,
 }
 
 #[derive(Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -192,6 +194,16 @@ impl eframe::App for App {
 
             egui::CentralPanel::default().show(ctx, |ui| {
                 if function_diff_ui(ui, view_state) {
+                    view_state
+                        .jobs
+                        .push(queue_build(config.clone(), view_state.diff_config.clone()));
+                }
+            });
+        } else if view_state.current_view == View::DataDiff
+            && matches!(&view_state.build, Some(b) if b.first_status.success && b.second_status.success)
+        {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                if data_diff_ui(ui, view_state) {
                     view_state
                         .jobs
                         .push(queue_build(config.clone(), view_state.diff_config.clone()));
