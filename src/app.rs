@@ -333,10 +333,8 @@ impl eframe::App for App {
             for (idx, color) in view_state.view_config.diff_colors.iter_mut().enumerate() {
                 ui.horizontal(|ui| {
                     ui.color_edit_button_srgba(color);
-                    if num_colors > 1 {
-                        if ui.small_button("-").clicked() {
-                            remove_at = Some(idx);
-                        }
+                    if num_colors > 1 && ui.small_button("-").clicked() {
+                        remove_at = Some(idx);
                     }
                 });
             }
@@ -483,7 +481,7 @@ impl eframe::App for App {
                 if let Some(project_dir) = &config.project_dir {
                     match create_watcher(self.modified.clone(), project_dir) {
                         Ok(watcher) => self.watcher = Some(watcher),
-                        Err(e) => eprintln!("Failed to create watcher: {}", e),
+                        Err(e) => eprintln!("Failed to create watcher: {e}"),
                     }
                     config.project_dir_change = false;
                     self.modified.store(true, Ordering::Relaxed);
@@ -534,7 +532,7 @@ fn create_watcher(
                     }
                 }
             }
-            Err(e) => println!("watch error: {:?}", e),
+            Err(e) => println!("watch error: {e:?}"),
         })?;
     watcher.watch(project_dir, RecursiveMode::Recursive)?;
     Ok(watcher)

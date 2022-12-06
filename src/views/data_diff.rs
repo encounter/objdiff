@@ -23,7 +23,7 @@ fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], config:
     }
     let mut job = LayoutJob::default();
     write_text(
-        format!("{:08X}: ", address).as_str(),
+        format!("{address:08X}: ").as_str(),
         Color32::GRAY,
         &mut job,
         config.code_font.clone(),
@@ -44,7 +44,7 @@ fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], config:
         } else {
             let mut text = String::new();
             for byte in &diff.data {
-                text.push_str(format!("{:02X} ", byte).as_str());
+                text.push_str(format!("{byte:02X} ").as_str());
                 cur_addr += 1;
                 if cur_addr % 8 == 0 {
                     text.push(' ');

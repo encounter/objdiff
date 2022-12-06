@@ -67,7 +67,7 @@ fn run_make(cwd: &Path, arg: &Path, config: &AppConfig) -> BuildStatus {
         let stderr = from_utf8(&output.stderr).context("Failed to process stderr")?;
         Ok(BuildStatus {
             success: output.status.code().unwrap_or(-1) == 0,
-            log: format!("{}\n{}", stdout, stderr),
+            log: format!("{stdout}\n{stderr}"),
         })
     })() {
         Ok(status) => status,
@@ -102,26 +102,26 @@ fn run_build(
 
     let total = if config.build_target { 5 } else { 4 };
     let first_status = if config.build_target {
-        update_status(status, format!("Building target {}", obj_path), 0, total, &cancel)?;
+        update_status(status, format!("Building target {obj_path}"), 0, total, &cancel)?;
         run_make(project_dir, target_path_rel, &config)
     } else {
         BuildStatus { success: true, log: String::new() }
     };
 
-    update_status(status, format!("Building base {}", obj_path), 1, total, &cancel)?;
+    update_status(status, format!("Building base {obj_path}"), 1, total, &cancel)?;
     let second_status = run_make(project_dir, base_path_rel, &config);
 
     let time = OffsetDateTime::now_utc();
 
     let mut first_obj = if first_status.success {
-        update_status(status, format!("Loading target {}", obj_path), 2, total, &cancel)?;
+        update_status(status, format!("Loading target {obj_path}"), 2, total, &cancel)?;
         Some(elf::read(&target_path)?)
     } else {
         None
     };
 
     let mut second_obj = if second_status.success {
-        update_status(status, format!("Loading base {}", obj_path), 3, total, &cancel)?;
+        update_status(status, format!("Loading base {obj_path}"), 3, total, &cancel)?;
         Some(elf::read(&base_path)?)
     } else {
         None

@@ -14,9 +14,9 @@ use crate::{
 
 fn no_diff_code(
     arch: ObjArchitecture,
-    data: &Vec<u8>,
+    data: &[u8],
     symbol: &mut ObjSymbol,
-    relocs: &Vec<ObjReloc>,
+    relocs: &[ObjReloc],
 ) -> Result<()> {
     let code =
         &data[symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
@@ -241,7 +241,7 @@ fn arg_eq(
 ) -> bool {
     return match left {
         ObjInsArg::PpcArg(l) => match right {
-            ObjInsArg::PpcArg(r) => format!("{}", l) == format!("{}", r),
+            ObjInsArg::PpcArg(r) => format!("{l}") == format!("{r}"),
             _ => false,
         },
         ObjInsArg::Reloc => {
@@ -312,10 +312,10 @@ fn compare_ins(
                     state.diff_count += 1;
                 }
                 let a_str = match a {
-                    ObjInsArg::PpcArg(arg) => format!("{}", arg),
+                    ObjInsArg::PpcArg(arg) => format!("{arg}"),
                     ObjInsArg::Reloc | ObjInsArg::RelocWithBase => String::new(),
                     ObjInsArg::MipsArg(str) => str.clone(),
-                    ObjInsArg::BranchOffset(arg) => format!("{}", arg),
+                    ObjInsArg::BranchOffset(arg) => format!("{arg}"),
                 };
                 let a_diff = if let Some(idx) = state.left_args_idx.get(&a_str) {
                     ObjInsArgDiff { idx: *idx }
@@ -326,10 +326,10 @@ fn compare_ins(
                     ObjInsArgDiff { idx }
                 };
                 let b_str = match b {
-                    ObjInsArg::PpcArg(arg) => format!("{}", arg),
+                    ObjInsArg::PpcArg(arg) => format!("{arg}"),
                     ObjInsArg::Reloc | ObjInsArg::RelocWithBase => String::new(),
                     ObjInsArg::MipsArg(str) => str.clone(),
-                    ObjInsArg::BranchOffset(arg) => format!("{}", arg),
+                    ObjInsArg::BranchOffset(arg) => format!("{arg}"),
                 };
                 let b_diff = if let Some(idx) = state.right_args_idx.get(&b_str) {
                     ObjInsArgDiff { idx: *idx }

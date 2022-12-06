@@ -15,7 +15,7 @@ pub fn jobs_ui(ui: &mut egui::Ui, view_state: &mut ViewState) {
                         if job.handle.is_some() {
                             job.should_remove = true;
                             if let Err(e) = job.cancel.send(()) {
-                                eprintln!("Failed to cancel job: {:?}", e);
+                                eprintln!("Failed to cancel job: {e:?}");
                             }
                         } else {
                             remove_job = Some(idx);

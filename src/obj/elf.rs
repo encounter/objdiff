@@ -22,14 +22,14 @@ fn to_obj_section_kind(kind: SectionKind) -> ObjSectionKind {
         SectionKind::Text => ObjSectionKind::Code,
         SectionKind::Data | SectionKind::ReadOnlyData => ObjSectionKind::Data,
         SectionKind::UninitializedData => ObjSectionKind::Bss,
-        _ => panic!("Unhandled section kind {:?}", kind),
+        _ => panic!("Unhandled section kind {kind:?}"),
     }
 }
 
 fn to_obj_symbol(obj_file: &File<'_>, symbol: &Symbol<'_, '_>, addend: i64) -> Result<ObjSymbol> {
     let mut name = symbol.name().context("Failed to process symbol name")?;
     if name.is_empty() {
-        println!("Found empty sym: {:?}", symbol);
+        println!("Found empty sym: {symbol:?}");
         name = "?";
     }
     let mut flags = ObjSymbolFlagSet(ObjSymbolFlags::none());
@@ -220,8 +220,7 @@ fn relocations_by_section(
                     R_PPC_EMB_SDA21 => ObjRelocKind::PpcEmbSda21,
                     _ => {
                         return Err(anyhow::Error::msg(format!(
-                            "Unhandled PPC relocation type: {}",
-                            kind
+                            "Unhandled PPC relocation type: {kind}"
                         )))
                     }
                 },
@@ -231,8 +230,7 @@ fn relocations_by_section(
                     R_MIPS_LO16 => ObjRelocKind::MipsLo16,
                     _ => {
                         return Err(anyhow::Error::msg(format!(
-                            "Unhandled MIPS relocation type: {}",
-                            kind
+                            "Unhandled MIPS relocation type: {kind}"
                         )))
                     }
                 },
@@ -271,8 +269,7 @@ fn relocations_by_section(
                     let addend = reloc.addend();
                     if addend < 0 {
                         return Err(anyhow::Error::msg(format!(
-                            "Negative addend in section reloc: {}",
-                            addend
+                            "Negative addend in section reloc: {addend}"
                         )));
                     }
                     addend as u32

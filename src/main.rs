@@ -35,7 +35,7 @@ fn main() {
                     let result = exec::Command::new(path)
                         .args(&std::env::args().collect::<Vec<String>>())
                         .exec();
-                    eprintln!("Failed to relaunch: {:?}", result);
+                    eprintln!("Failed to relaunch: {result:?}");
                 } else {
                     let result = std::process::Command::new(path)
                         .args(std::env::args())

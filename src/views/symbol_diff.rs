@@ -26,7 +26,7 @@ fn symbol_context_menu_ui(ui: &mut Ui, symbol: &ObjSymbol) {
         ui.style_mut().wrap = Some(false);
 
         if let Some(name) = &symbol.demangled_name {
-            if ui.button(format!("Copy \"{}\"", name)).clicked() {
+            if ui.button(format!("Copy \"{name}\"")).clicked() {
                 ui.output().copied_text = name.clone();
                 ui.close_menu();
             }
@@ -84,7 +84,7 @@ fn symbol_ui(
     if let Some(match_percent) = symbol.match_percent {
         write_text("(", Color32::GRAY, &mut job, config.code_font.clone());
         write_text(
-            &format!("{:.0}%", match_percent),
+            &format!("{match_percent:.0}%"),
             match_color_for_symbol(match_percent),
             &mut job,
             config.code_font.clone(),
@@ -121,6 +121,7 @@ fn symbol_matches_search(symbol: &ObjSymbol, search_str: &str) -> bool {
             .unwrap_or(false)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn symbol_list_ui(
     ui: &mut Ui,
     obj: &ObjInfo,

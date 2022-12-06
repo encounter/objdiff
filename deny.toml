@@ -80,6 +80,7 @@ allow = [
     "MPL-2.0",
     "Unicode-DFS-2016",
     "Zlib",
+    "0BSD",
 ]
 # List of explictly disallowed licenses
 # See https://spdx.org/licenses/ for list of possible licenses
@@ -203,7 +204,7 @@ allow-git = []
 
 [sources.allow-org]
 # 1 or more github.com organizations to allow git sources for
-github = ["encounter", "terorie"]
+github = ["encounter"]
 # 1 or more gitlab.com organizations to allow git sources for
 #gitlab = [""]
 # 1 or more bitbucket.org organizations to allow git sources for

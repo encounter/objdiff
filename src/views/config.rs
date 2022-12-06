@@ -81,16 +81,13 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
         if state.update_available {
             ui.colored_label(Color32::LIGHT_GREEN, "Update available");
             ui.horizontal(|ui| {
-                if state.found_binary {
-                    if ui
+                if state.found_binary && ui
                         .button("Automatic")
                         .on_hover_text_at_pointer(
                             "Automatically download and replace the current build",
                         )
-                        .clicked()
-                    {
-                        view_state.jobs.push(queue_update());
-                    }
+                        .clicked() {
+                    view_state.jobs.push(queue_update());
                 }
                 if ui
                     .button("Manual")

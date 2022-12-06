@@ -26,7 +26,7 @@ fn run_update(status: &Status, cancel: Receiver<()>) -> Result<Box<UpdateResult>
         .assets
         .iter()
         .find(|a| a.name == BIN_NAME)
-        .ok_or(anyhow::Error::msg(formatcp!("No release asset for {}", BIN_NAME)))?;
+        .ok_or_else(|| anyhow::Error::msg(formatcp!("No release asset for {}", BIN_NAME)))?;
 
     update_status(status, "Downloading release".to_string(), 1, 3, &cancel)?;
     let tmp_dir = tempfile::Builder::new().prefix("update").tempdir_in(current_dir()?)?;
@@ -46,7 +46,7 @@ fn run_update(status: &Status, cancel: Receiver<()>) -> Result<Box<UpdateResult>
     {
         use std::os::unix::fs::PermissionsExt;
         let mut perms = fs::metadata(&target_file)?.permissions();
-        perms.set_mode(0755);
+        perms.set_mode(0o755);
         fs::set_permissions(&target_file, perms)?;
     }
 

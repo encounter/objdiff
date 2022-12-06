@@ -20,7 +20,7 @@ fn write_reloc_name(reloc: &ObjReloc, color: Color32, job: &mut LayoutJob, font_
     let name = reloc.target.demangled_name.as_ref().unwrap_or(&reloc.target.name);
     write_text(name, Color32::LIGHT_GRAY, job, font_id.clone());
     if reloc.target.addend != 0 {
-        write_text(&format!("+{:X}", reloc.target.addend), color, job, font_id.clone());
+        write_text(&format!("+{:X}", reloc.target.addend), color, job, font_id);
     }
 }
 
@@ -28,35 +28,35 @@ fn write_reloc(reloc: &ObjReloc, color: Color32, job: &mut LayoutJob, font_id: F
     match reloc.kind {
         ObjRelocKind::PpcAddr16Lo => {
             write_reloc_name(reloc, color, job, font_id.clone());
-            write_text("@l", color, job, font_id.clone());
+            write_text("@l", color, job, font_id);
         }
         ObjRelocKind::PpcAddr16Hi => {
             write_reloc_name(reloc, color, job, font_id.clone());
-            write_text("@h", color, job, font_id.clone());
+            write_text("@h", color, job, font_id);
         }
         ObjRelocKind::PpcAddr16Ha => {
             write_reloc_name(reloc, color, job, font_id.clone());
-            write_text("@ha", color, job, font_id.clone());
+            write_text("@ha", color, job, font_id);
         }
         ObjRelocKind::PpcEmbSda21 => {
             write_reloc_name(reloc, color, job, font_id.clone());
-            write_text("@sda21", color, job, font_id.clone());
+            write_text("@sda21", color, job, font_id);
         }
         ObjRelocKind::MipsHi16 => {
             write_text("%hi(", color, job, font_id.clone());
             write_reloc_name(reloc, color, job, font_id.clone());
-            write_text(")", color, job, font_id.clone());
+            write_text(")", color, job, font_id);
         }
         ObjRelocKind::MipsLo16 => {
             write_text("%lo(", color, job, font_id.clone());
             write_reloc_name(reloc, color, job, font_id.clone());
-            write_text(")", color, job, font_id.clone());
+            write_text(")", color, job, font_id);
         }
         ObjRelocKind::Absolute
         | ObjRelocKind::PpcRel24
         | ObjRelocKind::PpcRel14
         | ObjRelocKind::Mips26 => {
-            write_reloc_name(reloc, color, job, font_id.clone());
+            write_reloc_name(reloc, color, job, font_id);
         }
     };
 }
@@ -102,16 +102,16 @@ fn write_ins(
         match arg {
             ObjInsArg::PpcArg(arg) => match arg {
                 Argument::Offset(val) => {
-                    write_text(&format!("{}", val), color, job, config.code_font.clone());
+                    write_text(&format!("{val}"), color, job, config.code_font.clone());
                     write_text("(", base_color, job, config.code_font.clone());
                     writing_offset = true;
                     continue;
                 }
                 Argument::Uimm(_) | Argument::Simm(_) => {
-                    write_text(&format!("{}", arg), color, job, config.code_font.clone());
+                    write_text(&format!("{arg}"), color, job, config.code_font.clone());
                 }
                 _ => {
-                    write_text(&format!("{}", arg), color, job, config.code_font.clone());
+                    write_text(&format!("{arg}"), color, job, config.code_font.clone());
                 }
             },
             ObjInsArg::Reloc => {
@@ -133,7 +133,7 @@ fn write_ins(
             }
             ObjInsArg::BranchOffset(offset) => {
                 let addr = offset + ins.address as i32 - base_addr as i32;
-                write_text(&format!("{:x}", addr), color, job, config.code_font.clone());
+                write_text(&format!("{addr:x}"), color, job, config.code_font.clone());
             }
         }
         if writing_offset {
@@ -171,7 +171,7 @@ fn ins_hover_ui(ui: &mut egui::Ui, ins: &ObjIns) {
             ui.label(format!("Relocation type: {:?}", reloc.kind));
             ui.colored_label(Color32::WHITE, format!("Name: {}", reloc.target.name));
             if let Some(section) = &reloc.target_section {
-                ui.colored_label(Color32::WHITE, format!("Section: {}", section));
+                ui.colored_label(Color32::WHITE, format!("Section: {section}"));
                 ui.colored_label(Color32::WHITE, format!("Address: {:x}", reloc.target.address));
                 ui.colored_label(Color32::WHITE, format!("Size: {:x}", reloc.target.size));
             } else {
@@ -192,8 +192,8 @@ fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
             if let ObjInsArg::PpcArg(arg) = arg {
                 match arg {
                     Argument::Uimm(v) => {
-                        if ui.button(format!("Copy \"{}\"", v)).clicked() {
-                            ui.output().copied_text = format!("{}", v);
+                        if ui.button(format!("Copy \"{v}\"")).clicked() {
+                            ui.output().copied_text = format!("{v}");
                             ui.close_menu();
                         }
                         if ui.button(format!("Copy \"{}\"", v.0)).clicked() {
@@ -202,8 +202,8 @@ fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
                         }
                     }
                     Argument::Simm(v) => {
-                        if ui.button(format!("Copy \"{}\"", v)).clicked() {
-                            ui.output().copied_text = format!("{}", v);
+                        if ui.button(format!("Copy \"{v}\"")).clicked() {
+                            ui.output().copied_text = format!("{v}");
                             ui.close_menu();
                         }
                         if ui.button(format!("Copy \"{}\"", v.0)).clicked() {
@@ -212,8 +212,8 @@ fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
                         }
                     }
                     Argument::Offset(v) => {
-                        if ui.button(format!("Copy \"{}\"", v)).clicked() {
-                            ui.output().copied_text = format!("{}", v);
+                        if ui.button(format!("Copy \"{v}\"")).clicked() {
+                            ui.output().copied_text = format!("{v}");
                             ui.close_menu();
                         }
                         if ui.button(format!("Copy \"{}\"", v.0)).clicked() {
@@ -227,7 +227,7 @@ fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
         }
         if let Some(reloc) = &ins.reloc {
             if let Some(name) = &reloc.target.demangled_name {
-                if ui.button(format!("Copy \"{}\"", name)).clicked() {
+                if ui.button(format!("Copy \"{name}\"")).clicked() {
                     ui.output().copied_text = name.clone();
                     ui.close_menu();
                 }
@@ -399,7 +399,7 @@ pub fn function_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
                                 {
                                     ui.colored_label(
                                         match_color_for_symbol(match_percent),
-                                        &format!("{:.0}%", match_percent),
+                                        &format!("{match_percent:.0}%"),
                                     );
                                 }
                                 ui.label("Diff base:");
