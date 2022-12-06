@@ -38,7 +38,7 @@ fn run_build(
 }
 
 pub fn queue_bindiff(config: Arc<RwLock<AppConfig>>) -> JobState {
-    queue_job(Job::BinDiff, move |status, cancel| {
+    queue_job("Binary diff", Job::BinDiff, move |status, cancel| {
         run_build(status, cancel, config).map(JobResult::BinDiff)
     })
 }

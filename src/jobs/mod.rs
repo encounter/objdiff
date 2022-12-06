@@ -9,15 +9,22 @@ use std::{
 
 use anyhow::Result;
 
-use crate::jobs::{bindiff::BinDiffResult, objdiff::ObjDiffResult};
+use crate::jobs::{
+    bindiff::BinDiffResult, check_update::CheckUpdateResult, objdiff::ObjDiffResult,
+    update::UpdateResult,
+};
 
 pub mod bindiff;
+pub mod check_update;
 pub mod objdiff;
+pub mod update;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Job {
     ObjDiff,
     BinDiff,
+    CheckUpdate,
+    Update,
 }
 pub static JOB_ID: AtomicUsize = AtomicUsize::new(0);
 pub struct JobState {
@@ -40,6 +47,8 @@ pub enum JobResult {
     None,
     ObjDiff(Box<ObjDiffResult>),
     BinDiff(Box<BinDiffResult>),
+    CheckUpdate(Box<CheckUpdateResult>),
+    Update(Box<UpdateResult>),
 }
 
 fn should_cancel(rx: &Receiver<()>) -> bool {
@@ -52,14 +61,15 @@ fn should_cancel(rx: &Receiver<()>) -> bool {
 type Status = Arc<RwLock<JobStatus>>;
 
 fn queue_job(
+    title: &str,
     job_type: Job,
     run: impl FnOnce(&Status, Receiver<()>) -> Result<JobResult> + Send + 'static,
 ) -> JobState {
     let status = Arc::new(RwLock::new(JobStatus {
-        title: String::new(),
+        title: title.to_string(),
         progress_percent: 0.0,
         progress_items: None,
-        status: "".to_string(),
+        status: String::new(),
         error: None,
     }));
     let status_clone = status.clone();

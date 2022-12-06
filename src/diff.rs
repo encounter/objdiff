@@ -12,6 +12,30 @@ use crate::{
     },
 };
 
+fn no_diff_code(
+    arch: ObjArchitecture,
+    data: &Vec<u8>,
+    symbol: &mut ObjSymbol,
+    relocs: &Vec<ObjReloc>,
+) -> Result<()> {
+    let code =
+        &data[symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
+    let (_, ins) = match arch {
+        ObjArchitecture::PowerPc => ppc::process_code(code, symbol.address, relocs)?,
+        ObjArchitecture::Mips => {
+            mips::process_code(code, symbol.address, symbol.address + symbol.size, relocs)?
+        }
+    };
+
+    let mut diff = Vec::<ObjInsDiff>::new();
+    for i in ins {
+        diff.push(ObjInsDiff { ins: Some(i), kind: ObjInsDiffKind::None, ..Default::default() });
+    }
+    resolve_branches(&mut diff);
+    symbol.instructions = diff;
+    Ok(())
+}
+
 pub fn diff_code(
     arch: ObjArchitecture,
     left_data: &[u8],
@@ -133,8 +157,8 @@ pub fn diff_code(
     } else {
         ((total - diff_state.diff_count) as f32 / total as f32) * 100.0
     };
-    left_symbol.match_percent = percent;
-    right_symbol.match_percent = percent;
+    left_symbol.match_percent = Some(percent);
+    right_symbol.match_percent = Some(percent);
 
     left_symbol.instructions = left_diff;
     right_symbol.instructions = right_diff;
@@ -356,12 +380,100 @@ pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo, _diff_config: &DiffCon
                             &left_section.relocations,
                             &right_section.relocations,
                         )?;
+                    } else {
+                        no_diff_code(
+                            left.architecture,
+                            &left_section.data,
+                            left_symbol,
+                            &left_section.relocations,
+                        )?;
+                    }
+                }
+                for right_symbol in &mut right_section.symbols {
+                    if right_symbol.instructions.is_empty() {
+                        no_diff_code(
+                            left.architecture,
+                            &right_section.data,
+                            right_symbol,
+                            &right_section.relocations,
+                        )?;
                     }
                 }
             } else if left_section.kind == ObjSectionKind::Data {
                 diff_data(left_section, right_section);
+                // diff_data_symbols(left_section, right_section)?;
+            } else if left_section.kind == ObjSectionKind::Bss {
+                diff_bss_symbols(&mut left_section.symbols, &mut right_section.symbols)?;
             }
         }
+    }
+    diff_bss_symbols(&mut left.common, &mut right.common)?;
+    Ok(())
+}
+
+fn diff_bss_symbols(left_symbols: &mut [ObjSymbol], right_symbols: &mut [ObjSymbol]) -> Result<()> {
+    for left_symbol in left_symbols {
+        if let Some(right_symbol) = find_symbol(right_symbols, &left_symbol.name) {
+            left_symbol.diff_symbol = Some(right_symbol.name.clone());
+            right_symbol.diff_symbol = Some(left_symbol.name.clone());
+            let percent = if left_symbol.size == right_symbol.size { 100.0 } else { 50.0 };
+            left_symbol.match_percent = Some(percent);
+            right_symbol.match_percent = Some(percent);
+        }
+    }
+    Ok(())
+}
+
+// WIP diff-by-symbol
+#[allow(dead_code)]
+fn diff_data_symbols(left: &mut ObjSection, right: &mut ObjSection) -> Result<()> {
+    let mut left_ops = Vec::<u32>::with_capacity(left.symbols.len());
+    let mut right_ops = Vec::<u32>::with_capacity(right.symbols.len());
+    for left_symbol in &left.symbols {
+        let data = &left.data
+            [left_symbol.address as usize..(left_symbol.address + left_symbol.size) as usize];
+        let hash = twox_hash::xxh3::hash64(data);
+        left_ops.push(hash as u32);
+    }
+    for symbol in &right.symbols {
+        let data = &right.data[symbol.address as usize..(symbol.address + symbol.size) as usize];
+        let hash = twox_hash::xxh3::hash64(data);
+        right_ops.push(hash as u32);
+    }
+
+    let edit_ops = editops_find(&left_ops, &right_ops);
+    if edit_ops.is_empty() && !left.data.is_empty() {
+        let mut left_iter = left.symbols.iter_mut();
+        let mut right_iter = right.symbols.iter_mut();
+        loop {
+            let (left_symbol, right_symbol) = match (left_iter.next(), right_iter.next()) {
+                (Some(l), Some(r)) => (l, r),
+                (None, None) => break,
+                _ => return Err(anyhow::Error::msg("L/R mismatch in diff_data_symbols")),
+            };
+            let left_data = &left.data
+                [left_symbol.address as usize..(left_symbol.address + left_symbol.size) as usize];
+            let right_data = &right.data[right_symbol.address as usize
+                ..(right_symbol.address + right_symbol.size) as usize];
+
+            left.data_diff.push(ObjDataDiff {
+                data: left_data.to_vec(),
+                kind: ObjDataDiffKind::None,
+                len: left_symbol.size as usize,
+                symbol: left_symbol.name.clone(),
+            });
+            right.data_diff.push(ObjDataDiff {
+                data: right_data.to_vec(),
+                kind: ObjDataDiffKind::None,
+                len: right_symbol.size as usize,
+                symbol: right_symbol.name.clone(),
+            });
+            left_symbol.diff_symbol = Some(right_symbol.name.clone());
+            left_symbol.match_percent = Some(100.0);
+            right_symbol.diff_symbol = Some(left_symbol.name.clone());
+            right_symbol.match_percent = Some(100.0);
+        }
+        return Ok(());
     }
     Ok(())
 }
@@ -373,11 +485,13 @@ fn diff_data(left: &mut ObjSection, right: &mut ObjSection) {
             data: left.data.clone(),
             kind: ObjDataDiffKind::None,
             len: left.data.len(),
+            symbol: String::new(),
         }];
         right.data_diff = vec![ObjDataDiff {
             data: right.data.clone(),
             kind: ObjDataDiffKind::None,
             len: right.data.len(),
+            symbol: String::new(),
         }];
         return;
     }
@@ -390,23 +504,7 @@ fn diff_data(left: &mut ObjSection, right: &mut ObjSection) {
     let mut cur_left_data = Vec::<u8>::new();
     let mut cur_right_data = Vec::<u8>::new();
     for op in edit_ops {
-        if left_cur < op.first_start {
-            left_diff.push(ObjDataDiff {
-                data: left.data[left_cur..op.first_start].to_vec(),
-                kind: ObjDataDiffKind::None,
-                len: op.first_start - left_cur,
-            });
-            left_cur = op.first_start;
-        }
-        if right_cur < op.second_start {
-            right_diff.push(ObjDataDiff {
-                data: right.data[right_cur..op.second_start].to_vec(),
-                kind: ObjDataDiffKind::None,
-                len: op.second_start - right_cur,
-            });
-            right_cur = op.second_start;
-        }
-        if cur_op != op.op_type {
+        if cur_op != op.op_type || left_cur < op.first_start || right_cur < op.second_start {
             match cur_op {
                 LevEditType::Keep => {}
                 LevEditType::Replace => {
@@ -418,11 +516,13 @@ fn diff_data(left: &mut ObjSection, right: &mut ObjSection) {
                         data: left_data,
                         kind: ObjDataDiffKind::Replace,
                         len: left_data_len,
+                        symbol: String::new(),
                     });
                     right_diff.push(ObjDataDiff {
                         data: right_data,
                         kind: ObjDataDiffKind::Replace,
                         len: right_data_len,
+                        symbol: String::new(),
                     });
                 }
                 LevEditType::Insert => {
@@ -432,11 +532,13 @@ fn diff_data(left: &mut ObjSection, right: &mut ObjSection) {
                         data: vec![],
                         kind: ObjDataDiffKind::Insert,
                         len: right_data_len,
+                        symbol: String::new(),
                     });
                     right_diff.push(ObjDataDiff {
                         data: right_data,
                         kind: ObjDataDiffKind::Insert,
                         len: right_data_len,
+                        symbol: String::new(),
                     });
                 }
                 LevEditType::Delete => {
@@ -446,14 +548,34 @@ fn diff_data(left: &mut ObjSection, right: &mut ObjSection) {
                         data: left_data,
                         kind: ObjDataDiffKind::Delete,
                         len: left_data_len,
+                        symbol: String::new(),
                     });
                     right_diff.push(ObjDataDiff {
                         data: vec![],
                         kind: ObjDataDiffKind::Delete,
                         len: left_data_len,
+                        symbol: String::new(),
                     });
                 }
             }
+        }
+        if left_cur < op.first_start {
+            left_diff.push(ObjDataDiff {
+                data: left.data[left_cur..op.first_start].to_vec(),
+                kind: ObjDataDiffKind::None,
+                len: op.first_start - left_cur,
+                symbol: String::new(),
+            });
+            left_cur = op.first_start;
+        }
+        if right_cur < op.second_start {
+            right_diff.push(ObjDataDiff {
+                data: right.data[right_cur..op.second_start].to_vec(),
+                kind: ObjDataDiffKind::None,
+                len: op.second_start - right_cur,
+                symbol: String::new(),
+            });
+            right_cur = op.second_start;
         }
         match op.op_type {
             LevEditType::Replace => {
@@ -504,11 +626,13 @@ fn diff_data(left: &mut ObjSection, right: &mut ObjSection) {
                 data: left_data,
                 kind: ObjDataDiffKind::Replace,
                 len: left_data_len,
+                symbol: String::new(),
             });
             right_diff.push(ObjDataDiff {
                 data: right_data,
                 kind: ObjDataDiffKind::Replace,
                 len: right_data_len,
+                symbol: String::new(),
             });
         }
         LevEditType::Insert => {
@@ -518,11 +642,13 @@ fn diff_data(left: &mut ObjSection, right: &mut ObjSection) {
                 data: vec![],
                 kind: ObjDataDiffKind::Insert,
                 len: right_data_len,
+                symbol: String::new(),
             });
             right_diff.push(ObjDataDiff {
                 data: right_data,
                 kind: ObjDataDiffKind::Insert,
                 len: right_data_len,
+                symbol: String::new(),
             });
         }
         LevEditType::Delete => {
@@ -532,13 +658,32 @@ fn diff_data(left: &mut ObjSection, right: &mut ObjSection) {
                 data: left_data,
                 kind: ObjDataDiffKind::Delete,
                 len: left_data_len,
+                symbol: String::new(),
             });
             right_diff.push(ObjDataDiff {
                 data: vec![],
                 kind: ObjDataDiffKind::Delete,
                 len: left_data_len,
+                symbol: String::new(),
             });
         }
+    }
+
+    if left_cur < left.data.len() {
+        left_diff.push(ObjDataDiff {
+            data: left.data[left_cur..].to_vec(),
+            kind: ObjDataDiffKind::None,
+            len: left.data.len() - left_cur,
+            symbol: String::new(),
+        });
+    }
+    if right_cur < right.data.len() {
+        right_diff.push(ObjDataDiff {
+            data: right.data[right_cur..].to_vec(),
+            kind: ObjDataDiffKind::None,
+            len: right.data.len() - right_cur,
+            symbol: String::new(),
+        });
     }
 
     left.data_diff = left_diff;

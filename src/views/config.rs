@@ -4,10 +4,14 @@ use std::sync::{Arc, RwLock};
 
 #[cfg(windows)]
 use anyhow::{Context, Result};
+use const_format::formatcp;
+use egui::{output::OpenUrl, Color32};
+use self_update::cargo_crate_version;
 
 use crate::{
     app::{AppConfig, DiffKind, ViewState},
-    jobs::{bindiff::queue_bindiff, objdiff::queue_build},
+    jobs::{bindiff::queue_bindiff, objdiff::queue_build, update::queue_update},
+    update::RELEASE_URL,
 };
 
 #[cfg(windows)]
@@ -57,7 +61,49 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
         left_obj,
         right_obj,
         project_dir_change,
+        queue_update_check,
+        auto_update_check,
     } = &mut *config_guard;
+
+    ui.heading("Updates");
+    ui.checkbox(auto_update_check, "Check for updates on startup");
+    if ui.button("Check now").clicked() {
+        *queue_update_check = true;
+    }
+    ui.label(format!("Current version: {}", cargo_crate_version!())).on_hover_ui_at_pointer(|ui| {
+        ui.label(formatcp!("Git branch: {}", env!("VERGEN_GIT_BRANCH")));
+        ui.label(formatcp!("Git commit: {}", env!("VERGEN_GIT_SHA")));
+        ui.label(formatcp!("Build target: {}", env!("VERGEN_CARGO_TARGET_TRIPLE")));
+        ui.label(formatcp!("Build type: {}", env!("VERGEN_CARGO_PROFILE")));
+    });
+    if let Some(state) = &view_state.check_update {
+        ui.label(format!("Latest version: {}", state.latest_release.version));
+        if state.update_available {
+            ui.colored_label(Color32::LIGHT_GREEN, "Update available");
+            ui.horizontal(|ui| {
+                if state.found_binary {
+                    if ui
+                        .button("Automatic")
+                        .on_hover_text_at_pointer(
+                            "Automatically download and replace the current build",
+                        )
+                        .clicked()
+                    {
+                        view_state.jobs.push(queue_update());
+                    }
+                }
+                if ui
+                    .button("Manual")
+                    .on_hover_text_at_pointer("Open a link to the latest release on GitHub")
+                    .clicked()
+                {
+                    ui.output().open_url =
+                        Some(OpenUrl { url: RELEASE_URL.to_string(), new_tab: true });
+                }
+            });
+        }
+    }
+    ui.separator();
 
     ui.heading("Build config");
 
@@ -82,7 +128,14 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
     }
 
     ui.label("Custom make program:");
-    ui.text_edit_singleline(custom_make);
+    let mut custom_make_str = custom_make.clone().unwrap_or_default();
+    if ui.text_edit_singleline(&mut custom_make_str).changed() {
+        if custom_make_str.is_empty() {
+            *custom_make = None;
+        } else {
+            *custom_make = Some(custom_make_str);
+        }
+    }
 
     ui.separator();
 

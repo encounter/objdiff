@@ -2,13 +2,26 @@ use egui::{Color32, ProgressBar, Widget};
 
 use crate::app::ViewState;
 
-pub fn jobs_ui(ui: &mut egui::Ui, view_state: &ViewState) {
+pub fn jobs_ui(ui: &mut egui::Ui, view_state: &mut ViewState) {
     ui.label("Jobs");
 
-    for job in &view_state.jobs {
+    let mut remove_job: Option<usize> = None;
+    for (idx, job) in view_state.jobs.iter_mut().enumerate() {
         if let Ok(status) = job.status.read() {
             ui.group(|ui| {
-                ui.label(&status.title);
+                ui.horizontal(|ui| {
+                    ui.label(&status.title);
+                    if ui.small_button("✖").clicked() {
+                        if job.handle.is_some() {
+                            job.should_remove = true;
+                            if let Err(e) = job.cancel.send(()) {
+                                eprintln!("Failed to cancel job: {:?}", e);
+                            }
+                        } else {
+                            remove_job = Some(idx);
+                        }
+                    }
+                });
                 let mut bar = ProgressBar::new(status.progress_percent);
                 if let Some(items) = &status.progress_items {
                     bar = bar.text(format!("{} / {}", items[0], items[1]));
@@ -34,5 +47,9 @@ pub fn jobs_ui(ui: &mut egui::Ui, view_state: &ViewState) {
                 }
             });
         }
+    }
+
+    if let Some(idx) = remove_job {
+        view_state.jobs.remove(idx);
     }
 }

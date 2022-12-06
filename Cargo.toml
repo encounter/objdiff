@@ -1,6 +1,6 @@
 [package]
 name = "objdiff"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.62"
 authors = ["Luke Street <luke@street.dev>"]
@@ -8,29 +8,45 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/encounter/objdiff"
 readme = "README.md"
 description = """
-A tool for decompilation projects.
+A local diffing tool for decompilation projects.
 """
+publish = false
+
+[profile.release]
+lto = "thin"
+strip = "debuginfo"
 
 [dependencies]
-egui = "0.19.0"
+anyhow = "1.0.66"
+cfg-if = "1.0.0"
+const_format = "0.2.30"
+cwdemangle = { git = "https://github.com/encounter/cwdemangle", rev = "286f3d1d29ee2457db89043782725631845c3e4c" }
 eframe = { version = "0.19.0", features = ["persistence"] } # , "wgpu"
-serde = { version = "1", features = ["derive"] }
-anyhow = "1.0.63"
-thiserror = "1.0.33"
-flagset = "0.4.3"
-object = "0.29.0"
-notify = "5.0.0"
-cwdemangle = { git = "https://github.com/encounter/cwdemangle", rev = "64e8b3e083343783c5b3b6329ea940f375b057b3" }
-log = "0.4.17"
-rfd = { version = "0.10.0" } # , default-features = false, features = ['xdg-portal']
+egui = "0.19.0"
 egui_extras = "0.19.0"
+flagset = "0.4.3"
+log = "0.4.17"
+memmap2 = "0.5.8"
+notify = "5.0.0"
+object = { version = "0.30.0", features = ["read_core", "std", "elf"], default-features = false }
 ppc750cl = { git = "https://github.com/encounter/ppc750cl", rev = "aa631a33de7882c679afca89350898b87cb3ba3f" }
 rabbitizer = { git = "https://github.com/encounter/rabbitizer-rs", rev = "10c279b2ef251c62885b1dcdcfe740b0db8e9956" }
-time = { version = "0.3.14", features = ["formatting", "local-offset"] }
+rfd = { version = "0.10.0" } # , default-features = false, features = ['xdg-portal']
+self_update = "0.32.0"
+serde = { version = "1", features = ["derive"] }
+thiserror = "1.0.37"
+time = { version = "0.3.17", features = ["formatting", "local-offset"] }
+toml = "0.5.9"
+twox-hash = "1.6.3"
+tempfile = "3.3.0"
+reqwest = "0.11.13"
 
 [target.'cfg(windows)'.dependencies]
-path-slash = "0.2.0"
+path-slash = "0.2.1"
 winapi = "0.3.9"
+
+[target.'cfg(unix)'.dependencies]
+exec = "0.3.1"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -38,5 +54,9 @@ tracing-subscriber = "0.3"
 
 # web:
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-console_error_panic_hook = "0.1.6"
+console_error_panic_hook = "0.1.7"
 tracing-wasm = "0.2"
+
+[build-dependencies]
+anyhow = "1.0.66"
+vergen = { version = "7.4.3", features = ["build", "cargo", "git"], default-features = false }

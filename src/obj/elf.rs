@@ -63,7 +63,7 @@ fn to_obj_symbol(obj_file: &File<'_>, symbol: &Symbol<'_, '_>, addend: i64) -> R
         addend,
         diff_symbol: None,
         instructions: vec![],
-        match_percent: 0.0,
+        match_percent: None,
     })
 }
 
@@ -81,7 +81,7 @@ fn filter_sections(obj_file: &File<'_>) -> Result<Vec<ObjSection>> {
             continue;
         }
         let name = section.name().context("Failed to process section name")?;
-        let data = section.data().context("Failed to read section data")?;
+        let data = section.uncompressed_data().context("Failed to read section data")?;
         result.push(ObjSection {
             name: name.to_string(),
             kind: to_obj_section_kind(section.kind()),
@@ -183,7 +183,7 @@ fn find_section_symbol(
         addend: offset_addr as i64,
         diff_symbol: None,
         instructions: vec![],
-        match_percent: 0.0,
+        match_percent: None,
     })
 }
 
@@ -290,8 +290,11 @@ fn relocations_by_section(
 }
 
 pub fn read(obj_path: &Path) -> Result<ObjInfo> {
-    let bin_data = fs::read(obj_path)?;
-    let obj_file = File::parse(&*bin_data)?;
+    let data = {
+        let file = fs::File::open(obj_path)?;
+        unsafe { memmap2::Mmap::map(&file) }?
+    };
+    let obj_file = File::parse(&*data)?;
     let architecture = match obj_file.architecture() {
         Architecture::PowerPc => ObjArchitecture::PowerPc,
         Architecture::Mips => ObjArchitecture::Mips,

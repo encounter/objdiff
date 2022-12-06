@@ -19,6 +19,7 @@ pub struct BuildStatus {
     pub success: bool,
     pub log: String,
 }
+
 pub struct ObjDiffResult {
     pub first_status: BuildStatus,
     pub second_status: BuildStatus,
@@ -29,7 +30,7 @@ pub struct ObjDiffResult {
 
 fn run_make(cwd: &Path, arg: &Path, config: &AppConfig) -> BuildStatus {
     match (|| -> Result<BuildStatus> {
-        let make = if config.custom_make.is_empty() { "make" } else { &config.custom_make };
+        let make = config.custom_make.as_deref().unwrap_or("make");
         #[cfg(not(windows))]
         let mut command = {
             let mut command = Command::new(make);
@@ -136,7 +137,7 @@ fn run_build(
 }
 
 pub fn queue_build(config: Arc<RwLock<AppConfig>>, diff_config: DiffConfig) -> JobState {
-    queue_job(Job::ObjDiff, move |status, cancel| {
+    queue_job("Object diff", Job::ObjDiff, move |status, cancel| {
         run_build(status, cancel, config, diff_config).map(JobResult::ObjDiff)
     })
 }

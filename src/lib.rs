@@ -7,4 +7,5 @@ mod diff;
 mod editops;
 mod jobs;
 mod obj;
+mod update;
 mod views;

@@ -3,13 +3,11 @@
 [Build Status]: https://github.com/encounter/objdiff/actions/workflows/build.yaml/badge.svg
 [actions]: https://github.com/encounter/objdiff/actions
 
-A tool for decompilation projects.
+A local diffing tool for decompilation projects.
 
 Currently supports:
 - PowerPC 750CL (GameCube & Wii)
 - MIPS (Nintendo 64)
-
-**WARNING:** Very early & unstable.
 
 ![Symbol Screenshot](assets/screen-symbols.png)
 ![Diff Screenshot](assets/screen-diff.png)

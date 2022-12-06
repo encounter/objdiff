@@ -4,16 +4,16 @@ use egui::{
 use egui_extras::{Size, StripBuilder};
 
 use crate::{
-    app::{View, ViewState},
+    app::{View, ViewConfig, ViewState},
     jobs::objdiff::BuildStatus,
     obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags},
     views::write_text,
 };
 
-pub fn match_color_for_symbol(symbol: &ObjSymbol) -> Color32 {
-    if symbol.match_percent == 100.0 {
+pub fn match_color_for_symbol(match_percent: f32) -> Color32 {
+    if match_percent == 100.0 {
         Color32::GREEN
-    } else if symbol.match_percent >= 50.0 {
+    } else if match_percent >= 50.0 {
         Color32::LIGHT_BLUE
     } else {
         Color32::RED
@@ -45,7 +45,11 @@ fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol) {
 
         ui.colored_label(Color32::WHITE, format!("Name: {}", symbol.name));
         ui.colored_label(Color32::WHITE, format!("Address: {:x}", symbol.address));
-        ui.colored_label(Color32::WHITE, format!("Size: {:x}", symbol.size));
+        if symbol.size_known {
+            ui.colored_label(Color32::WHITE, format!("Size: {:x}", symbol.size));
+        } else {
+            ui.colored_label(Color32::WHITE, format!("Size: {:x} (assumed)", symbol.size));
+        }
     });
 }
 
@@ -56,6 +60,7 @@ fn symbol_ui(
     highlighted_symbol: &mut Option<String>,
     selected_symbol: &mut Option<String>,
     current_view: &mut View,
+    config: &ViewConfig,
 ) {
     let mut job = LayoutJob::default();
     let name: &str =
@@ -64,28 +69,29 @@ fn symbol_ui(
     if let Some(sym) = highlighted_symbol {
         selected = sym == &symbol.name;
     }
-    write_text("[", Color32::GRAY, &mut job);
+    write_text("[", Color32::GRAY, &mut job, config.code_font.clone());
     if symbol.flags.0.contains(ObjSymbolFlags::Common) {
-        write_text("c", Color32::from_rgb(0, 255, 255), &mut job);
+        write_text("c", Color32::from_rgb(0, 255, 255), &mut job, config.code_font.clone());
     } else if symbol.flags.0.contains(ObjSymbolFlags::Global) {
-        write_text("g", Color32::GREEN, &mut job);
+        write_text("g", Color32::GREEN, &mut job, config.code_font.clone());
     } else if symbol.flags.0.contains(ObjSymbolFlags::Local) {
-        write_text("l", Color32::GRAY, &mut job);
+        write_text("l", Color32::GRAY, &mut job, config.code_font.clone());
     }
     if symbol.flags.0.contains(ObjSymbolFlags::Weak) {
-        write_text("w", Color32::GRAY, &mut job);
+        write_text("w", Color32::GRAY, &mut job, config.code_font.clone());
     }
-    write_text("] ", Color32::GRAY, &mut job);
-    if symbol.match_percent > 0.0 {
-        write_text("(", Color32::GRAY, &mut job);
+    write_text("] ", Color32::GRAY, &mut job, config.code_font.clone());
+    if let Some(match_percent) = symbol.match_percent {
+        write_text("(", Color32::GRAY, &mut job, config.code_font.clone());
         write_text(
-            &format!("{:.0}%", symbol.match_percent),
-            match_color_for_symbol(symbol),
+            &format!("{:.0}%", match_percent),
+            match_color_for_symbol(match_percent),
             &mut job,
+            config.code_font.clone(),
         );
-        write_text(") ", Color32::GRAY, &mut job);
+        write_text(") ", Color32::GRAY, &mut job, config.code_font.clone());
     }
-    write_text(name, Color32::WHITE, &mut job);
+    write_text(name, Color32::WHITE, &mut job, config.code_font.clone());
     let response = SelectableLabel::new(selected, job)
         .ui(ui)
         .context_menu(|ui| symbol_context_menu_ui(ui, symbol))
@@ -123,6 +129,7 @@ fn symbol_list_ui(
     current_view: &mut View,
     reverse_function_order: bool,
     search: &mut String,
+    config: &ViewConfig,
 ) {
     ui.text_edit_singleline(search);
     let lower_search = search.to_ascii_lowercase();
@@ -142,6 +149,7 @@ fn symbol_list_ui(
                             highlighted_symbol,
                             selected_symbol,
                             current_view,
+                            config,
                         );
                     }
                 });
@@ -163,6 +171,7 @@ fn symbol_list_ui(
                                     highlighted_symbol,
                                     selected_symbol,
                                     current_view,
+                                    config,
                                 );
                             }
                         } else {
@@ -177,6 +186,7 @@ fn symbol_list_ui(
                                     highlighted_symbol,
                                     selected_symbol,
                                     current_view,
+                                    config,
                                 );
                             }
                         }
@@ -255,6 +265,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
                                             current_view,
                                             view_state.reverse_fn_order,
                                             search,
+                                            &view_state.view_config,
                                         );
                                     });
                                 }
@@ -274,6 +285,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
                                             current_view,
                                             view_state.reverse_fn_order,
                                             search,
+                                            &view_state.view_config,
                                         );
                                     });
                                 }

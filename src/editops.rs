@@ -47,7 +47,8 @@ pub struct LevMatchingBlock {
     pub len: usize,
 }
 
-pub fn editops_find(query: &[u8], choice: &[u8]) -> Vec<LevEditOp> {
+pub fn editops_find<T>(query: &[T], choice: &[T]) -> Vec<LevEditOp>
+where T: PartialEq {
     let string_affix = Affix::find(query, choice);
 
     let first_string_len = string_affix.first_string_len;
@@ -96,14 +97,17 @@ pub fn editops_find(query: &[u8], choice: &[u8]) -> Vec<LevEditOp> {
     )
 }
 
-fn editops_from_cost_matrix(
-    string1: &[u8],
-    string2: &[u8],
+fn editops_from_cost_matrix<T>(
+    string1: &[T],
+    string2: &[T],
     len1: usize,
     len2: usize,
     prefix_len: usize,
     cache_matrix: Vec<usize>,
-) -> Vec<LevEditOp> {
+) -> Vec<LevEditOp>
+where
+    T: PartialEq,
+{
     let mut dir = 0;
 
     let mut ops: Vec<LevEditOp> = vec![];
@@ -187,7 +191,8 @@ pub struct Affix {
 }
 
 impl Affix {
-    pub fn find(first_string: &[u8], second_string: &[u8]) -> Affix {
+    pub fn find<T>(first_string: &[T], second_string: &[T]) -> Affix
+    where T: PartialEq {
         // remove common prefix and suffix (linear vs square runtime for levensthein)
         let mut first_iter = first_string.iter();
         let mut second_iter = second_string.iter();

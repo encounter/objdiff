@@ -109,6 +109,7 @@ pub struct ObjDataDiff {
     pub data: Vec<u8>,
     pub kind: ObjDataDiffKind,
     pub len: usize,
+    pub symbol: String,
 }
 #[derive(Debug, Clone)]
 pub struct ObjSymbol {
@@ -124,7 +125,7 @@ pub struct ObjSymbol {
     // Diff
     pub diff_symbol: Option<String>,
     pub instructions: Vec<ObjInsDiff>,
-    pub match_percent: f32,
+    pub match_percent: Option<f32>,
 }
 #[derive(Debug, Copy, Clone)]
 pub enum ObjArchitecture {
