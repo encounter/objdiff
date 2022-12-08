@@ -1,6 +1,5 @@
 use std::{
     env::{current_dir, current_exe},
-    fs,
     fs::File,
     path::PathBuf,
     sync::mpsc::Receiver,
@@ -44,7 +43,7 @@ fn run_update(status: &Status, cancel: Receiver<()>) -> Result<Box<UpdateResult>
         .to_dest(&target_file)?;
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
+        use std::{fs, os::unix::fs::PermissionsExt};
         let mut perms = fs::metadata(&target_file)?.permissions();
         perms.set_mode(0o755);
         fs::set_permissions(&target_file, perms)?;

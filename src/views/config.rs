@@ -81,12 +81,14 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
         if state.update_available {
             ui.colored_label(Color32::LIGHT_GREEN, "Update available");
             ui.horizontal(|ui| {
-                if state.found_binary && ui
+                if state.found_binary
+                    && ui
                         .button("Automatic")
                         .on_hover_text_at_pointer(
                             "Automatically download and replace the current build",
                         )
-                        .clicked() {
+                        .clicked()
+                {
                     view_state.jobs.push(queue_update());
                 }
                 if ui
@@ -183,20 +185,18 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
             ui.separator();
         }
 
-        if let Some(base_dir) = base_obj_dir {
+        if let (Some(base_dir), Some(target_dir)) = (base_obj_dir, target_obj_dir) {
             if ui.button("Select obj").clicked() {
                 if let Some(path) = rfd::FileDialog::new()
-                    .set_directory(&base_dir)
+                    .set_directory(&target_dir)
                     .add_filter("Object file", &["o", "elf"])
                     .pick_file()
                 {
                     let mut new_build_obj: Option<String> = None;
                     if let Ok(obj_path) = path.strip_prefix(&base_dir) {
                         new_build_obj = Some(obj_path.display().to_string());
-                    } else if let Some(build_asm_dir) = target_obj_dir {
-                        if let Ok(obj_path) = path.strip_prefix(&build_asm_dir) {
-                            new_build_obj = Some(obj_path.display().to_string());
-                        }
+                    } else if let Ok(obj_path) = path.strip_prefix(&target_dir) {
+                        new_build_obj = Some(obj_path.display().to_string());
                     }
                     if let Some(new_build_obj) = new_build_obj {
                         *obj_path = Some(new_build_obj);
