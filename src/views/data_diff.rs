@@ -5,7 +5,7 @@ use egui_extras::{Size, StripBuilder, TableBuilder};
 use time::format_description;
 
 use crate::{
-    app::{View, ViewConfig, ViewState},
+    app::{SymbolReference, View, ViewConfig, ViewState},
     jobs::Job,
     obj::{ObjDataDiff, ObjDataDiffKind, ObjInfo, ObjSection},
     views::{write_text, COLOR_RED},
@@ -13,8 +13,8 @@ use crate::{
 
 const BYTES_PER_ROW: usize = 16;
 
-fn find_section<'a>(obj: &'a ObjInfo, section_name: &str) -> Option<&'a ObjSection> {
-    obj.sections.iter().find(|s| s.name == section_name)
+fn find_section<'a>(obj: &'a ObjInfo, selected_symbol: &SymbolReference) -> Option<&'a ObjSection> {
+    obj.sections.get(selected_symbol.section_index)
 }
 
 fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], config: &ViewConfig) {
@@ -132,11 +132,11 @@ fn data_table_ui(
     table: TableBuilder<'_>,
     left_obj: &ObjInfo,
     right_obj: &ObjInfo,
-    section_name: &str,
+    selected_symbol: &SymbolReference,
     config: &ViewConfig,
 ) -> Option<()> {
-    let left_section = find_section(left_obj, section_name)?;
-    let right_section = find_section(right_obj, section_name)?;
+    let left_section = find_section(left_obj, selected_symbol)?;
+    let right_section = find_section(right_obj, selected_symbol)?;
 
     let total_bytes = left_section.data_diff.iter().fold(0usize, |accum, item| accum + item.len);
     if total_bytes == 0 {
@@ -219,7 +219,7 @@ pub fn data_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
                                 ui.style_mut().override_text_style =
                                     Some(egui::TextStyle::Monospace);
                                 ui.style_mut().wrap = Some(false);
-                                ui.colored_label(Color32::WHITE, selected_symbol);
+                                ui.colored_label(Color32::WHITE, &selected_symbol.symbol_name);
                                 ui.label("Diff target:");
                                 ui.separator();
                             });

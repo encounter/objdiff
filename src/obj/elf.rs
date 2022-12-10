@@ -9,7 +9,7 @@ use object::{
         R_PPC_EMB_SDA21, R_PPC_REL14, R_PPC_REL24,
     },
     Architecture, File, Object, ObjectSection, ObjectSymbol, RelocationKind, RelocationTarget,
-    SectionKind, Symbol, SymbolKind, SymbolSection,
+    SectionIndex, SectionKind, Symbol, SymbolKind, SymbolSection,
 };
 
 use crate::obj::{
@@ -192,9 +192,7 @@ fn relocations_by_section(
     obj_file: &File<'_>,
     section: &mut ObjSection,
 ) -> Result<Vec<ObjReloc>> {
-    let obj_section = obj_file
-        .section_by_name(&section.name)
-        .ok_or_else(|| anyhow::Error::msg("Failed to locate section"))?;
+    let obj_section = obj_file.section_by_index(SectionIndex(section.index))?;
     let mut relocations = Vec::<ObjReloc>::new();
     for (address, reloc) in obj_section.relocations() {
         let symbol = match reloc.target() {

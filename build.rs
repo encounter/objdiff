@@ -1,4 +1,10 @@
 use anyhow::Result;
 use vergen::{vergen, Config};
 
-fn main() -> Result<()> { vergen(Config::default()) }
+fn main() -> Result<()> {
+    #[cfg(windows)]
+    {
+        winres::WindowsResource::new().set_icon("assets/icon.ico").compile()?;
+    }
+    vergen(Config::default())
+}

@@ -7,7 +7,7 @@ use ppc750cl::Argument;
 use time::format_description;
 
 use crate::{
-    app::{View, ViewConfig, ViewState},
+    app::{SymbolReference, View, ViewConfig, ViewState},
     jobs::Job,
     obj::{
         ObjInfo, ObjIns, ObjInsArg, ObjInsArgDiff, ObjInsDiff, ObjInsDiffKind, ObjReloc,
@@ -240,9 +240,9 @@ fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
     });
 }
 
-fn find_symbol<'a>(obj: &'a ObjInfo, section_name: &str, name: &str) -> Option<&'a ObjSymbol> {
-    let section = obj.sections.iter().find(|s| s.name == section_name)?;
-    section.symbols.iter().find(|s| s.name == name)
+fn find_symbol<'a>(obj: &'a ObjInfo, selected_symbol: &SymbolReference) -> Option<&'a ObjSymbol> {
+    let section = obj.sections.get(selected_symbol.section_index)?;
+    section.symbols.iter().find(|s| s.name == selected_symbol.symbol_name)
 }
 
 fn asm_row_ui(ui: &mut egui::Ui, ins_diff: &ObjInsDiff, symbol: &ObjSymbol, config: &ViewConfig) {
@@ -296,11 +296,11 @@ fn asm_table_ui(
     table: TableBuilder<'_>,
     left_obj: &ObjInfo,
     right_obj: &ObjInfo,
-    fn_name: &str,
+    selected_symbol: &SymbolReference,
     config: &ViewConfig,
 ) -> Option<()> {
-    let left_symbol = find_symbol(left_obj, ".text", fn_name);
-    let right_symbol = find_symbol(right_obj, ".text", fn_name);
+    let left_symbol = find_symbol(left_obj, selected_symbol);
+    let right_symbol = find_symbol(right_obj, selected_symbol);
     let instructions_len = left_symbol.or(right_symbol).map(|s| s.instructions.len())?;
     table.body(|body| {
         body.rows(config.code_font.size, instructions_len, |row_index, mut row| {
@@ -372,7 +372,7 @@ pub fn function_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
                 });
                 strip.strip(|builder| {
                     builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
-                        let demangled = demangle(selected_symbol, &Default::default());
+                        let demangled = demangle(&selected_symbol.symbol_name, &Default::default());
                         strip.cell(|ui| {
                             ui.scope(|ui| {
                                 ui.style_mut().override_text_style =
@@ -380,7 +380,7 @@ pub fn function_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
                                 ui.style_mut().wrap = Some(false);
                                 ui.colored_label(
                                     Color32::WHITE,
-                                    demangled.as_ref().unwrap_or(selected_symbol),
+                                    demangled.as_ref().unwrap_or(&selected_symbol.symbol_name),
                                 );
                                 ui.label("Diff target:");
                                 ui.separator();
@@ -394,7 +394,7 @@ pub fn function_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
                                 if let Some(match_percent) = result
                                     .second_obj
                                     .as_ref()
-                                    .and_then(|obj| find_symbol(obj, ".text", selected_symbol))
+                                    .and_then(|obj| find_symbol(obj, selected_symbol))
                                     .and_then(|symbol| symbol.match_percent)
                                 {
                                     ui.colored_label(

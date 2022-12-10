@@ -3,8 +3,26 @@
 
 use std::{path::PathBuf, rc::Rc, sync::Mutex};
 
+use anyhow::{Error, Result};
 use cfg_if::cfg_if;
+use eframe::IconData;
 use time::UtcOffset;
+
+fn load_icon() -> Result<IconData> {
+    use bytes::Buf;
+    let decoder = png::Decoder::new(include_bytes!("../assets/icon_64.png").reader());
+    let mut reader = decoder.read_info()?;
+    let mut buf = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut buf)?;
+    if info.bit_depth != png::BitDepth::Eight {
+        return Err(Error::msg("Invalid bit depth"));
+    }
+    if info.color_type != png::ColorType::Rgba {
+        return Err(Error::msg("Invalid color type"));
+    }
+    buf.truncate(info.buffer_size());
+    Ok(IconData { rgba: buf, width: info.width, height: info.height })
+}
 
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
@@ -19,7 +37,15 @@ fn main() {
 
     let exec_path: Rc<Mutex<Option<PathBuf>>> = Rc::new(Mutex::new(None));
     let exec_path_clone = exec_path.clone();
-    let native_options = eframe::NativeOptions::default();
+    let mut native_options = eframe::NativeOptions::default();
+    match load_icon() {
+        Ok(data) => {
+            native_options.icon_data = Some(data);
+        }
+        Err(e) => {
+            log::warn!("Failed to load application icon: {}", e);
+        }
+    }
     // native_options.renderer = eframe::Renderer::Wgpu;
     eframe::run_native(
         "objdiff",

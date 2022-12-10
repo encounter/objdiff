@@ -4,7 +4,7 @@ use egui::{
 use egui_extras::{Size, StripBuilder};
 
 use crate::{
-    app::{View, ViewConfig, ViewState},
+    app::{SymbolReference, View, ViewConfig, ViewState},
     jobs::objdiff::BuildStatus,
     obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags},
     views::write_text,
@@ -56,9 +56,9 @@ fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol) {
 fn symbol_ui(
     ui: &mut Ui,
     symbol: &ObjSymbol,
-    section: Option<&ObjSection>,
+    section: Option<(usize, &ObjSection)>,
     highlighted_symbol: &mut Option<String>,
-    selected_symbol: &mut Option<String>,
+    selected_symbol: &mut Option<SymbolReference>,
     current_view: &mut View,
     config: &ViewConfig,
 ) {
@@ -97,12 +97,14 @@ fn symbol_ui(
         .context_menu(|ui| symbol_context_menu_ui(ui, symbol))
         .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, symbol));
     if response.clicked() {
-        if let Some(section) = section {
+        if let Some((section_index, section)) = section {
             if section.kind == ObjSectionKind::Code {
-                *selected_symbol = Some(symbol.name.clone());
+                *selected_symbol =
+                    Some(SymbolReference { symbol_name: symbol.name.clone(), section_index });
                 *current_view = View::FunctionDiff;
             } else if section.kind == ObjSectionKind::Data {
-                *selected_symbol = Some(section.name.clone());
+                *selected_symbol =
+                    Some(SymbolReference { symbol_name: section.name.clone(), section_index });
                 *current_view = View::DataDiff;
             }
         }
@@ -126,7 +128,7 @@ fn symbol_list_ui(
     ui: &mut Ui,
     obj: &ObjInfo,
     highlighted_symbol: &mut Option<String>,
-    selected_symbol: &mut Option<String>,
+    selected_symbol: &mut Option<SymbolReference>,
     current_view: &mut View,
     reverse_function_order: bool,
     search: &mut String,
@@ -156,7 +158,7 @@ fn symbol_list_ui(
                 });
             }
 
-            for section in &obj.sections {
+            for (section_index, section) in obj.sections.iter().enumerate() {
                 CollapsingHeader::new(format!("{} ({:x})", section.name, section.size))
                     .default_open(true)
                     .show(ui, |ui| {
@@ -168,7 +170,7 @@ fn symbol_list_ui(
                                 symbol_ui(
                                     ui,
                                     symbol,
-                                    Some(section),
+                                    Some((section_index, section)),
                                     highlighted_symbol,
                                     selected_symbol,
                                     current_view,
@@ -183,7 +185,7 @@ fn symbol_list_ui(
                                 symbol_ui(
                                     ui,
                                     symbol,
-                                    Some(section),
+                                    Some((section_index, section)),
                                     highlighted_symbol,
                                     selected_symbol,
                                     current_view,

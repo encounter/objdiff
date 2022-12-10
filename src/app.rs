@@ -79,6 +79,11 @@ impl Default for ViewConfig {
     }
 }
 
+pub struct SymbolReference {
+    pub symbol_name: String,
+    pub section_index: usize,
+}
+
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct ViewState {
@@ -89,7 +94,7 @@ pub struct ViewState {
     #[serde(skip)]
     pub highlighted_symbol: Option<String>,
     #[serde(skip)]
-    pub selected_symbol: Option<String>,
+    pub selected_symbol: Option<SymbolReference>,
     #[serde(skip)]
     pub current_view: View,
     #[serde(skip)]
