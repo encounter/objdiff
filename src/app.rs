@@ -81,7 +81,7 @@ impl Default for ViewConfig {
 
 pub struct SymbolReference {
     pub symbol_name: String,
-    pub section_index: usize,
+    pub section_name: String,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]

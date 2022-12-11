@@ -241,8 +241,9 @@ fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
 }
 
 fn find_symbol<'a>(obj: &'a ObjInfo, selected_symbol: &SymbolReference) -> Option<&'a ObjSymbol> {
-    let section = obj.sections.get(selected_symbol.section_index)?;
-    section.symbols.iter().find(|s| s.name == selected_symbol.symbol_name)
+    obj.sections.iter().find_map(|section| {
+        section.symbols.iter().find(|symbol| symbol.name == selected_symbol.symbol_name)
+    })
 }
 
 fn asm_row_ui(ui: &mut egui::Ui, ins_diff: &ObjInsDiff, symbol: &ObjSymbol, config: &ViewConfig) {

@@ -56,7 +56,7 @@ fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol) {
 fn symbol_ui(
     ui: &mut Ui,
     symbol: &ObjSymbol,
-    section: Option<(usize, &ObjSection)>,
+    section: Option<&ObjSection>,
     highlighted_symbol: &mut Option<String>,
     selected_symbol: &mut Option<SymbolReference>,
     current_view: &mut View,
@@ -97,14 +97,18 @@ fn symbol_ui(
         .context_menu(|ui| symbol_context_menu_ui(ui, symbol))
         .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, symbol));
     if response.clicked() {
-        if let Some((section_index, section)) = section {
+        if let Some(section) = section {
             if section.kind == ObjSectionKind::Code {
-                *selected_symbol =
-                    Some(SymbolReference { symbol_name: symbol.name.clone(), section_index });
+                *selected_symbol = Some(SymbolReference {
+                    symbol_name: symbol.name.clone(),
+                    section_name: section.name.clone(),
+                });
                 *current_view = View::FunctionDiff;
             } else if section.kind == ObjSectionKind::Data {
-                *selected_symbol =
-                    Some(SymbolReference { symbol_name: section.name.clone(), section_index });
+                *selected_symbol = Some(SymbolReference {
+                    symbol_name: section.name.clone(),
+                    section_name: section.name.clone(),
+                });
                 *current_view = View::DataDiff;
             }
         }
@@ -158,11 +162,11 @@ fn symbol_list_ui(
                 });
             }
 
-            for (section_index, section) in obj.sections.iter().enumerate() {
+            for section in &obj.sections {
                 CollapsingHeader::new(format!("{} ({:x})", section.name, section.size))
                     .default_open(true)
                     .show(ui, |ui| {
-                        if section.name == ".text" && reverse_function_order {
+                        if section.kind == ObjSectionKind::Code && reverse_function_order {
                             for symbol in section.symbols.iter().rev() {
                                 if !symbol_matches_search(symbol, &lower_search) {
                                     continue;
@@ -170,7 +174,7 @@ fn symbol_list_ui(
                                 symbol_ui(
                                     ui,
                                     symbol,
-                                    Some((section_index, section)),
+                                    Some(section),
                                     highlighted_symbol,
                                     selected_symbol,
                                     current_view,
@@ -185,7 +189,7 @@ fn symbol_list_ui(
                                 symbol_ui(
                                     ui,
                                     symbol,
-                                    Some((section_index, section)),
+                                    Some(section),
                                     highlighted_symbol,
                                     selected_symbol,
                                     current_view,
