@@ -27,7 +27,7 @@ pub fn process_code(
     for chunk in data.chunks_exact(4) {
         let reloc = relocs.iter().find(|r| (r.address as u32 & !3) == cur_addr);
         let code = u32::from_be_bytes(chunk.try_into()?);
-        let mut instruction = Instruction::new(code, cur_addr, InstrCategory::CPU);
+        let instruction = Instruction::new(code, cur_addr, InstrCategory::CPU);
 
         let op = instruction.unique_id as u8;
         ops.push(op);
@@ -41,7 +41,7 @@ pub fn process_code(
             .get_operands_slice()
             .iter()
             .map(|op| match op {
-                OperandType::cpu_immediate | OperandType::cpu_label => {
+                OperandType::cpu_immediate | OperandType::cpu_label | OperandType::cpu_branch_target_label => {
                     if is_branch {
                         ObjInsArg::BranchOffset(branch_offset)
                     } else if let Some(reloc) = reloc {
@@ -55,17 +55,17 @@ pub fn process_code(
                             ObjInsArg::Reloc
                         }
                     } else {
-                        ObjInsArg::MipsArg(op.disassemble(instruction, None))
+                        ObjInsArg::MipsArg(op.disassemble(&instruction, None))
                     }
                 }
                 OperandType::cpu_immediate_base => {
                     if reloc.is_some() {
                         ObjInsArg::RelocWithBase
                     } else {
-                        ObjInsArg::MipsArg(op.disassemble(instruction, None))
+                        ObjInsArg::MipsArg(op.disassemble(&instruction, None))
                     }
                 }
-                _ => ObjInsArg::MipsArg(op.disassemble(instruction, None)),
+                _ => ObjInsArg::MipsArg(op.disassemble(&instruction, None)),
             })
             .collect();
         let line =
