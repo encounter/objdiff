@@ -32,7 +32,7 @@ notify = "5.0.0"
 object = { version = "0.30.0", features = ["read_core", "std", "elf"], default-features = false }
 png = "0.17.7"
 ppc750cl = { git = "https://github.com/encounter/ppc750cl", rev = "aa631a33de7882c679afca89350898b87cb3ba3f" }
-rabbitizer = { git = "https://github.com/encounter/rabbitizer-rs", rev = "10c279b2ef251c62885b1dcdcfe740b0db8e9956" }
+rabbitizer = "1.5.7"
 reqwest = "0.11.13"
 rfd = { version = "0.10.0" } # , default-features = false, features = ['xdg-portal']
 self_update = "0.32.0"
