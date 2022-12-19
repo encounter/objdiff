@@ -32,7 +32,7 @@ notify = "5.0.0"
 object = { version = "0.30.2", features = ["read_core", "std", "elf"], default-features = false }
 png = "0.17.7"
 ppc750cl = { git = "https://github.com/terorie/ppc750cl", rev = "9ae36eef34aa6d74e00972c7671f547a2acfd0aa" }
-rabbitizer = { git = "https://github.com/encounter/rabbitizer-rs", rev = "10c279b2ef251c62885b1dcdcfe740b0db8e9956" }
+rabbitizer = "1.5.6"
 rfd = { version = "0.10.0" } #, default-features = false, features = ['xdg-portal']
 serde = { version = "1", features = ["derive"] }
 tempfile = "3.3.0"
