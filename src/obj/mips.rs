@@ -1,7 +1,13 @@
 use anyhow::Result;
-use rabbitizer::{config_set_register_fpr_abi_names, Abi, Instruction, SimpleOperandType};
+use rabbitizer::{config, Abi, Instruction, InstrCategory, OperandType};
 
 use crate::obj::{ObjIns, ObjInsArg, ObjReloc};
+
+fn configure_rabbitizer() {
+    unsafe {
+        config::RabbitizerConfig_Cfg.reg_names.fpr_abi_names = Abi::O32;
+    }
+}
 
 pub fn process_code(
     data: &[u8],
@@ -9,7 +15,7 @@ pub fn process_code(
     end_address: u64,
     relocs: &[ObjReloc],
 ) -> Result<(Vec<u8>, Vec<ObjIns>)> {
-    config_set_register_fpr_abi_names(Abi::RABBITIZER_ABI_O32);
+    configure_rabbitizer();
 
     let ins_count = data.len() / 4;
     let mut ops = Vec::<u8>::with_capacity(ins_count);
@@ -18,21 +24,21 @@ pub fn process_code(
     for chunk in data.chunks_exact(4) {
         let reloc = relocs.iter().find(|r| (r.address as u32 & !3) == cur_addr);
         let code = u32::from_be_bytes(chunk.try_into()?);
-        let mut instruction = Instruction::new(code, cur_addr);
+        let mut instruction = Instruction::new(code, cur_addr, InstrCategory::CPU);
 
-        let op = instruction.instr_id() as u8;
+        let op = instruction.unique_id as u8;
         ops.push(op);
 
-        let mnemonic = instruction.instr_id().get_opcode_name().unwrap_or_default().to_string();
+        let mnemonic = instruction.opcode_name().to_string();
         let is_branch = instruction.is_branch();
         let branch_offset = instruction.branch_offset();
         let branch_dest =
             if is_branch { Some((cur_addr as i32 + branch_offset) as u32) } else { None };
         let args = instruction
-            .simple_operands()
+            .get_operands_slice()
             .iter()
-            .map(|op| match op.kind {
-                SimpleOperandType::Imm | SimpleOperandType::Label => {
+            .map(|op| match op {
+                OperandType::cpu_immediate | OperandType::cpu_label => {
                     if is_branch {
                         ObjInsArg::BranchOffset(branch_offset)
                     } else if let Some(reloc) = reloc {
@@ -46,17 +52,17 @@ pub fn process_code(
                             ObjInsArg::Reloc
                         }
                     } else {
-                        ObjInsArg::MipsArg(op.disassembled.clone())
+                        ObjInsArg::MipsArg(op.disassemble(instruction, None))
                     }
                 }
-                SimpleOperandType::ImmBase => {
+                OperandType::cpu_immediate_base => {
                     if reloc.is_some() {
                         ObjInsArg::RelocWithBase
                     } else {
-                        ObjInsArg::MipsArg(op.disassembled.clone())
+                        ObjInsArg::MipsArg(op.disassemble(instruction, None))
                     }
                 }
-                _ => ObjInsArg::MipsArg(op.disassembled.clone()),
+                _ => ObjInsArg::MipsArg(op.disassemble(instruction, None)),
             })
             .collect();
         insts.push(ObjIns {
