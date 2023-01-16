@@ -363,48 +363,49 @@ fn find_symbol<'a>(symbols: &'a mut [ObjSymbol], name: &str) -> Option<&'a mut O
 
 pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo, _diff_config: &DiffConfig) -> Result<()> {
     for left_section in &mut left.sections {
-        if let Some(right_section) = find_section(right, &left_section.name) {
-            if left_section.kind == ObjSectionKind::Code {
-                for left_symbol in &mut left_section.symbols {
-                    if let Some(right_symbol) =
-                        find_symbol(&mut right_section.symbols, &left_symbol.name)
-                    {
-                        left_symbol.diff_symbol = Some(right_symbol.name.clone());
-                        right_symbol.diff_symbol = Some(left_symbol.name.clone());
-                        diff_code(
-                            left.architecture,
-                            &left_section.data,
-                            &right_section.data,
-                            left_symbol,
-                            right_symbol,
-                            &left_section.relocations,
-                            &right_section.relocations,
-                        )?;
-                    } else {
-                        no_diff_code(
-                            left.architecture,
-                            &left_section.data,
-                            left_symbol,
-                            &left_section.relocations,
-                        )?;
-                    }
+        let Some(right_section) = find_section(right, &left_section.name) else {
+            continue;
+        };
+        if left_section.kind == ObjSectionKind::Code {
+            for left_symbol in &mut left_section.symbols {
+                if let Some(right_symbol) =
+                    find_symbol(&mut right_section.symbols, &left_symbol.name)
+                {
+                    left_symbol.diff_symbol = Some(right_symbol.name.clone());
+                    right_symbol.diff_symbol = Some(left_symbol.name.clone());
+                    diff_code(
+                        left.architecture,
+                        &left_section.data,
+                        &right_section.data,
+                        left_symbol,
+                        right_symbol,
+                        &left_section.relocations,
+                        &right_section.relocations,
+                    )?;
+                } else {
+                    no_diff_code(
+                        left.architecture,
+                        &left_section.data,
+                        left_symbol,
+                        &left_section.relocations,
+                    )?;
                 }
-                for right_symbol in &mut right_section.symbols {
-                    if right_symbol.instructions.is_empty() {
-                        no_diff_code(
-                            left.architecture,
-                            &right_section.data,
-                            right_symbol,
-                            &right_section.relocations,
-                        )?;
-                    }
-                }
-            } else if left_section.kind == ObjSectionKind::Data {
-                diff_data(left_section, right_section);
-                // diff_data_symbols(left_section, right_section)?;
-            } else if left_section.kind == ObjSectionKind::Bss {
-                diff_bss_symbols(&mut left_section.symbols, &mut right_section.symbols)?;
             }
+            for right_symbol in &mut right_section.symbols {
+                if right_symbol.instructions.is_empty() {
+                    no_diff_code(
+                        left.architecture,
+                        &right_section.data,
+                        right_symbol,
+                        &right_section.relocations,
+                    )?;
+                }
+            }
+        } else if left_section.kind == ObjSectionKind::Data {
+            diff_data(left_section, right_section);
+            // diff_data_symbols(left_section, right_section)?;
+        } else if left_section.kind == ObjSectionKind::Bss {
+            diff_bss_symbols(&mut left_section.symbols, &mut right_section.symbols)?;
         }
     }
     diff_bss_symbols(&mut left.common, &mut right.common)?;
