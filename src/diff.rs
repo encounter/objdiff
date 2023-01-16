@@ -211,25 +211,25 @@ fn address_eq(left: &ObjSymbol, right: &ObjSymbol) -> bool {
 }
 
 fn reloc_eq(left_reloc: Option<&ObjReloc>, right_reloc: Option<&ObjReloc>) -> bool {
-    if let (Some(left), Some(right)) = (left_reloc, right_reloc) {
-        if left.kind != right.kind {
-            return false;
+    let (Some(left), Some(right)) = (left_reloc, right_reloc) else {
+        return false;
+    };
+    if left.kind != right.kind {
+        return false;
+    }
+
+    let name_matches = left.target.name == right.target.name;
+    match (&left.target_section, &right.target_section) {
+        (Some(sl), Some(sr)) => {
+            // Match if section and name or address match
+            sl == sr && (name_matches || address_eq(&left.target, &right.target))
         }
-        let name_matches = left.target.name == right.target.name;
-        match (&left.target_section, &right.target_section) {
-            (Some(sl), Some(sr)) => {
-                // Match if section and name or address match
-                sl == sr && (name_matches || address_eq(&left.target, &right.target))
-            }
-            (Some(_), None) => false,
-            (None, Some(_)) => {
-                // Match if possibly stripped weak symbol
-                name_matches && right.target.flags.0.contains(ObjSymbolFlags::Weak)
-            }
-            (None, None) => name_matches,
+        (Some(_), None) => false,
+        (None, Some(_)) => {
+            // Match if possibly stripped weak symbol
+            name_matches && right.target.flags.0.contains(ObjSymbolFlags::Weak)
         }
-    } else {
-        false
+        (None, None) => name_matches,
     }
 }
 
