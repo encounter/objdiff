@@ -165,99 +165,91 @@ fn data_table_ui(
 
 pub fn data_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
     let mut rebuild = false;
-    if let (Some(result), Some(selected_symbol)) = (&view_state.build, &view_state.selected_symbol)
-    {
-        StripBuilder::new(ui)
-            .size(Size::exact(20.0))
-            .size(Size::exact(40.0))
-            .size(Size::remainder())
-            .vertical(|mut strip| {
-                strip.strip(|builder| {
-                    builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
-                        strip.cell(|ui| {
-                            ui.horizontal(|ui| {
-                                if ui.button("Back").clicked() {
-                                    view_state.current_view = View::SymbolDiff;
-                                }
-                            });
-                        });
-                        strip.cell(|ui| {
-                            ui.horizontal(|ui| {
-                                if ui.button("Build").clicked() {
-                                    rebuild = true;
-                                }
-                                ui.scope(|ui| {
-                                    ui.style_mut().override_text_style =
-                                        Some(egui::TextStyle::Monospace);
-                                    ui.style_mut().wrap = Some(false);
-                                    if view_state
-                                        .jobs
-                                        .iter()
-                                        .any(|job| job.job_type == Job::ObjDiff)
-                                    {
-                                        ui.label("Building...");
-                                    } else {
-                                        ui.label("Last built:");
-                                        let format =
-                                            format_description::parse("[hour]:[minute]:[second]")
-                                                .unwrap();
-                                        ui.label(
-                                            result
-                                                .time
-                                                .to_offset(view_state.utc_offset)
-                                                .format(&format)
-                                                .unwrap(),
-                                        );
-                                    }
-                                });
-                            });
+    let (Some(result), Some(selected_symbol)) = (&view_state.build, &view_state.selected_symbol) else {
+        return rebuild;
+    };
+    StripBuilder::new(ui)
+        .size(Size::exact(20.0))
+        .size(Size::exact(40.0))
+        .size(Size::remainder())
+        .vertical(|mut strip| {
+            strip.strip(|builder| {
+                builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
+                    strip.cell(|ui| {
+                        ui.horizontal(|ui| {
+                            if ui.button("Back").clicked() {
+                                view_state.current_view = View::SymbolDiff;
+                            }
                         });
                     });
-                });
-                strip.strip(|builder| {
-                    builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
-                        strip.cell(|ui| {
+                    strip.cell(|ui| {
+                        ui.horizontal(|ui| {
+                            if ui.button("Build").clicked() {
+                                rebuild = true;
+                            }
                             ui.scope(|ui| {
                                 ui.style_mut().override_text_style =
                                     Some(egui::TextStyle::Monospace);
                                 ui.style_mut().wrap = Some(false);
-                                ui.colored_label(Color32::WHITE, &selected_symbol.symbol_name);
-                                ui.label("Diff target:");
-                                ui.separator();
-                            });
-                        });
-                        strip.cell(|ui| {
-                            ui.scope(|ui| {
-                                ui.style_mut().override_text_style =
-                                    Some(egui::TextStyle::Monospace);
-                                ui.style_mut().wrap = Some(false);
-                                ui.label("");
-                                ui.label("Diff base:");
-                                ui.separator();
+                                if view_state.jobs.iter().any(|job| job.job_type == Job::ObjDiff) {
+                                    ui.label("Building...");
+                                } else {
+                                    ui.label("Last built:");
+                                    let format =
+                                        format_description::parse("[hour]:[minute]:[second]")
+                                            .unwrap();
+                                    ui.label(
+                                        result
+                                            .time
+                                            .to_offset(view_state.utc_offset)
+                                            .format(&format)
+                                            .unwrap(),
+                                    );
+                                }
                             });
                         });
                     });
-                });
-                strip.cell(|ui| {
-                    if let (Some(left_obj), Some(right_obj)) =
-                        (&result.first_obj, &result.second_obj)
-                    {
-                        let table = TableBuilder::new(ui)
-                            .striped(false)
-                            .cell_layout(egui::Layout::left_to_right(egui::Align::Min))
-                            .column(Size::relative(0.5))
-                            .column(Size::relative(0.5))
-                            .resizable(false);
-                        data_table_ui(
-                            table,
-                            left_obj,
-                            right_obj,
-                            selected_symbol,
-                            &view_state.view_config,
-                        );
-                    }
                 });
             });
-    }
+            strip.strip(|builder| {
+                builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
+                    strip.cell(|ui| {
+                        ui.scope(|ui| {
+                            ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+                            ui.style_mut().wrap = Some(false);
+                            ui.colored_label(Color32::WHITE, &selected_symbol.symbol_name);
+                            ui.label("Diff target:");
+                            ui.separator();
+                        });
+                    });
+                    strip.cell(|ui| {
+                        ui.scope(|ui| {
+                            ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+                            ui.style_mut().wrap = Some(false);
+                            ui.label("");
+                            ui.label("Diff base:");
+                            ui.separator();
+                        });
+                    });
+                });
+            });
+            strip.cell(|ui| {
+                if let (Some(left_obj), Some(right_obj)) = (&result.first_obj, &result.second_obj) {
+                    let table = TableBuilder::new(ui)
+                        .striped(false)
+                        .cell_layout(egui::Layout::left_to_right(egui::Align::Min))
+                        .column(Size::relative(0.5))
+                        .column(Size::relative(0.5))
+                        .resizable(false);
+                    data_table_ui(
+                        table,
+                        left_obj,
+                        right_obj,
+                        selected_symbol,
+                        &view_state.view_config,
+                    );
+                }
+            });
+        });
     rebuild
 }
