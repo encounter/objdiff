@@ -251,46 +251,47 @@ fn asm_row_ui(ui: &mut egui::Ui, ins_diff: &ObjInsDiff, symbol: &ObjSymbol, conf
         ui.painter().rect_filled(ui.available_rect_before_wrap(), 0.0, ui.visuals().faint_bg_color);
     }
     let mut job = LayoutJob::default();
-    if let Some(ins) = &ins_diff.ins {
-        let base_color = match ins_diff.kind {
-            ObjInsDiffKind::None | ObjInsDiffKind::OpMismatch | ObjInsDiffKind::ArgMismatch => {
-                Color32::GRAY
-            }
-            ObjInsDiffKind::Replace => Color32::LIGHT_BLUE,
-            ObjInsDiffKind::Delete => COLOR_RED,
-            ObjInsDiffKind::Insert => Color32::GREEN,
-        };
+    let Some(ins) = &ins_diff.ins else {
+        ui.label("");
+        return;
+    };
+
+    let base_color = match ins_diff.kind {
+        ObjInsDiffKind::None | ObjInsDiffKind::OpMismatch | ObjInsDiffKind::ArgMismatch => {
+            Color32::GRAY
+        }
+        ObjInsDiffKind::Replace => Color32::LIGHT_BLUE,
+        ObjInsDiffKind::Delete => COLOR_RED,
+        ObjInsDiffKind::Insert => Color32::GREEN,
+    };
+    write_text(
+        &format!("{:<6}", format!("{:x}:", ins.address - symbol.address as u32)),
+        base_color,
+        &mut job,
+        config.code_font.clone(),
+    );
+    if let Some(branch) = &ins_diff.branch_from {
         write_text(
-            &format!("{:<6}", format!("{:x}:", ins.address - symbol.address as u32)),
-            base_color,
+            "~> ",
+            config.diff_colors[branch.branch_idx % config.diff_colors.len()],
             &mut job,
             config.code_font.clone(),
         );
-        if let Some(branch) = &ins_diff.branch_from {
-            write_text(
-                "~> ",
-                config.diff_colors[branch.branch_idx % config.diff_colors.len()],
-                &mut job,
-                config.code_font.clone(),
-            );
-        } else {
-            write_text("   ", base_color, &mut job, config.code_font.clone());
-        }
-        write_ins(ins, &ins_diff.kind, &ins_diff.arg_diff, symbol.address as u32, &mut job, config);
-        if let Some(branch) = &ins_diff.branch_to {
-            write_text(
-                " ~>",
-                config.diff_colors[branch.branch_idx % config.diff_colors.len()],
-                &mut job,
-                config.code_font.clone(),
-            );
-        }
-        ui.add(Label::new(job).sense(Sense::click()))
-            .on_hover_ui_at_pointer(|ui| ins_hover_ui(ui, ins))
-            .context_menu(|ui| ins_context_menu(ui, ins));
     } else {
-        ui.label("");
+        write_text("   ", base_color, &mut job, config.code_font.clone());
     }
+    write_ins(ins, &ins_diff.kind, &ins_diff.arg_diff, symbol.address as u32, &mut job, config);
+    if let Some(branch) = &ins_diff.branch_to {
+        write_text(
+            " ~>",
+            config.diff_colors[branch.branch_idx % config.diff_colors.len()],
+            &mut job,
+            config.code_font.clone(),
+        );
+    }
+    ui.add(Label::new(job).sense(Sense::click()))
+        .on_hover_ui_at_pointer(|ui| ins_hover_ui(ui, ins))
+        .context_menu(|ui| ins_context_menu(ui, ins));
 }
 
 fn asm_table_ui(
