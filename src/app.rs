@@ -398,69 +398,64 @@ impl eframe::App for App {
 
     fn post_rendering(&mut self, _window_size_px: [u32; 2], _frame: &eframe::Frame) {
         for job in &mut self.view_state.jobs {
-            if let Some(handle) = &job.handle {
-                if !handle.is_finished() {
-                    continue;
-                }
-                match job.handle.take().unwrap().join() {
-                    Ok(result) => {
-                        log::info!("Job {} finished", job.id);
-                        match result {
-                            JobResult::None => {
-                                if let Some(err) = &job.status.read().unwrap().error {
-                                    log::error!("{:?}", err);
-                                }
-                            }
-                            JobResult::ObjDiff(state) => {
-                                self.view_state.build = Some(state);
-                            }
-                            JobResult::BinDiff(state) => {
-                                self.view_state.build = Some(Box::new(ObjDiffResult {
-                                    first_status: BuildStatus {
-                                        success: true,
-                                        log: "".to_string(),
-                                    },
-                                    second_status: BuildStatus {
-                                        success: true,
-                                        log: "".to_string(),
-                                    },
-                                    first_obj: Some(state.first_obj),
-                                    second_obj: Some(state.second_obj),
-                                    time: OffsetDateTime::now_utc(),
-                                }));
-                            }
-                            JobResult::CheckUpdate(state) => {
-                                self.view_state.check_update = Some(state);
-                            }
-                            JobResult::Update(state) => {
-                                if let Ok(mut guard) = self.relaunch_path.lock() {
-                                    *guard = Some(state.exe_path);
-                                }
-                                self.should_relaunch = true;
+            let Some(handle) = &job.handle else {
+                continue;
+            };
+            if !handle.is_finished() {
+                continue;
+            }
+            match job.handle.take().unwrap().join() {
+                Ok(result) => {
+                    log::info!("Job {} finished", job.id);
+                    match result {
+                        JobResult::None => {
+                            if let Some(err) = &job.status.read().unwrap().error {
+                                log::error!("{:?}", err);
                             }
                         }
-                    }
-                    Err(err) => {
-                        let err = if let Some(msg) = err.downcast_ref::<&'static str>() {
-                            anyhow::Error::msg(*msg)
-                        } else if let Some(msg) = err.downcast_ref::<String>() {
-                            anyhow::Error::msg(msg.clone())
-                        } else {
-                            anyhow::Error::msg("Thread panicked")
-                        };
-                        let result = job.status.write();
-                        if let Ok(mut guard) = result {
-                            guard.error = Some(err);
-                        } else {
-                            drop(result);
-                            job.status = Arc::new(RwLock::new(JobStatus {
-                                title: "Error".to_string(),
-                                progress_percent: 0.0,
-                                progress_items: None,
-                                status: "".to_string(),
-                                error: Some(err),
+                        JobResult::ObjDiff(state) => {
+                            self.view_state.build = Some(state);
+                        }
+                        JobResult::BinDiff(state) => {
+                            self.view_state.build = Some(Box::new(ObjDiffResult {
+                                first_status: BuildStatus { success: true, log: "".to_string() },
+                                second_status: BuildStatus { success: true, log: "".to_string() },
+                                first_obj: Some(state.first_obj),
+                                second_obj: Some(state.second_obj),
+                                time: OffsetDateTime::now_utc(),
                             }));
                         }
+                        JobResult::CheckUpdate(state) => {
+                            self.view_state.check_update = Some(state);
+                        }
+                        JobResult::Update(state) => {
+                            if let Ok(mut guard) = self.relaunch_path.lock() {
+                                *guard = Some(state.exe_path);
+                            }
+                            self.should_relaunch = true;
+                        }
+                    }
+                }
+                Err(err) => {
+                    let err = if let Some(msg) = err.downcast_ref::<&'static str>() {
+                        anyhow::Error::msg(*msg)
+                    } else if let Some(msg) = err.downcast_ref::<String>() {
+                        anyhow::Error::msg(msg.clone())
+                    } else {
+                        anyhow::Error::msg("Thread panicked")
+                    };
+                    let result = job.status.write();
+                    if let Ok(mut guard) = result {
+                        guard.error = Some(err);
+                    } else {
+                        drop(result);
+                        job.status = Arc::new(RwLock::new(JobStatus {
+                            title: "Error".to_string(),
+                            progress_percent: 0.0,
+                            progress_items: None,
+                            status: "".to_string(),
+                            error: Some(err),
+                        }));
                     }
                 }
             }
