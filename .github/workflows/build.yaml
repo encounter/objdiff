@@ -20,7 +20,9 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - name: Install dependencies
-        run: sudo apt-get -y install libgtk-3-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install libgtk-3-dev
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup Rust toolchain
@@ -58,7 +60,9 @@ jobs:
     steps:
       - name: Install dependencies
         if: matrix.platform == 'ubuntu-latest'
-        run: sudo apt-get -y install libgtk-3-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install libgtk-3-dev
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup Rust toolchain
@@ -89,7 +93,9 @@ jobs:
     steps:
       - name: Install dependencies
         if: matrix.packages != ''
-        run: sudo apt-get -y install ${{ matrix.packages }}
+        run: |
+          sudo apt-get update
+          sudo apt-get -y install ${{ matrix.packages }}
       - name: Checkout
         uses: actions/checkout@v3
       - name: Setup Rust toolchain
