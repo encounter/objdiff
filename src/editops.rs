@@ -191,20 +191,20 @@ pub struct Affix {
 }
 
 impl Affix {
-    pub fn find<T>(first_string: &[T], second_string: &[T]) -> Affix
+    pub fn find<T>(s1: &[T], s2: &[T]) -> Affix
     where T: PartialEq {
-        let prefix_len = first_string.iter()
-            .zip(second_string.iter())
+        let prefix_len = s1.iter()
+            .zip(s2.iter())
             .take_while(|t| t.0 == t.1)
             .count();
-        let suffix_len = first_string[prefix_len..].iter()
+        let suffix_len = s1[prefix_len..].iter()
             .rev()
-            .zip(second_string[prefix_len..].iter().rev())
+            .zip(s2[prefix_len..].iter().rev())
             .take_while(|t| t.0 == t.1)
             .count();
 
-        let first_string_len = first_string.len() - prefix_len - suffix_len;
-        let second_string_len = second_string.len() - prefix_len - suffix_len;
+        let first_string_len = s1.len() - prefix_len - suffix_len;
+        let second_string_len = s2.len() - prefix_len - suffix_len;
 
         Affix {
             prefix_len,
