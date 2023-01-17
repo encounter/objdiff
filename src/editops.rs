@@ -193,66 +193,23 @@ pub struct Affix {
 impl Affix {
     pub fn find<T>(first_string: &[T], second_string: &[T]) -> Affix
     where T: PartialEq {
-        // remove common prefix and suffix (linear vs square runtime for levensthein)
-        let mut first_iter = first_string.iter();
-        let mut second_iter = second_string.iter();
+        let prefix_len = first_string.iter()
+            .zip(second_string.iter())
+            .take_while(|t| t.0 == t.1)
+            .count();
+        let suffix_len = first_string[prefix_len..].iter()
+            .rev()
+            .zip(second_string[prefix_len..].iter().rev())
+            .take_while(|t| t.0 == t.1)
+            .count();
 
-        let mut limit_start = 0;
+        let first_string_len = first_string.len() - prefix_len - suffix_len;
+        let second_string_len = second_string.len() - prefix_len - suffix_len;
 
-        let mut first_iter_char = first_iter.next();
-        let mut second_iter_char = second_iter.next();
-        while first_iter_char.is_some() && first_iter_char == second_iter_char {
-            first_iter_char = first_iter.next();
-            second_iter_char = second_iter.next();
-            limit_start += 1;
-        }
-
-        // save char since the iterator was already consumed
-        let first_iter_cache = first_iter_char;
-        let second_iter_cache = second_iter_char;
-
-        if second_iter_char.is_some() && first_iter_char.is_some() {
-            first_iter_char = first_iter.next_back();
-            second_iter_char = second_iter.next_back();
-            while first_iter_char.is_some() && first_iter_char == second_iter_char {
-                first_iter_char = first_iter.next_back();
-                second_iter_char = second_iter.next_back();
-            }
-        }
-
-        match (first_iter_char, second_iter_char) {
-            (None, None) => {
-                // characters might not match even though they were consumed
-                let remaining_char = (first_iter_cache != second_iter_cache) as usize;
-                Affix {
-                    prefix_len: limit_start,
-                    first_string_len: remaining_char,
-                    second_string_len: remaining_char,
-                }
-            }
-            (None, _) => {
-                let remaining_char =
-                    (first_iter_cache.is_some() && first_iter_cache != second_iter_char) as usize;
-                Affix {
-                    prefix_len: limit_start,
-                    first_string_len: remaining_char,
-                    second_string_len: second_iter.count() + 1 + remaining_char,
-                }
-            }
-            (_, None) => {
-                let remaining_char =
-                    (second_iter_cache.is_some() && second_iter_cache != first_iter_char) as usize;
-                Affix {
-                    prefix_len: limit_start,
-                    first_string_len: first_iter.count() + 1 + remaining_char,
-                    second_string_len: remaining_char,
-                }
-            }
-            _ => Affix {
-                prefix_len: limit_start,
-                first_string_len: first_iter.count() + 2,
-                second_string_len: second_iter.count() + 2,
-            },
+        Affix {
+            prefix_len,
+            first_string_len,
+            second_string_len,
         }
     }
 }
