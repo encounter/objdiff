@@ -42,16 +42,16 @@ pub struct LevEditOp {
 
 pub fn editops_find<T>(query: &[T], choice: &[T]) -> Vec<LevEditOp>
 where T: PartialEq {
-    let string_affix = Affix::find(query, choice);
+    let Affix {
+        prefix_len,
+        suffix_len,
+    } = Affix::find(query, choice);
 
-    let first_string_len = string_affix.first_string_len;
-    let second_string_len = string_affix.second_string_len;
-    let prefix_len = string_affix.prefix_len;
-    let first_string = &query[prefix_len..prefix_len + first_string_len];
-    let second_string = &choice[prefix_len..prefix_len + second_string_len];
+    let first_string = &query[prefix_len..query.len() - suffix_len];
+    let second_string = &choice[prefix_len..choice.len() - suffix_len];
 
-    let matrix_columns = first_string_len + 1;
-    let matrix_rows = second_string_len + 1;
+    let matrix_columns = first_string.len() + 1;
+    let matrix_rows = second_string.len() + 1;
 
     // TODO maybe use an actual matrix for readability
     let mut cache_matrix: Vec<usize> = vec![0; matrix_rows * matrix_columns];
@@ -179,8 +179,7 @@ where
 
 pub struct Affix {
     pub prefix_len: usize,
-    pub first_string_len: usize,
-    pub second_string_len: usize,
+    pub suffix_len: usize,
 }
 
 impl Affix {
@@ -196,13 +195,9 @@ impl Affix {
             .take_while(|t| t.0 == t.1)
             .count();
 
-        let first_string_len = s1.len() - prefix_len - suffix_len;
-        let second_string_len = s2.len() - prefix_len - suffix_len;
-
         Affix {
             prefix_len,
-            first_string_len,
-            second_string_len,
+            suffix_len,
         }
     }
 }
