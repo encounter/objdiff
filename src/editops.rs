@@ -40,13 +40,6 @@ pub struct LevEditOp {
     pub second_start: usize,  /* destination position */
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct LevMatchingBlock {
-    pub first_start: usize,
-    pub second_start: usize,
-    pub len: usize,
-}
-
 pub fn editops_find<T>(query: &[T], choice: &[T]) -> Vec<LevEditOp>
 where T: PartialEq {
     let string_affix = Affix::find(query, choice);
