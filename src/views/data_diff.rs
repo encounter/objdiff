@@ -14,9 +14,7 @@ use crate::{
 const BYTES_PER_ROW: usize = 16;
 
 fn find_section<'a>(obj: &'a ObjInfo, selected_symbol: &SymbolReference) -> Option<&'a ObjSection> {
-    obj.sections.iter().find(|section| {
-        section.symbols.iter().any(|symbol| symbol.name == selected_symbol.symbol_name)
-    })
+    obj.sections.iter().find(|section| section.name == selected_symbol.section_name)
 }
 
 fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], config: &ViewConfig) {
