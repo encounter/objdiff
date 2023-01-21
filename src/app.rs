@@ -58,7 +58,7 @@ const DEFAULT_COLOR_ROTATION: [Color32; 9] = [
     Color32::from_rgb(255, 192, 203),
     Color32::from_rgb(0, 0, 255),
     Color32::from_rgb(0, 255, 0),
-    Color32::from_rgb(128, 128, 128),
+    Color32::from_rgb(213, 138, 138),
 ];
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -72,7 +72,7 @@ pub struct ViewConfig {
 impl Default for ViewConfig {
     fn default() -> Self {
         Self {
-            ui_font: FontId { size: 14.0, family: FontFamily::Proportional },
+            ui_font: FontId { size: 12.0, family: FontFamily::Proportional },
             code_font: FontId { size: 14.0, family: FontFamily::Monospace },
             diff_colors: DEFAULT_COLOR_ROTATION.to_vec(),
         }
