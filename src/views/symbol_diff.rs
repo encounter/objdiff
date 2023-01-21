@@ -166,7 +166,7 @@ fn symbol_list_ui(
                     .show(ui, |ui| {
                         if section.kind == ObjSectionKind::Code && reverse_function_order {
                             for symbol in section.symbols.iter().rev() {
-                                if !symbol_matches_search(symbol, &lower_search) {
+                                if !symbol_matches_search(symbol, lower_search) {
                                     continue;
                                 }
                                 symbol_ui(
@@ -181,7 +181,7 @@ fn symbol_list_ui(
                             }
                         } else {
                             for symbol in &section.symbols {
-                                if !symbol_matches_search(symbol, &lower_search) {
+                                if !symbol_matches_search(symbol, lower_search) {
                                     continue;
                                 }
                                 symbol_ui(
