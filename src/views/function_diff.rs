@@ -1,8 +1,9 @@
 use std::default::Default;
 
 use cwdemangle::demangle;
-use egui::{text::LayoutJob, Color32, FontId, Label, Sense};
-use egui_extras::{Size, StripBuilder, TableBuilder};
+use eframe::emath::Align;
+use egui::{text::LayoutJob, Color32, FontId, Label, Layout, Sense, Vec2};
+use egui_extras::{Column, TableBuilder};
 use ppc750cl::Argument;
 use time::format_description;
 
@@ -332,102 +333,109 @@ pub fn function_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
     let (Some(result), Some(selected_symbol)) = (&view_state.build, &view_state.selected_symbol) else {
         return rebuild;
     };
-    StripBuilder::new(ui)
-        .size(Size::exact(20.0))
-        .size(Size::exact(40.0))
-        .size(Size::remainder())
-        .vertical(|mut strip| {
-            strip.strip(|builder| {
-                builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
-                    strip.cell(|ui| {
-                        ui.horizontal(|ui| {
-                            if ui.button("Back").clicked() {
-                                view_state.current_view = View::SymbolDiff;
-                            }
-                        });
-                    });
-                    strip.cell(|ui| {
-                        ui.horizontal(|ui| {
-                            if ui.button("Build").clicked() {
-                                rebuild = true;
-                            }
-                            ui.scope(|ui| {
-                                ui.style_mut().override_text_style =
-                                    Some(egui::TextStyle::Monospace);
-                                ui.style_mut().wrap = Some(false);
-                                if view_state.jobs.iter().any(|job| job.job_type == Job::ObjDiff) {
-                                    ui.label("Building...");
-                                } else {
-                                    ui.label("Last built:");
-                                    let format =
-                                        format_description::parse("[hour]:[minute]:[second]")
-                                            .unwrap();
-                                    ui.label(
-                                        result
-                                            .time
-                                            .to_offset(view_state.utc_offset)
-                                            .format(&format)
-                                            .unwrap(),
-                                    );
-                                }
-                            });
-                        });
-                    });
-                });
-            });
-            strip.strip(|builder| {
-                builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
+
+    // Header
+    let available_width = ui.available_width();
+    let column_width = available_width / 2.0;
+    ui.allocate_ui_with_layout(
+        Vec2 { x: available_width, y: 100.0 },
+        Layout::left_to_right(Align::Min),
+        |ui| {
+            // Left column
+            ui.allocate_ui_with_layout(
+                Vec2 { x: column_width, y: 100.0 },
+                Layout::top_down(Align::Min),
+                |ui| {
+                    ui.set_width(column_width);
+
+                    if ui.button("Back").clicked() {
+                        view_state.current_view = View::SymbolDiff;
+                    }
+
                     let demangled = demangle(&selected_symbol.symbol_name, &Default::default());
-                    strip.cell(|ui| {
-                        ui.scope(|ui| {
-                            ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-                            ui.style_mut().wrap = Some(false);
-                            ui.colored_label(
-                                Color32::WHITE,
-                                demangled.as_ref().unwrap_or(&selected_symbol.symbol_name),
-                            );
-                            ui.label("Diff target:");
-                            ui.separator();
-                        });
+                    let name = demangled.as_deref().unwrap_or(&selected_symbol.symbol_name);
+                    let mut job = LayoutJob::simple(
+                        name.to_string(),
+                        view_state.view_config.code_font.clone(),
+                        Color32::WHITE,
+                        column_width,
+                    );
+                    job.wrap.break_anywhere = true;
+                    job.wrap.max_rows = 1;
+                    ui.label(job);
+
+                    ui.scope(|ui| {
+                        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+                        ui.label("Diff target:");
                     });
-                    strip.cell(|ui| {
+                },
+            );
+
+            // Right column
+            ui.allocate_ui_with_layout(
+                Vec2 { x: column_width, y: 100.0 },
+                Layout::top_down(Align::Min),
+                |ui| {
+                    ui.set_width(column_width);
+
+                    ui.horizontal(|ui| {
+                        if ui.button("Build").clicked() {
+                            rebuild = true;
+                        }
                         ui.scope(|ui| {
                             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
                             ui.style_mut().wrap = Some(false);
-                            if let Some(match_percent) = result
-                                .second_obj
-                                .as_ref()
-                                .and_then(|obj| find_symbol(obj, selected_symbol))
-                                .and_then(|symbol| symbol.match_percent)
-                            {
-                                ui.colored_label(
-                                    match_color_for_symbol(match_percent),
-                                    &format!("{match_percent:.0}%"),
+                            if view_state.jobs.iter().any(|job| job.job_type == Job::ObjDiff) {
+                                ui.label("Building...");
+                            } else {
+                                ui.label("Last built:");
+                                let format =
+                                    format_description::parse("[hour]:[minute]:[second]").unwrap();
+                                ui.label(
+                                    result
+                                        .time
+                                        .to_offset(view_state.utc_offset)
+                                        .format(&format)
+                                        .unwrap(),
                                 );
                             }
-                            ui.label("Diff base:");
-                            ui.separator();
                         });
                     });
-                });
-            });
-            strip.cell(|ui| {
-                if let (Some(left_obj), Some(right_obj)) = (&result.first_obj, &result.second_obj) {
-                    let table = TableBuilder::new(ui)
-                        .striped(false)
-                        .cell_layout(egui::Layout::left_to_right(egui::Align::Min))
-                        .column(Size::relative(0.5))
-                        .column(Size::relative(0.5))
-                        .resizable(false);
-                    asm_table_ui(
-                        table,
-                        left_obj,
-                        right_obj,
-                        selected_symbol,
-                        &view_state.view_config,
-                    );
-                }
-            });
-        });
+
+                    ui.scope(|ui| {
+                        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+                        if let Some(match_percent) = result
+                            .second_obj
+                            .as_ref()
+                            .and_then(|obj| find_symbol(obj, selected_symbol))
+                            .and_then(|symbol| symbol.match_percent)
+                        {
+                            ui.colored_label(
+                                match_color_for_symbol(match_percent),
+                                &format!("{match_percent:.0}%"),
+                            );
+                        } else {
+                            ui.label("");
+                        }
+                        ui.label("Diff base:");
+                    });
+                },
+            );
+        },
+    );
+    ui.separator();
+
+    // Table
+    if let (Some(left_obj), Some(right_obj)) = (&result.first_obj, &result.second_obj) {
+        let available_height = ui.available_height();
+        let table = TableBuilder::new(ui)
+            .striped(false)
+            .cell_layout(Layout::left_to_right(Align::Min))
+            .columns(Column::exact(column_width).clip(true), 2)
+            .resizable(false)
+            .auto_shrink([false, false])
+            .min_scrolled_height(available_height);
+        asm_table_ui(table, left_obj, right_obj, selected_symbol, &view_state.view_config);
+    }
     rebuild
 }

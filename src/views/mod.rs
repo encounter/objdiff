@@ -9,5 +9,5 @@ pub(crate) mod symbol_diff;
 const COLOR_RED: Color32 = Color32::from_rgb(200, 40, 41);
 
 fn write_text(str: &str, color: Color32, job: &mut LayoutJob, font_id: FontId) {
-    job.append(str, 0.0, TextFormat { font_id, color, ..Default::default() });
+    job.append(str, 0.0, TextFormat::simple(font_id, color));
 }

@@ -1,5 +1,6 @@
 use egui::{
-    text::LayoutJob, CollapsingHeader, Color32, Rgba, ScrollArea, SelectableLabel, Ui, Widget,
+    text::LayoutJob, Align, CollapsingHeader, Color32, Layout, Rgba, ScrollArea, SelectableLabel,
+    TextEdit, Ui, Vec2, Widget,
 };
 use egui_extras::{Size, StripBuilder};
 
@@ -135,12 +136,9 @@ fn symbol_list_ui(
     selected_symbol: &mut Option<SymbolReference>,
     current_view: &mut View,
     reverse_function_order: bool,
-    search: &mut String,
+    lower_search: &str,
     config: &ViewConfig,
 ) {
-    ui.text_edit_singleline(search);
-    let lower_search = search.to_ascii_lowercase();
-
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         ui.scope(|ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
@@ -215,94 +213,116 @@ fn build_log_ui(ui: &mut Ui, status: &BuildStatus) {
 }
 
 pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
-    if let (Some(result), highlighted_symbol, selected_symbol, current_view, search) = (
+    let (Some(result), highlighted_symbol, selected_symbol, current_view, search) = (
         &view_state.build,
         &mut view_state.highlighted_symbol,
         &mut view_state.selected_symbol,
         &mut view_state.current_view,
         &mut view_state.search,
-    ) {
-        StripBuilder::new(ui).size(Size::exact(40.0)).size(Size::remainder()).vertical(
-            |mut strip| {
-                strip.strip(|builder| {
-                    builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
-                        strip.cell(|ui| {
-                            ui.scope(|ui| {
-                                ui.style_mut().override_text_style =
-                                    Some(egui::TextStyle::Monospace);
-                                ui.style_mut().wrap = Some(false);
+    ) else {
+        return;
+    };
 
-                                ui.label("Build target:");
-                                if result.first_status.success {
-                                    ui.label("OK");
-                                } else {
-                                    ui.colored_label(Rgba::from_rgb(1.0, 0.0, 0.0), "Fail");
-                                }
-                            });
-                            ui.separator();
-                        });
-                        strip.cell(|ui| {
-                            ui.scope(|ui| {
-                                ui.style_mut().override_text_style =
-                                    Some(egui::TextStyle::Monospace);
-                                ui.style_mut().wrap = Some(false);
+    // Header
+    let available_width = ui.available_width();
+    let column_width = available_width / 2.0;
+    ui.allocate_ui_with_layout(
+        Vec2 { x: available_width, y: 100.0 },
+        Layout::left_to_right(Align::Min),
+        |ui| {
+            // Left column
+            ui.allocate_ui_with_layout(
+                Vec2 { x: column_width, y: 100.0 },
+                Layout::top_down(Align::Min),
+                |ui| {
+                    ui.set_width(column_width);
 
-                                ui.label("Build base:");
-                                if result.second_status.success {
-                                    ui.label("OK");
-                                } else {
-                                    ui.colored_label(Rgba::from_rgb(1.0, 0.0, 0.0), "Fail");
-                                }
+                    ui.scope(|ui| {
+                        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+                        ui.style_mut().wrap = Some(false);
+
+                        ui.label("Build target:");
+                        if result.first_status.success {
+                            ui.label("OK");
+                        } else {
+                            ui.colored_label(Rgba::from_rgb(1.0, 0.0, 0.0), "Fail");
+                        }
+                    });
+
+                    TextEdit::singleline(search).hint_text("Filter symbols").ui(ui);
+                },
+            );
+
+            // Right column
+            ui.allocate_ui_with_layout(
+                Vec2 { x: column_width, y: 100.0 },
+                Layout::top_down(Align::Min),
+                |ui| {
+                    ui.set_width(column_width);
+
+                    ui.scope(|ui| {
+                        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+                        ui.style_mut().wrap = Some(false);
+
+                        ui.label("Build base:");
+                        if result.second_status.success {
+                            ui.label("OK");
+                        } else {
+                            ui.colored_label(Rgba::from_rgb(1.0, 0.0, 0.0), "Fail");
+                        }
+                    });
+                },
+            );
+        },
+    );
+    ui.separator();
+
+    // Table
+    let lower_search = search.to_ascii_lowercase();
+    StripBuilder::new(ui).size(Size::remainder()).vertical(|mut strip| {
+        strip.strip(|builder| {
+            builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
+                strip.cell(|ui| {
+                    if result.first_status.success {
+                        if let Some(obj) = &result.first_obj {
+                            ui.push_id("left", |ui| {
+                                symbol_list_ui(
+                                    ui,
+                                    obj,
+                                    highlighted_symbol,
+                                    selected_symbol,
+                                    current_view,
+                                    view_state.reverse_fn_order,
+                                    &lower_search,
+                                    &view_state.view_config,
+                                );
                             });
-                            ui.separator();
-                        });
-                    });
+                        }
+                    } else {
+                        build_log_ui(ui, &result.first_status);
+                    }
                 });
-                strip.strip(|builder| {
-                    builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
-                        strip.cell(|ui| {
-                            if result.first_status.success {
-                                if let Some(obj) = &result.first_obj {
-                                    ui.push_id("left", |ui| {
-                                        symbol_list_ui(
-                                            ui,
-                                            obj,
-                                            highlighted_symbol,
-                                            selected_symbol,
-                                            current_view,
-                                            view_state.reverse_fn_order,
-                                            search,
-                                            &view_state.view_config,
-                                        );
-                                    });
-                                }
-                            } else {
-                                build_log_ui(ui, &result.first_status);
-                            }
-                        });
-                        strip.cell(|ui| {
-                            if result.second_status.success {
-                                if let Some(obj) = &result.second_obj {
-                                    ui.push_id("right", |ui| {
-                                        symbol_list_ui(
-                                            ui,
-                                            obj,
-                                            highlighted_symbol,
-                                            selected_symbol,
-                                            current_view,
-                                            view_state.reverse_fn_order,
-                                            search,
-                                            &view_state.view_config,
-                                        );
-                                    });
-                                }
-                            } else {
-                                build_log_ui(ui, &result.second_status);
-                            }
-                        });
-                    });
+                strip.cell(|ui| {
+                    if result.second_status.success {
+                        if let Some(obj) = &result.second_obj {
+                            ui.push_id("right", |ui| {
+                                symbol_list_ui(
+                                    ui,
+                                    obj,
+                                    highlighted_symbol,
+                                    selected_symbol,
+                                    current_view,
+                                    view_state.reverse_fn_order,
+                                    &lower_search,
+                                    &view_state.view_config,
+                                );
+                            });
+                        }
+                    } else {
+                        build_log_ui(ui, &result.second_status);
+                    }
                 });
-            },
-        );
-    }
+            });
+        });
+    });
 }
