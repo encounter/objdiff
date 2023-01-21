@@ -1,6 +1,7 @@
-use std::{fs, path::Path};
+use std::{collections::BTreeMap, fs, io::Cursor, path::Path};
 
 use anyhow::{Context, Result};
+use byteorder::{BigEndian, ReadBytesExt};
 use cwdemangle::demangle;
 use flagset::Flags;
 use object::{
@@ -284,6 +285,32 @@ fn relocations_by_section(
     Ok(relocations)
 }
 
+fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u32, u32>>> {
+    if let Some(section) = obj_file.section_by_name(".line") {
+        if section.size() == 0 {
+            return Ok(None);
+        }
+        let data = section.uncompressed_data()?;
+        let mut reader = Cursor::new(data.as_ref());
+
+        let mut map = BTreeMap::new();
+        let size = reader.read_u32::<BigEndian>()?;
+        let base_address = reader.read_u32::<BigEndian>()?;
+        while reader.position() < size as u64 {
+            let line_number = reader.read_u32::<BigEndian>()?;
+            let statement_pos = reader.read_u16::<BigEndian>()?;
+            if statement_pos != 0xFFFF {
+                log::warn!("Unhandled statement pos {}", statement_pos);
+            }
+            let address_delta = reader.read_u32::<BigEndian>()?;
+            map.insert(base_address + address_delta, line_number);
+        }
+        println!("Line info: {:#X?}", map);
+        return Ok(Some(map));
+    }
+    Ok(None)
+}
+
 pub fn read(obj_path: &Path) -> Result<ObjInfo> {
     let data = {
         let file = fs::File::open(obj_path)?;
@@ -305,6 +332,7 @@ pub fn read(obj_path: &Path) -> Result<ObjInfo> {
         path: obj_path.to_owned(),
         sections: filter_sections(&obj_file)?,
         common: common_symbols(&obj_file)?,
+        line_info: line_info(&obj_file)?,
     };
     for section in &mut result.sections {
         section.symbols = symbols_by_section(&obj_file, section)?;

@@ -2,7 +2,7 @@ pub mod elf;
 pub mod mips;
 pub mod ppc;
 
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 use flagset::{flags, FlagSet};
 
@@ -83,6 +83,8 @@ pub struct ObjIns {
     pub args: Vec<ObjInsArg>,
     pub reloc: Option<ObjReloc>,
     pub branch_dest: Option<u32>,
+    /// Line info
+    pub line: Option<u32>,
 }
 #[derive(Debug, Clone, Default)]
 pub struct ObjInsDiff {
@@ -138,6 +140,7 @@ pub struct ObjInfo {
     pub path: PathBuf,
     pub sections: Vec<ObjSection>,
     pub common: Vec<ObjSymbol>,
+    pub line_info: Option<BTreeMap<u32, u32>>,
 }
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum ObjRelocKind {

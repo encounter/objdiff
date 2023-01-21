@@ -264,8 +264,14 @@ fn asm_row_ui(ui: &mut egui::Ui, ins_diff: &ObjInsDiff, symbol: &ObjSymbol, conf
         ObjInsDiffKind::Delete => COLOR_RED,
         ObjInsDiffKind::Insert => Color32::GREEN,
     };
+    let mut pad = 6;
+    if let Some(line) = ins.line {
+        let line_str = format!("{line} ");
+        write_text(&line_str, Color32::DARK_GRAY, &mut job, config.code_font.clone());
+        pad = 12 - line_str.len();
+    }
     write_text(
-        &format!("{:<6}", format!("{:x}:", ins.address - symbol.address as u32)),
+        &format!("{:<1$}", format!("{:x}: ", ins.address - symbol.address as u32), pad),
         base_color,
         &mut job,
         config.code_font.clone(),

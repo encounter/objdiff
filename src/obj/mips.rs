@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use anyhow::Result;
 use rabbitizer::{config_set_register_fpr_abi_names, Abi, Instruction, SimpleOperandType};
 
@@ -8,6 +10,7 @@ pub fn process_code(
     start_address: u64,
     end_address: u64,
     relocs: &[ObjReloc],
+    line_info: &Option<BTreeMap<u32, u32>>,
 ) -> Result<(Vec<u8>, Vec<ObjIns>)> {
     config_set_register_fpr_abi_names(Abi::RABBITIZER_ABI_O32);
 
@@ -59,6 +62,8 @@ pub fn process_code(
                 _ => ObjInsArg::MipsArg(op.disassembled.clone()),
             })
             .collect();
+        let line =
+            line_info.as_ref().and_then(|map| map.range(..=cur_addr).last().map(|(_, &b)| b));
         insts.push(ObjIns {
             address: cur_addr,
             code,
@@ -67,6 +72,7 @@ pub fn process_code(
             args,
             reloc: reloc.cloned(),
             branch_dest,
+            line,
         });
         cur_addr += 4;
     }

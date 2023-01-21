@@ -17,14 +17,19 @@ fn no_diff_code(
     data: &[u8],
     symbol: &mut ObjSymbol,
     relocs: &[ObjReloc],
+    line_info: &Option<BTreeMap<u32, u32>>,
 ) -> Result<()> {
     let code =
         &data[symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
     let (_, ins) = match arch {
-        ObjArchitecture::PowerPc => ppc::process_code(code, symbol.address, relocs)?,
-        ObjArchitecture::Mips => {
-            mips::process_code(code, symbol.address, symbol.address + symbol.size, relocs)?
-        }
+        ObjArchitecture::PowerPc => ppc::process_code(code, symbol.address, relocs, line_info)?,
+        ObjArchitecture::Mips => mips::process_code(
+            code,
+            symbol.address,
+            symbol.address + symbol.size,
+            relocs,
+            line_info,
+        )?,
     };
 
     let mut diff = Vec::<ObjInsDiff>::new();
@@ -36,6 +41,7 @@ fn no_diff_code(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn diff_code(
     arch: ObjArchitecture,
     left_data: &[u8],
@@ -44,6 +50,8 @@ pub fn diff_code(
     right_symbol: &mut ObjSymbol,
     left_relocs: &[ObjReloc],
     right_relocs: &[ObjReloc],
+    left_line_info: &Option<BTreeMap<u32, u32>>,
+    right_line_info: &Option<BTreeMap<u32, u32>>,
 ) -> Result<()> {
     let left_code = &left_data[left_symbol.section_address as usize
         ..(left_symbol.section_address + left_symbol.size) as usize];
@@ -51,8 +59,8 @@ pub fn diff_code(
         ..(right_symbol.section_address + right_symbol.size) as usize];
     let ((left_ops, left_insts), (right_ops, right_insts)) = match arch {
         ObjArchitecture::PowerPc => (
-            ppc::process_code(left_code, left_symbol.address, left_relocs)?,
-            ppc::process_code(right_code, right_symbol.address, right_relocs)?,
+            ppc::process_code(left_code, left_symbol.address, left_relocs, left_line_info)?,
+            ppc::process_code(right_code, right_symbol.address, right_relocs, right_line_info)?,
         ),
         ObjArchitecture::Mips => (
             mips::process_code(
@@ -60,12 +68,14 @@ pub fn diff_code(
                 left_symbol.address,
                 left_symbol.address + left_symbol.size,
                 left_relocs,
+                left_line_info,
             )?,
             mips::process_code(
                 right_code,
                 right_symbol.address,
                 left_symbol.address + left_symbol.size,
                 right_relocs,
+                right_line_info,
             )?,
         ),
     };
@@ -353,17 +363,13 @@ fn compare_ins(
     Ok(result)
 }
 
-fn find_section<'a>(obj: &'a mut ObjInfo, name: &str) -> Option<&'a mut ObjSection> {
-    obj.sections.iter_mut().find(|s| s.name == name)
-}
-
 fn find_symbol<'a>(symbols: &'a mut [ObjSymbol], name: &str) -> Option<&'a mut ObjSymbol> {
     symbols.iter_mut().find(|s| s.name == name)
 }
 
 pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo, _diff_config: &DiffConfig) -> Result<()> {
     for left_section in &mut left.sections {
-        let Some(right_section) = find_section(right, &left_section.name) else {
+        let Some(right_section) = right.sections.iter_mut().find(|s| s.name == left_section.name) else {
             continue;
         };
         if left_section.kind == ObjSectionKind::Code {
@@ -381,6 +387,8 @@ pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo, _diff_config: &DiffCon
                         right_symbol,
                         &left_section.relocations,
                         &right_section.relocations,
+                        &left.line_info,
+                        &right.line_info,
                     )?;
                 } else {
                     no_diff_code(
@@ -388,6 +396,7 @@ pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo, _diff_config: &DiffCon
                         &left_section.data,
                         left_symbol,
                         &left_section.relocations,
+                        &left.line_info,
                     )?;
                 }
             }
@@ -398,6 +407,7 @@ pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo, _diff_config: &DiffCon
                         &right_section.data,
                         right_symbol,
                         &right_section.relocations,
+                        &left.line_info,
                     )?;
                 }
             }
