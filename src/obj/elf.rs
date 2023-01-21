@@ -18,12 +18,12 @@ use crate::obj::{
     ObjSymbolFlagSet, ObjSymbolFlags,
 };
 
-fn to_obj_section_kind(kind: SectionKind) -> ObjSectionKind {
+fn to_obj_section_kind(kind: SectionKind) -> Option<ObjSectionKind> {
     match kind {
-        SectionKind::Text => ObjSectionKind::Code,
-        SectionKind::Data | SectionKind::ReadOnlyData => ObjSectionKind::Data,
-        SectionKind::UninitializedData => ObjSectionKind::Bss,
-        _ => panic!("Unhandled section kind {kind:?}"),
+        SectionKind::Text => Some(ObjSectionKind::Code),
+        SectionKind::Data | SectionKind::ReadOnlyData => Some(ObjSectionKind::Data),
+        SectionKind::UninitializedData => Some(ObjSectionKind::Bss),
+        _ => None,
     }
 }
 
@@ -74,18 +74,14 @@ fn filter_sections(obj_file: &File<'_>) -> Result<Vec<ObjSection>> {
         if section.size() == 0 {
             continue;
         }
-        if section.kind() != SectionKind::Text
-            && section.kind() != SectionKind::Data
-            && section.kind() != SectionKind::ReadOnlyData
-            && section.kind() != SectionKind::UninitializedData
-        {
+        let Some(kind) = to_obj_section_kind(section.kind()) else {
             continue;
-        }
+        };
         let name = section.name().context("Failed to process section name")?;
         let data = section.uncompressed_data().context("Failed to read section data")?;
         result.push(ObjSection {
             name: name.to_string(),
-            kind: to_obj_section_kind(section.kind()),
+            kind,
             address: section.address(),
             size: section.size(),
             data: data.to_vec(),
