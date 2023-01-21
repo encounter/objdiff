@@ -81,6 +81,8 @@ allow = [
     "Unicode-DFS-2016",
     "Zlib",
     "0BSD",
+    "OFL-1.1",
+    "LicenseRef-UFL-1.0",
 ]
 # List of explictly disallowed licenses
 # See https://spdx.org/licenses/ for list of possible licenses
