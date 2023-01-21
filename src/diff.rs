@@ -268,8 +268,8 @@ fn arg_eq(
                     right_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
                 )
         }
-        ObjInsArg::MipsArg(ls) => {
-            matches!(right, ObjInsArg::MipsArg(rs) if ls == rs)
+        ObjInsArg::MipsArg(ls) | ObjInsArg::MipsArgWithBase(ls) => {
+            matches!(right, ObjInsArg::MipsArg(rs) | ObjInsArg::MipsArgWithBase(rs) if ls == rs)
         }
         ObjInsArg::BranchOffset(_) => {
             // Compare dest instruction idx after diffing
@@ -324,7 +324,7 @@ fn compare_ins(
                 let a_str = match a {
                     ObjInsArg::PpcArg(arg) => format!("{arg}"),
                     ObjInsArg::Reloc | ObjInsArg::RelocWithBase => String::new(),
-                    ObjInsArg::MipsArg(str) => str.clone(),
+                    ObjInsArg::MipsArg(str) | ObjInsArg::MipsArgWithBase(str) => str.clone(),
                     ObjInsArg::BranchOffset(arg) => format!("{arg}"),
                 };
                 let a_diff = if let Some(idx) = state.left_args_idx.get(&a_str) {
@@ -338,7 +338,7 @@ fn compare_ins(
                 let b_str = match b {
                     ObjInsArg::PpcArg(arg) => format!("{arg}"),
                     ObjInsArg::Reloc | ObjInsArg::RelocWithBase => String::new(),
-                    ObjInsArg::MipsArg(str) => str.clone(),
+                    ObjInsArg::MipsArg(str) | ObjInsArg::MipsArgWithBase(str) => str.clone(),
                     ObjInsArg::BranchOffset(arg) => format!("{arg}"),
                 };
                 let b_diff = if let Some(idx) = state.right_args_idx.get(&b_str) {

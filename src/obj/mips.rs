@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use anyhow::Result;
-use rabbitizer::{config, Abi, Instruction, InstrCategory, OperandType};
+use rabbitizer::{config, Abi, InstrCategory, Instruction, OperandType};
 
 use crate::obj::{ObjIns, ObjInsArg, ObjReloc};
 
@@ -37,37 +37,49 @@ pub fn process_code(
         let branch_offset = instruction.branch_offset();
         let branch_dest =
             if is_branch { Some((cur_addr as i32 + branch_offset) as u32) } else { None };
-        let args = instruction
-            .get_operands_slice()
-            .iter()
-            .map(|op| match op {
-                OperandType::cpu_immediate | OperandType::cpu_label | OperandType::cpu_branch_target_label => {
+
+        println!("{:?}", instruction.get_operands_slice());
+        let mut args = Vec::new();
+        for op in instruction.get_operands_slice() {
+            match op {
+                OperandType::cpu_immediate
+                | OperandType::cpu_label
+                | OperandType::cpu_branch_target_label => {
                     if is_branch {
-                        ObjInsArg::BranchOffset(branch_offset)
+                        args.push(ObjInsArg::BranchOffset(branch_offset));
                     } else if let Some(reloc) = reloc {
                         if matches!(&reloc.target_section, Some(s) if s == ".text")
                             && reloc.target.address > start_address
                             && reloc.target.address < end_address
                         {
                             // Inter-function reloc, convert to branch offset
-                            ObjInsArg::BranchOffset(reloc.target.address as i32 - cur_addr as i32)
+                            args.push(ObjInsArg::BranchOffset(
+                                reloc.target.address as i32 - cur_addr as i32,
+                            ));
                         } else {
-                            ObjInsArg::Reloc
+                            args.push(ObjInsArg::Reloc);
                         }
                     } else {
-                        ObjInsArg::MipsArg(op.disassemble(&instruction, None))
+                        args.push(ObjInsArg::MipsArg(op.disassemble(&instruction, None)));
                     }
                 }
                 OperandType::cpu_immediate_base => {
                     if reloc.is_some() {
-                        ObjInsArg::RelocWithBase
+                        args.push(ObjInsArg::RelocWithBase);
                     } else {
-                        ObjInsArg::MipsArg(op.disassemble(&instruction, None))
+                        args.push(ObjInsArg::MipsArgWithBase(
+                            OperandType::cpu_immediate.disassemble(&instruction, None),
+                        ));
                     }
+                    args.push(ObjInsArg::MipsArg(
+                        OperandType::cpu_rs.disassemble(&instruction, None),
+                    ));
                 }
-                _ => ObjInsArg::MipsArg(op.disassemble(&instruction, None)),
-            })
-            .collect();
+                _ => {
+                    args.push(ObjInsArg::MipsArg(op.disassemble(&instruction, None)));
+                }
+            }
+        }
         let line =
             line_info.as_ref().and_then(|map| map.range(..=cur_addr).last().map(|(_, &b)| b));
         insts.push(ObjIns {

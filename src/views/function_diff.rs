@@ -132,6 +132,17 @@ fn write_ins(
                     config.code_font.clone(),
                 );
             }
+            ObjInsArg::MipsArgWithBase(str) => {
+                write_text(
+                    str.strip_prefix('$').unwrap_or(str),
+                    color,
+                    job,
+                    config.code_font.clone(),
+                );
+                write_text("(", base_color, job, config.code_font.clone());
+                writing_offset = true;
+                continue;
+            }
             ObjInsArg::BranchOffset(offset) => {
                 let addr = offset + ins.address as i32 - base_addr as i32;
                 write_text(&format!("{addr:x}"), color, job, config.code_font.clone());

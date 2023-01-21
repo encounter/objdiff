@@ -41,6 +41,7 @@ pub struct ObjSection {
 pub enum ObjInsArg {
     PpcArg(ppc750cl::Argument),
     MipsArg(String),
+    MipsArgWithBase(String),
     Reloc,
     RelocWithBase,
     BranchOffset(i32),

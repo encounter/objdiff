@@ -42,10 +42,7 @@ pub struct LevEditOp {
 
 pub fn editops_find<T>(query: &[T], choice: &[T]) -> Vec<LevEditOp>
 where T: PartialEq {
-    let Affix {
-        prefix_len,
-        suffix_len,
-    } = Affix::find(query, choice);
+    let Affix { prefix_len, suffix_len } = Affix::find(query, choice);
 
     let first_string = &query[prefix_len..query.len() - suffix_len];
     let second_string = &choice[prefix_len..choice.len() - suffix_len];
@@ -185,19 +182,14 @@ pub struct Affix {
 impl Affix {
     pub fn find<T>(s1: &[T], s2: &[T]) -> Affix
     where T: PartialEq {
-        let prefix_len = s1.iter()
-            .zip(s2.iter())
-            .take_while(|t| t.0 == t.1)
-            .count();
-        let suffix_len = s1[prefix_len..].iter()
+        let prefix_len = s1.iter().zip(s2.iter()).take_while(|t| t.0 == t.1).count();
+        let suffix_len = s1[prefix_len..]
+            .iter()
             .rev()
             .zip(s2[prefix_len..].iter().rev())
             .take_while(|t| t.0 == t.1)
             .count();
 
-        Affix {
-            prefix_len,
-            suffix_len,
-        }
+        Affix { prefix_len, suffix_len }
     }
 }
