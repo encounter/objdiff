@@ -27,7 +27,6 @@
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum LevEditType {
-    Keep,
     Replace,
     Insert,
     Delete,
@@ -77,19 +76,10 @@ where T: PartialEq {
             cache_matrix[current + 1 + p] = x;
         }
     }
-    editops_from_cost_matrix(
-        first_string,
-        second_string,
-        matrix_columns,
-        matrix_rows,
-        prefix_len,
-        cache_matrix,
-    )
+    editops_from_cost_matrix::<T>(matrix_columns, matrix_rows, prefix_len, cache_matrix)
 }
 
 fn editops_from_cost_matrix<T>(
-    string1: &[T],
-    string2: &[T],
     len1: usize,
     len2: usize,
     prefix_len: usize,
@@ -98,77 +88,57 @@ fn editops_from_cost_matrix<T>(
 where
     T: PartialEq,
 {
+    let mut ops = Vec::with_capacity(cache_matrix[len1 * len2 - 1]);
     let mut dir = 0;
-
-    let mut ops: Vec<LevEditOp> = vec![];
-    ops.reserve(cache_matrix[len1 * len2 - 1]);
-
     let mut i = len1 - 1;
     let mut j = len2 - 1;
     let mut p = len1 * len2 - 1;
-
-    // let string1_chars: Vec<char> = string1.chars().collect();
-    // let string2_chars: Vec<char> = string2.chars().collect();
 
     //TODO this is still pretty ugly
     while i > 0 || j > 0 {
         let current_value = cache_matrix[p];
 
-        let op_type;
+        // More than one operation can be possible at a time. We use `dir` to
+        // decide when ambiguous.
+        let is_insert = j > 0 && current_value == cache_matrix[p - 1] + 1;
+        let is_delete = i > 0 && current_value == cache_matrix[p - len2] + 1;
+        let is_replace = i > 0 && j > 0 && current_value == cache_matrix[p - len2 - 1] + 1;
 
-        if dir == -1 && j > 0 && current_value == cache_matrix[p - 1] + 1 {
-            op_type = LevEditType::Insert;
-        } else if dir == 1 && i > 0 && current_value == cache_matrix[p - len2] + 1 {
-            op_type = LevEditType::Delete;
-        } else if i > 0
-            && j > 0
-            && current_value == cache_matrix[p - len2 - 1]
-            && string1[i - 1] == string2[j - 1]
-        {
-            op_type = LevEditType::Keep;
-        } else if i > 0 && j > 0 && current_value == cache_matrix[p - len2 - 1] + 1 {
-            op_type = LevEditType::Replace;
-        }
-        /* we can't turn directly from -1 to 1, in this case it would be better
-         * to go diagonally, but check it (dir == 0) */
-        else if dir == 0 && j > 0 && current_value == cache_matrix[p - 1] + 1 {
-            op_type = LevEditType::Insert;
-        } else if dir == 0 && i > 0 && current_value == cache_matrix[p - len2] + 1 {
-            op_type = LevEditType::Delete;
-        } else {
-            panic!("something went terribly wrong");
-        }
-
-        match op_type {
-            LevEditType::Insert => {
-                j -= 1;
-                p -= 1;
-                dir = -1;
-            }
-            LevEditType::Delete => {
-                i -= 1;
-                p -= len2;
-                dir = 1;
-            }
-            LevEditType::Replace => {
-                i -= 1;
-                j -= 1;
-                p -= len2 + 1;
-                dir = 0;
-            }
-            LevEditType::Keep => {
-                i -= 1;
-                j -= 1;
-                p -= len2 + 1;
-                dir = 0;
-                /* LevEditKeep does not has to be stored */
-                continue;
-            }
+        let (op_type, new_dir) = match (dir, is_insert, is_delete, is_replace) {
+            (_, false, false, false) => (None, 0),
+            (-1, true, _, _) => (Some(LevEditType::Insert), -1),
+            (1, _, true, _) => (Some(LevEditType::Delete), 1),
+            (_, _, _, true) => (Some(LevEditType::Replace), 0),
+            (0, true, _, _) => (Some(LevEditType::Insert), -1),
+            (0, _, true, _) => (Some(LevEditType::Delete), 1),
+            _ => panic!("something went terribly wrong"),
         };
 
-        let edit_op =
-            LevEditOp { op_type, first_start: i + prefix_len, second_start: j + prefix_len };
-        ops.insert(0, edit_op);
+        match new_dir {
+            -1 => {
+                j -= 1;
+                p -= 1;
+            }
+            1 => {
+                i -= 1;
+                p -= len2;
+            }
+            0 => {
+                i -= 1;
+                j -= 1;
+                p -= len2 + 1;
+            }
+            _ => panic!("something went terribly wrong"),
+        };
+        dir = new_dir;
+
+        if let Some(op_type) = op_type {
+            ops.insert(0, LevEditOp {
+                op_type,
+                first_start: i + prefix_len,
+                second_start: j + prefix_len,
+            });
+        }
     }
 
     ops
