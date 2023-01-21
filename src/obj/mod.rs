@@ -159,6 +159,10 @@ pub enum ObjRelocKind {
     Mips26,
     MipsHi16,
     MipsLo16,
+    MipsGot16,
+    MipsCall16,
+    MipsGpRel16,
+    MipsGpRel32,
 }
 #[derive(Debug, Clone)]
 pub struct ObjReloc {

@@ -1,4 +1,4 @@
-use std::default::Default;
+use std::{cmp::Ordering, default::Default};
 
 use cwdemangle::demangle;
 use eframe::emath::Align;
@@ -20,8 +20,14 @@ use crate::{
 fn write_reloc_name(reloc: &ObjReloc, color: Color32, job: &mut LayoutJob, font_id: FontId) {
     let name = reloc.target.demangled_name.as_ref().unwrap_or(&reloc.target.name);
     write_text(name, Color32::LIGHT_GRAY, job, font_id.clone());
-    if reloc.target.addend != 0 {
-        write_text(&format!("+{:X}", reloc.target.addend), color, job, font_id);
+    match reloc.target.addend.cmp(&0i64) {
+        Ordering::Greater => {
+            write_text(&format!("+{:#X}", reloc.target.addend), color, job, font_id)
+        }
+        Ordering::Less => {
+            write_text(&format!("-{:#X}", -reloc.target.addend), color, job, font_id);
+        }
+        _ => {}
     }
 }
 
@@ -53,11 +59,26 @@ fn write_reloc(reloc: &ObjReloc, color: Color32, job: &mut LayoutJob, font_id: F
             write_reloc_name(reloc, color, job, font_id.clone());
             write_text(")", color, job, font_id);
         }
-        ObjRelocKind::Absolute
-        | ObjRelocKind::PpcRel24
-        | ObjRelocKind::PpcRel14
-        | ObjRelocKind::Mips26 => {
+        ObjRelocKind::MipsGot16 => {
+            write_text("%got(", color, job, font_id.clone());
+            write_reloc_name(reloc, color, job, font_id.clone());
+            write_text(")", color, job, font_id);
+        }
+        ObjRelocKind::MipsCall16 => {
+            write_text("%call16(", color, job, font_id.clone());
+            write_reloc_name(reloc, color, job, font_id.clone());
+            write_text(")", color, job, font_id);
+        }
+        ObjRelocKind::MipsGpRel16 => {
+            write_text("%gp_rel(", color, job, font_id.clone());
+            write_reloc_name(reloc, color, job, font_id.clone());
+            write_text(")", color, job, font_id);
+        }
+        ObjRelocKind::PpcRel24 | ObjRelocKind::PpcRel14 | ObjRelocKind::Mips26 => {
             write_reloc_name(reloc, color, job, font_id);
+        }
+        ObjRelocKind::Absolute | ObjRelocKind::MipsGpRel32 => {
+            write_text("[INVALID]", color, job, font_id);
         }
     };
 }

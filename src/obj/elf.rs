@@ -1,15 +1,11 @@
 use std::{collections::BTreeMap, fs, io::Cursor, path::Path};
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use byteorder::{BigEndian, ReadBytesExt};
 use cwdemangle::demangle;
 use flagset::Flags;
 use object::{
-    elf::{
-        R_MIPS_26, R_MIPS_HI16, R_MIPS_LO16, R_PPC_ADDR16_HA, R_PPC_ADDR16_HI, R_PPC_ADDR16_LO,
-        R_PPC_EMB_SDA21, R_PPC_REL14, R_PPC_REL24,
-    },
-    Architecture, File, Object, ObjectSection, ObjectSymbol, RelocationKind, RelocationTarget,
+    elf, Architecture, File, Object, ObjectSection, ObjectSymbol, RelocationKind, RelocationTarget,
     SectionIndex, SectionKind, Symbol, SymbolKind, SymbolSection,
 };
 
@@ -207,12 +203,12 @@ fn relocations_by_section(
             RelocationKind::Absolute => ObjRelocKind::Absolute,
             RelocationKind::Elf(kind) => match arch {
                 ObjArchitecture::PowerPc => match kind {
-                    R_PPC_ADDR16_LO => ObjRelocKind::PpcAddr16Lo,
-                    R_PPC_ADDR16_HI => ObjRelocKind::PpcAddr16Hi,
-                    R_PPC_ADDR16_HA => ObjRelocKind::PpcAddr16Ha,
-                    R_PPC_REL24 => ObjRelocKind::PpcRel24,
-                    R_PPC_REL14 => ObjRelocKind::PpcRel14,
-                    R_PPC_EMB_SDA21 => ObjRelocKind::PpcEmbSda21,
+                    elf::R_PPC_ADDR16_LO => ObjRelocKind::PpcAddr16Lo,
+                    elf::R_PPC_ADDR16_HI => ObjRelocKind::PpcAddr16Hi,
+                    elf::R_PPC_ADDR16_HA => ObjRelocKind::PpcAddr16Ha,
+                    elf::R_PPC_REL24 => ObjRelocKind::PpcRel24,
+                    elf::R_PPC_REL14 => ObjRelocKind::PpcRel14,
+                    elf::R_PPC_EMB_SDA21 => ObjRelocKind::PpcEmbSda21,
                     _ => {
                         return Err(anyhow::Error::msg(format!(
                             "Unhandled PPC relocation type: {kind}"
@@ -220,14 +216,14 @@ fn relocations_by_section(
                     }
                 },
                 ObjArchitecture::Mips => match kind {
-                    R_MIPS_26 => ObjRelocKind::Mips26,
-                    R_MIPS_HI16 => ObjRelocKind::MipsHi16,
-                    R_MIPS_LO16 => ObjRelocKind::MipsLo16,
-                    _ => {
-                        return Err(anyhow::Error::msg(format!(
-                            "Unhandled MIPS relocation type: {kind}"
-                        )))
-                    }
+                    elf::R_MIPS_26 => ObjRelocKind::Mips26,
+                    elf::R_MIPS_HI16 => ObjRelocKind::MipsHi16,
+                    elf::R_MIPS_LO16 => ObjRelocKind::MipsLo16,
+                    elf::R_MIPS_GOT16 => ObjRelocKind::MipsGot16,
+                    elf::R_MIPS_CALL16 => ObjRelocKind::MipsCall16,
+                    elf::R_MIPS_GPREL16 => ObjRelocKind::MipsGpRel16,
+                    elf::R_MIPS_GPREL32 => ObjRelocKind::MipsGpRel32,
+                    _ => bail!("Unhandled MIPS relocation type: {kind}"),
                 },
             },
             _ => {
@@ -244,37 +240,36 @@ fn relocations_by_section(
             }
             _ => None,
         };
-        // println!("Reloc: {:?}, symbol: {:?}", reloc, symbol);
+        let addend = if reloc.has_implicit_addend() {
+            let addend = u32::from_be_bytes(
+                section.data[address as usize..address as usize + 4].try_into()?,
+            );
+            match kind {
+                ObjRelocKind::Absolute => addend as i64,
+                ObjRelocKind::MipsHi16 => ((addend & 0x0000FFFF) << 16) as i16 as i64,
+                ObjRelocKind::MipsLo16
+                | ObjRelocKind::MipsGot16
+                | ObjRelocKind::MipsCall16
+                | ObjRelocKind::MipsGpRel16 => (addend & 0x0000FFFF) as i16 as i64,
+                ObjRelocKind::MipsGpRel32 => addend as i32 as i64,
+                ObjRelocKind::Mips26 => ((addend & 0x03FFFFFF) << 2) as i64,
+                _ => bail!("Unsupported implicit relocation {kind:?}"),
+            }
+        } else {
+            reloc.addend()
+        };
+        // println!("Reloc: {reloc:?}, symbol: {symbol:?}, addend: {addend:#X}");
         let target = match symbol.kind() {
             SymbolKind::Text | SymbolKind::Data | SymbolKind::Label | SymbolKind::Unknown => {
-                to_obj_symbol(obj_file, &symbol, reloc.addend())
+                to_obj_symbol(obj_file, &symbol, addend)
             }
             SymbolKind::Section => {
-                let addend = if reloc.has_implicit_addend() {
-                    let addend = u32::from_be_bytes(
-                        section.data[address as usize..address as usize + 4].try_into()?,
-                    );
-                    match kind {
-                        ObjRelocKind::Absolute => addend,
-                        ObjRelocKind::MipsHi16 | ObjRelocKind::MipsLo16 => addend & 0x0000FFFF,
-                        ObjRelocKind::Mips26 => (addend & 0x03FFFFFF) * 4,
-                        _ => todo!(),
-                    }
-                } else {
-                    let addend = reloc.addend();
-                    if addend < 0 {
-                        return Err(anyhow::Error::msg(format!(
-                            "Negative addend in section reloc: {addend}"
-                        )));
-                    }
-                    addend as u32
-                };
+                if addend < 0 {
+                    return Err(anyhow::Error::msg(format!("Negative addend in reloc: {addend}")));
+                }
                 find_section_symbol(obj_file, &symbol, addend as u64)
             }
-            _ => Err(anyhow::Error::msg(format!(
-                "Unhandled relocation symbol type {:?}",
-                symbol.kind()
-            ))),
+            kind => Err(anyhow!("Unhandled relocation symbol type {kind:?}")),
         }?;
         relocations.push(ObjReloc { kind, address, target, target_section });
     }
