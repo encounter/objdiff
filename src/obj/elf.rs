@@ -246,7 +246,7 @@ fn relocations_by_section(
             );
             match kind {
                 ObjRelocKind::Absolute => addend as i64,
-                ObjRelocKind::MipsHi16 => ((addend & 0x0000FFFF) << 16) as i16 as i64,
+                ObjRelocKind::MipsHi16 => ((addend & 0x0000FFFF) << 16) as i32 as i64,
                 ObjRelocKind::MipsLo16
                 | ObjRelocKind::MipsGot16
                 | ObjRelocKind::MipsCall16

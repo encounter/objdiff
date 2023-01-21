@@ -46,7 +46,10 @@ fn main() {
             log::warn!("Failed to load application icon: {}", e);
         }
     }
-    // native_options.renderer = eframe::Renderer::Wgpu;
+    #[cfg(feature = "wgpu")]
+    {
+        native_options.renderer = eframe::Renderer::Wgpu;
+    }
     eframe::run_native(
         "objdiff",
         native_options,
