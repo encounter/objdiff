@@ -4,24 +4,12 @@ pub mod ppc;
 
 use std::path::PathBuf;
 
-use flagset::{flags, FlagSet};
-
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum ObjSectionKind {
     Code,
     Data,
     Bss,
 }
-flags! {
-    pub enum ObjSymbolFlags: u8 {
-        Global,
-        Local,
-        Weak,
-        Common,
-    }
-}
-#[derive(Debug, Copy, Clone, Default)]
-pub struct ObjSymbolFlagSet(pub(crate) FlagSet<ObjSymbolFlags>);
 #[derive(Debug, Clone)]
 pub struct ObjSection {
     pub name: String,
@@ -119,7 +107,10 @@ pub struct ObjSymbol {
     pub section_address: u64,
     pub size: u64,
     pub size_known: bool,
-    pub flags: ObjSymbolFlagSet,
+    pub global: bool,
+    pub local: bool,
+    pub common: bool,
+    pub weak: bool,
     pub addend: i64,
 
     // Diff

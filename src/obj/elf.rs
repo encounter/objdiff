@@ -2,7 +2,6 @@ use std::{fs, path::Path};
 
 use anyhow::{Context, Result};
 use cwdemangle::demangle;
-use flagset::Flags;
 use object::{
     elf::{
         R_MIPS_26, R_MIPS_HI16, R_MIPS_LO16, R_PPC_ADDR16_HA, R_PPC_ADDR16_HI, R_PPC_ADDR16_LO,
@@ -14,7 +13,6 @@ use object::{
 
 use crate::obj::{
     ObjArchitecture, ObjInfo, ObjReloc, ObjRelocKind, ObjSection, ObjSectionKind, ObjSymbol,
-    ObjSymbolFlagSet, ObjSymbolFlags,
 };
 
 fn to_obj_section_kind(kind: SectionKind) -> ObjSectionKind {
@@ -32,19 +30,6 @@ fn to_obj_symbol(obj_file: &File<'_>, symbol: &Symbol<'_, '_>, addend: i64) -> R
         println!("Found empty sym: {symbol:?}");
         name = "?";
     }
-    let mut flags = ObjSymbolFlagSet(ObjSymbolFlags::none());
-    if symbol.is_global() {
-        flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Global);
-    }
-    if symbol.is_local() {
-        flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Local);
-    }
-    if symbol.is_common() {
-        flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Common);
-    }
-    if symbol.is_weak() {
-        flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Weak);
-    }
     let section_address = if let Some(section) =
         symbol.section_index().and_then(|idx| obj_file.section_by_index(idx).ok())
     {
@@ -59,7 +44,10 @@ fn to_obj_symbol(obj_file: &File<'_>, symbol: &Symbol<'_, '_>, addend: i64) -> R
         section_address,
         size: symbol.size(),
         size_known: symbol.size() != 0,
-        flags,
+        global: symbol.is_global(),
+        local: symbol.is_local(),
+        common: symbol.is_common(),
+        weak: symbol.is_weak(),
         addend,
         diff_symbol: None,
         instructions: vec![],
@@ -179,7 +167,10 @@ fn find_section_symbol(
         section_address: address - section.address(),
         size: 0,
         size_known: false,
-        flags: Default::default(),
+        global: false,
+        local: false,
+        common: false,
+        weak: false,
         addend: offset_addr as i64,
         diff_symbol: None,
         instructions: vec![],

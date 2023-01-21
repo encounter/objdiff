@@ -6,7 +6,7 @@ use egui_extras::{Size, StripBuilder};
 use crate::{
     app::{SymbolReference, View, ViewConfig, ViewState},
     jobs::objdiff::BuildStatus,
-    obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags},
+    obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol},
     views::write_text,
 };
 
@@ -70,14 +70,14 @@ fn symbol_ui(
         selected = sym == &symbol.name;
     }
     write_text("[", Color32::GRAY, &mut job, config.code_font.clone());
-    if symbol.flags.0.contains(ObjSymbolFlags::Common) {
+    if symbol.common {
         write_text("c", Color32::from_rgb(0, 255, 255), &mut job, config.code_font.clone());
-    } else if symbol.flags.0.contains(ObjSymbolFlags::Global) {
+    } else if symbol.global {
         write_text("g", Color32::GREEN, &mut job, config.code_font.clone());
-    } else if symbol.flags.0.contains(ObjSymbolFlags::Local) {
+    } else if symbol.local {
         write_text("l", Color32::GRAY, &mut job, config.code_font.clone());
     }
-    if symbol.flags.0.contains(ObjSymbolFlags::Weak) {
+    if symbol.weak {
         write_text("w", Color32::GRAY, &mut job, config.code_font.clone());
     }
     write_text("] ", Color32::GRAY, &mut job, config.code_font.clone());

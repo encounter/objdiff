@@ -8,7 +8,7 @@ use crate::{
     obj::{
         mips, ppc, ObjArchitecture, ObjDataDiff, ObjDataDiffKind, ObjInfo, ObjInsArg,
         ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo, ObjInsDiff, ObjInsDiffKind, ObjReloc,
-        ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags,
+        ObjSection, ObjSectionKind, ObjSymbol,
     },
 };
 
@@ -227,7 +227,7 @@ fn reloc_eq(left_reloc: Option<&ObjReloc>, right_reloc: Option<&ObjReloc>) -> bo
         (Some(_), None) => false,
         (None, Some(_)) => {
             // Match if possibly stripped weak symbol
-            name_matches && right.target.flags.0.contains(ObjSymbolFlags::Weak)
+            name_matches && right.target.weak
         }
         (None, None) => name_matches,
     }
