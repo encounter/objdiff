@@ -38,9 +38,9 @@ pub fn process_code(
         let branch_dest =
             if is_branch { Some((cur_addr as i32 + branch_offset) as u32) } else { None };
 
-        println!("{:?}", instruction.get_operands_slice());
-        let mut args = Vec::new();
-        for op in instruction.get_operands_slice() {
+        let operands = instruction.get_operands_slice();
+        let mut args = Vec::with_capacity(operands.len() + 1);
+        for op in operands {
             match op {
                 OperandType::cpu_immediate
                 | OperandType::cpu_label
