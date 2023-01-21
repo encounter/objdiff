@@ -135,7 +135,6 @@ fn symbol_list_ui(
     highlighted_symbol: &mut Option<String>,
     selected_symbol: &mut Option<SymbolReference>,
     current_view: &mut View,
-    reverse_function_order: bool,
     lower_search: &str,
     config: &ViewConfig,
 ) {
@@ -164,7 +163,7 @@ fn symbol_list_ui(
                 CollapsingHeader::new(format!("{} ({:x})", section.name, section.size))
                     .default_open(true)
                     .show(ui, |ui| {
-                        if section.kind == ObjSectionKind::Code && reverse_function_order {
+                        if section.kind == ObjSectionKind::Code && config.reverse_fn_order {
                             for symbol in section.symbols.iter().rev() {
                                 if !symbol_matches_search(symbol, lower_search) {
                                     continue;
@@ -292,7 +291,6 @@ pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
                                     highlighted_symbol,
                                     selected_symbol,
                                     current_view,
-                                    view_state.reverse_fn_order,
                                     &lower_search,
                                     &view_state.view_config,
                                 );
@@ -312,7 +310,6 @@ pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
                                     highlighted_symbol,
                                     selected_symbol,
                                     current_view,
-                                    view_state.reverse_fn_order,
                                     &lower_search,
                                     &view_state.view_config,
                                 );

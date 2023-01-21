@@ -247,6 +247,6 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
         }
     }
 
-    ui.checkbox(&mut view_state.reverse_fn_order, "Reverse function order (deferred)");
+    ui.checkbox(&mut view_state.view_config.reverse_fn_order, "Reverse function order (deferred)");
     ui.separator();
 }

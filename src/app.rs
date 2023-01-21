@@ -67,6 +67,7 @@ pub struct ViewConfig {
     pub ui_font: FontId,
     pub code_font: FontId,
     pub diff_colors: Vec<Color32>,
+    pub reverse_fn_order: bool,
 }
 
 impl Default for ViewConfig {
@@ -75,6 +76,7 @@ impl Default for ViewConfig {
             ui_font: FontId { size: 12.0, family: FontFamily::Proportional },
             code_font: FontId { size: 14.0, family: FontFamily::Monospace },
             diff_colors: DEFAULT_COLOR_ROTATION.to_vec(),
+            reverse_fn_order: false,
         }
     }
 }
@@ -113,7 +115,6 @@ pub struct ViewState {
     pub check_update: Option<Box<CheckUpdateResult>>,
     // Config
     pub diff_kind: DiffKind,
-    pub reverse_fn_order: bool,
     pub view_config: ViewConfig,
 }
 
@@ -133,7 +134,6 @@ impl Default for ViewState {
             utc_offset: UtcOffset::UTC,
             check_update: None,
             diff_kind: Default::default(),
-            reverse_fn_order: false,
             view_config: Default::default(),
         }
     }
