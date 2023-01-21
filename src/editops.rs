@@ -40,25 +40,18 @@ pub struct LevEditOp {
     pub second_start: usize,  /* destination position */
 }
 
-#[derive(Debug, PartialEq, Eq)]
-pub struct LevMatchingBlock {
-    pub first_start: usize,
-    pub second_start: usize,
-    pub len: usize,
-}
-
 pub fn editops_find<T>(query: &[T], choice: &[T]) -> Vec<LevEditOp>
 where T: PartialEq {
-    let string_affix = Affix::find(query, choice);
+    let Affix {
+        prefix_len,
+        suffix_len,
+    } = Affix::find(query, choice);
 
-    let first_string_len = string_affix.first_string_len;
-    let second_string_len = string_affix.second_string_len;
-    let prefix_len = string_affix.prefix_len;
-    let first_string = &query[prefix_len..prefix_len + first_string_len];
-    let second_string = &choice[prefix_len..prefix_len + second_string_len];
+    let first_string = &query[prefix_len..query.len() - suffix_len];
+    let second_string = &choice[prefix_len..choice.len() - suffix_len];
 
-    let matrix_columns = first_string_len + 1;
-    let matrix_rows = second_string_len + 1;
+    let matrix_columns = first_string.len() + 1;
+    let matrix_rows = second_string.len() + 1;
 
     // TODO maybe use an actual matrix for readability
     let mut cache_matrix: Vec<usize> = vec![0; matrix_rows * matrix_columns];
@@ -186,73 +179,25 @@ where
 
 pub struct Affix {
     pub prefix_len: usize,
-    pub first_string_len: usize,
-    pub second_string_len: usize,
+    pub suffix_len: usize,
 }
 
 impl Affix {
-    pub fn find<T>(first_string: &[T], second_string: &[T]) -> Affix
+    pub fn find<T>(s1: &[T], s2: &[T]) -> Affix
     where T: PartialEq {
-        // remove common prefix and suffix (linear vs square runtime for levensthein)
-        let mut first_iter = first_string.iter();
-        let mut second_iter = second_string.iter();
+        let prefix_len = s1.iter()
+            .zip(s2.iter())
+            .take_while(|t| t.0 == t.1)
+            .count();
+        let suffix_len = s1[prefix_len..].iter()
+            .rev()
+            .zip(s2[prefix_len..].iter().rev())
+            .take_while(|t| t.0 == t.1)
+            .count();
 
-        let mut limit_start = 0;
-
-        let mut first_iter_char = first_iter.next();
-        let mut second_iter_char = second_iter.next();
-        while first_iter_char.is_some() && first_iter_char == second_iter_char {
-            first_iter_char = first_iter.next();
-            second_iter_char = second_iter.next();
-            limit_start += 1;
-        }
-
-        // save char since the iterator was already consumed
-        let first_iter_cache = first_iter_char;
-        let second_iter_cache = second_iter_char;
-
-        if second_iter_char.is_some() && first_iter_char.is_some() {
-            first_iter_char = first_iter.next_back();
-            second_iter_char = second_iter.next_back();
-            while first_iter_char.is_some() && first_iter_char == second_iter_char {
-                first_iter_char = first_iter.next_back();
-                second_iter_char = second_iter.next_back();
-            }
-        }
-
-        match (first_iter_char, second_iter_char) {
-            (None, None) => {
-                // characters might not match even though they were consumed
-                let remaining_char = (first_iter_cache != second_iter_cache) as usize;
-                Affix {
-                    prefix_len: limit_start,
-                    first_string_len: remaining_char,
-                    second_string_len: remaining_char,
-                }
-            }
-            (None, _) => {
-                let remaining_char =
-                    (first_iter_cache.is_some() && first_iter_cache != second_iter_char) as usize;
-                Affix {
-                    prefix_len: limit_start,
-                    first_string_len: remaining_char,
-                    second_string_len: second_iter.count() + 1 + remaining_char,
-                }
-            }
-            (_, None) => {
-                let remaining_char =
-                    (second_iter_cache.is_some() && second_iter_cache != first_iter_char) as usize;
-                Affix {
-                    prefix_len: limit_start,
-                    first_string_len: first_iter.count() + 1 + remaining_char,
-                    second_string_len: remaining_char,
-                }
-            }
-            _ => Affix {
-                prefix_len: limit_start,
-                first_string_len: first_iter.count() + 2,
-                second_string_len: second_iter.count() + 2,
-            },
+        Affix {
+            prefix_len,
+            suffix_len,
         }
     }
 }
