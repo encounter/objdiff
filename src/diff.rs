@@ -133,7 +133,6 @@ pub fn diff_code(
                         right_diff.push(ObjInsDiff::default());
                         cur_left = left_iter.next();
                     }
-                    LevEditType::Keep => unreachable!(),
                 }
             } else {
                 break;
@@ -511,13 +510,12 @@ fn diff_data(left: &mut ObjSection, right: &mut ObjSection) {
     let mut right_diff = Vec::<ObjDataDiff>::new();
     let mut left_cur = 0usize;
     let mut right_cur = 0usize;
-    let mut cur_op = LevEditType::Keep;
+    let mut cur_op = LevEditType::Replace;
     let mut cur_left_data = Vec::<u8>::new();
     let mut cur_right_data = Vec::<u8>::new();
     for op in edit_ops {
         if cur_op != op.op_type || left_cur < op.first_start || right_cur < op.second_start {
             match cur_op {
-                LevEditType::Keep => {}
                 LevEditType::Replace => {
                     let left_data = take(&mut cur_left_data);
                     let right_data = take(&mut cur_right_data);
@@ -603,7 +601,6 @@ fn diff_data(left: &mut ObjSection, right: &mut ObjSection) {
                 cur_left_data.push(left.data[left_cur]);
                 left_cur += 1;
             }
-            LevEditType::Keep => unreachable!(),
         }
         cur_op = op.op_type;
     }
@@ -627,7 +624,6 @@ fn diff_data(left: &mut ObjSection, right: &mut ObjSection) {
 
     // TODO: merge with above
     match cur_op {
-        LevEditType::Keep => {}
         LevEditType::Replace => {
             let left_data = take(&mut cur_left_data);
             let right_data = take(&mut cur_right_data);
