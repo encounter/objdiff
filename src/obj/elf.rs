@@ -126,13 +126,10 @@ fn symbols_by_section(obj_file: &File<'_>, section: &ObjSection) -> Result<Vec<O
 }
 
 fn common_symbols(obj_file: &File<'_>) -> Result<Vec<ObjSymbol>> {
-    let mut result = Vec::<ObjSymbol>::new();
-    for symbol in obj_file.symbols() {
-        if symbol.is_common() {
-            result.push(to_obj_symbol(obj_file, &symbol, 0)?);
-        }
-    }
-    Ok(result)
+    obj_file.symbols()
+        .filter(Symbol::is_common)
+        .map(|symbol| to_obj_symbol(obj_file, &symbol, 0))
+        .collect::<Result<Vec<ObjSymbol>>>()
 }
 
 fn find_section_symbol(
