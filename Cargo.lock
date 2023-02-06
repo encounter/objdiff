@@ -620,9 +620,9 @@ checksum = "b365fabc795046672053e29c954733ec3b05e4be654ab130fe8f1f94d7051f35"
 
 [[package]]
 name = "cwdemangle"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6db639f6653b14e5d248de711796d8a082a19bfd242a2bba03051074cd3498e"
+checksum = "b58d34a3a03cfe0a4ebfd03aeda6ee8a0f2e99bd3308476a8a89815add3ec373"
 dependencies = [
  "argh",
 ]
