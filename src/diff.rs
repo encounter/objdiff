@@ -362,20 +362,26 @@ fn compare_ins(
     Ok(result)
 }
 
-fn find_symbol<'a>(symbols: &'a mut [ObjSymbol], name: &str) -> Option<&'a mut ObjSymbol> {
-    symbols.iter_mut().find(|s| s.name == name)
+fn find_section_and_symbol(obj: &ObjInfo, name: &str) -> Option<(usize, usize)> {
+    for (section_idx, section) in obj.sections.iter().enumerate() {
+        let symbol_idx = match section.symbols.iter().position(|symbol| symbol.name == name) {
+            Some(symbol_idx) => symbol_idx,
+            None => continue,
+        };
+        return Some((section_idx, symbol_idx));
+    }
+    None
 }
 
 pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo, _diff_config: &DiffConfig) -> Result<()> {
     for left_section in &mut left.sections {
-        let Some(right_section) = right.sections.iter_mut().find(|s| s.name == left_section.name) else {
-            continue;
-        };
         if left_section.kind == ObjSectionKind::Code {
             for left_symbol in &mut left_section.symbols {
-                if let Some(right_symbol) =
-                    find_symbol(&mut right_section.symbols, &left_symbol.name)
+                if let Some((right_section_idx, right_symbol_idx)) =
+                    find_section_and_symbol(right, &left_symbol.name)
                 {
+                    let right_section = &mut right.sections[right_section_idx];
+                    let right_symbol = &mut right_section.symbols[right_symbol_idx];
                     left_symbol.diff_symbol = Some(right_symbol.name.clone());
                     right_symbol.diff_symbol = Some(left_symbol.name.clone());
                     diff_code(
@@ -399,22 +405,29 @@ pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo, _diff_config: &DiffCon
                     )?;
                 }
             }
-            for right_symbol in &mut right_section.symbols {
-                if right_symbol.instructions.is_empty() {
-                    no_diff_code(
-                        left.architecture,
-                        &right_section.data,
-                        right_symbol,
-                        &right_section.relocations,
-                        &left.line_info,
-                    )?;
-                }
+        } else {
+            let Some(right_section) = right.sections.iter_mut().find(|s| s.name == left_section.name) else {
+                continue;
+            };
+            if left_section.kind == ObjSectionKind::Data {
+                diff_data(left_section, right_section);
+                // diff_data_symbols(left_section, right_section)?;
+            } else if left_section.kind == ObjSectionKind::Bss {
+                diff_bss_symbols(&mut left_section.symbols, &mut right_section.symbols)?;
             }
-        } else if left_section.kind == ObjSectionKind::Data {
-            diff_data(left_section, right_section);
-            // diff_data_symbols(left_section, right_section)?;
-        } else if left_section.kind == ObjSectionKind::Bss {
-            diff_bss_symbols(&mut left_section.symbols, &mut right_section.symbols)?;
+        }
+    }
+    for right_section in right.sections.iter_mut().filter(|s| s.kind == ObjSectionKind::Code) {
+        for right_symbol in &mut right_section.symbols {
+            if right_symbol.instructions.is_empty() {
+                no_diff_code(
+                    right.architecture,
+                    &right_section.data,
+                    right_symbol,
+                    &right_section.relocations,
+                    &right.line_info,
+                )?;
+            }
         }
     }
     diff_bss_symbols(&mut left.common, &mut right.common)?;
@@ -423,7 +436,7 @@ pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo, _diff_config: &DiffCon
 
 fn diff_bss_symbols(left_symbols: &mut [ObjSymbol], right_symbols: &mut [ObjSymbol]) -> Result<()> {
     for left_symbol in left_symbols {
-        if let Some(right_symbol) = find_symbol(right_symbols, &left_symbol.name) {
+        if let Some(right_symbol) = right_symbols.iter_mut().find(|s| s.name == left_symbol.name) {
             left_symbol.diff_symbol = Some(right_symbol.name.clone());
             right_symbol.diff_symbol = Some(left_symbol.name.clone());
             let percent = if left_symbol.size == right_symbol.size { 100.0 } else { 50.0 };
