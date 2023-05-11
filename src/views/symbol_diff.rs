@@ -28,12 +28,12 @@ fn symbol_context_menu_ui(ui: &mut Ui, symbol: &ObjSymbol) {
 
         if let Some(name) = &symbol.demangled_name {
             if ui.button(format!("Copy \"{name}\"")).clicked() {
-                ui.output().copied_text = name.clone();
+                ui.output_mut(|output| output.copied_text = name.clone());
                 ui.close_menu();
             }
         }
         if ui.button(format!("Copy \"{}\"", symbol.name)).clicked() {
-            ui.output().copied_text = symbol.name.clone();
+            ui.output_mut(|output| output.copied_text = symbol.name.clone());
             ui.close_menu();
         }
     });
@@ -282,9 +282,9 @@ pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
         strip.strip(|builder| {
             builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
                 strip.cell(|ui| {
-                    if result.first_status.success {
-                        if let Some(obj) = &result.first_obj {
-                            ui.push_id("left", |ui| {
+                    ui.push_id("left", |ui| {
+                        if result.first_status.success {
+                            if let Some(obj) = &result.first_obj {
                                 symbol_list_ui(
                                     ui,
                                     obj,
@@ -294,16 +294,16 @@ pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
                                     &lower_search,
                                     &view_state.view_config,
                                 );
-                            });
+                            }
+                        } else {
+                            build_log_ui(ui, &result.first_status);
                         }
-                    } else {
-                        build_log_ui(ui, &result.first_status);
-                    }
+                    });
                 });
                 strip.cell(|ui| {
-                    if result.second_status.success {
-                        if let Some(obj) = &result.second_obj {
-                            ui.push_id("right", |ui| {
+                    ui.push_id("right", |ui| {
+                        if result.second_status.success {
+                            if let Some(obj) = &result.second_obj {
                                 symbol_list_ui(
                                     ui,
                                     obj,
@@ -313,11 +313,11 @@ pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
                                     &lower_search,
                                     &view_state.view_config,
                                 );
-                            });
+                            }
+                        } else {
+                            build_log_ui(ui, &result.second_status);
                         }
-                    } else {
-                        build_log_ui(ui, &result.second_status);
-                    }
+                    });
                 });
             });
         });

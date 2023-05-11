@@ -54,7 +54,8 @@ fn main() {
         "objdiff",
         native_options,
         Box::new(move |cc| Box::new(objdiff::App::new(cc, utc_offset, exec_path_clone))),
-    );
+    )
+    .expect("Failed to run eframe application");
 
     // Attempt to relaunch application from the updated path
     if let Ok(mut guard) = exec_path.lock() {

@@ -74,7 +74,7 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
         ui.label(formatcp!("Git branch: {}", env!("VERGEN_GIT_BRANCH")));
         ui.label(formatcp!("Git commit: {}", env!("VERGEN_GIT_SHA")));
         ui.label(formatcp!("Build target: {}", env!("VERGEN_CARGO_TARGET_TRIPLE")));
-        ui.label(formatcp!("Build type: {}", env!("VERGEN_CARGO_PROFILE")));
+        ui.label(formatcp!("Debug: {}", env!("VERGEN_CARGO_DEBUG")));
     });
     if let Some(state) = &view_state.check_update {
         ui.label(format!("Latest version: {}", state.latest_release.version));
@@ -96,8 +96,10 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
                     .on_hover_text_at_pointer("Open a link to the latest release on GitHub")
                     .clicked()
                 {
-                    ui.output().open_url =
-                        Some(OpenUrl { url: RELEASE_URL.to_string(), new_tab: true });
+                    ui.output_mut(|output| {
+                        output.open_url =
+                            Some(OpenUrl { url: RELEASE_URL.to_string(), new_tab: true })
+                    });
                 }
             });
         }

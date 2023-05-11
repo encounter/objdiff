@@ -126,7 +126,8 @@ fn symbols_by_section(obj_file: &File<'_>, section: &ObjSection) -> Result<Vec<O
 }
 
 fn common_symbols(obj_file: &File<'_>) -> Result<Vec<ObjSymbol>> {
-    obj_file.symbols()
+    obj_file
+        .symbols()
         .filter(Symbol::is_common)
         .map(|symbol| to_obj_symbol(obj_file, &symbol, 0))
         .collect::<Result<Vec<ObjSymbol>>>()

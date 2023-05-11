@@ -362,7 +362,7 @@ impl eframe::App for App {
                     ui.colored_label(Color32::LIGHT_BLUE, &demangled);
                 });
                 if ui.button("Copy").clicked() {
-                    ui.output().copied_text = demangled;
+                    ui.output_mut(|output| output.copied_text = demangled);
                 }
             } else {
                 ui.scope(|ui| {

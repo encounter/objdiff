@@ -226,31 +226,31 @@ fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
                 match arg {
                     Argument::Uimm(v) => {
                         if ui.button(format!("Copy \"{v}\"")).clicked() {
-                            ui.output().copied_text = format!("{v}");
+                            ui.output_mut(|output| output.copied_text = format!("{v}"));
                             ui.close_menu();
                         }
                         if ui.button(format!("Copy \"{}\"", v.0)).clicked() {
-                            ui.output().copied_text = format!("{}", v.0);
+                            ui.output_mut(|output| output.copied_text = format!("{}", v.0));
                             ui.close_menu();
                         }
                     }
                     Argument::Simm(v) => {
                         if ui.button(format!("Copy \"{v}\"")).clicked() {
-                            ui.output().copied_text = format!("{v}");
+                            ui.output_mut(|output| output.copied_text = format!("{v}"));
                             ui.close_menu();
                         }
                         if ui.button(format!("Copy \"{}\"", v.0)).clicked() {
-                            ui.output().copied_text = format!("{}", v.0);
+                            ui.output_mut(|output| output.copied_text = format!("{}", v.0));
                             ui.close_menu();
                         }
                     }
                     Argument::Offset(v) => {
                         if ui.button(format!("Copy \"{v}\"")).clicked() {
-                            ui.output().copied_text = format!("{v}");
+                            ui.output_mut(|output| output.copied_text = format!("{v}"));
                             ui.close_menu();
                         }
                         if ui.button(format!("Copy \"{}\"", v.0)).clicked() {
-                            ui.output().copied_text = format!("{}", v.0);
+                            ui.output_mut(|output| output.copied_text = format!("{}", v.0));
                             ui.close_menu();
                         }
                     }
@@ -261,12 +261,12 @@ fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
         if let Some(reloc) = &ins.reloc {
             if let Some(name) = &reloc.target.demangled_name {
                 if ui.button(format!("Copy \"{name}\"")).clicked() {
-                    ui.output().copied_text = name.clone();
+                    ui.output_mut(|output| output.copied_text = name.clone());
                     ui.close_menu();
                 }
             }
             if ui.button(format!("Copy \"{}\"", reloc.target.name)).clicked() {
-                ui.output().copied_text = reloc.target.name.clone();
+                ui.output_mut(|output| output.copied_text = reloc.target.name.clone());
                 ui.close_menu();
             }
         }

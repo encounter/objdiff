@@ -76,18 +76,15 @@ where T: PartialEq {
             cache_matrix[current + 1 + p] = x;
         }
     }
-    editops_from_cost_matrix::<T>(matrix_columns, matrix_rows, prefix_len, cache_matrix)
+    editops_from_cost_matrix(matrix_columns, matrix_rows, prefix_len, cache_matrix)
 }
 
-fn editops_from_cost_matrix<T>(
+fn editops_from_cost_matrix(
     len1: usize,
     len2: usize,
     prefix_len: usize,
     cache_matrix: Vec<usize>,
-) -> Vec<LevEditOp>
-where
-    T: PartialEq,
-{
+) -> Vec<LevEditOp> {
     let mut ops = Vec::with_capacity(cache_matrix[len1 * len2 - 1]);
     let mut dir = 0;
     let mut i = len1 - 1;
