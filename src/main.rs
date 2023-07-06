@@ -65,7 +65,7 @@ fn main() {
                     let result = exec::Command::new(path)
                         .args(&std::env::args().collect::<Vec<String>>())
                         .exec();
-                    eprintln!("Failed to relaunch: {result:?}");
+                    log::error!("Failed to relaunch: {result:?}");
                 } else {
                     let result = std::process::Command::new(path)
                         .args(std::env::args())
@@ -73,7 +73,7 @@ fn main() {
                         .unwrap()
                         .wait();
                     if let Err(e) = result {
-                        eprintln!("Failed to relaunch: {:?}", e);
+                        log::error!("Failed to relaunch: {:?}", e);
                     }
                 }
             }

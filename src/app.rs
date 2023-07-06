@@ -481,7 +481,7 @@ impl eframe::App for App {
                 if let Some(project_dir) = &config.project_dir {
                     match create_watcher(self.modified.clone(), project_dir) {
                         Ok(watcher) => self.watcher = Some(watcher),
-                        Err(e) => eprintln!("Failed to create watcher: {e}"),
+                        Err(e) => log::error!("Failed to create watcher: {e}"),
                     }
                     config.project_dir_change = false;
                     self.modified.store(true, Ordering::Relaxed);
@@ -532,7 +532,7 @@ fn create_watcher(
                     }
                 }
             }
-            Err(e) => println!("watch error: {e:?}"),
+            Err(e) => log::error!("watch error: {e:?}"),
         })?;
     watcher.watch(project_dir, RecursiveMode::Recursive)?;
     Ok(watcher)

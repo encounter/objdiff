@@ -26,7 +26,7 @@ fn to_obj_section_kind(kind: SectionKind) -> Option<ObjSectionKind> {
 fn to_obj_symbol(obj_file: &File<'_>, symbol: &Symbol<'_, '_>, addend: i64) -> Result<ObjSymbol> {
     let mut name = symbol.name().context("Failed to process symbol name")?;
     if name.is_empty() {
-        println!("Found empty sym: {symbol:?}");
+        log::warn!("Found empty sym: {symbol:?}");
         name = "?";
     }
     let mut flags = ObjSymbolFlagSet(ObjSymbolFlags::none());
@@ -294,7 +294,7 @@ fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u32, u32>>> {
             let address_delta = reader.read_u32::<BigEndian>()?;
             map.insert(base_address + address_delta, line_number);
         }
-        println!("Line info: {map:#X?}");
+        log::debug!("Line info: {map:#X?}");
         return Ok(Some(map));
     }
     Ok(None)

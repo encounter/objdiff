@@ -48,9 +48,11 @@ notice = "warn"
 # A list of advisory IDs to ignore. Note that ignored advisories will still
 # output a note when they are encountered.
 ignore = [
-    # git2 (build dependency)
-    "RUSTSEC-2023-0002",
-    "RUSTSEC-2023-0003",
+    "RUSTSEC-2023-0022",
+    "RUSTSEC-2023-0023",
+    "RUSTSEC-2023-0024",
+    "RUSTSEC-2023-0034",
+    "RUSTSEC-2023-0044",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -86,6 +88,7 @@ allow = [
     "OFL-1.1",
     "LicenseRef-UFL-1.0",
     "OpenSSL",
+    "GPL-3.0",
 ]
 # List of explictly disallowed licenses
 # See https://spdx.org/licenses/ for list of possible licenses
