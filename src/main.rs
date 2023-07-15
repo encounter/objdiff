@@ -37,7 +37,8 @@ fn main() {
 
     let exec_path: Rc<Mutex<Option<PathBuf>>> = Rc::new(Mutex::new(None));
     let exec_path_clone = exec_path.clone();
-    let mut native_options = eframe::NativeOptions::default();
+    let mut native_options =
+        eframe::NativeOptions { follow_system_theme: false, ..Default::default() };
     match load_icon() {
         Ok(data) => {
             native_options.icon_data = Some(data);

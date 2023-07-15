@@ -406,7 +406,9 @@ pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo, _diff_config: &DiffCon
                 }
             }
         } else {
-            let Some(right_section) = right.sections.iter_mut().find(|s| s.name == left_section.name) else {
+            let Some(right_section) =
+                right.sections.iter_mut().find(|s| s.name == left_section.name)
+            else {
                 continue;
             };
             if left_section.kind == ObjSectionKind::Data {

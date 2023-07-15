@@ -1,6 +1,6 @@
 use std::{cmp::min, default::Default, mem::take};
 
-use egui::{text::LayoutJob, Align, Color32, Label, Layout, Sense, Vec2};
+use egui::{text::LayoutJob, Align, Label, Layout, Sense, Vec2};
 use egui_extras::{Column, TableBuilder};
 use time::format_description;
 
@@ -8,7 +8,7 @@ use crate::{
     app::{SymbolReference, View, ViewConfig, ViewState},
     jobs::Job,
     obj::{ObjDataDiff, ObjDataDiffKind, ObjInfo, ObjSection},
-    views::{write_text, COLOR_RED},
+    views::write_text,
 };
 
 const BYTES_PER_ROW: usize = 16;
@@ -24,17 +24,17 @@ fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], config:
     let mut job = LayoutJob::default();
     write_text(
         format!("{address:08X}: ").as_str(),
-        Color32::GRAY,
+        config.text_color,
         &mut job,
         config.code_font.clone(),
     );
     let mut cur_addr = 0usize;
     for diff in diffs {
         let base_color = match diff.kind {
-            ObjDataDiffKind::None => Color32::GRAY,
-            ObjDataDiffKind::Replace => Color32::LIGHT_BLUE,
-            ObjDataDiffKind::Delete => COLOR_RED,
-            ObjDataDiffKind::Insert => Color32::GREEN,
+            ObjDataDiffKind::None => config.text_color,
+            ObjDataDiffKind::Replace => config.replace_color,
+            ObjDataDiffKind::Delete => config.delete_color,
+            ObjDataDiffKind::Insert => config.insert_color,
         };
         if diff.data.is_empty() {
             let mut str = "   ".repeat(diff.len);
@@ -58,15 +58,15 @@ fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], config:
         let mut str = " ".to_string();
         str.push_str("   ".repeat(n).as_str());
         str.push_str(" ".repeat(n / 8).as_str());
-        write_text(str.as_str(), Color32::GRAY, &mut job, config.code_font.clone());
+        write_text(str.as_str(), config.text_color, &mut job, config.code_font.clone());
     }
-    write_text(" ", Color32::GRAY, &mut job, config.code_font.clone());
+    write_text(" ", config.text_color, &mut job, config.code_font.clone());
     for diff in diffs {
         let base_color = match diff.kind {
-            ObjDataDiffKind::None => Color32::GRAY,
-            ObjDataDiffKind::Replace => Color32::LIGHT_BLUE,
-            ObjDataDiffKind::Delete => COLOR_RED,
-            ObjDataDiffKind::Insert => Color32::GREEN,
+            ObjDataDiffKind::None => config.text_color,
+            ObjDataDiffKind::Replace => config.replace_color,
+            ObjDataDiffKind::Delete => config.delete_color,
+            ObjDataDiffKind::Insert => config.insert_color,
         };
         if diff.data.is_empty() {
             write_text(
@@ -163,7 +163,8 @@ fn data_table_ui(
 
 pub fn data_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
     let mut rebuild = false;
-    let (Some(result), Some(selected_symbol)) = (&view_state.build, &view_state.selected_symbol) else {
+    let (Some(result), Some(selected_symbol)) = (&view_state.build, &view_state.selected_symbol)
+    else {
         return rebuild;
     };
 
@@ -188,7 +189,10 @@ pub fn data_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
                     ui.scope(|ui| {
                         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
                         ui.style_mut().wrap = Some(false);
-                        ui.colored_label(Color32::WHITE, &selected_symbol.symbol_name);
+                        ui.colored_label(
+                            view_state.view_config.highlight_color,
+                            &selected_symbol.symbol_name,
+                        );
                         ui.label("Diff target:");
                     });
                 },

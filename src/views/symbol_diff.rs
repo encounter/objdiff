@@ -11,13 +11,13 @@ use crate::{
     views::write_text,
 };
 
-pub fn match_color_for_symbol(match_percent: f32) -> Color32 {
+pub fn match_color_for_symbol(match_percent: f32, config: &ViewConfig) -> Color32 {
     if match_percent == 100.0 {
-        Color32::GREEN
+        config.insert_color
     } else if match_percent >= 50.0 {
-        Color32::LIGHT_BLUE
+        config.replace_color
     } else {
-        Color32::RED
+        config.delete_color
     }
 }
 
@@ -39,17 +39,17 @@ fn symbol_context_menu_ui(ui: &mut Ui, symbol: &ObjSymbol) {
     });
 }
 
-fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol) {
+fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol, config: &ViewConfig) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap = Some(false);
 
-        ui.colored_label(Color32::WHITE, format!("Name: {}", symbol.name));
-        ui.colored_label(Color32::WHITE, format!("Address: {:x}", symbol.address));
+        ui.colored_label(config.highlight_color, format!("Name: {}", symbol.name));
+        ui.colored_label(config.highlight_color, format!("Address: {:x}", symbol.address));
         if symbol.size_known {
-            ui.colored_label(Color32::WHITE, format!("Size: {:x}", symbol.size));
+            ui.colored_label(config.highlight_color, format!("Size: {:x}", symbol.size));
         } else {
-            ui.colored_label(Color32::WHITE, format!("Size: {:x} (assumed)", symbol.size));
+            ui.colored_label(config.highlight_color, format!("Size: {:x} (assumed)", symbol.size));
         }
     });
 }
@@ -70,33 +70,38 @@ fn symbol_ui(
     if let Some(sym) = highlighted_symbol {
         selected = sym == &symbol.name;
     }
-    write_text("[", Color32::GRAY, &mut job, config.code_font.clone());
+    write_text("[", config.text_color, &mut job, config.code_font.clone());
     if symbol.flags.0.contains(ObjSymbolFlags::Common) {
-        write_text("c", Color32::from_rgb(0, 255, 255), &mut job, config.code_font.clone());
-    } else if symbol.flags.0.contains(ObjSymbolFlags::Global) {
-        write_text("g", Color32::GREEN, &mut job, config.code_font.clone());
-    } else if symbol.flags.0.contains(ObjSymbolFlags::Local) {
-        write_text("l", Color32::GRAY, &mut job, config.code_font.clone());
-    }
-    if symbol.flags.0.contains(ObjSymbolFlags::Weak) {
-        write_text("w", Color32::GRAY, &mut job, config.code_font.clone());
-    }
-    write_text("] ", Color32::GRAY, &mut job, config.code_font.clone());
-    if let Some(match_percent) = symbol.match_percent {
-        write_text("(", Color32::GRAY, &mut job, config.code_font.clone());
         write_text(
-            &format!("{match_percent:.0}%"),
-            match_color_for_symbol(match_percent),
+            "c",
+            config.replace_color, /* Color32::from_rgb(0, 255, 255) */
             &mut job,
             config.code_font.clone(),
         );
-        write_text(") ", Color32::GRAY, &mut job, config.code_font.clone());
+    } else if symbol.flags.0.contains(ObjSymbolFlags::Global) {
+        write_text("g", config.insert_color, &mut job, config.code_font.clone());
+    } else if symbol.flags.0.contains(ObjSymbolFlags::Local) {
+        write_text("l", config.text_color, &mut job, config.code_font.clone());
     }
-    write_text(name, Color32::WHITE, &mut job, config.code_font.clone());
+    if symbol.flags.0.contains(ObjSymbolFlags::Weak) {
+        write_text("w", config.text_color, &mut job, config.code_font.clone());
+    }
+    write_text("] ", config.text_color, &mut job, config.code_font.clone());
+    if let Some(match_percent) = symbol.match_percent {
+        write_text("(", config.text_color, &mut job, config.code_font.clone());
+        write_text(
+            &format!("{match_percent:.0}%"),
+            match_color_for_symbol(match_percent, config),
+            &mut job,
+            config.code_font.clone(),
+        );
+        write_text(") ", config.text_color, &mut job, config.code_font.clone());
+    }
+    write_text(name, config.highlight_color, &mut job, config.code_font.clone());
     let response = SelectableLabel::new(selected, job)
         .ui(ui)
         .context_menu(|ui| symbol_context_menu_ui(ui, symbol))
-        .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, symbol));
+        .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, symbol, config));
     if response.clicked() {
         if let Some(section) = section {
             if section.kind == ObjSectionKind::Code {
@@ -200,13 +205,13 @@ fn symbol_list_ui(
     });
 }
 
-fn build_log_ui(ui: &mut Ui, status: &BuildStatus) {
+fn build_log_ui(ui: &mut Ui, status: &BuildStatus, config: &ViewConfig) {
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         ui.scope(|ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
             ui.style_mut().wrap = Some(false);
 
-            ui.colored_label(Color32::from_rgb(255, 0, 0), &status.log);
+            ui.colored_label(config.replace_color, &status.log);
         });
     });
 }
@@ -296,7 +301,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
                                 );
                             }
                         } else {
-                            build_log_ui(ui, &result.first_status);
+                            build_log_ui(ui, &result.first_status, &view_state.view_config);
                         }
                     });
                 });
@@ -315,7 +320,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
                                 );
                             }
                         } else {
-                            build_log_ui(ui, &result.second_status);
+                            build_log_ui(ui, &result.second_status, &view_state.view_config);
                         }
                     });
                 });

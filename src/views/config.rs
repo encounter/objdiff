@@ -5,7 +5,7 @@ use std::sync::{Arc, RwLock};
 #[cfg(windows)]
 use anyhow::{Context, Result};
 use const_format::formatcp;
-use egui::{output::OpenUrl, Color32};
+use egui::output::OpenUrl;
 use self_update::cargo_crate_version;
 
 use crate::{
@@ -79,7 +79,7 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
     if let Some(state) = &view_state.check_update {
         ui.label(format!("Latest version: {}", state.latest_release.version));
         if state.update_available {
-            ui.colored_label(Color32::LIGHT_GREEN, "Update available");
+            ui.colored_label(view_state.view_config.insert_color, "Update available");
             ui.horizontal(|ui| {
                 if state.found_binary
                     && ui

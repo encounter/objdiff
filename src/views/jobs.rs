@@ -1,4 +1,4 @@
-use egui::{Color32, ProgressBar, Widget};
+use egui::{ProgressBar, Widget};
 
 use crate::app::ViewState;
 
@@ -33,7 +33,7 @@ pub fn jobs_ui(ui: &mut egui::Ui, view_state: &mut ViewState) {
             if let Some(err) = &status.error {
                 let err_string = err.to_string();
                 ui.colored_label(
-                    Color32::from_rgb(255, 0, 0),
+                    view_state.view_config.delete_color,
                     if err_string.len() > STATUS_LENGTH - 10 {
                         format!("Error: {}...", &err_string[0..STATUS_LENGTH - 10])
                     } else {

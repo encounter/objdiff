@@ -68,6 +68,21 @@ pub struct ViewConfig {
     pub code_font: FontId,
     pub diff_colors: Vec<Color32>,
     pub reverse_fn_order: bool,
+    pub theme: eframe::Theme,
+    #[serde(skip)]
+    pub text_color: Color32, // GRAY
+    #[serde(skip)]
+    pub emphasized_text_color: Color32, // LIGHT_GRAY
+    #[serde(skip)]
+    pub deemphasized_text_color: Color32, // DARK_GRAY
+    #[serde(skip)]
+    pub highlight_color: Color32, // WHITE
+    #[serde(skip)]
+    pub replace_color: Color32, // LIGHT_BLUE
+    #[serde(skip)]
+    pub insert_color: Color32, // GREEN
+    #[serde(skip)]
+    pub delete_color: Color32, // RED
 }
 
 impl Default for ViewConfig {
@@ -77,6 +92,14 @@ impl Default for ViewConfig {
             code_font: FontId { size: 14.0, family: FontFamily::Monospace },
             diff_colors: DEFAULT_COLOR_ROTATION.to_vec(),
             reverse_fn_order: false,
+            theme: eframe::Theme::Dark,
+            text_color: Color32::GRAY,
+            emphasized_text_color: Color32::LIGHT_GRAY,
+            deemphasized_text_color: Color32::DARK_GRAY,
+            highlight_color: Color32::WHITE,
+            replace_color: Color32::LIGHT_BLUE,
+            insert_color: Color32::GREEN,
+            delete_color: Color32::from_rgb(200, 40, 41),
         }
     }
 }
@@ -249,7 +272,7 @@ impl eframe::App for App {
         let Self { config, view_state, .. } = self;
 
         {
-            let config = &view_state.view_config;
+            let config = &mut view_state.view_config;
             let mut style = (*ctx.style()).clone();
             style.text_styles.insert(TextStyle::Body, FontId {
                 size: (config.ui_font.size * 0.75).floor(),
@@ -262,6 +285,28 @@ impl eframe::App for App {
                 family: config.ui_font.family.clone(),
             });
             style.text_styles.insert(TextStyle::Monospace, config.code_font.clone());
+            match config.theme {
+                eframe::Theme::Dark => {
+                    style.visuals = egui::Visuals::dark();
+                    config.text_color = Color32::GRAY;
+                    config.emphasized_text_color = Color32::LIGHT_GRAY;
+                    config.deemphasized_text_color = Color32::DARK_GRAY;
+                    config.highlight_color = Color32::WHITE;
+                    config.replace_color = Color32::LIGHT_BLUE;
+                    config.insert_color = Color32::GREEN;
+                    config.delete_color = Color32::from_rgb(200, 40, 41);
+                }
+                eframe::Theme::Light => {
+                    style.visuals = egui::Visuals::light();
+                    config.text_color = Color32::GRAY;
+                    config.emphasized_text_color = Color32::DARK_GRAY;
+                    config.deemphasized_text_color = Color32::LIGHT_GRAY;
+                    config.highlight_color = Color32::BLACK;
+                    config.replace_color = Color32::DARK_BLUE;
+                    config.insert_color = Color32::DARK_GREEN;
+                    config.delete_color = Color32::from_rgb(200, 40, 41);
+                }
+            }
             ctx.set_style(style);
         }
 
@@ -323,6 +368,20 @@ impl eframe::App for App {
         }
 
         egui::Window::new("Config").open(&mut view_state.show_config).show(ctx, |ui| {
+            egui::ComboBox::from_label("Theme")
+                .selected_text(format!("{:?}", view_state.view_config.theme))
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(
+                        &mut view_state.view_config.theme,
+                        eframe::Theme::Dark,
+                        "Dark",
+                    );
+                    ui.selectable_value(
+                        &mut view_state.view_config.theme,
+                        eframe::Theme::Light,
+                        "Light",
+                    );
+                });
             ui.label("UI font:");
             egui::introspection::font_id_ui(ui, &mut view_state.view_config.ui_font);
             ui.separator();
@@ -359,7 +418,7 @@ impl eframe::App for App {
             {
                 ui.scope(|ui| {
                     ui.style_mut().override_text_style = Some(TextStyle::Monospace);
-                    ui.colored_label(Color32::LIGHT_BLUE, &demangled);
+                    ui.colored_label(view_state.view_config.replace_color, &demangled);
                 });
                 if ui.button("Copy").clicked() {
                     ui.output_mut(|output| output.copied_text = demangled);
@@ -367,7 +426,7 @@ impl eframe::App for App {
             } else {
                 ui.scope(|ui| {
                     ui.style_mut().override_text_style = Some(TextStyle::Monospace);
-                    ui.colored_label(Color32::LIGHT_RED, "[invalid]");
+                    ui.colored_label(view_state.view_config.replace_color, "[invalid]");
                 });
             }
         });
