@@ -1,7 +1,9 @@
 use egui::{text::LayoutJob, Color32, FontId, TextFormat};
 
+pub(crate) mod appearance;
 pub(crate) mod config;
 pub(crate) mod data_diff;
+pub(crate) mod demangle;
 pub(crate) mod function_diff;
 pub(crate) mod jobs;
 pub(crate) mod symbol_diff;

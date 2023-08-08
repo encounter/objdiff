@@ -1,6 +1,5 @@
 use std::{
     default::Default,
-    ffi::OsStr,
     path::{Path, PathBuf},
     rc::Rc,
     sync::{
@@ -11,17 +10,24 @@ use std::{
 };
 
 use egui::{Color32, FontFamily, FontId, TextStyle};
+use globset::{Glob, GlobSet, GlobSetBuilder};
 use notify::{RecursiveMode, Watcher};
 use time::{OffsetDateTime, UtcOffset};
 
 use crate::{
+    config::{build_globset, load_project_config, ProjectUnit, ProjectUnitNode, CONFIG_FILENAMES},
     jobs::{
         check_update::{queue_check_update, CheckUpdateResult},
         objdiff::{queue_build, BuildStatus, ObjDiffResult},
         Job, JobResult, JobState, JobStatus,
     },
     views::{
-        config::config_ui, data_diff::data_diff_ui, function_diff::function_diff_ui, jobs::jobs_ui,
+        appearance::{appearance_window, DEFAULT_COLOR_ROTATION},
+        config::{config_ui, project_window},
+        data_diff::data_diff_ui,
+        demangle::demangle_window,
+        function_diff::function_diff_ui,
+        jobs::jobs_ui,
         symbol_diff::symbol_diff_ui,
     },
 };
@@ -48,18 +54,6 @@ pub struct DiffConfig {
     // pub stripped_symbols: Vec<String>,
     // pub mapped_symbols: HashMap<String, String>,
 }
-
-const DEFAULT_COLOR_ROTATION: [Color32; 9] = [
-    Color32::from_rgb(255, 0, 255),
-    Color32::from_rgb(0, 255, 255),
-    Color32::from_rgb(0, 128, 0),
-    Color32::from_rgb(255, 0, 0),
-    Color32::from_rgb(255, 255, 0),
-    Color32::from_rgb(255, 192, 203),
-    Color32::from_rgb(0, 0, 255),
-    Color32::from_rgb(0, 255, 0),
-    Color32::from_rgb(213, 138, 138),
-];
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
@@ -123,11 +117,15 @@ pub struct ViewState {
     #[serde(skip)]
     pub current_view: View,
     #[serde(skip)]
-    pub show_config: bool,
+    pub show_view_config: bool,
+    #[serde(skip)]
+    pub show_project_config: bool,
     #[serde(skip)]
     pub show_demangle: bool,
     #[serde(skip)]
     pub demangle_text: String,
+    #[serde(skip)]
+    pub watch_pattern_text: String,
     #[serde(skip)]
     pub diff_config: DiffConfig,
     #[serde(skip)]
@@ -149,9 +147,11 @@ impl Default for ViewState {
             highlighted_symbol: None,
             selected_symbol: None,
             current_view: Default::default(),
-            show_config: false,
+            show_view_config: false,
+            show_project_config: false,
             show_demangle: false,
             demangle_text: String::new(),
+            watch_pattern_text: String::new(),
             diff_config: Default::default(),
             search: Default::default(),
             utc_offset: UtcOffset::UTC,
@@ -162,7 +162,7 @@ impl Default for ViewState {
     }
 }
 
-#[derive(Default, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct AppConfig {
     pub custom_make: Option<String>,
@@ -179,21 +179,53 @@ pub struct AppConfig {
     // Whole binary
     pub left_obj: Option<PathBuf>,
     pub right_obj: Option<PathBuf>,
+
     #[serde(skip)]
-    pub project_dir_change: bool,
+    pub watcher_change: bool,
+    pub watcher_enabled: bool,
     #[serde(skip)]
     pub queue_update_check: bool,
     pub auto_update_check: bool,
+    // Project config
+    #[serde(skip)]
+    pub config_change: bool,
+    #[serde(skip)]
+    pub watch_patterns: Vec<Glob>,
+    #[serde(skip)]
+    pub load_error: Option<String>,
+    #[serde(skip)]
+    pub units: Vec<ProjectUnit>,
+    #[serde(skip)]
+    pub unit_nodes: Vec<ProjectUnitNode>,
+    #[serde(skip)]
+    pub config_window_open: bool,
 }
 
-#[derive(Default, Clone, serde::Deserialize)]
-#[serde(default)]
-pub struct ProjectConfig {
-    pub custom_make: Option<String>,
-    pub project_dir: Option<PathBuf>,
-    pub target_obj_dir: Option<PathBuf>,
-    pub base_obj_dir: Option<PathBuf>,
-    pub build_target: bool,
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            custom_make: None,
+            available_wsl_distros: None,
+            selected_wsl_distro: None,
+            project_dir: None,
+            target_obj_dir: None,
+            base_obj_dir: None,
+            obj_path: None,
+            build_target: false,
+            left_obj: None,
+            right_obj: None,
+            config_change: false,
+            watcher_change: false,
+            watcher_enabled: true,
+            queue_update_check: false,
+            auto_update_check: false,
+            watch_patterns: vec![],
+            load_error: None,
+            units: vec![],
+            unit_nodes: vec![],
+            config_window_open: false,
+        }
+    }
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -205,6 +237,8 @@ pub struct App {
     config: Arc<RwLock<AppConfig>>,
     #[serde(skip)]
     modified: Arc<AtomicBool>,
+    #[serde(skip)]
+    config_modified: Arc<AtomicBool>,
     #[serde(skip)]
     watcher: Option<notify::RecommendedWatcher>,
     #[serde(skip)]
@@ -219,6 +253,7 @@ impl Default for App {
             view_state: ViewState::default(),
             config: Arc::new(Default::default()),
             modified: Arc::new(Default::default()),
+            config_modified: Arc::new(Default::default()),
             watcher: None,
             relaunch_path: Default::default(),
             should_relaunch: false,
@@ -244,7 +279,9 @@ impl App {
             let mut app: App = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
             let mut config: AppConfig = eframe::get_value(storage, CONFIG_KEY).unwrap_or_default();
             if config.project_dir.is_some() {
-                config.project_dir_change = true;
+                config.config_change = true;
+                config.watcher_change = true;
+                app.modified.store(true, Ordering::Relaxed);
             }
             config.queue_update_check = config.auto_update_check;
             app.config = Arc::new(RwLock::new(config));
@@ -313,15 +350,15 @@ impl eframe::App for App {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
-                    if ui.button("Show config").clicked() {
-                        view_state.show_config = !view_state.show_config;
+                    if ui.button("Appearance…").clicked() {
+                        view_state.show_view_config = !view_state.show_view_config;
                     }
                     if ui.button("Quit").clicked() {
                         frame.close();
                     }
                 });
                 ui.menu_button("Tools", |ui| {
-                    if ui.button("Demangle").clicked() {
+                    if ui.button("Demangle…").clicked() {
                         view_state.show_demangle = !view_state.show_demangle;
                     }
                 });
@@ -367,69 +404,9 @@ impl eframe::App for App {
             });
         }
 
-        egui::Window::new("Config").open(&mut view_state.show_config).show(ctx, |ui| {
-            egui::ComboBox::from_label("Theme")
-                .selected_text(format!("{:?}", view_state.view_config.theme))
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(
-                        &mut view_state.view_config.theme,
-                        eframe::Theme::Dark,
-                        "Dark",
-                    );
-                    ui.selectable_value(
-                        &mut view_state.view_config.theme,
-                        eframe::Theme::Light,
-                        "Light",
-                    );
-                });
-            ui.label("UI font:");
-            egui::introspection::font_id_ui(ui, &mut view_state.view_config.ui_font);
-            ui.separator();
-            ui.label("Code font:");
-            egui::introspection::font_id_ui(ui, &mut view_state.view_config.code_font);
-            ui.separator();
-            ui.label("Diff colors:");
-            if ui.button("Reset").clicked() {
-                view_state.view_config.diff_colors = DEFAULT_COLOR_ROTATION.to_vec();
-            }
-            let mut remove_at: Option<usize> = None;
-            let num_colors = view_state.view_config.diff_colors.len();
-            for (idx, color) in view_state.view_config.diff_colors.iter_mut().enumerate() {
-                ui.horizontal(|ui| {
-                    ui.color_edit_button_srgba(color);
-                    if num_colors > 1 && ui.small_button("-").clicked() {
-                        remove_at = Some(idx);
-                    }
-                });
-            }
-            if let Some(idx) = remove_at {
-                view_state.view_config.diff_colors.remove(idx);
-            }
-            if ui.small_button("+").clicked() {
-                view_state.view_config.diff_colors.push(Color32::BLACK);
-            }
-        });
-
-        egui::Window::new("Demangle").open(&mut view_state.show_demangle).show(ctx, |ui| {
-            ui.text_edit_singleline(&mut view_state.demangle_text);
-            ui.add_space(10.0);
-            if let Some(demangled) =
-                cwdemangle::demangle(&view_state.demangle_text, &Default::default())
-            {
-                ui.scope(|ui| {
-                    ui.style_mut().override_text_style = Some(TextStyle::Monospace);
-                    ui.colored_label(view_state.view_config.replace_color, &demangled);
-                });
-                if ui.button("Copy").clicked() {
-                    ui.output_mut(|output| output.copied_text = demangled);
-                }
-            } else {
-                ui.scope(|ui| {
-                    ui.style_mut().override_text_style = Some(TextStyle::Monospace);
-                    ui.colored_label(view_state.view_config.replace_color, "[invalid]");
-                });
-            }
-        });
+        project_window(ctx, config, view_state);
+        appearance_window(ctx, view_state);
+        demangle_window(ctx, view_state);
 
         // Windows + request_repaint_after breaks dialogs:
         // https://github.com/emilk/egui/issues/2003
@@ -535,15 +512,42 @@ impl eframe::App for App {
         }
 
         if let Ok(mut config) = self.config.write() {
-            if config.project_dir_change {
+            let config = &mut *config;
+
+            if self.config_modified.load(Ordering::Relaxed) {
+                self.config_modified.store(false, Ordering::Relaxed);
+                config.config_change = true;
+            }
+
+            if config.config_change {
+                config.config_change = false;
+                if let Err(e) = load_project_config(config) {
+                    log::error!("Failed to load project config: {e}");
+                    config.load_error = Some(format!("{e}"));
+                }
+            }
+
+            if config.watcher_change {
                 drop(self.watcher.take());
+
                 if let Some(project_dir) = &config.project_dir {
-                    match create_watcher(self.modified.clone(), project_dir) {
-                        Ok(watcher) => self.watcher = Some(watcher),
-                        Err(e) => log::error!("Failed to create watcher: {e}"),
+                    if !config.watch_patterns.is_empty() {
+                        match build_globset(&config.watch_patterns)
+                            .map_err(anyhow::Error::new)
+                            .and_then(|globset| {
+                                create_watcher(
+                                    self.modified.clone(),
+                                    self.config_modified.clone(),
+                                    project_dir,
+                                    globset,
+                                )
+                                .map_err(anyhow::Error::new)
+                            }) {
+                            Ok(watcher) => self.watcher = Some(watcher),
+                            Err(e) => log::error!("Failed to create watcher: {e}"),
+                        }
                     }
-                    config.project_dir_change = false;
-                    self.modified.store(true, Ordering::Relaxed);
+                    config.watcher_change = false;
                 }
             }
 
@@ -572,22 +576,27 @@ impl eframe::App for App {
 
 fn create_watcher(
     modified: Arc<AtomicBool>,
+    config_modified: Arc<AtomicBool>,
     project_dir: &Path,
+    patterns: GlobSet,
 ) -> notify::Result<notify::RecommendedWatcher> {
+    let mut config_patterns = GlobSetBuilder::new();
+    for filename in CONFIG_FILENAMES {
+        config_patterns.add(Glob::new(&format!("**/{filename}")).unwrap());
+    }
+    let config_patterns = config_patterns.build().unwrap();
+
     let mut watcher =
         notify::recommended_watcher(move |res: notify::Result<notify::Event>| match res {
             Ok(event) => {
                 if matches!(event.kind, notify::EventKind::Modify(..)) {
-                    let watch_extensions = &[
-                        Some(OsStr::new("c")),
-                        Some(OsStr::new("cp")),
-                        Some(OsStr::new("cpp")),
-                        Some(OsStr::new("h")),
-                        Some(OsStr::new("hpp")),
-                        Some(OsStr::new("s")),
-                    ];
-                    if event.paths.iter().any(|p| watch_extensions.contains(&p.extension())) {
-                        modified.store(true, Ordering::Relaxed);
+                    for path in &event.paths {
+                        if config_patterns.is_match(path) {
+                            config_modified.store(true, Ordering::Relaxed);
+                        }
+                        if patterns.is_match(path) {
+                            modified.store(true, Ordering::Relaxed);
+                        }
                     }
                 }
             }

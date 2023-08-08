@@ -181,7 +181,7 @@ fn find_section_symbol(
 fn relocations_by_section(
     arch: ObjArchitecture,
     obj_file: &File<'_>,
-    section: &mut ObjSection,
+    section: &ObjSection,
 ) -> Result<Vec<ObjReloc>> {
     let obj_section = obj_file.section_by_index(SectionIndex(section.index))?;
     let mut relocations = Vec::<ObjReloc>::new();

@@ -3,6 +3,7 @@
 pub use app::App;
 
 mod app;
+mod config;
 mod diff;
 mod editops;
 mod jobs;
