@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use self_update::{cargo_crate_version, update::Release};
 
 use crate::{
-    jobs::{queue_job, update_status, Job, JobResult, JobState, Status},
+    jobs::{start_job, update_status, Job, JobResult, JobState, Status},
     update::{build_updater, BIN_NAME},
 };
 
@@ -26,8 +26,8 @@ fn run_check_update(status: &Status, cancel: Receiver<()>) -> Result<Box<CheckUp
     Ok(Box::new(CheckUpdateResult { update_available, latest_release, found_binary }))
 }
 
-pub fn queue_check_update() -> JobState {
-    queue_job("Check for updates", Job::CheckUpdate, move |status, cancel| {
+pub fn start_check_update() -> JobState {
+    start_job("Check for updates", Job::CheckUpdate, move |status, cancel| {
         run_check_update(status, cancel).map(JobResult::CheckUpdate)
     })
 }

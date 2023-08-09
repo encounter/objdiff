@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use const_format::formatcp;
 
 use crate::{
-    jobs::{queue_job, update_status, Job, JobResult, JobState, Status},
+    jobs::{start_job, update_status, Job, JobResult, JobState, Status},
     update::{build_updater, BIN_NAME},
 };
 
@@ -53,8 +53,8 @@ fn run_update(status: &Status, cancel: Receiver<()>) -> Result<Box<UpdateResult>
     Ok(Box::from(UpdateResult { exe_path: target_file }))
 }
 
-pub fn queue_update() -> JobState {
-    queue_job("Update app", Job::Update, move |status, cancel| {
+pub fn start_update() -> JobState {
+    start_job("Update app", Job::Update, move |status, cancel| {
         run_update(status, cancel).map(JobResult::Update)
     })
 }

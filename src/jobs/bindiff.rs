@@ -5,7 +5,7 @@ use anyhow::{Error, Result};
 use crate::{
     app::{AppConfig, DiffConfig},
     diff::diff_objs,
-    jobs::{queue_job, update_status, Job, JobResult, JobState, Status},
+    jobs::{start_job, update_status, Job, JobResult, JobState, Status},
     obj::{elf, ObjInfo},
 };
 
@@ -37,8 +37,8 @@ fn run_build(
     Ok(Box::new(BinDiffResult { first_obj: left_obj, second_obj: right_obj }))
 }
 
-pub fn queue_bindiff(config: Arc<RwLock<AppConfig>>) -> JobState {
-    queue_job("Binary diff", Job::BinDiff, move |status, cancel| {
+pub fn start_bindiff(config: Arc<RwLock<AppConfig>>) -> JobState {
+    start_job("Binary diff", Job::BinDiff, move |status, cancel| {
         run_build(status, cancel, config).map(JobResult::BinDiff)
     })
 }

@@ -18,7 +18,7 @@ use self_update::cargo_crate_version;
 use crate::{
     app::{AppConfig, DiffKind, ViewConfig, ViewState},
     config::{ProjectUnit, ProjectUnitNode},
-    jobs::{bindiff::queue_bindiff, objdiff::queue_build, update::queue_update},
+    jobs::{bindiff::start_bindiff, objdiff::start_build, update::start_update},
     update::RELEASE_URL,
 };
 
@@ -101,7 +101,7 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
                         )
                         .clicked()
                 {
-                    view_state.jobs.push(queue_update());
+                    view_state.jobs.push(start_update());
                 }
                 if ui
                     .button("Manual")
@@ -190,7 +190,7 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
                 build = true;
             }
             if build {
-                view_state.jobs.push(queue_build(config.clone(), view_state.diff_config.clone()));
+                view_state.jobs.push(start_build(config.clone(), view_state.diff_config.clone()));
             }
         }
     } else if view_state.diff_kind == DiffKind::WholeBinary {
@@ -218,7 +218,7 @@ pub fn config_ui(ui: &mut egui::Ui, config: &Arc<RwLock<AppConfig>>, view_state:
 
         if let (Some(_), Some(_)) = (left_obj, right_obj) {
             if ui.button("Build").clicked() {
-                view_state.jobs.push(queue_bindiff(config.clone()));
+                view_state.jobs.push(start_bindiff(config.clone()));
             }
         }
     }

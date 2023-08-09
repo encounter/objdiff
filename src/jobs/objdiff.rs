@@ -11,7 +11,7 @@ use time::OffsetDateTime;
 use crate::{
     app::{AppConfig, DiffConfig},
     diff::diff_objs,
-    jobs::{queue_job, update_status, Job, JobResult, JobState, Status},
+    jobs::{start_job, update_status, Job, JobResult, JobState, Status},
     obj::{elf, ObjInfo},
 };
 
@@ -136,8 +136,8 @@ fn run_build(
     Ok(Box::new(ObjDiffResult { first_status, second_status, first_obj, second_obj, time }))
 }
 
-pub fn queue_build(config: Arc<RwLock<AppConfig>>, diff_config: DiffConfig) -> JobState {
-    queue_job("Object diff", Job::ObjDiff, move |status, cancel| {
+pub fn start_build(config: Arc<RwLock<AppConfig>>, diff_config: DiffConfig) -> JobState {
+    start_job("Object diff", Job::ObjDiff, move |status, cancel| {
         run_build(status, cancel, config, diff_config).map(JobResult::ObjDiff)
     })
 }

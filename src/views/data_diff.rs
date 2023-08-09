@@ -212,7 +212,7 @@ pub fn data_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
                         ui.scope(|ui| {
                             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
                             ui.style_mut().wrap = Some(false);
-                            if view_state.jobs.iter().any(|job| job.job_type == Job::ObjDiff) {
+                            if view_state.jobs.is_running(Job::ObjDiff) {
                                 ui.colored_label(view_state.view_config.replace_color, "Building…");
                             } else {
                                 ui.label("Last built:");

@@ -17,9 +17,9 @@ use time::{OffsetDateTime, UtcOffset};
 use crate::{
     config::{build_globset, load_project_config, ProjectUnit, ProjectUnitNode, CONFIG_FILENAMES},
     jobs::{
-        check_update::{queue_check_update, CheckUpdateResult},
-        objdiff::{queue_build, BuildStatus, ObjDiffResult},
-        Job, JobResult, JobState, JobStatus,
+        check_update::{start_check_update, CheckUpdateResult},
+        objdiff::{start_build, BuildStatus, ObjDiffResult},
+        Job, JobQueue, JobResult, JobStatus,
     },
     views::{
         appearance::{appearance_window, DEFAULT_COLOR_ROTATION},
@@ -107,7 +107,7 @@ pub struct SymbolReference {
 #[serde(default)]
 pub struct ViewState {
     #[serde(skip)]
-    pub jobs: Vec<JobState>,
+    pub jobs: JobQueue,
     #[serde(skip)]
     pub build: Option<Box<ObjDiffResult>>,
     #[serde(skip)]
@@ -142,7 +142,7 @@ pub struct ViewState {
 impl Default for ViewState {
     fn default() -> Self {
         Self {
-            jobs: vec![],
+            jobs: Default::default(),
             build: None,
             highlighted_symbol: None,
             selected_symbol: None,
@@ -380,7 +380,7 @@ impl eframe::App for App {
                 if function_diff_ui(ui, view_state) {
                     view_state
                         .jobs
-                        .push(queue_build(config.clone(), view_state.diff_config.clone()));
+                        .push(start_build(config.clone(), view_state.diff_config.clone()));
                 }
             });
         } else if view_state.current_view == View::DataDiff
@@ -390,7 +390,7 @@ impl eframe::App for App {
                 if data_diff_ui(ui, view_state) {
                     view_state
                         .jobs
-                        .push(queue_build(config.clone(), view_state.diff_config.clone()));
+                        .push(start_build(config.clone(), view_state.diff_config.clone()));
                 }
             });
         } else {
@@ -410,14 +410,7 @@ impl eframe::App for App {
 
         // Windows + request_repaint_after breaks dialogs:
         // https://github.com/emilk/egui/issues/2003
-        if cfg!(windows)
-            || view_state.jobs.iter().any(|job| {
-                if let Some(handle) = &job.handle {
-                    return !handle.is_finished();
-                }
-                false
-            })
-        {
+        if cfg!(windows) || view_state.jobs.any_running() {
             ctx.request_repaint();
         } else {
             ctx.request_repaint_after(Duration::from_millis(100));
@@ -433,14 +426,8 @@ impl eframe::App for App {
     }
 
     fn post_rendering(&mut self, _window_size_px: [u32; 2], _frame: &eframe::Frame) {
-        for job in &mut self.view_state.jobs {
-            let Some(handle) = &job.handle else {
-                continue;
-            };
-            if !handle.is_finished() {
-                continue;
-            }
-            match job.handle.take().unwrap().join() {
+        for (job, result) in self.view_state.jobs.iter_finished() {
+            match result {
                 Ok(result) => {
                     log::info!("Job {} finished", job.id);
                     match result {
@@ -496,26 +483,12 @@ impl eframe::App for App {
                 }
             }
         }
-        if self.view_state.jobs.iter().any(|v| v.should_remove) {
-            let mut i = 0;
-            while i < self.view_state.jobs.len() {
-                let job = &self.view_state.jobs[i];
-                if job.should_remove
-                    && job.handle.is_none()
-                    && job.status.read().unwrap().error.is_none()
-                {
-                    self.view_state.jobs.remove(i);
-                } else {
-                    i += 1;
-                }
-            }
-        }
+        self.view_state.jobs.clear_finished();
 
         if let Ok(mut config) = self.config.write() {
             let config = &mut *config;
 
-            if self.config_modified.load(Ordering::Relaxed) {
-                self.config_modified.store(false, Ordering::Relaxed);
+            if self.config_modified.swap(false, Ordering::Relaxed) {
                 config.config_change = true;
             }
 
@@ -551,23 +524,17 @@ impl eframe::App for App {
                 }
             }
 
-            if config.obj_path.is_some() && self.modified.load(Ordering::Relaxed) {
-                if !self
-                    .view_state
+            if config.obj_path.is_some()
+                && self.modified.swap(false, Ordering::Relaxed)
+                && !self.view_state.jobs.is_running(Job::ObjDiff)
+            {
+                self.view_state
                     .jobs
-                    .iter()
-                    .any(|j| j.job_type == Job::ObjDiff && j.handle.is_some())
-                {
-                    self.view_state.jobs.push(queue_build(
-                        self.config.clone(),
-                        self.view_state.diff_config.clone(),
-                    ));
-                }
-                self.modified.store(false, Ordering::Relaxed);
+                    .push(start_build(self.config.clone(), self.view_state.diff_config.clone()));
             }
 
             if config.queue_update_check {
-                self.view_state.jobs.push(queue_check_update());
+                self.view_state.jobs.push(start_check_update());
                 config.queue_update_check = false;
             }
         }

@@ -6,7 +6,7 @@ pub fn jobs_ui(ui: &mut egui::Ui, view_state: &mut ViewState) {
     ui.label("Jobs");
 
     let mut remove_job: Option<usize> = None;
-    for (idx, job) in view_state.jobs.iter_mut().enumerate() {
+    for job in view_state.jobs.iter_mut() {
         let Ok(status) = job.status.read() else {
             continue;
         };
@@ -20,7 +20,7 @@ pub fn jobs_ui(ui: &mut egui::Ui, view_state: &mut ViewState) {
                             log::error!("Failed to cancel job: {e:?}");
                         }
                     } else {
-                        remove_job = Some(idx);
+                        remove_job = Some(job.id);
                     }
                 }
             });
