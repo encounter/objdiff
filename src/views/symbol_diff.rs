@@ -5,19 +5,41 @@ use egui::{
 use egui_extras::{Size, StripBuilder};
 
 use crate::{
-    app::{SymbolReference, View, ViewConfig, ViewState},
-    jobs::objdiff::BuildStatus,
+    jobs::objdiff::{BuildStatus, ObjDiffResult},
     obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags},
-    views::write_text,
+    views::{appearance::Appearance, write_text},
 };
 
-pub fn match_color_for_symbol(match_percent: f32, config: &ViewConfig) -> Color32 {
+pub struct SymbolReference {
+    pub symbol_name: String,
+    pub section_name: String,
+}
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Default, Eq, PartialEq)]
+pub enum View {
+    #[default]
+    SymbolDiff,
+    FunctionDiff,
+    DataDiff,
+}
+
+#[derive(Default)]
+pub struct DiffViewState {
+    pub build: Option<Box<ObjDiffResult>>,
+    pub current_view: View,
+    pub highlighted_symbol: Option<String>,
+    pub selected_symbol: Option<SymbolReference>,
+    pub search: String,
+}
+
+pub fn match_color_for_symbol(match_percent: f32, appearance: &Appearance) -> Color32 {
     if match_percent == 100.0 {
-        config.insert_color
+        appearance.insert_color
     } else if match_percent >= 50.0 {
-        config.replace_color
+        appearance.replace_color
     } else {
-        config.delete_color
+        appearance.delete_color
     }
 }
 
@@ -39,17 +61,20 @@ fn symbol_context_menu_ui(ui: &mut Ui, symbol: &ObjSymbol) {
     });
 }
 
-fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol, config: &ViewConfig) {
+fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol, appearance: &Appearance) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap = Some(false);
 
-        ui.colored_label(config.highlight_color, format!("Name: {}", symbol.name));
-        ui.colored_label(config.highlight_color, format!("Address: {:x}", symbol.address));
+        ui.colored_label(appearance.highlight_color, format!("Name: {}", symbol.name));
+        ui.colored_label(appearance.highlight_color, format!("Address: {:x}", symbol.address));
         if symbol.size_known {
-            ui.colored_label(config.highlight_color, format!("Size: {:x}", symbol.size));
+            ui.colored_label(appearance.highlight_color, format!("Size: {:x}", symbol.size));
         } else {
-            ui.colored_label(config.highlight_color, format!("Size: {:x} (assumed)", symbol.size));
+            ui.colored_label(
+                appearance.highlight_color,
+                format!("Size: {:x} (assumed)", symbol.size),
+            );
         }
     });
 }
@@ -61,7 +86,7 @@ fn symbol_ui(
     highlighted_symbol: &mut Option<String>,
     selected_symbol: &mut Option<SymbolReference>,
     current_view: &mut View,
-    config: &ViewConfig,
+    appearance: &Appearance,
 ) {
     let mut job = LayoutJob::default();
     let name: &str =
@@ -70,38 +95,38 @@ fn symbol_ui(
     if let Some(sym) = highlighted_symbol {
         selected = sym == &symbol.name;
     }
-    write_text("[", config.text_color, &mut job, config.code_font.clone());
+    write_text("[", appearance.text_color, &mut job, appearance.code_font.clone());
     if symbol.flags.0.contains(ObjSymbolFlags::Common) {
         write_text(
             "c",
-            config.replace_color, /* Color32::from_rgb(0, 255, 255) */
+            appearance.replace_color, /* Color32::from_rgb(0, 255, 255) */
             &mut job,
-            config.code_font.clone(),
+            appearance.code_font.clone(),
         );
     } else if symbol.flags.0.contains(ObjSymbolFlags::Global) {
-        write_text("g", config.insert_color, &mut job, config.code_font.clone());
+        write_text("g", appearance.insert_color, &mut job, appearance.code_font.clone());
     } else if symbol.flags.0.contains(ObjSymbolFlags::Local) {
-        write_text("l", config.text_color, &mut job, config.code_font.clone());
+        write_text("l", appearance.text_color, &mut job, appearance.code_font.clone());
     }
     if symbol.flags.0.contains(ObjSymbolFlags::Weak) {
-        write_text("w", config.text_color, &mut job, config.code_font.clone());
+        write_text("w", appearance.text_color, &mut job, appearance.code_font.clone());
     }
-    write_text("] ", config.text_color, &mut job, config.code_font.clone());
+    write_text("] ", appearance.text_color, &mut job, appearance.code_font.clone());
     if let Some(match_percent) = symbol.match_percent {
-        write_text("(", config.text_color, &mut job, config.code_font.clone());
+        write_text("(", appearance.text_color, &mut job, appearance.code_font.clone());
         write_text(
             &format!("{match_percent:.0}%"),
-            match_color_for_symbol(match_percent, config),
+            match_color_for_symbol(match_percent, appearance),
             &mut job,
-            config.code_font.clone(),
+            appearance.code_font.clone(),
         );
-        write_text(") ", config.text_color, &mut job, config.code_font.clone());
+        write_text(") ", appearance.text_color, &mut job, appearance.code_font.clone());
     }
-    write_text(name, config.highlight_color, &mut job, config.code_font.clone());
+    write_text(name, appearance.highlight_color, &mut job, appearance.code_font.clone());
     let response = SelectableLabel::new(selected, job)
         .ui(ui)
         .context_menu(|ui| symbol_context_menu_ui(ui, symbol))
-        .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, symbol, config));
+        .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, symbol, appearance));
     if response.clicked() {
         if let Some(section) = section {
             if section.kind == ObjSectionKind::Code {
@@ -141,7 +166,7 @@ fn symbol_list_ui(
     selected_symbol: &mut Option<SymbolReference>,
     current_view: &mut View,
     lower_search: &str,
-    config: &ViewConfig,
+    appearance: &Appearance,
 ) {
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         ui.scope(|ui| {
@@ -158,7 +183,7 @@ fn symbol_list_ui(
                             highlighted_symbol,
                             selected_symbol,
                             current_view,
-                            config,
+                            appearance,
                         );
                     }
                 });
@@ -168,7 +193,7 @@ fn symbol_list_ui(
                 CollapsingHeader::new(format!("{} ({:x})", section.name, section.size))
                     .default_open(true)
                     .show(ui, |ui| {
-                        if section.kind == ObjSectionKind::Code && config.reverse_fn_order {
+                        if section.kind == ObjSectionKind::Code && appearance.reverse_fn_order {
                             for symbol in section.symbols.iter().rev() {
                                 if !symbol_matches_search(symbol, lower_search) {
                                     continue;
@@ -180,7 +205,7 @@ fn symbol_list_ui(
                                     highlighted_symbol,
                                     selected_symbol,
                                     current_view,
-                                    config,
+                                    appearance,
                                 );
                             }
                         } else {
@@ -195,7 +220,7 @@ fn symbol_list_ui(
                                     highlighted_symbol,
                                     selected_symbol,
                                     current_view,
-                                    config,
+                                    appearance,
                                 );
                             }
                         }
@@ -205,25 +230,20 @@ fn symbol_list_ui(
     });
 }
 
-fn build_log_ui(ui: &mut Ui, status: &BuildStatus, config: &ViewConfig) {
+fn build_log_ui(ui: &mut Ui, status: &BuildStatus, appearance: &Appearance) {
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         ui.scope(|ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
             ui.style_mut().wrap = Some(false);
 
-            ui.colored_label(config.replace_color, &status.log);
+            ui.colored_label(appearance.replace_color, &status.log);
         });
     });
 }
 
-pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
-    let (Some(result), highlighted_symbol, selected_symbol, current_view, search) = (
-        &view_state.build,
-        &mut view_state.highlighted_symbol,
-        &mut view_state.selected_symbol,
-        &mut view_state.current_view,
-        &mut view_state.search,
-    ) else {
+pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appearance) {
+    let DiffViewState { build, current_view, highlighted_symbol, selected_symbol, search } = state;
+    let Some(result) = build else {
         return;
     };
 
@@ -297,11 +317,11 @@ pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
                                     selected_symbol,
                                     current_view,
                                     &lower_search,
-                                    &view_state.view_config,
+                                    appearance,
                                 );
                             }
                         } else {
-                            build_log_ui(ui, &result.first_status, &view_state.view_config);
+                            build_log_ui(ui, &result.first_status, appearance);
                         }
                     });
                 });
@@ -316,11 +336,11 @@ pub fn symbol_diff_ui(ui: &mut Ui, view_state: &mut ViewState) {
                                     selected_symbol,
                                     current_view,
                                     &lower_search,
-                                    &view_state.view_config,
+                                    appearance,
                                 );
                             }
                         } else {
-                            build_log_ui(ui, &result.second_status, &view_state.view_config);
+                            build_log_ui(ui, &result.second_status, appearance);
                         }
                     });
                 });

@@ -1,17 +1,25 @@
 use egui::TextStyle;
 
-use crate::app::ViewState;
+use crate::views::appearance::Appearance;
 
-pub fn demangle_window(ctx: &egui::Context, view_state: &mut ViewState) {
-    egui::Window::new("Demangle").open(&mut view_state.show_demangle).show(ctx, |ui| {
-        ui.text_edit_singleline(&mut view_state.demangle_text);
+#[derive(Default)]
+pub struct DemangleViewState {
+    pub text: String,
+}
+
+pub fn demangle_window(
+    ctx: &egui::Context,
+    show: &mut bool,
+    state: &mut DemangleViewState,
+    appearance: &Appearance,
+) {
+    egui::Window::new("Demangle").open(show).show(ctx, |ui| {
+        ui.text_edit_singleline(&mut state.text);
         ui.add_space(10.0);
-        if let Some(demangled) =
-            cwdemangle::demangle(&view_state.demangle_text, &Default::default())
-        {
+        if let Some(demangled) = cwdemangle::demangle(&state.text, &Default::default()) {
             ui.scope(|ui| {
                 ui.style_mut().override_text_style = Some(TextStyle::Monospace);
-                ui.colored_label(view_state.view_config.replace_color, &demangled);
+                ui.colored_label(appearance.replace_color, &demangled);
             });
             if ui.button("Copy").clicked() {
                 ui.output_mut(|output| output.copied_text = demangled);
@@ -19,7 +27,7 @@ pub fn demangle_window(ctx: &egui::Context, view_state: &mut ViewState) {
         } else {
             ui.scope(|ui| {
                 ui.style_mut().override_text_style = Some(TextStyle::Monospace);
-                ui.colored_label(view_state.view_config.replace_color, "[invalid]");
+                ui.colored_label(appearance.replace_color, "[invalid]");
             });
         }
     });

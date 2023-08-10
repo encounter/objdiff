@@ -5,10 +5,13 @@ use egui_extras::{Column, TableBuilder};
 use time::format_description;
 
 use crate::{
-    app::{SymbolReference, View, ViewConfig, ViewState},
-    jobs::Job,
+    jobs::{Job, JobQueue},
     obj::{ObjDataDiff, ObjDataDiffKind, ObjInfo, ObjSection},
-    views::write_text,
+    views::{
+        appearance::Appearance,
+        symbol_diff::{DiffViewState, SymbolReference, View},
+        write_text,
+    },
 };
 
 const BYTES_PER_ROW: usize = 16;
@@ -17,29 +20,29 @@ fn find_section<'a>(obj: &'a ObjInfo, selected_symbol: &SymbolReference) -> Opti
     obj.sections.iter().find(|section| section.name == selected_symbol.section_name)
 }
 
-fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], config: &ViewConfig) {
+fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], appearance: &Appearance) {
     if diffs.iter().any(|d| d.kind != ObjDataDiffKind::None) {
         ui.painter().rect_filled(ui.available_rect_before_wrap(), 0.0, ui.visuals().faint_bg_color);
     }
     let mut job = LayoutJob::default();
     write_text(
         format!("{address:08X}: ").as_str(),
-        config.text_color,
+        appearance.text_color,
         &mut job,
-        config.code_font.clone(),
+        appearance.code_font.clone(),
     );
     let mut cur_addr = 0usize;
     for diff in diffs {
         let base_color = match diff.kind {
-            ObjDataDiffKind::None => config.text_color,
-            ObjDataDiffKind::Replace => config.replace_color,
-            ObjDataDiffKind::Delete => config.delete_color,
-            ObjDataDiffKind::Insert => config.insert_color,
+            ObjDataDiffKind::None => appearance.text_color,
+            ObjDataDiffKind::Replace => appearance.replace_color,
+            ObjDataDiffKind::Delete => appearance.delete_color,
+            ObjDataDiffKind::Insert => appearance.insert_color,
         };
         if diff.data.is_empty() {
             let mut str = "   ".repeat(diff.len);
             str.push_str(" ".repeat(diff.len / 8).as_str());
-            write_text(str.as_str(), base_color, &mut job, config.code_font.clone());
+            write_text(str.as_str(), base_color, &mut job, appearance.code_font.clone());
             cur_addr += diff.len;
         } else {
             let mut text = String::new();
@@ -50,7 +53,7 @@ fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], config:
                     text.push(' ');
                 }
             }
-            write_text(text.as_str(), base_color, &mut job, config.code_font.clone());
+            write_text(text.as_str(), base_color, &mut job, appearance.code_font.clone());
         }
     }
     if cur_addr < BYTES_PER_ROW {
@@ -58,22 +61,22 @@ fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], config:
         let mut str = " ".to_string();
         str.push_str("   ".repeat(n).as_str());
         str.push_str(" ".repeat(n / 8).as_str());
-        write_text(str.as_str(), config.text_color, &mut job, config.code_font.clone());
+        write_text(str.as_str(), appearance.text_color, &mut job, appearance.code_font.clone());
     }
-    write_text(" ", config.text_color, &mut job, config.code_font.clone());
+    write_text(" ", appearance.text_color, &mut job, appearance.code_font.clone());
     for diff in diffs {
         let base_color = match diff.kind {
-            ObjDataDiffKind::None => config.text_color,
-            ObjDataDiffKind::Replace => config.replace_color,
-            ObjDataDiffKind::Delete => config.delete_color,
-            ObjDataDiffKind::Insert => config.insert_color,
+            ObjDataDiffKind::None => appearance.text_color,
+            ObjDataDiffKind::Replace => appearance.replace_color,
+            ObjDataDiffKind::Delete => appearance.delete_color,
+            ObjDataDiffKind::Insert => appearance.insert_color,
         };
         if diff.data.is_empty() {
             write_text(
                 " ".repeat(diff.len).as_str(),
                 base_color,
                 &mut job,
-                config.code_font.clone(),
+                appearance.code_font.clone(),
             );
         } else {
             let mut text = String::new();
@@ -85,7 +88,7 @@ fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], config:
                     text.push('.');
                 }
             }
-            write_text(text.as_str(), base_color, &mut job, config.code_font.clone());
+            write_text(text.as_str(), base_color, &mut job, appearance.code_font.clone());
         }
     }
     ui.add(Label::new(job).sense(Sense::click()));
@@ -133,7 +136,7 @@ fn data_table_ui(
     left_obj: &ObjInfo,
     right_obj: &ObjInfo,
     selected_symbol: &SymbolReference,
-    config: &ViewConfig,
+    config: &Appearance,
 ) -> Option<()> {
     let left_section = find_section(left_obj, selected_symbol)?;
     let right_section = find_section(right_obj, selected_symbol)?;
@@ -161,10 +164,14 @@ fn data_table_ui(
     Some(())
 }
 
-pub fn data_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
+pub fn data_diff_ui(
+    ui: &mut egui::Ui,
+    jobs: &JobQueue,
+    state: &mut DiffViewState,
+    appearance: &Appearance,
+) -> bool {
     let mut rebuild = false;
-    let (Some(result), Some(selected_symbol)) = (&view_state.build, &view_state.selected_symbol)
-    else {
+    let (Some(result), Some(selected_symbol)) = (&state.build, &state.selected_symbol) else {
         return rebuild;
     };
 
@@ -183,16 +190,13 @@ pub fn data_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
                     ui.set_width(column_width);
 
                     if ui.button("Back").clicked() {
-                        view_state.current_view = View::SymbolDiff;
+                        state.current_view = View::SymbolDiff;
                     }
 
                     ui.scope(|ui| {
                         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
                         ui.style_mut().wrap = Some(false);
-                        ui.colored_label(
-                            view_state.view_config.highlight_color,
-                            &selected_symbol.symbol_name,
-                        );
+                        ui.colored_label(appearance.highlight_color, &selected_symbol.symbol_name);
                         ui.label("Diff target:");
                     });
                 },
@@ -212,8 +216,8 @@ pub fn data_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
                         ui.scope(|ui| {
                             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
                             ui.style_mut().wrap = Some(false);
-                            if view_state.jobs.is_running(Job::ObjDiff) {
-                                ui.colored_label(view_state.view_config.replace_color, "Building…");
+                            if jobs.is_running(Job::ObjDiff) {
+                                ui.colored_label(appearance.replace_color, "Building…");
                             } else {
                                 ui.label("Last built:");
                                 let format =
@@ -221,7 +225,7 @@ pub fn data_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
                                 ui.label(
                                     result
                                         .time
-                                        .to_offset(view_state.utc_offset)
+                                        .to_offset(appearance.utc_offset)
                                         .format(&format)
                                         .unwrap(),
                                 );
@@ -251,7 +255,7 @@ pub fn data_diff_ui(ui: &mut egui::Ui, view_state: &mut ViewState) -> bool {
             .resizable(false)
             .auto_shrink([false, false])
             .min_scrolled_height(available_height);
-        data_table_ui(table, left_obj, right_obj, selected_symbol, &view_state.view_config);
+        data_table_ui(table, left_obj, right_obj, selected_symbol, appearance);
     }
 
     rebuild

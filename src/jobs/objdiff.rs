@@ -9,7 +9,7 @@ use anyhow::{Context, Error, Result};
 use time::OffsetDateTime;
 
 use crate::{
-    app::{AppConfig, DiffConfig},
+    app::AppConfig,
     diff::diff_objs,
     jobs::{start_job, update_status, Job, JobResult, JobState, Status},
     obj::{elf, ObjInfo},
@@ -79,7 +79,6 @@ fn run_build(
     status: &Status,
     cancel: Receiver<()>,
     config: Arc<RwLock<AppConfig>>,
-    diff_config: DiffConfig,
 ) -> Result<Box<ObjDiffResult>> {
     let config = config.read().map_err(|_| Error::msg("Failed to lock app config"))?.clone();
     let obj_path = config.obj_path.as_ref().ok_or_else(|| Error::msg("Missing obj path"))?;
@@ -129,15 +128,15 @@ fn run_build(
 
     if let (Some(first_obj), Some(second_obj)) = (&mut first_obj, &mut second_obj) {
         update_status(status, "Performing diff".to_string(), 4, total, &cancel)?;
-        diff_objs(first_obj, second_obj, &diff_config)?;
+        diff_objs(first_obj, second_obj)?;
     }
 
     update_status(status, "Complete".to_string(), total, total, &cancel)?;
     Ok(Box::new(ObjDiffResult { first_status, second_status, first_obj, second_obj, time }))
 }
 
-pub fn start_build(config: Arc<RwLock<AppConfig>>, diff_config: DiffConfig) -> JobState {
+pub fn start_build(config: Arc<RwLock<AppConfig>>) -> JobState {
     start_job("Object diff", Job::ObjDiff, move |status, cancel| {
-        run_build(status, cancel, config, diff_config).map(JobResult::ObjDiff)
+        run_build(status, cancel, config).map(JobResult::ObjDiff)
     })
 }

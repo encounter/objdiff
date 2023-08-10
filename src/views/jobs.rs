@@ -1,12 +1,12 @@
 use egui::{ProgressBar, Widget};
 
-use crate::app::ViewState;
+use crate::{jobs::JobQueue, views::appearance::Appearance};
 
-pub fn jobs_ui(ui: &mut egui::Ui, view_state: &mut ViewState) {
+pub fn jobs_ui(ui: &mut egui::Ui, jobs: &mut JobQueue, appearance: &Appearance) {
     ui.label("Jobs");
 
     let mut remove_job: Option<usize> = None;
-    for job in view_state.jobs.iter_mut() {
+    for job in jobs.iter_mut() {
         let Ok(status) = job.status.read() else {
             continue;
         };
@@ -33,7 +33,7 @@ pub fn jobs_ui(ui: &mut egui::Ui, view_state: &mut ViewState) {
             if let Some(err) = &status.error {
                 let err_string = err.to_string();
                 ui.colored_label(
-                    view_state.view_config.delete_color,
+                    appearance.delete_color,
                     if err_string.len() > STATUS_LENGTH - 10 {
                         format!("Error: {}…", &err_string[0..STATUS_LENGTH - 10])
                     } else {
@@ -51,6 +51,6 @@ pub fn jobs_ui(ui: &mut egui::Ui, view_state: &mut ViewState) {
     }
 
     if let Some(idx) = remove_job {
-        view_state.jobs.remove(idx);
+        jobs.remove(idx);
     }
 }

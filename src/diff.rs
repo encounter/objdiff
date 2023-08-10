@@ -3,7 +3,6 @@ use std::{collections::BTreeMap, mem::take};
 use anyhow::Result;
 
 use crate::{
-    app::DiffConfig,
     editops::{editops_find, LevEditType},
     obj::{
         mips, ppc, ObjArchitecture, ObjDataDiff, ObjDataDiffKind, ObjInfo, ObjInsArg,
@@ -373,7 +372,7 @@ fn find_section_and_symbol(obj: &ObjInfo, name: &str) -> Option<(usize, usize)> 
     None
 }
 
-pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo, _diff_config: &DiffConfig) -> Result<()> {
+pub fn diff_objs(left: &mut ObjInfo, right: &mut ObjInfo) -> Result<()> {
     for left_section in &mut left.sections {
         if left_section.kind == ObjSectionKind::Code {
             for left_symbol in &mut left_section.symbols {

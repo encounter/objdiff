@@ -9,12 +9,8 @@ use std::{
 
 use anyhow::Result;
 
-use crate::jobs::{
-    bindiff::BinDiffResult, check_update::CheckUpdateResult, objdiff::ObjDiffResult,
-    update::UpdateResult,
-};
+use crate::jobs::{check_update::CheckUpdateResult, objdiff::ObjDiffResult, update::UpdateResult};
 
-pub mod bindiff;
 pub mod check_update;
 pub mod objdiff;
 pub mod update;
@@ -22,7 +18,6 @@ pub mod update;
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum Job {
     ObjDiff,
-    BinDiff,
     CheckUpdate,
     Update,
 }
@@ -105,7 +100,6 @@ pub struct JobStatus {
 pub enum JobResult {
     None,
     ObjDiff(Box<ObjDiffResult>),
-    BinDiff(Box<BinDiffResult>),
     CheckUpdate(Box<CheckUpdateResult>),
     Update(Box<UpdateResult>),
 }
