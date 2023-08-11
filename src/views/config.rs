@@ -1,6 +1,7 @@
 #[cfg(windows)]
 use std::string::FromUtf16Error;
 use std::{
+    borrow::Cow,
     path::{PathBuf, MAIN_SEPARATOR},
     sync::{Arc, RwLock},
 };
@@ -29,6 +30,7 @@ pub struct ConfigViewState {
     pub watch_pattern_text: String,
     pub queue_update_check: bool,
     pub load_error: Option<String>,
+    pub unit_search: String,
     #[cfg(windows)]
     pub available_wsl_distros: Option<Vec<String>>,
 }
@@ -139,9 +141,9 @@ pub fn config_ui(
             state.available_wsl_distros = Some(fetch_wsl2_distros());
         }
         egui::ComboBox::from_label("Run in WSL2")
-            .selected_text(selected_wsl_distro.as_ref().unwrap_or(&"None".to_string()))
+            .selected_text(selected_wsl_distro.as_ref().unwrap_or(&"Disabled".to_string()))
             .show_ui(ui, |ui| {
-                ui.selectable_value(selected_wsl_distro, None, "None");
+                ui.selectable_value(selected_wsl_distro, None, "Disabled");
                 for distro in state.available_wsl_distros.as_ref().unwrap() {
                     ui.selectable_value(selected_wsl_distro, Some(distro.clone()), distro);
                 }
@@ -163,7 +165,7 @@ pub fn config_ui(
     if let (Some(base_dir), Some(target_dir)) = (base_obj_dir, target_obj_dir) {
         let mut new_build_obj = obj_path.clone();
         if units.is_empty() {
-            if ui.button("Select obj").clicked() {
+            if ui.button("Select object").clicked() {
                 if let Some(path) = rfd::FileDialog::new()
                     .set_directory(&target_dir)
                     .add_filter("Object file", &["o", "elf"])
@@ -177,33 +179,81 @@ pub fn config_ui(
                 }
             }
             if let Some(obj) = obj_path {
-                ui.label(&*obj);
+                ui.label(
+                    RichText::new(&*obj)
+                        .color(appearance.replace_color)
+                        .family(FontFamily::Monospace),
+                );
             }
         } else {
-            CollapsingHeader::new(RichText::new("Objects").font(FontId {
+            let had_search = !state.unit_search.is_empty();
+            egui::TextEdit::singleline(&mut state.unit_search).hint_text("Filter").ui(ui);
+
+            let mut root_open = None;
+            let mut node_open = NodeOpen::Default;
+            ui.horizontal(|ui| {
+                if ui.small_button("⏶").on_hover_text_at_pointer("Collapse all").clicked() {
+                    root_open = Some(false);
+                    node_open = NodeOpen::Close;
+                }
+                if ui.small_button("⏷").on_hover_text_at_pointer("Expand all").clicked() {
+                    root_open = Some(true);
+                    node_open = NodeOpen::Open;
+                }
+                if ui
+                    .add_enabled(obj_path.is_some(), egui::Button::new("⌖").small())
+                    .on_hover_text_at_pointer("Current object")
+                    .clicked()
+                {
+                    root_open = Some(true);
+                    node_open = NodeOpen::Object;
+                }
+            });
+            if state.unit_search.is_empty() {
+                if had_search {
+                    root_open = Some(true);
+                    node_open = NodeOpen::Object;
+                }
+            } else if !had_search {
+                root_open = Some(true);
+                node_open = NodeOpen::Open;
+            }
+
+            CollapsingHeader::new(RichText::new("🗀 Objects").font(FontId {
                 size: appearance.ui_font.size,
                 family: appearance.code_font.family.clone(),
             }))
+            .open(root_open)
             .default_open(true)
             .show(ui, |ui| {
-                for node in unit_nodes {
-                    display_node(ui, &mut new_build_obj, node, appearance);
+                let mut nodes = Cow::Borrowed(unit_nodes);
+                if !state.unit_search.is_empty() {
+                    let search = state.unit_search.to_ascii_lowercase();
+                    nodes = Cow::Owned(
+                        unit_nodes.iter().filter_map(|node| filter_node(node, &search)).collect(),
+                    );
+                }
+
+                ui.style_mut().wrap = Some(false);
+                for node in nodes.iter() {
+                    display_node(ui, &mut new_build_obj, node, appearance, node_open);
                 }
             });
         }
 
-        let mut build = false;
         if new_build_obj != *obj_path {
-            *obj_path = new_build_obj;
-            // TODO apply reverse_fn_order
-            build = true;
+            if let Some(obj) = new_build_obj {
+                // Will set obj_changed, which will trigger a rebuild
+                config_guard.set_obj_path(obj);
+                // TODO apply reverse_fn_order
+            }
         }
-        if obj_path.is_some() && ui.button("Build").clicked() {
-            build = true;
-        }
-        if build {
+        if config_guard.obj_path.is_some() && ui.button("Build").clicked() {
+            // Rebuild immediately
             jobs.push(start_build(config.clone()));
         }
+    } else {
+        ui.colored_label(appearance.delete_color, "Missing project settings");
     }
 
     // ui.checkbox(&mut view_config.reverse_fn_order, "Reverse function order (deferred)");
@@ -221,10 +271,12 @@ fn display_unit(
     let selected = matches!(obj_path, Some(path) if path == &path_string);
     if SelectableLabel::new(
         selected,
-        RichText::new(name).font(FontId {
-            size: appearance.ui_font.size,
-            family: appearance.code_font.family.clone(),
-        }),
+        RichText::new(name)
+            .font(FontId {
+                size: appearance.ui_font.size,
+                family: appearance.code_font.family.clone(),
+            })
+            .color(appearance.text_color),
     )
     .ui(ui)
     .clicked()
@@ -233,27 +285,87 @@ fn display_unit(
     }
 }
 
+#[derive(Default, Copy, Clone, PartialEq, Eq, Debug)]
+enum NodeOpen {
+    #[default]
+    Default,
+    Open,
+    Close,
+    Object,
+}
+
 fn display_node(
     ui: &mut egui::Ui,
     obj_path: &mut Option<String>,
     node: &ProjectUnitNode,
     appearance: &Appearance,
+    node_open: NodeOpen,
 ) {
     match node {
         ProjectUnitNode::File(name, unit) => {
             display_unit(ui, obj_path, name, unit, appearance);
         }
         ProjectUnitNode::Dir(name, children) => {
-            CollapsingHeader::new(RichText::new(name).font(FontId {
-                size: appearance.ui_font.size,
-                family: appearance.code_font.family.clone(),
-            }))
-            .default_open(false)
+            let contains_obj = obj_path.as_ref().map(|path| contains_node(node, path));
+            let open = match node_open {
+                NodeOpen::Default => None,
+                NodeOpen::Open => Some(true),
+                NodeOpen::Close => Some(false),
+                NodeOpen::Object => contains_obj,
+            };
+            let color = if contains_obj == Some(true) {
+                appearance.replace_color
+            } else {
+                appearance.text_color
+            };
+            CollapsingHeader::new(
+                RichText::new(name)
+                    .font(FontId {
+                        size: appearance.ui_font.size,
+                        family: appearance.code_font.family.clone(),
+                    })
+                    .color(color),
+            )
+            .open(open)
             .show(ui, |ui| {
                 for node in children {
-                    display_node(ui, obj_path, node, appearance);
+                    display_node(ui, obj_path, node, appearance, node_open);
                 }
             });
+        }
+    }
+}
+
+fn contains_node(node: &ProjectUnitNode, path: &str) -> bool {
+    match node {
+        ProjectUnitNode::File(_, unit) => {
+            let path_string = unit.path.to_string_lossy().to_string();
+            path == path_string
+        }
+        ProjectUnitNode::Dir(_, children) => children.iter().any(|node| contains_node(node, path)),
+    }
+}
+
+fn filter_node(node: &ProjectUnitNode, search: &str) -> Option<ProjectUnitNode> {
+    match node {
+        ProjectUnitNode::File(name, _) => {
+            if name.to_ascii_lowercase().contains(search) {
+                Some(node.clone())
+            } else {
+                None
+            }
+        }
+        ProjectUnitNode::Dir(name, children) => {
+            if name.to_ascii_lowercase().contains(search) {
+                return Some(node.clone());
+            }
+            let new_children =
+                children.iter().filter_map(|child| filter_node(child, search)).collect::<Vec<_>>();
+            if !new_children.is_empty() {
+                Some(ProjectUnitNode::Dir(name.clone(), new_children))
+            } else {
+                None
+            }
         }
     }
 }
@@ -283,20 +395,18 @@ fn format_path(path: &Option<PathBuf>, appearance: &Appearance) -> RichText {
 
 fn pick_folder_ui(
     ui: &mut egui::Ui,
-    dir: &mut Option<PathBuf>,
+    dir: &Option<PathBuf>,
     label: &str,
     tooltip: impl FnOnce(&mut egui::Ui),
-    clicked: impl FnOnce(&mut Option<PathBuf>),
     appearance: &Appearance,
-) {
-    ui.horizontal(|ui| {
+) -> egui::Response {
+    let response = ui.horizontal(|ui| {
         subheading(ui, label, appearance);
         ui.link(HELP_ICON).on_hover_ui(tooltip);
-        if ui.button("Select").clicked() {
-            clicked(dir);
-        }
+        ui.button("Select")
     });
     ui.label(format_path(dir, appearance));
+    response.inner
 }
 
 pub fn project_window(
@@ -330,29 +440,15 @@ fn split_obj_config_ui(
     state: &mut ConfigViewState,
     appearance: &Appearance,
 ) {
-    let AppConfig {
-        custom_make,
-        project_dir,
-        target_obj_dir,
-        base_obj_dir,
-        obj_path,
-        build_target,
-        config_change,
-        watcher_change,
-        watcher_enabled,
-        watch_patterns,
-        ..
-    } = config;
-
     let text_format = TextFormat::simple(appearance.ui_font.clone(), appearance.text_color);
     let code_format = TextFormat::simple(
         FontId { size: appearance.ui_font.size, family: appearance.code_font.family.clone() },
         appearance.emphasized_text_color,
     );
 
-    pick_folder_ui(
+    let response = pick_folder_ui(
         ui,
-        project_dir,
+        &config.project_dir,
         "Project directory",
         |ui| {
             let mut job = LayoutJob::default();
@@ -364,18 +460,13 @@ fn split_obj_config_ui(
             );
             ui.label(job);
         },
-        |project_dir| {
-            if let Some(path) = rfd::FileDialog::new().pick_folder() {
-                *project_dir = Some(path);
-                *config_change = true;
-                *watcher_change = true;
-                *target_obj_dir = None;
-                *base_obj_dir = None;
-                *obj_path = None;
-            }
-        },
         appearance,
     );
+    if response.clicked() {
+        if let Some(path) = rfd::FileDialog::new().pick_folder() {
+            config.set_project_dir(path);
+        }
+    }
     ui.separator();
 
     ui.horizontal(|ui| {
@@ -400,20 +491,20 @@ fn split_obj_config_ui(
             ui.label(job);
         });
     });
-    let mut custom_make_str = custom_make.clone().unwrap_or_default();
+    let mut custom_make_str = config.custom_make.clone().unwrap_or_default();
     if ui.text_edit_singleline(&mut custom_make_str).changed() {
         if custom_make_str.is_empty() {
-            *custom_make = None;
+            config.custom_make = None;
         } else {
-            *custom_make = Some(custom_make_str);
+            config.custom_make = Some(custom_make_str);
         }
     }
     ui.separator();
 
-    if let Some(project_dir) = project_dir {
-        pick_folder_ui(
+    if let Some(project_dir) = config.project_dir.clone() {
+        let response = pick_folder_ui(
             ui,
-            target_obj_dir,
+            &config.target_obj_dir,
             "Target build directory",
             |ui| {
                 let mut job = LayoutJob::default();
@@ -429,16 +520,14 @@ fn split_obj_config_ui(
                 );
                 ui.label(job);
             },
-            |target_obj_dir| {
-                if let Some(path) = rfd::FileDialog::new().set_directory(&project_dir).pick_folder()
-                {
-                    *target_obj_dir = Some(path);
-                    *obj_path = None;
-                }
-            },
             appearance,
         );
-        ui.checkbox(build_target, "Build target objects").on_hover_ui(|ui| {
+        if response.clicked() {
+            if let Some(path) = rfd::FileDialog::new().set_directory(&project_dir).pick_folder() {
+                config.set_target_obj_dir(path);
+            }
+        }
+        ui.checkbox(&mut config.build_target, "Build target objects").on_hover_ui(|ui| {
             let mut job = LayoutJob::default();
             job.append(
                 "Tells the build system to produce the target object.\n",
@@ -467,9 +556,9 @@ fn split_obj_config_ui(
         });
         ui.separator();
 
-        pick_folder_ui(
+        let response = pick_folder_ui(
             ui,
-            base_obj_dir,
+            &config.base_obj_dir,
             "Base build directory",
             |ui| {
                 let mut job = LayoutJob::default();
@@ -480,42 +569,41 @@ fn split_obj_config_ui(
                 );
                 ui.label(job);
             },
-            |base_obj_dir| {
-                if let Some(path) = rfd::FileDialog::new().set_directory(&project_dir).pick_folder()
-                {
-                    *base_obj_dir = Some(path);
-                    *obj_path = None;
-                }
-            },
             appearance,
         );
+        if response.clicked() {
+            if let Some(path) = rfd::FileDialog::new().set_directory(&project_dir).pick_folder() {
+                config.set_base_obj_dir(path);
+            }
+        }
         ui.separator();
     }
 
     subheading(ui, "Watch settings", appearance);
-    let response = ui.checkbox(watcher_enabled, "Rebuild on changes").on_hover_ui(|ui| {
-        let mut job = LayoutJob::default();
-        job.append(
-            "Automatically re-run the build & diff when files change.",
-            0.0,
-            text_format.clone(),
-        );
-        ui.label(job);
-    });
+    let response =
+        ui.checkbox(&mut config.watcher_enabled, "Rebuild on changes").on_hover_ui(|ui| {
+            let mut job = LayoutJob::default();
+            job.append(
+                "Automatically re-run the build & diff when files change.",
+                0.0,
+                text_format.clone(),
+            );
+            ui.label(job);
+        });
     if response.changed() {
-        *watcher_change = true;
+        config.watcher_change = true;
     };
 
     ui.horizontal(|ui| {
-        ui.label(RichText::new("File Patterns").color(appearance.text_color));
+        ui.label(RichText::new("File patterns").color(appearance.text_color));
         if ui.button("Reset").clicked() {
-            *watch_patterns =
+            config.watch_patterns =
                 DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect();
-            *watcher_change = true;
+            config.watcher_change = true;
         }
     });
     let mut remove_at: Option<usize> = None;
-    for (idx, glob) in watch_patterns.iter().enumerate() {
+    for (idx, glob) in config.watch_patterns.iter().enumerate() {
         ui.horizontal(|ui| {
             ui.label(
                 RichText::new(format!("{}", glob))
@@ -528,15 +616,15 @@ fn split_obj_config_ui(
         });
     }
     if let Some(idx) = remove_at {
-        watch_patterns.remove(idx);
-        *watcher_change = true;
+        config.watch_patterns.remove(idx);
+        config.watcher_change = true;
     }
     ui.horizontal(|ui| {
         egui::TextEdit::singleline(&mut state.watch_pattern_text).desired_width(100.0).show(ui);
         if ui.small_button("+").clicked() {
             if let Ok(glob) = Glob::new(&state.watch_pattern_text) {
-                watch_patterns.push(glob);
-                *watcher_change = true;
+                config.watch_patterns.push(glob);
+                config.watcher_change = true;
                 state.watch_pattern_text.clear();
             }
         }

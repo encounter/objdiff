@@ -61,6 +61,40 @@ pub struct AppConfig {
     pub watcher_change: bool,
     #[serde(skip)]
     pub config_change: bool,
+    #[serde(skip)]
+    pub obj_change: bool,
+}
+
+impl AppConfig {
+    pub fn set_project_dir(&mut self, path: PathBuf) {
+        self.project_dir = Some(path);
+        self.target_obj_dir = None;
+        self.base_obj_dir = None;
+        self.obj_path = None;
+        self.build_target = false;
+        self.units.clear();
+        self.unit_nodes.clear();
+        self.watcher_change = true;
+        self.config_change = true;
+        self.obj_change = true;
+    }
+
+    pub fn set_target_obj_dir(&mut self, path: PathBuf) {
+        self.target_obj_dir = Some(path);
+        self.obj_path = None;
+        self.obj_change = true;
+    }
+
+    pub fn set_base_obj_dir(&mut self, path: PathBuf) {
+        self.base_obj_dir = Some(path);
+        self.obj_path = None;
+        self.obj_change = true;
+    }
+
+    pub fn set_obj_path(&mut self, path: String) {
+        self.obj_path = Some(path);
+        self.obj_change = true;
+    }
 }
 
 #[derive(Default)]
@@ -109,97 +143,8 @@ impl App {
         app.relaunch_path = relaunch_path;
         app
     }
-}
 
-impl eframe::App for App {
-    /// Called each time the UI needs repainting, which may be many times per second.
-    /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        if self.should_relaunch {
-            frame.close();
-            return;
-        }
-
-        let Self { config, appearance, view_state, .. } = self;
-        ctx.set_style(appearance.apply(ctx.style().as_ref()));
-
-        let ViewState {
-            jobs,
-            show_appearance_config,
-            demangle_state,
-            show_demangle,
-            diff_state,
-            config_state,
-            show_project_config,
-        } = view_state;
-
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("Appearance…").clicked() {
-                        *show_appearance_config = !*show_appearance_config;
-                    }
-                    if ui.button("Quit").clicked() {
-                        frame.close();
-                    }
-                });
-                ui.menu_button("Tools", |ui| {
-                    if ui.button("Demangle…").clicked() {
-                        *show_demangle = !*show_demangle;
-                    }
-                });
-            });
-        });
-
-        if diff_state.current_view == View::FunctionDiff
-            && matches!(&diff_state.build, Some(b) if b.first_status.success && b.second_status.success)
-        {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                if function_diff_ui(ui, jobs, diff_state, appearance) {
-                    jobs.push(start_build(config.clone()));
-                }
-            });
-        } else if diff_state.current_view == View::DataDiff
-            && matches!(&diff_state.build, Some(b) if b.first_status.success && b.second_status.success)
-        {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                if data_diff_ui(ui, jobs, diff_state, appearance) {
-                    jobs.push(start_build(config.clone()));
-                }
-            });
-        } else {
-            egui::SidePanel::left("side_panel").show(ctx, |ui| {
-                config_ui(ui, config, jobs, show_project_config, config_state, appearance);
-                jobs_ui(ui, jobs, appearance);
-            });
-
-            egui::CentralPanel::default().show(ctx, |ui| {
-                symbol_diff_ui(ui, diff_state, appearance);
-            });
-        }
-
-        project_window(ctx, config, show_project_config, config_state, appearance);
-        appearance_window(ctx, show_appearance_config, appearance);
-        demangle_window(ctx, show_demangle, demangle_state, appearance);
-
-        // Windows + request_repaint_after breaks dialogs:
-        // https://github.com/emilk/egui/issues/2003
-        if cfg!(windows) || jobs.any_running() {
-            ctx.request_repaint();
-        } else {
-            ctx.request_repaint_after(Duration::from_millis(100));
-        }
-    }
-
-    /// Called by the frame work to save state before shutdown.
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        if let Ok(config) = self.config.read() {
-            eframe::set_value(storage, CONFIG_KEY, &*config);
-        }
-        eframe::set_value(storage, APPEARANCE_KEY, &self.appearance);
-    }
-
-    fn post_rendering(&mut self, _window_size_px: [u32; 2], _frame: &eframe::Frame) {
+    fn pre_update(&mut self) {
         let ViewState { jobs, diff_state, config_state, .. } = &mut self.view_state;
 
         for (job, result) in jobs.iter_finished() {
@@ -251,61 +196,168 @@ impl eframe::App for App {
             }
         }
         jobs.clear_finished();
+    }
 
-        if let Ok(mut config) = self.config.write() {
-            let config = &mut *config;
+    fn post_update(&mut self) {
+        let ViewState { jobs, diff_state, config_state, .. } = &mut self.view_state;
+        let Ok(mut config) = self.config.write() else {
+            return;
+        };
+        let config = &mut *config;
 
-            if self.config_modified.swap(false, Ordering::Relaxed) {
-                config.config_change = true;
-            }
+        if self.config_modified.swap(false, Ordering::Relaxed) {
+            config.config_change = true;
+        }
 
-            if config.config_change {
-                config.config_change = false;
-                match load_project_config(config) {
-                    Ok(()) => config_state.load_error = None,
-                    Err(e) => {
-                        log::error!("Failed to load project config: {e}");
-                        config_state.load_error = Some(format!("{e}"));
-                    }
+        if config.config_change {
+            config.config_change = false;
+            match load_project_config(config) {
+                Ok(()) => config_state.load_error = None,
+                Err(e) => {
+                    log::error!("Failed to load project config: {e}");
+                    config_state.load_error = Some(format!("{e}"));
                 }
-            }
-
-            if config.watcher_change {
-                drop(self.watcher.take());
-
-                if let Some(project_dir) = &config.project_dir {
-                    if !config.watch_patterns.is_empty() {
-                        match build_globset(&config.watch_patterns)
-                            .map_err(anyhow::Error::new)
-                            .and_then(|globset| {
-                                create_watcher(
-                                    self.modified.clone(),
-                                    self.config_modified.clone(),
-                                    project_dir,
-                                    globset,
-                                )
-                                .map_err(anyhow::Error::new)
-                            }) {
-                            Ok(watcher) => self.watcher = Some(watcher),
-                            Err(e) => log::error!("Failed to create watcher: {e}"),
-                        }
-                    }
-                    config.watcher_change = false;
-                }
-            }
-
-            if config.obj_path.is_some()
-                && self.modified.swap(false, Ordering::Relaxed)
-                && !jobs.is_running(Job::ObjDiff)
-            {
-                jobs.push(start_build(self.config.clone()));
-            }
-
-            if config_state.queue_update_check {
-                jobs.push(start_check_update());
-                config_state.queue_update_check = false;
             }
         }
+
+        if config.watcher_change {
+            drop(self.watcher.take());
+
+            if let Some(project_dir) = &config.project_dir {
+                if !config.watch_patterns.is_empty() {
+                    match build_globset(&config.watch_patterns)
+                        .map_err(anyhow::Error::new)
+                        .and_then(|globset| {
+                            create_watcher(
+                                self.modified.clone(),
+                                self.config_modified.clone(),
+                                project_dir,
+                                globset,
+                            )
+                            .map_err(anyhow::Error::new)
+                        }) {
+                        Ok(watcher) => self.watcher = Some(watcher),
+                        Err(e) => log::error!("Failed to create watcher: {e}"),
+                    }
+                }
+                config.watcher_change = false;
+            }
+        }
+
+        if config.obj_path.is_some()
+            && self.modified.swap(false, Ordering::Relaxed)
+            && !jobs.is_running(Job::ObjDiff)
+        {
+            jobs.push(start_build(self.config.clone()));
+        }
+
+        if config.obj_change {
+            *diff_state = Default::default();
+            jobs.push(start_build(self.config.clone()));
+            config.obj_change = false;
+        }
+
+        if config_state.queue_update_check {
+            jobs.push(start_check_update());
+            config_state.queue_update_check = false;
+        }
+    }
+}
+
+impl eframe::App for App {
+    /// Called each time the UI needs repainting, which may be many times per second.
+    /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        if self.should_relaunch {
+            frame.close();
+            return;
+        }
+
+        self.pre_update();
+
+        let Self { config, appearance, view_state, .. } = self;
+        ctx.set_style(appearance.apply(ctx.style().as_ref()));
+
+        let ViewState {
+            jobs,
+            show_appearance_config,
+            demangle_state,
+            show_demangle,
+            diff_state,
+            config_state,
+            show_project_config,
+        } = view_state;
+
+        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+            egui::menu::bar(ui, |ui| {
+                ui.menu_button("File", |ui| {
+                    if ui.button("Appearance…").clicked() {
+                        *show_appearance_config = !*show_appearance_config;
+                        ui.close_menu();
+                    }
+                    if ui.button("Quit").clicked() {
+                        frame.close();
+                    }
+                });
+                ui.menu_button("Tools", |ui| {
+                    if ui.button("Demangle…").clicked() {
+                        *show_demangle = !*show_demangle;
+                        ui.close_menu();
+                    }
+                });
+            });
+        });
+
+        if diff_state.current_view == View::FunctionDiff
+            && matches!(&diff_state.build, Some(b) if b.first_status.success && b.second_status.success)
+        {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                if function_diff_ui(ui, jobs, diff_state, appearance) {
+                    jobs.push(start_build(config.clone()));
+                }
+            });
+        } else if diff_state.current_view == View::DataDiff
+            && matches!(&diff_state.build, Some(b) if b.first_status.success && b.second_status.success)
+        {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                if data_diff_ui(ui, jobs, diff_state, appearance) {
+                    jobs.push(start_build(config.clone()));
+                }
+            });
+        } else {
+            egui::SidePanel::left("side_panel").show(ctx, |ui| {
+                egui::ScrollArea::both().show(ui, |ui| {
+                    config_ui(ui, config, jobs, show_project_config, config_state, appearance);
+                    jobs_ui(ui, jobs, appearance);
+                });
+            });
+
+            egui::CentralPanel::default().show(ctx, |ui| {
+                symbol_diff_ui(ui, diff_state, appearance);
+            });
+        }
+
+        project_window(ctx, config, show_project_config, config_state, appearance);
+        appearance_window(ctx, show_appearance_config, appearance);
+        demangle_window(ctx, show_demangle, demangle_state, appearance);
+
+        self.post_update();
+
+        // Windows + request_repaint_after breaks dialogs:
+        // https://github.com/emilk/egui/issues/2003
+        if cfg!(windows) || self.view_state.jobs.any_running() {
+            ctx.request_repaint();
+        } else {
+            ctx.request_repaint_after(Duration::from_millis(100));
+        }
+    }
+
+    /// Called by the frame work to save state before shutdown.
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        if let Ok(config) = self.config.read() {
+            eframe::set_value(storage, CONFIG_KEY, &*config);
+        }
+        eframe::set_value(storage, APPEARANCE_KEY, &self.appearance);
     }
 }
 
