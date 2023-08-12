@@ -1,3 +1,5 @@
+use std::mem::take;
+
 use egui::{
     text::LayoutJob, Align, CollapsingHeader, Color32, Layout, Rgba, ScrollArea, SelectableLabel,
     TextEdit, Ui, Vec2, Widget,
@@ -5,7 +7,11 @@ use egui::{
 use egui_extras::{Size, StripBuilder};
 
 use crate::{
-    jobs::objdiff::{BuildStatus, ObjDiffResult},
+    app::AppConfigRef,
+    jobs::{
+        objdiff::{BuildStatus, ObjDiffResult},
+        Job, JobQueue, JobResult,
+    },
     obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags},
     views::{appearance::Appearance, write_text},
 };
@@ -16,7 +22,7 @@ pub struct SymbolReference {
 }
 
 #[allow(clippy::enum_variant_names)]
-#[derive(Default, Eq, PartialEq)]
+#[derive(Default, Eq, PartialEq, Copy, Clone)]
 pub enum View {
     #[default]
     SymbolDiff,
@@ -28,9 +34,56 @@ pub enum View {
 pub struct DiffViewState {
     pub build: Option<Box<ObjDiffResult>>,
     pub current_view: View,
+    pub symbol_state: SymbolViewState,
+    pub search: String,
+    pub queue_build: bool,
+    pub build_running: bool,
+}
+
+#[derive(Default)]
+pub struct SymbolViewState {
     pub highlighted_symbol: Option<String>,
     pub selected_symbol: Option<SymbolReference>,
-    pub search: String,
+    pub reverse_fn_order: bool,
+    pub disable_reverse_fn_order: bool,
+}
+
+impl DiffViewState {
+    pub fn pre_update(&mut self, jobs: &mut JobQueue, config: &AppConfigRef) {
+        jobs.results.retain_mut(|result| {
+            if let JobResult::ObjDiff(result) = result {
+                self.build = take(result);
+                false
+            } else {
+                true
+            }
+        });
+        self.build_running = jobs.is_running(Job::ObjDiff);
+
+        self.symbol_state.disable_reverse_fn_order = false;
+        if let Ok(config) = config.read() {
+            if let Some(obj_path) = &config.obj_path {
+                if let Some(object) = config.objects.iter().find(|object| {
+                    let path_string = object.path.to_string_lossy().to_string();
+                    &path_string == obj_path
+                }) {
+                    if let Some(value) = object.reverse_fn_order {
+                        self.symbol_state.reverse_fn_order = value;
+                        self.symbol_state.disable_reverse_fn_order = true;
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn post_update(&mut self, _jobs: &mut JobQueue, config: &AppConfigRef) {
+        if self.queue_build {
+            self.queue_build = false;
+            if let Ok(mut config) = config.write() {
+                config.queue_build = true;
+            }
+        }
+    }
 }
 
 pub fn match_color_for_symbol(match_percent: f32, appearance: &Appearance) -> Color32 {
@@ -79,30 +132,25 @@ fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol, appearance: &Appearance) {
     });
 }
 
+#[must_use]
 fn symbol_ui(
     ui: &mut Ui,
     symbol: &ObjSymbol,
     section: Option<&ObjSection>,
-    highlighted_symbol: &mut Option<String>,
-    selected_symbol: &mut Option<SymbolReference>,
-    current_view: &mut View,
+    state: &mut SymbolViewState,
     appearance: &Appearance,
-) {
+) -> Option<View> {
+    let mut ret = None;
     let mut job = LayoutJob::default();
     let name: &str =
         if let Some(demangled) = &symbol.demangled_name { demangled } else { &symbol.name };
     let mut selected = false;
-    if let Some(sym) = highlighted_symbol {
+    if let Some(sym) = &state.highlighted_symbol {
         selected = sym == &symbol.name;
     }
     write_text("[", appearance.text_color, &mut job, appearance.code_font.clone());
     if symbol.flags.0.contains(ObjSymbolFlags::Common) {
-        write_text(
-            "c",
-            appearance.replace_color, /* Color32::from_rgb(0, 255, 255) */
-            &mut job,
-            appearance.code_font.clone(),
-        );
+        write_text("c", appearance.replace_color, &mut job, appearance.code_font.clone());
     } else if symbol.flags.0.contains(ObjSymbolFlags::Global) {
         write_text("g", appearance.insert_color, &mut job, appearance.code_font.clone());
     } else if symbol.flags.0.contains(ObjSymbolFlags::Local) {
@@ -130,22 +178,23 @@ fn symbol_ui(
     if response.clicked() {
         if let Some(section) = section {
             if section.kind == ObjSectionKind::Code {
-                *selected_symbol = Some(SymbolReference {
+                state.selected_symbol = Some(SymbolReference {
                     symbol_name: symbol.name.clone(),
                     section_name: section.name.clone(),
                 });
-                *current_view = View::FunctionDiff;
+                ret = Some(View::FunctionDiff);
             } else if section.kind == ObjSectionKind::Data {
-                *selected_symbol = Some(SymbolReference {
+                state.selected_symbol = Some(SymbolReference {
                     symbol_name: section.name.clone(),
                     section_name: section.name.clone(),
                 });
-                *current_view = View::DataDiff;
+                ret = Some(View::DataDiff);
             }
         }
     } else if response.hovered() {
-        *highlighted_symbol = Some(symbol.name.clone());
+        state.highlighted_symbol = Some(symbol.name.clone());
     }
+    ret
 }
 
 fn symbol_matches_search(symbol: &ObjSymbol, search_str: &str) -> bool {
@@ -158,16 +207,15 @@ fn symbol_matches_search(symbol: &ObjSymbol, search_str: &str) -> bool {
             .unwrap_or(false)
 }
 
-#[allow(clippy::too_many_arguments)]
+#[must_use]
 fn symbol_list_ui(
     ui: &mut Ui,
     obj: &ObjInfo,
-    highlighted_symbol: &mut Option<String>,
-    selected_symbol: &mut Option<SymbolReference>,
-    current_view: &mut View,
+    state: &mut SymbolViewState,
     lower_search: &str,
     appearance: &Appearance,
-) {
+) -> Option<View> {
+    let mut ret = None;
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         ui.scope(|ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
@@ -176,15 +224,7 @@ fn symbol_list_ui(
             if !obj.common.is_empty() {
                 CollapsingHeader::new(".comm").default_open(true).show(ui, |ui| {
                     for symbol in &obj.common {
-                        symbol_ui(
-                            ui,
-                            symbol,
-                            None,
-                            highlighted_symbol,
-                            selected_symbol,
-                            current_view,
-                            appearance,
-                        );
+                        ret = ret.or(symbol_ui(ui, symbol, None, state, appearance));
                     }
                 });
             }
@@ -193,41 +233,28 @@ fn symbol_list_ui(
                 CollapsingHeader::new(format!("{} ({:x})", section.name, section.size))
                     .default_open(true)
                     .show(ui, |ui| {
-                        if section.kind == ObjSectionKind::Code && appearance.reverse_fn_order {
+                        if section.kind == ObjSectionKind::Code && state.reverse_fn_order {
                             for symbol in section.symbols.iter().rev() {
                                 if !symbol_matches_search(symbol, lower_search) {
                                     continue;
                                 }
-                                symbol_ui(
-                                    ui,
-                                    symbol,
-                                    Some(section),
-                                    highlighted_symbol,
-                                    selected_symbol,
-                                    current_view,
-                                    appearance,
-                                );
+                                ret =
+                                    ret.or(symbol_ui(ui, symbol, Some(section), state, appearance));
                             }
                         } else {
                             for symbol in &section.symbols {
                                 if !symbol_matches_search(symbol, lower_search) {
                                     continue;
                                 }
-                                symbol_ui(
-                                    ui,
-                                    symbol,
-                                    Some(section),
-                                    highlighted_symbol,
-                                    selected_symbol,
-                                    current_view,
-                                    appearance,
-                                );
+                                ret =
+                                    ret.or(symbol_ui(ui, symbol, Some(section), state, appearance));
                             }
                         }
                     });
             }
         });
     });
+    ret
 }
 
 fn build_log_ui(ui: &mut Ui, status: &BuildStatus, appearance: &Appearance) {
@@ -242,7 +269,7 @@ fn build_log_ui(ui: &mut Ui, status: &BuildStatus, appearance: &Appearance) {
 }
 
 pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appearance) {
-    let DiffViewState { build, current_view, highlighted_symbol, selected_symbol, search } = state;
+    let DiffViewState { build, current_view, symbol_state, search, .. } = state;
     let Some(result) = build else {
         return;
     };
@@ -295,6 +322,14 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                             ui.colored_label(Rgba::from_rgb(1.0, 0.0, 0.0), "Fail");
                         }
                     });
+
+                    ui.add_enabled(
+                        !symbol_state.disable_reverse_fn_order,
+                        egui::Checkbox::new(
+                            &mut symbol_state.reverse_fn_order,
+                            "Reverse function order (-inline deferred)",
+                        ),
+                    );
                 },
             );
         },
@@ -302,6 +337,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
     ui.separator();
 
     // Table
+    let mut ret = None;
     let lower_search = search.to_ascii_lowercase();
     StripBuilder::new(ui).size(Size::remainder()).vertical(|mut strip| {
         strip.strip(|builder| {
@@ -310,15 +346,13 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                     ui.push_id("left", |ui| {
                         if result.first_status.success {
                             if let Some(obj) = &result.first_obj {
-                                symbol_list_ui(
+                                ret = ret.or(symbol_list_ui(
                                     ui,
                                     obj,
-                                    highlighted_symbol,
-                                    selected_symbol,
-                                    current_view,
+                                    symbol_state,
                                     &lower_search,
                                     appearance,
-                                );
+                                ));
                             }
                         } else {
                             build_log_ui(ui, &result.first_status, appearance);
@@ -329,15 +363,13 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                     ui.push_id("right", |ui| {
                         if result.second_status.success {
                             if let Some(obj) = &result.second_obj {
-                                symbol_list_ui(
+                                ret = ret.or(symbol_list_ui(
                                     ui,
                                     obj,
-                                    highlighted_symbol,
-                                    selected_symbol,
-                                    current_view,
+                                    symbol_state,
                                     &lower_search,
                                     appearance,
-                                );
+                                ));
                             }
                         } else {
                             build_log_ui(ui, &result.second_status, appearance);
@@ -347,4 +379,8 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
             });
         });
     });
+
+    if let Some(view) = ret {
+        *current_view = view;
+    }
 }

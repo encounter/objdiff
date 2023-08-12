@@ -7,7 +7,6 @@ pub struct Appearance {
     pub ui_font: FontId,
     pub code_font: FontId,
     pub diff_colors: Vec<Color32>,
-    pub reverse_fn_order: bool,
     pub theme: eframe::Theme,
 
     // Applied by theme
@@ -37,7 +36,6 @@ impl Default for Appearance {
             ui_font: FontId { size: 12.0, family: FontFamily::Proportional },
             code_font: FontId { size: 14.0, family: FontFamily::Monospace },
             diff_colors: DEFAULT_COLOR_ROTATION.to_vec(),
-            reverse_fn_order: false,
             theme: eframe::Theme::Dark,
             text_color: Color32::GRAY,
             emphasized_text_color: Color32::LIGHT_GRAY,

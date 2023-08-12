@@ -26,11 +26,21 @@ pub static JOB_ID: AtomicUsize = AtomicUsize::new(0);
 #[derive(Default)]
 pub struct JobQueue {
     pub jobs: Vec<JobState>,
+    pub results: Vec<JobResult>,
 }
 
 impl JobQueue {
     /// Adds a job to the queue.
+    #[inline]
     pub fn push(&mut self, state: JobState) { self.jobs.push(state); }
+
+    /// Adds a job to the queue if a job of the given kind is not already running.
+    #[inline]
+    pub fn push_once(&mut self, job: Job, func: impl FnOnce() -> JobState) {
+        if !self.is_running(job) {
+            self.push(func());
+        }
+    }
 
     /// Returns whether a job of the given kind is running.
     pub fn is_running(&self, kind: Job) -> bool {
@@ -79,11 +89,13 @@ impl JobQueue {
     pub fn remove(&mut self, id: usize) { self.jobs.retain(|job| job.id != id); }
 }
 
+pub type JobStatusRef = Arc<RwLock<JobStatus>>;
+
 pub struct JobState {
     pub id: usize,
     pub kind: Job,
     pub handle: Option<JoinHandle<JobResult>>,
-    pub status: Arc<RwLock<JobStatus>>,
+    pub status: JobStatusRef,
     pub cancel: Sender<()>,
     pub should_remove: bool,
 }
@@ -99,8 +111,8 @@ pub struct JobStatus {
 
 pub enum JobResult {
     None,
-    ObjDiff(Box<ObjDiffResult>),
-    CheckUpdate(Box<CheckUpdateResult>),
+    ObjDiff(Option<Box<ObjDiffResult>>),
+    CheckUpdate(Option<Box<CheckUpdateResult>>),
     Update(Box<UpdateResult>),
 }
 
@@ -111,12 +123,10 @@ fn should_cancel(rx: &Receiver<()>) -> bool {
     }
 }
 
-type Status = Arc<RwLock<JobStatus>>;
-
 fn start_job(
     title: &str,
     kind: Job,
-    run: impl FnOnce(&Status, Receiver<()>) -> Result<JobResult> + Send + 'static,
+    run: impl FnOnce(&JobStatusRef, Receiver<()>) -> Result<JobResult> + Send + 'static,
 ) -> JobState {
     let status = Arc::new(RwLock::new(JobStatus {
         title: title.to_string(),
@@ -151,7 +161,7 @@ fn start_job(
 }
 
 fn update_status(
-    status: &Status,
+    status: &JobStatusRef,
     str: String,
     count: u32,
     total: u32,

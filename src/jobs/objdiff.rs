@@ -1,17 +1,12 @@
-use std::{
-    path::Path,
-    process::Command,
-    str::from_utf8,
-    sync::{mpsc::Receiver, Arc, RwLock},
-};
+use std::{path::Path, process::Command, str::from_utf8, sync::mpsc::Receiver};
 
 use anyhow::{Context, Error, Result};
 use time::OffsetDateTime;
 
 use crate::{
-    app::AppConfig,
+    app::{AppConfig, AppConfigRef},
     diff::diff_objs,
-    jobs::{start_job, update_status, Job, JobResult, JobState, Status},
+    jobs::{start_job, update_status, Job, JobResult, JobState, JobStatusRef},
     obj::{elf, ObjInfo},
 };
 
@@ -76,9 +71,9 @@ fn run_make(cwd: &Path, arg: &Path, config: &AppConfig) -> BuildStatus {
 }
 
 fn run_build(
-    status: &Status,
+    status: &JobStatusRef,
     cancel: Receiver<()>,
-    config: Arc<RwLock<AppConfig>>,
+    config: AppConfigRef,
 ) -> Result<Box<ObjDiffResult>> {
     let config = config.read().map_err(|_| Error::msg("Failed to lock app config"))?.clone();
     let obj_path = config.obj_path.as_ref().ok_or_else(|| Error::msg("Missing obj path"))?;
@@ -135,8 +130,8 @@ fn run_build(
     Ok(Box::new(ObjDiffResult { first_status, second_status, first_obj, second_obj, time }))
 }
 
-pub fn start_build(config: Arc<RwLock<AppConfig>>) -> JobState {
+pub fn start_build(config: AppConfigRef) -> JobState {
     start_job("Object diff", Job::ObjDiff, move |status, cancel| {
-        run_build(status, cancel, config).map(JobResult::ObjDiff)
+        run_build(status, cancel, config).map(|result| JobResult::ObjDiff(Some(result)))
     })
 }

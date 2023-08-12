@@ -16,45 +16,48 @@ pub struct ProjectConfig {
     pub base_dir: Option<PathBuf>,
     pub build_target: bool,
     pub watch_patterns: Vec<Glob>,
-    pub units: Vec<ProjectUnit>,
+    #[serde(alias = "units")]
+    pub objects: Vec<ProjectObject>,
 }
 
 #[derive(Default, Clone, serde::Deserialize)]
-pub struct ProjectUnit {
-    pub name: String,
+pub struct ProjectObject {
+    pub name: Option<String>,
     pub path: PathBuf,
-    #[serde(default)]
-    pub reverse_fn_order: bool,
+    pub reverse_fn_order: Option<bool>,
 }
 
 #[derive(Clone)]
-pub enum ProjectUnitNode {
-    File(String, ProjectUnit),
-    Dir(String, Vec<ProjectUnitNode>),
+pub enum ProjectObjectNode {
+    File(String, ProjectObject),
+    Dir(String, Vec<ProjectObjectNode>),
 }
 
-fn find_dir<'a>(name: &str, nodes: &'a mut Vec<ProjectUnitNode>) -> &'a mut Vec<ProjectUnitNode> {
+fn find_dir<'a>(
+    name: &str,
+    nodes: &'a mut Vec<ProjectObjectNode>,
+) -> &'a mut Vec<ProjectObjectNode> {
     if let Some(index) = nodes
         .iter()
-        .position(|node| matches!(node, ProjectUnitNode::Dir(dir_name, _) if dir_name == name))
+        .position(|node| matches!(node, ProjectObjectNode::Dir(dir_name, _) if dir_name == name))
     {
-        if let ProjectUnitNode::Dir(_, children) = &mut nodes[index] {
+        if let ProjectObjectNode::Dir(_, children) = &mut nodes[index] {
             return children;
         }
     } else {
-        nodes.push(ProjectUnitNode::Dir(name.to_string(), vec![]));
-        if let Some(ProjectUnitNode::Dir(_, children)) = nodes.last_mut() {
+        nodes.push(ProjectObjectNode::Dir(name.to_string(), vec![]));
+        if let Some(ProjectObjectNode::Dir(_, children)) = nodes.last_mut() {
             return children;
         }
     }
     unreachable!();
 }
 
-fn build_nodes(units: &[ProjectUnit]) -> Vec<ProjectUnitNode> {
+fn build_nodes(objects: &[ProjectObject]) -> Vec<ProjectObjectNode> {
     let mut nodes = vec![];
-    for unit in units {
+    for object in objects {
         let mut out_nodes = &mut nodes;
-        let path = Path::new(&unit.name);
+        let path = object.name.as_ref().map(Path::new).unwrap_or(&object.path);
         if let Some(parent) = path.parent() {
             for component in parent.components() {
                 if let Component::Normal(name) = component {
@@ -64,7 +67,7 @@ fn build_nodes(units: &[ProjectUnit]) -> Vec<ProjectUnitNode> {
             }
         }
         let filename = path.file_name().unwrap().to_str().unwrap().to_string();
-        out_nodes.push(ProjectUnitNode::File(filename, unit.clone()));
+        out_nodes.push(ProjectObjectNode::File(filename, object.clone()));
     }
     nodes
 }
@@ -83,8 +86,8 @@ pub fn load_project_config(config: &mut AppConfig) -> Result<()> {
         config.build_target = project_config.build_target;
         config.watch_patterns = project_config.watch_patterns;
         config.watcher_change = true;
-        config.units = project_config.units;
-        config.unit_nodes = build_nodes(&config.units);
+        config.objects = project_config.objects;
+        config.object_nodes = build_nodes(&config.objects);
     }
     Ok(())
 }

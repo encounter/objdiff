@@ -14,10 +14,10 @@ use notify::{RecursiveMode, Watcher};
 use time::UtcOffset;
 
 use crate::{
-    config::{build_globset, load_project_config, ProjectUnit, ProjectUnitNode, CONFIG_FILENAMES},
-    jobs::{
-        check_update::start_check_update, objdiff::start_build, Job, JobQueue, JobResult, JobStatus,
+    config::{
+        build_globset, load_project_config, ProjectObject, ProjectObjectNode, CONFIG_FILENAMES,
     },
+    jobs::{objdiff::start_build, Job, JobQueue, JobResult, JobStatus},
     views::{
         appearance::{appearance_window, Appearance},
         config::{config_ui, project_window, ConfigViewState},
@@ -32,11 +32,11 @@ use crate::{
 #[derive(Default)]
 pub struct ViewState {
     pub jobs: JobQueue,
-    pub show_appearance_config: bool,
-    pub demangle_state: DemangleViewState,
-    pub show_demangle: bool,
-    pub diff_state: DiffViewState,
     pub config_state: ConfigViewState,
+    pub demangle_state: DemangleViewState,
+    pub diff_state: DiffViewState,
+    pub show_appearance_config: bool,
+    pub show_demangle: bool,
     pub show_project_config: bool,
 }
 
@@ -54,15 +54,17 @@ pub struct AppConfig {
     pub watch_patterns: Vec<Glob>,
 
     #[serde(skip)]
-    pub units: Vec<ProjectUnit>,
+    pub objects: Vec<ProjectObject>,
     #[serde(skip)]
-    pub unit_nodes: Vec<ProjectUnitNode>,
+    pub object_nodes: Vec<ProjectObjectNode>,
     #[serde(skip)]
     pub watcher_change: bool,
     #[serde(skip)]
     pub config_change: bool,
     #[serde(skip)]
     pub obj_change: bool,
+    #[serde(skip)]
+    pub queue_build: bool,
 }
 
 impl AppConfig {
@@ -72,36 +74,42 @@ impl AppConfig {
         self.base_obj_dir = None;
         self.obj_path = None;
         self.build_target = false;
-        self.units.clear();
-        self.unit_nodes.clear();
+        self.objects.clear();
+        self.object_nodes.clear();
         self.watcher_change = true;
         self.config_change = true;
         self.obj_change = true;
+        self.queue_build = false;
     }
 
     pub fn set_target_obj_dir(&mut self, path: PathBuf) {
         self.target_obj_dir = Some(path);
         self.obj_path = None;
         self.obj_change = true;
+        self.queue_build = false;
     }
 
     pub fn set_base_obj_dir(&mut self, path: PathBuf) {
         self.base_obj_dir = Some(path);
         self.obj_path = None;
         self.obj_change = true;
+        self.queue_build = false;
     }
 
     pub fn set_obj_path(&mut self, path: String) {
         self.obj_path = Some(path);
         self.obj_change = true;
+        self.queue_build = false;
     }
 }
+
+pub type AppConfigRef = Arc<RwLock<AppConfig>>;
 
 #[derive(Default)]
 pub struct App {
     appearance: Appearance,
     view_state: ViewState,
-    config: Arc<RwLock<AppConfig>>,
+    config: AppConfigRef,
     modified: Arc<AtomicBool>,
     config_modified: Arc<AtomicBool>,
     watcher: Option<notify::RecommendedWatcher>,
@@ -135,7 +143,7 @@ impl App {
                     config.watcher_change = true;
                     app.modified.store(true, Ordering::Relaxed);
                 }
-                app.view_state.config_state.queue_update_check = config.auto_update_check;
+                app.view_state.config_state.queue_check_update = config.auto_update_check;
                 app.config = Arc::new(RwLock::new(config));
             }
         }
@@ -147,6 +155,7 @@ impl App {
     fn pre_update(&mut self) {
         let ViewState { jobs, diff_state, config_state, .. } = &mut self.view_state;
 
+        let mut results = vec![];
         for (job, result) in jobs.iter_finished() {
             match result {
                 Ok(result) => {
@@ -157,18 +166,13 @@ impl App {
                                 log::error!("{:?}", err);
                             }
                         }
-                        JobResult::ObjDiff(state) => {
-                            diff_state.build = Some(state);
-                        }
-                        JobResult::CheckUpdate(state) => {
-                            config_state.check_update = Some(state);
-                        }
                         JobResult::Update(state) => {
                             if let Ok(mut guard) = self.relaunch_path.lock() {
                                 *guard = Some(state.exe_path);
                             }
                             self.should_relaunch = true;
                         }
+                        _ => results.push(result),
                     }
                 }
                 Err(err) => {
@@ -195,11 +199,19 @@ impl App {
                 }
             }
         }
+        jobs.results.append(&mut results);
         jobs.clear_finished();
+
+        diff_state.pre_update(jobs, &self.config);
+        config_state.pre_update(jobs);
+        debug_assert!(jobs.results.is_empty());
     }
 
     fn post_update(&mut self) {
         let ViewState { jobs, diff_state, config_state, .. } = &mut self.view_state;
+        config_state.post_update(jobs, &self.config);
+        diff_state.post_update(jobs, &self.config);
+
         let Ok(mut config) = self.config.write() else {
             return;
         };
@@ -244,22 +256,23 @@ impl App {
             }
         }
 
-        if config.obj_path.is_some()
-            && self.modified.swap(false, Ordering::Relaxed)
-            && !jobs.is_running(Job::ObjDiff)
-        {
-            jobs.push(start_build(self.config.clone()));
-        }
-
         if config.obj_change {
             *diff_state = Default::default();
-            jobs.push(start_build(self.config.clone()));
+            if config.obj_path.is_some() {
+                config.queue_build = true;
+            }
             config.obj_change = false;
         }
 
-        if config_state.queue_update_check {
-            jobs.push(start_check_update());
-            config_state.queue_update_check = false;
+        if self.modified.swap(false, Ordering::Relaxed) {
+            config.queue_build = true;
+        }
+
+        // Don't clear `queue_build` if a build is running. A file may have been modified during
+        // the build, so we'll start another build after the current one finishes.
+        if config.queue_build && config.obj_path.is_some() && !jobs.is_running(Job::ObjDiff) {
+            jobs.push(start_build(self.config.clone()));
+            config.queue_build = false;
         }
     }
 }
@@ -308,26 +321,19 @@ impl eframe::App for App {
             });
         });
 
-        if diff_state.current_view == View::FunctionDiff
-            && matches!(&diff_state.build, Some(b) if b.first_status.success && b.second_status.success)
-        {
+        let build_success = matches!(&diff_state.build, Some(b) if b.first_status.success && b.second_status.success);
+        if diff_state.current_view == View::FunctionDiff && build_success {
             egui::CentralPanel::default().show(ctx, |ui| {
-                if function_diff_ui(ui, jobs, diff_state, appearance) {
-                    jobs.push(start_build(config.clone()));
-                }
+                function_diff_ui(ui, diff_state, appearance);
             });
-        } else if diff_state.current_view == View::DataDiff
-            && matches!(&diff_state.build, Some(b) if b.first_status.success && b.second_status.success)
-        {
+        } else if diff_state.current_view == View::DataDiff && build_success {
             egui::CentralPanel::default().show(ctx, |ui| {
-                if data_diff_ui(ui, jobs, diff_state, appearance) {
-                    jobs.push(start_build(config.clone()));
-                }
+                data_diff_ui(ui, diff_state, appearance);
             });
         } else {
             egui::SidePanel::left("side_panel").show(ctx, |ui| {
                 egui::ScrollArea::both().show(ui, |ui| {
-                    config_ui(ui, config, jobs, show_project_config, config_state, appearance);
+                    config_ui(ui, config, show_project_config, config_state, appearance);
                     jobs_ui(ui, jobs, appearance);
                 });
             });

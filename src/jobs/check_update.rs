@@ -4,7 +4,7 @@ use anyhow::{Context, Result};
 use self_update::{cargo_crate_version, update::Release};
 
 use crate::{
-    jobs::{start_job, update_status, Job, JobResult, JobState, Status},
+    jobs::{start_job, update_status, Job, JobResult, JobState, JobStatusRef},
     update::{build_updater, BIN_NAME},
 };
 
@@ -14,7 +14,7 @@ pub struct CheckUpdateResult {
     pub found_binary: bool,
 }
 
-fn run_check_update(status: &Status, cancel: Receiver<()>) -> Result<Box<CheckUpdateResult>> {
+fn run_check_update(status: &JobStatusRef, cancel: Receiver<()>) -> Result<Box<CheckUpdateResult>> {
     update_status(status, "Fetching latest release".to_string(), 0, 1, &cancel)?;
     let updater = build_updater().context("Failed to create release updater")?;
     let latest_release = updater.get_latest_release()?;
@@ -28,6 +28,6 @@ fn run_check_update(status: &Status, cancel: Receiver<()>) -> Result<Box<CheckUp
 
 pub fn start_check_update() -> JobState {
     start_job("Check for updates", Job::CheckUpdate, move |status, cancel| {
-        run_check_update(status, cancel).map(JobResult::CheckUpdate)
+        run_check_update(status, cancel).map(|result| JobResult::CheckUpdate(Some(result)))
     })
 }

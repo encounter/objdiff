@@ -2,8 +2,8 @@
 use std::string::FromUtf16Error;
 use std::{
     borrow::Cow,
+    mem::take,
     path::{PathBuf, MAIN_SEPARATOR},
-    sync::{Arc, RwLock},
 };
 
 #[cfg(windows)]
@@ -17,9 +17,13 @@ use globset::Glob;
 use self_update::cargo_crate_version;
 
 use crate::{
-    app::AppConfig,
-    config::{ProjectUnit, ProjectUnitNode},
-    jobs::{check_update::CheckUpdateResult, objdiff::start_build, update::start_update, JobQueue},
+    app::{AppConfig, AppConfigRef},
+    config::{ProjectObject, ProjectObjectNode},
+    jobs::{
+        check_update::{start_check_update, CheckUpdateResult},
+        update::start_update,
+        Job, JobQueue, JobResult,
+    },
     update::RELEASE_URL,
     views::appearance::Appearance,
 };
@@ -27,12 +31,52 @@ use crate::{
 #[derive(Default)]
 pub struct ConfigViewState {
     pub check_update: Option<Box<CheckUpdateResult>>,
+    pub check_update_running: bool,
+    pub queue_check_update: bool,
+    pub update_running: bool,
+    pub queue_update: bool,
+    pub build_running: bool,
+    pub queue_build: bool,
     pub watch_pattern_text: String,
-    pub queue_update_check: bool,
     pub load_error: Option<String>,
-    pub unit_search: String,
+    pub object_search: String,
     #[cfg(windows)]
     pub available_wsl_distros: Option<Vec<String>>,
+}
+
+impl ConfigViewState {
+    pub fn pre_update(&mut self, jobs: &mut JobQueue) {
+        jobs.results.retain_mut(|result| {
+            if let JobResult::CheckUpdate(result) = result {
+                self.check_update = take(result);
+                false
+            } else {
+                true
+            }
+        });
+        self.build_running = jobs.is_running(Job::ObjDiff);
+        self.check_update_running = jobs.is_running(Job::CheckUpdate);
+        self.update_running = jobs.is_running(Job::Update);
+    }
+
+    pub fn post_update(&mut self, jobs: &mut JobQueue, config: &AppConfigRef) {
+        if self.queue_build {
+            self.queue_build = false;
+            if let Ok(mut config) = config.write() {
+                config.queue_build = true;
+            }
+        }
+
+        if self.queue_check_update {
+            self.queue_check_update = false;
+            jobs.push_once(Job::CheckUpdate, start_check_update);
+        }
+
+        if self.queue_update {
+            self.queue_update = false;
+            jobs.push_once(Job::Update, start_update);
+        }
+    }
 }
 
 const DEFAULT_WATCH_PATTERNS: &[&str] = &[
@@ -75,8 +119,7 @@ fn fetch_wsl2_distros() -> Vec<String> {
 
 pub fn config_ui(
     ui: &mut egui::Ui,
-    config: &Arc<RwLock<AppConfig>>,
-    jobs: &mut JobQueue,
+    config: &AppConfigRef,
     show_config_window: &mut bool,
     state: &mut ConfigViewState,
     appearance: &Appearance,
@@ -88,15 +131,15 @@ pub fn config_ui(
         base_obj_dir,
         obj_path,
         auto_update_check,
-        units,
-        unit_nodes,
+        objects,
+        object_nodes,
         ..
     } = &mut *config_guard;
 
     ui.heading("Updates");
     ui.checkbox(auto_update_check, "Check for updates on startup");
-    if ui.button("Check now").clicked() {
-        state.queue_update_check = true;
+    if ui.add_enabled(!state.check_update_running, egui::Button::new("Check now")).clicked() {
+        state.queue_check_update = true;
     }
     ui.label(format!("Current version: {}", cargo_crate_version!())).on_hover_ui_at_pointer(|ui| {
         ui.label(formatcp!("Git branch: {}", env!("VERGEN_GIT_BRANCH")));
@@ -104,20 +147,20 @@ pub fn config_ui(
         ui.label(formatcp!("Build target: {}", env!("VERGEN_CARGO_TARGET_TRIPLE")));
         ui.label(formatcp!("Debug: {}", env!("VERGEN_CARGO_DEBUG")));
     });
-    if let Some(state) = &state.check_update {
-        ui.label(format!("Latest version: {}", state.latest_release.version));
-        if state.update_available {
+    if let Some(result) = &state.check_update {
+        ui.label(format!("Latest version: {}", result.latest_release.version));
+        if result.update_available {
             ui.colored_label(appearance.insert_color, "Update available");
             ui.horizontal(|ui| {
-                if state.found_binary
+                if result.found_binary
                     && ui
-                        .button("Automatic")
+                        .add_enabled(!state.update_running, egui::Button::new("Automatic"))
                         .on_hover_text_at_pointer(
                             "Automatically download and replace the current build",
                         )
                         .clicked()
                 {
-                    jobs.push(start_update());
+                    state.queue_update = true;
                 }
                 if ui
                     .button("Manual")
@@ -164,7 +207,7 @@ pub fn config_ui(
 
     if let (Some(base_dir), Some(target_dir)) = (base_obj_dir, target_obj_dir) {
         let mut new_build_obj = obj_path.clone();
-        if units.is_empty() {
+        if objects.is_empty() {
             if ui.button("Select object").clicked() {
                 if let Some(path) = rfd::FileDialog::new()
                     .set_directory(&target_dir)
@@ -186,8 +229,8 @@ pub fn config_ui(
                 );
             }
         } else {
-            let had_search = !state.unit_search.is_empty();
-            egui::TextEdit::singleline(&mut state.unit_search).hint_text("Filter").ui(ui);
+            let had_search = !state.object_search.is_empty();
+            egui::TextEdit::singleline(&mut state.object_search).hint_text("Filter").ui(ui);
 
             let mut root_open = None;
             let mut node_open = NodeOpen::Default;
@@ -209,7 +252,7 @@ pub fn config_ui(
                     node_open = NodeOpen::Object;
                 }
             });
-            if state.unit_search.is_empty() {
+            if state.object_search.is_empty() {
                 if had_search {
                     root_open = Some(true);
                     node_open = NodeOpen::Object;
@@ -226,11 +269,11 @@ pub fn config_ui(
             .open(root_open)
             .default_open(true)
             .show(ui, |ui| {
-                let mut nodes = Cow::Borrowed(unit_nodes);
-                if !state.unit_search.is_empty() {
-                    let search = state.unit_search.to_ascii_lowercase();
+                let mut nodes = Cow::Borrowed(object_nodes);
+                if !state.object_search.is_empty() {
+                    let search = state.object_search.to_ascii_lowercase();
                     nodes = Cow::Owned(
-                        unit_nodes.iter().filter_map(|node| filter_node(node, &search)).collect(),
+                        object_nodes.iter().filter_map(|node| filter_node(node, &search)).collect(),
                     );
                 }
 
@@ -245,30 +288,30 @@ pub fn config_ui(
             if let Some(obj) = new_build_obj {
                 // Will set obj_changed, which will trigger a rebuild
                 config_guard.set_obj_path(obj);
-                // TODO apply reverse_fn_order
             }
         }
-        if config_guard.obj_path.is_some() && ui.button("Build").clicked() {
-            // Rebuild immediately
-            jobs.push(start_build(config.clone()));
+        if config_guard.obj_path.is_some()
+            && ui.add_enabled(!state.build_running, egui::Button::new("Build")).clicked()
+        {
+            state.queue_build = true;
         }
     } else {
         ui.colored_label(appearance.delete_color, "Missing project settings");
     }
 
-    // ui.checkbox(&mut view_config.reverse_fn_order, "Reverse function order (deferred)");
     ui.separator();
 }
 
-fn display_unit(
+fn display_object(
     ui: &mut egui::Ui,
     obj_path: &mut Option<String>,
     name: &str,
-    unit: &ProjectUnit,
+    object: &ProjectObject,
     appearance: &Appearance,
 ) {
-    let path_string = unit.path.to_string_lossy().to_string();
+    let path_string = object.path.to_string_lossy().to_string();
     let selected = matches!(obj_path, Some(path) if path == &path_string);
+    let color = if selected { appearance.emphasized_text_color } else { appearance.text_color };
     if SelectableLabel::new(
         selected,
         RichText::new(name)
@@ -276,7 +319,7 @@ fn display_unit(
                 size: appearance.ui_font.size,
                 family: appearance.code_font.family.clone(),
             })
-            .color(appearance.text_color),
+            .color(color),
     )
     .ui(ui)
     .clicked()
@@ -297,15 +340,15 @@ enum NodeOpen {
 fn display_node(
     ui: &mut egui::Ui,
     obj_path: &mut Option<String>,
-    node: &ProjectUnitNode,
+    node: &ProjectObjectNode,
     appearance: &Appearance,
     node_open: NodeOpen,
 ) {
     match node {
-        ProjectUnitNode::File(name, unit) => {
-            display_unit(ui, obj_path, name, unit, appearance);
+        ProjectObjectNode::File(name, object) => {
+            display_object(ui, obj_path, name, object, appearance);
         }
-        ProjectUnitNode::Dir(name, children) => {
+        ProjectObjectNode::Dir(name, children) => {
             let contains_obj = obj_path.as_ref().map(|path| contains_node(node, path));
             let open = match node_open {
                 NodeOpen::Default => None,
@@ -336,33 +379,35 @@ fn display_node(
     }
 }
 
-fn contains_node(node: &ProjectUnitNode, path: &str) -> bool {
+fn contains_node(node: &ProjectObjectNode, path: &str) -> bool {
     match node {
-        ProjectUnitNode::File(_, unit) => {
-            let path_string = unit.path.to_string_lossy().to_string();
+        ProjectObjectNode::File(_, object) => {
+            let path_string = object.path.to_string_lossy().to_string();
             path == path_string
         }
-        ProjectUnitNode::Dir(_, children) => children.iter().any(|node| contains_node(node, path)),
+        ProjectObjectNode::Dir(_, children) => {
+            children.iter().any(|node| contains_node(node, path))
+        }
     }
 }
 
-fn filter_node(node: &ProjectUnitNode, search: &str) -> Option<ProjectUnitNode> {
+fn filter_node(node: &ProjectObjectNode, search: &str) -> Option<ProjectObjectNode> {
     match node {
-        ProjectUnitNode::File(name, _) => {
+        ProjectObjectNode::File(name, _) => {
             if name.to_ascii_lowercase().contains(search) {
                 Some(node.clone())
             } else {
                 None
             }
         }
-        ProjectUnitNode::Dir(name, children) => {
+        ProjectObjectNode::Dir(name, children) => {
             if name.to_ascii_lowercase().contains(search) {
                 return Some(node.clone());
             }
             let new_children =
                 children.iter().filter_map(|child| filter_node(child, search)).collect::<Vec<_>>();
             if !new_children.is_empty() {
-                Some(ProjectUnitNode::Dir(name.clone(), new_children))
+                Some(ProjectObjectNode::Dir(name.clone(), new_children))
             } else {
                 None
             }
@@ -411,7 +456,7 @@ fn pick_folder_ui(
 
 pub fn project_window(
     ctx: &egui::Context,
-    config: &Arc<RwLock<AppConfig>>,
+    config: &AppConfigRef,
     show: &mut bool,
     state: &mut ConfigViewState,
     appearance: &Appearance,

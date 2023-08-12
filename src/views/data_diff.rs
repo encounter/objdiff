@@ -5,7 +5,6 @@ use egui_extras::{Column, TableBuilder};
 use time::format_description;
 
 use crate::{
-    jobs::{Job, JobQueue},
     obj::{ObjDataDiff, ObjDataDiffKind, ObjInfo, ObjSection},
     views::{
         appearance::Appearance,
@@ -164,15 +163,10 @@ fn data_table_ui(
     Some(())
 }
 
-pub fn data_diff_ui(
-    ui: &mut egui::Ui,
-    jobs: &JobQueue,
-    state: &mut DiffViewState,
-    appearance: &Appearance,
-) -> bool {
-    let mut rebuild = false;
-    let (Some(result), Some(selected_symbol)) = (&state.build, &state.selected_symbol) else {
-        return rebuild;
+pub fn data_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &Appearance) {
+    let (Some(result), Some(selected_symbol)) = (&state.build, &state.symbol_state.selected_symbol)
+    else {
+        return;
     };
 
     // Header
@@ -210,13 +204,16 @@ pub fn data_diff_ui(
                     ui.set_width(column_width);
 
                     ui.horizontal(|ui| {
-                        if ui.button("Build").clicked() {
-                            rebuild = true;
+                        if ui
+                            .add_enabled(!state.build_running, egui::Button::new("Build"))
+                            .clicked()
+                        {
+                            state.queue_build = true;
                         }
                         ui.scope(|ui| {
                             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
                             ui.style_mut().wrap = Some(false);
-                            if jobs.is_running(Job::ObjDiff) {
+                            if state.build_running {
                                 ui.colored_label(appearance.replace_color, "Building…");
                             } else {
                                 ui.label("Last built:");
@@ -257,6 +254,4 @@ pub fn data_diff_ui(
             .min_scrolled_height(available_height);
         data_table_ui(table, left_obj, right_obj, selected_symbol, appearance);
     }
-
-    rebuild
 }
