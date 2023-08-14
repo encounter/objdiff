@@ -375,19 +375,27 @@ fn create_watcher(
 ) -> notify::Result<notify::RecommendedWatcher> {
     let mut config_patterns = GlobSetBuilder::new();
     for filename in CONFIG_FILENAMES {
-        config_patterns.add(Glob::new(&format!("**/{filename}")).unwrap());
+        config_patterns.add(Glob::new(filename).unwrap());
     }
     let config_patterns = config_patterns.build().unwrap();
 
+    let base_dir = project_dir.to_owned();
     let mut watcher =
         notify::recommended_watcher(move |res: notify::Result<notify::Event>| match res {
             Ok(event) => {
-                if matches!(event.kind, notify::EventKind::Modify(..)) {
+                if matches!(
+                    event.kind,
+                    notify::EventKind::Modify(..)
+                        | notify::EventKind::Create(..)
+                        | notify::EventKind::Remove(..)
+                ) {
                     for path in &event.paths {
+                        let Ok(path) = path.strip_prefix(&base_dir) else {
+                            continue;
+                        };
                         if config_patterns.is_match(path) {
                             config_modified.store(true, Ordering::Relaxed);
-                        }
-                        if patterns.is_match(path) {
+                        } else if patterns.is_match(path) {
                             modified.store(true, Ordering::Relaxed);
                         }
                     }
