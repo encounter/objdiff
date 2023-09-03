@@ -69,7 +69,7 @@ fn find_dir<'a>(
 
 fn build_nodes(
     objects: &[ProjectObject],
-    project_dir: &PathBuf,
+    project_dir: &Path,
     target_obj_dir: &Option<PathBuf>,
     base_obj_dir: &Option<PathBuf>,
 ) -> Vec<ProjectObjectNode> {
