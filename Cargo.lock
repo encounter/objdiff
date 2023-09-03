@@ -840,9 +840,9 @@ dependencies = [
 
 [[package]]
 name = "cwdemangle"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b58d34a3a03cfe0a4ebfd03aeda6ee8a0f2e99bd3308476a8a89815add3ec373"
+checksum = "c251bc5553377b3dc85c7b9b3955cfc2eb5a7b5544cf65adc2d53c2a4c2f4162"
 dependencies = [
  "argh",
 ]
@@ -2457,7 +2457,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "byteorder",

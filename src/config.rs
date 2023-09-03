@@ -6,7 +6,7 @@ use std::{
 use anyhow::{Context, Result};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 
-use crate::app::AppConfig;
+use crate::{app::AppConfig, views::config::DEFAULT_WATCH_PATTERNS};
 
 #[derive(Default, Clone, serde::Deserialize)]
 #[serde(default)]
@@ -15,7 +15,7 @@ pub struct ProjectConfig {
     pub target_dir: Option<PathBuf>,
     pub base_dir: Option<PathBuf>,
     pub build_target: bool,
-    pub watch_patterns: Vec<Glob>,
+    pub watch_patterns: Option<Vec<Glob>>,
     #[serde(alias = "units")]
     pub objects: Vec<ProjectObject>,
 }
@@ -23,8 +23,22 @@ pub struct ProjectConfig {
 #[derive(Default, Clone, serde::Deserialize)]
 pub struct ProjectObject {
     pub name: Option<String>,
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
+    pub target_path: Option<PathBuf>,
+    pub base_path: Option<PathBuf>,
     pub reverse_fn_order: Option<bool>,
+}
+
+impl ProjectObject {
+    pub fn name(&self) -> &str {
+        if let Some(name) = &self.name {
+            name
+        } else if let Some(path) = &self.path {
+            path.to_str().unwrap_or("[invalid path]")
+        } else {
+            "[unknown]"
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -53,11 +67,22 @@ fn find_dir<'a>(
     unreachable!();
 }
 
-fn build_nodes(objects: &[ProjectObject]) -> Vec<ProjectObjectNode> {
+fn build_nodes(
+    objects: &[ProjectObject],
+    project_dir: &PathBuf,
+    target_obj_dir: &Option<PathBuf>,
+    base_obj_dir: &Option<PathBuf>,
+) -> Vec<ProjectObjectNode> {
     let mut nodes = vec![];
     for object in objects {
         let mut out_nodes = &mut nodes;
-        let path = object.name.as_ref().map(Path::new).unwrap_or(&object.path);
+        let path = if let Some(name) = &object.name {
+            Path::new(name)
+        } else if let Some(path) = &object.path {
+            path
+        } else {
+            continue;
+        };
         if let Some(parent) = path.parent() {
             for component in parent.components() {
                 if let Component::Normal(name) = component {
@@ -66,8 +91,23 @@ fn build_nodes(objects: &[ProjectObject]) -> Vec<ProjectObjectNode> {
                 }
             }
         }
+        let mut object = object.clone();
+        if let (Some(target_obj_dir), Some(path), None) =
+            (target_obj_dir, &object.path, &object.target_path)
+        {
+            object.target_path = Some(target_obj_dir.join(path));
+        } else if let Some(path) = &object.target_path {
+            object.target_path = Some(project_dir.join(path));
+        }
+        if let (Some(base_obj_dir), Some(path), None) =
+            (base_obj_dir, &object.path, &object.base_path)
+        {
+            object.base_path = Some(base_obj_dir.join(path));
+        } else if let Some(path) = &object.base_path {
+            object.base_path = Some(project_dir.join(path));
+        }
         let filename = path.file_name().unwrap().to_str().unwrap().to_string();
-        out_nodes.push(ProjectObjectNode::File(filename, object.clone()));
+        out_nodes.push(ProjectObjectNode::File(filename, object));
     }
     nodes
 }
@@ -84,10 +124,14 @@ pub fn load_project_config(config: &mut AppConfig) -> Result<()> {
         config.target_obj_dir = project_config.target_dir.map(|p| project_dir.join(p));
         config.base_obj_dir = project_config.base_dir.map(|p| project_dir.join(p));
         config.build_target = project_config.build_target;
-        config.watch_patterns = project_config.watch_patterns;
+        config.watch_patterns = project_config.watch_patterns.unwrap_or_else(|| {
+            DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect()
+        });
         config.watcher_change = true;
         config.objects = project_config.objects;
-        config.object_nodes = build_nodes(&config.objects);
+        config.object_nodes =
+            build_nodes(&config.objects, project_dir, &config.target_obj_dir, &config.base_obj_dir);
+        config.project_config_loaded = true;
     }
     Ok(())
 }

@@ -62,15 +62,10 @@ impl DiffViewState {
 
         self.symbol_state.disable_reverse_fn_order = false;
         if let Ok(config) = config.read() {
-            if let Some(obj_path) = &config.obj_path {
-                if let Some(object) = config.objects.iter().find(|object| {
-                    let path_string = object.path.to_string_lossy().to_string();
-                    &path_string == obj_path
-                }) {
-                    if let Some(value) = object.reverse_fn_order {
-                        self.symbol_state.reverse_fn_order = value;
-                        self.symbol_state.disable_reverse_fn_order = true;
-                    }
+            if let Some(obj_config) = &config.selected_obj {
+                if let Some(value) = obj_config.reverse_fn_order {
+                    self.symbol_state.reverse_fn_order = value;
+                    self.symbol_state.disable_reverse_fn_order = true;
                 }
             }
         }

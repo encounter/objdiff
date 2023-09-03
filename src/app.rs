@@ -40,6 +40,18 @@ pub struct ViewState {
     pub show_project_config: bool,
 }
 
+/// The configuration for a single object file.
+#[derive(Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct ObjectConfig {
+    pub name: String,
+    pub target_path: PathBuf,
+    pub base_path: PathBuf,
+    pub reverse_fn_order: Option<bool>,
+}
+
+#[inline]
+fn bool_true() -> bool { true }
+
 #[derive(Default, Clone, serde::Deserialize, serde::Serialize)]
 pub struct AppConfig {
     pub custom_make: Option<String>,
@@ -47,9 +59,10 @@ pub struct AppConfig {
     pub project_dir: Option<PathBuf>,
     pub target_obj_dir: Option<PathBuf>,
     pub base_obj_dir: Option<PathBuf>,
-    pub obj_path: Option<String>,
+    pub selected_obj: Option<ObjectConfig>,
     pub build_target: bool,
-    pub watcher_enabled: bool,
+    #[serde(default = "bool_true")]
+    pub rebuild_on_changes: bool,
     pub auto_update_check: bool,
     pub watch_patterns: Vec<Glob>,
 
@@ -65,6 +78,8 @@ pub struct AppConfig {
     pub obj_change: bool,
     #[serde(skip)]
     pub queue_build: bool,
+    #[serde(skip)]
+    pub project_config_loaded: bool,
 }
 
 impl AppConfig {
@@ -72,7 +87,7 @@ impl AppConfig {
         self.project_dir = Some(path);
         self.target_obj_dir = None;
         self.base_obj_dir = None;
-        self.obj_path = None;
+        self.selected_obj = None;
         self.build_target = false;
         self.objects.clear();
         self.object_nodes.clear();
@@ -80,24 +95,25 @@ impl AppConfig {
         self.config_change = true;
         self.obj_change = true;
         self.queue_build = false;
+        self.project_config_loaded = false;
     }
 
     pub fn set_target_obj_dir(&mut self, path: PathBuf) {
         self.target_obj_dir = Some(path);
-        self.obj_path = None;
+        self.selected_obj = None;
         self.obj_change = true;
         self.queue_build = false;
     }
 
     pub fn set_base_obj_dir(&mut self, path: PathBuf) {
         self.base_obj_dir = Some(path);
-        self.obj_path = None;
+        self.selected_obj = None;
         self.obj_change = true;
         self.queue_build = false;
     }
 
-    pub fn set_obj_path(&mut self, path: String) {
-        self.obj_path = Some(path);
+    pub fn set_selected_obj(&mut self, object: ObjectConfig) {
+        self.selected_obj = Some(object);
         self.obj_change = true;
         self.queue_build = false;
     }
@@ -258,19 +274,19 @@ impl App {
 
         if config.obj_change {
             *diff_state = Default::default();
-            if config.obj_path.is_some() {
+            if config.selected_obj.is_some() {
                 config.queue_build = true;
             }
             config.obj_change = false;
         }
 
-        if self.modified.swap(false, Ordering::Relaxed) {
+        if self.modified.swap(false, Ordering::Relaxed) && config.rebuild_on_changes {
             config.queue_build = true;
         }
 
         // Don't clear `queue_build` if a build is running. A file may have been modified during
         // the build, so we'll start another build after the current one finishes.
-        if config.queue_build && config.obj_path.is_some() && !jobs.is_running(Job::ObjDiff) {
+        if config.queue_build && config.selected_obj.is_some() && !jobs.is_running(Job::ObjDiff) {
             jobs.push(start_build(self.config.clone()));
             config.queue_build = false;
         }

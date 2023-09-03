@@ -50,8 +50,11 @@ file as well. You can then add `objdiff.json` to your `.gitignore` to prevent it
 // objdiff.json
 {
   "custom_make": "ninja",
+
+  // Only required if objects use "path" instead of "target_path" and "base_path".
   "target_dir": "build/asm",
   "base_dir": "build/src",
+
   "build_target": true,
   "watch_patterns": [
     "*.c",
@@ -63,8 +66,15 @@ file as well. You can then add `objdiff.json` to your `.gitignore` to prevent it
   ],
   "objects": [
     {
+      "name": "main/MetroTRK/mslsupp",
+
+      // Option 1: Relative to target_dir and base_dir
       "path": "MetroTRK/mslsupp.o",
-      "name": "MetroTRK/mslsupp",
+      // Option 2: Explicit paths from project root
+      // Useful for more complex directory layouts
+      "target_path": "build/asm/MetroTRK/mslsupp.o",
+      "base_path": "build/src/MetroTRK/mslsupp.o",
+      
       "reverse_fn_order": false
     },
     // ...
@@ -72,25 +82,43 @@ file as well. You can then add `objdiff.json` to your `.gitignore` to prevent it
 }
 ```
 
-- `custom_make` _(optional)_: By default, objdiff will use `make` to build the project.  
-  If the project uses a different build system (e.g. `ninja`), specify it here.
-- `target_dir`: Relative from the root of the project, this where the "target" or "expected" objects are located.  
-  These are the **intended result** of the match.
-- `base_dir`: Relative from the root of the project, this is where the "base" or "actual" objects are located.  
-  These are objects built from the **current source code**.
-- `build_target`: If true, objdiff will tell the build system to build the target objects before diffing (e.g.
+`custom_make` _(optional)_: By default, objdiff will use `make` to build the project.  
+If the project uses a different build system (e.g. `ninja`), specify it here.
+
+`target_dir` _(optional)_: Relative from the root of the project, this where the "target" or "expected" objects are located.  
+These are the **intended result** of the match.
+
+`base_dir` _(optional)_: Relative from the root of the project, this is where the "base" or "actual" objects are located.  
+These are objects built from the **current source code**.
+
+`build_target`: If true, objdiff will tell the build system to build the target objects before diffing (e.g.
   `make path/to/target.o`).  
-  This is useful if the target objects are not built by default or can change based on project configuration or edits
-  to assembly files.  
-  Requires the build system to be configured properly.
-- `watch_patterns` _(optional)_: A list of glob patterns to watch for changes.
-  ([Supported syntax](https://docs.rs/globset/latest/globset/#syntax))  
-  If any of these files change, objdiff will automatically rebuild the objects and re-compare them.
-- `objects` _(optional)_: If specified, objdiff will display a list of objects in the sidebar for easy navigation.
-    - `path`: Relative path to the object from the `target_dir` and `base_dir`.
-    - `name` _(optional)_: The name of the object in the UI. If not specified, the object's `path` will be used.
-    - `reverse_fn_order` _(optional)_: Displays function symbols in reversed order.  
-      Used to support MWCC's `-inline deferred` option, which reverses the order of functions in the object file.
+This is useful if the target objects are not built by default or can change based on project configuration or edits
+to assembly files.  
+Requires the build system to be configured properly.
+
+`watch_patterns` _(optional)_: A list of glob patterns to watch for changes.
+([Supported syntax](https://docs.rs/globset/latest/globset/#syntax))  
+If any of these files change, objdiff will automatically rebuild the objects and re-compare them.  
+If not specified, objdiff will use the default patterns listed above.
+
+`objects` _(optional)_: If specified, objdiff will display a list of objects in the sidebar for easy navigation.
+
+> `name` _(optional)_: The name of the object in the UI. If not specified, the object's `path` will be used.
+> 
+> `path`: Relative path to the object from the `target_dir` and `base_dir`.  
+> Requires `target_dir` and `base_dir` to be specified.
+> 
+> `target_path`: Path to the target object from the project root.  
+> Required if `path` is not specified.
+> 
+> `base_path`: Path to the base object from the project root.  
+> Required if `path` is not specified.
+> 
+> `reverse_fn_order` _(optional)_: Displays function symbols in reversed order.  
+Used to support MWCC's `-inline deferred` option, which reverses the order of functions in the object file.
+
+
 
 ## License
 

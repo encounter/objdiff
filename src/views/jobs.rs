@@ -1,4 +1,4 @@
-use egui::{ProgressBar, Widget};
+use egui::{ProgressBar, RichText, Widget};
 
 use crate::{jobs::JobQueue, views::appearance::Appearance};
 
@@ -31,7 +31,7 @@ pub fn jobs_ui(ui: &mut egui::Ui, jobs: &mut JobQueue, appearance: &Appearance) 
             bar.ui(ui);
             const STATUS_LENGTH: usize = 80;
             if let Some(err) = &status.error {
-                let err_string = err.to_string();
+                let err_string = format!("{:#}", err);
                 ui.colored_label(
                     appearance.delete_color,
                     if err_string.len() > STATUS_LENGTH - 10 {
@@ -39,13 +39,15 @@ pub fn jobs_ui(ui: &mut egui::Ui, jobs: &mut JobQueue, appearance: &Appearance) 
                     } else {
                         format!("Error: {:width$}", err_string, width = STATUS_LENGTH - 7)
                     },
-                );
+                )
+                .on_hover_text_at_pointer(RichText::new(err_string).color(appearance.delete_color));
             } else {
                 ui.label(if status.status.len() > STATUS_LENGTH - 3 {
                     format!("{}…", &status.status[0..STATUS_LENGTH - 3])
                 } else {
                     format!("{:width$}", &status.status, width = STATUS_LENGTH)
-                });
+                })
+                .on_hover_text_at_pointer(&status.status);
             }
         });
     }

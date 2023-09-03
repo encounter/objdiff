@@ -1,6 +1,6 @@
 use std::{path::Path, process::Command, str::from_utf8, sync::mpsc::Receiver};
 
-use anyhow::{Context, Error, Result};
+use anyhow::{anyhow, Context, Error, Result};
 use time::OffsetDateTime;
 
 use crate::{
@@ -76,47 +76,51 @@ fn run_build(
     config: AppConfigRef,
 ) -> Result<Box<ObjDiffResult>> {
     let config = config.read().map_err(|_| Error::msg("Failed to lock app config"))?.clone();
-    let obj_path = config.obj_path.as_ref().ok_or_else(|| Error::msg("Missing obj path"))?;
+    let obj_config = config.selected_obj.as_ref().ok_or_else(|| Error::msg("Missing obj path"))?;
     let project_dir =
         config.project_dir.as_ref().ok_or_else(|| Error::msg("Missing project dir"))?;
-    let mut target_path = config
-        .target_obj_dir
-        .as_ref()
-        .ok_or_else(|| Error::msg("Missing target obj dir"))?
-        .to_owned();
-    target_path.push(obj_path);
-    let mut base_path =
-        config.base_obj_dir.as_ref().ok_or_else(|| Error::msg("Missing base obj dir"))?.to_owned();
-    base_path.push(obj_path);
-    let target_path_rel = target_path
-        .strip_prefix(project_dir)
-        .context("Failed to create relative target obj path")?;
-    let base_path_rel =
-        base_path.strip_prefix(project_dir).context("Failed to create relative base obj path")?;
+    let target_path_rel = obj_config.target_path.strip_prefix(project_dir).map_err(|_| {
+        anyhow!(
+            "Target path '{}' doesn't begin with '{}'",
+            obj_config.target_path.display(),
+            project_dir.display()
+        )
+    })?;
+    let base_path_rel = obj_config.base_path.strip_prefix(project_dir).map_err(|_| {
+        anyhow!(
+            "Base path '{}' doesn't begin with '{}'",
+            obj_config.base_path.display(),
+            project_dir.display()
+        )
+    })?;
 
     let total = if config.build_target { 5 } else { 4 };
     let first_status = if config.build_target {
-        update_status(status, format!("Building target {obj_path}"), 0, total, &cancel)?;
+        update_status(status, format!("Building target {}", target_path_rel.display()), 0, total, &cancel)?;
         run_make(project_dir, target_path_rel, &config)
     } else {
         BuildStatus { success: true, log: String::new() }
     };
 
-    update_status(status, format!("Building base {obj_path}"), 1, total, &cancel)?;
+    update_status(status, format!("Building base {}", base_path_rel.display()), 1, total, &cancel)?;
     let second_status = run_make(project_dir, base_path_rel, &config);
 
     let time = OffsetDateTime::now_utc();
 
     let mut first_obj = if first_status.success {
-        update_status(status, format!("Loading target {obj_path}"), 2, total, &cancel)?;
-        Some(elf::read(&target_path)?)
+        update_status(status, format!("Loading target {}", target_path_rel.display()), 2, total, &cancel)?;
+        Some(elf::read(&obj_config.target_path).with_context(|| {
+            format!("Failed to read object '{}'", obj_config.target_path.display())
+        })?)
     } else {
         None
     };
 
     let mut second_obj = if second_status.success {
-        update_status(status, format!("Loading base {obj_path}"), 3, total, &cancel)?;
-        Some(elf::read(&base_path)?)
+        update_status(status, format!("Loading base {}", base_path_rel.display()), 3, total, &cancel)?;
+        Some(elf::read(&obj_config.base_path).with_context(|| {
+            format!("Failed to read object '{}'", obj_config.base_path.display())
+        })?)
     } else {
         None
     };

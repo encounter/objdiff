@@ -17,7 +17,7 @@ use globset::Glob;
 use self_update::cargo_crate_version;
 
 use crate::{
-    app::{AppConfig, AppConfigRef},
+    app::{AppConfig, AppConfigRef, ObjectConfig},
     config::{ProjectObject, ProjectObjectNode},
     jobs::{
         check_update::{start_check_update, CheckUpdateResult},
@@ -79,7 +79,7 @@ impl ConfigViewState {
     }
 }
 
-const DEFAULT_WATCH_PATTERNS: &[&str] = &[
+pub const DEFAULT_WATCH_PATTERNS: &[&str] = &[
     "*.c", "*.cp", "*.cpp", "*.cxx", "*.h", "*.hp", "*.hpp", "*.hxx", "*.s", "*.S", "*.asm",
     "*.inc", "*.py", "*.yml", "*.txt", "*.json",
 ];
@@ -129,7 +129,7 @@ pub fn config_ui(
         selected_wsl_distro,
         target_obj_dir,
         base_obj_dir,
-        obj_path,
+        selected_obj,
         auto_update_check,
         objects,
         object_nodes,
@@ -205,9 +205,9 @@ pub fn config_ui(
         }
     });
 
-    if let (Some(base_dir), Some(target_dir)) = (base_obj_dir, target_obj_dir) {
-        let mut new_build_obj = obj_path.clone();
-        if objects.is_empty() {
+    let mut new_selected_obj = selected_obj.clone();
+    if objects.is_empty() {
+        if let (Some(base_dir), Some(target_dir)) = (base_obj_dir, target_obj_dir) {
             if ui.button("Select object").clicked() {
                 if let Some(path) = rfd::FileDialog::new()
                     .set_directory(&target_dir)
@@ -215,88 +215,99 @@ pub fn config_ui(
                     .pick_file()
                 {
                     if let Ok(obj_path) = path.strip_prefix(&base_dir) {
-                        new_build_obj = Some(obj_path.display().to_string());
+                        let target_path = target_dir.join(obj_path);
+                        new_selected_obj = Some(ObjectConfig {
+                            name: obj_path.display().to_string(),
+                            target_path,
+                            base_path: path,
+                            reverse_fn_order: None,
+                        });
                     } else if let Ok(obj_path) = path.strip_prefix(&target_dir) {
-                        new_build_obj = Some(obj_path.display().to_string());
+                        let base_path = base_dir.join(obj_path);
+                        new_selected_obj = Some(ObjectConfig {
+                            name: obj_path.display().to_string(),
+                            target_path: path,
+                            base_path,
+                            reverse_fn_order: None,
+                        });
                     }
                 }
             }
-            if let Some(obj) = obj_path {
+            if let Some(obj) = selected_obj {
                 ui.label(
-                    RichText::new(&*obj)
+                    RichText::new(&obj.name)
                         .color(appearance.replace_color)
                         .family(FontFamily::Monospace),
                 );
             }
         } else {
-            let had_search = !state.object_search.is_empty();
-            egui::TextEdit::singleline(&mut state.object_search).hint_text("Filter").ui(ui);
+            ui.colored_label(appearance.delete_color, "Missing project settings");
+        }
+    } else {
+        let had_search = !state.object_search.is_empty();
+        egui::TextEdit::singleline(&mut state.object_search).hint_text("Filter").ui(ui);
 
-            let mut root_open = None;
-            let mut node_open = NodeOpen::Default;
-            ui.horizontal(|ui| {
-                if ui.small_button("⏶").on_hover_text_at_pointer("Collapse all").clicked() {
-                    root_open = Some(false);
-                    node_open = NodeOpen::Close;
-                }
-                if ui.small_button("⏷").on_hover_text_at_pointer("Expand all").clicked() {
-                    root_open = Some(true);
-                    node_open = NodeOpen::Open;
-                }
-                if ui
-                    .add_enabled(obj_path.is_some(), egui::Button::new("⌖").small())
-                    .on_hover_text_at_pointer("Current object")
-                    .clicked()
-                {
-                    root_open = Some(true);
-                    node_open = NodeOpen::Object;
-                }
-            });
-            if state.object_search.is_empty() {
-                if had_search {
-                    root_open = Some(true);
-                    node_open = NodeOpen::Object;
-                }
-            } else if !had_search {
+        let mut root_open = None;
+        let mut node_open = NodeOpen::Default;
+        ui.horizontal(|ui| {
+            if ui.small_button("⏶").on_hover_text_at_pointer("Collapse all").clicked() {
+                root_open = Some(false);
+                node_open = NodeOpen::Close;
+            }
+            if ui.small_button("⏷").on_hover_text_at_pointer("Expand all").clicked() {
                 root_open = Some(true);
                 node_open = NodeOpen::Open;
             }
-
-            CollapsingHeader::new(RichText::new("🗀 Objects").font(FontId {
-                size: appearance.ui_font.size,
-                family: appearance.code_font.family.clone(),
-            }))
-            .open(root_open)
-            .default_open(true)
-            .show(ui, |ui| {
-                let mut nodes = Cow::Borrowed(object_nodes);
-                if !state.object_search.is_empty() {
-                    let search = state.object_search.to_ascii_lowercase();
-                    nodes = Cow::Owned(
-                        object_nodes.iter().filter_map(|node| filter_node(node, &search)).collect(),
-                    );
-                }
-
-                ui.style_mut().wrap = Some(false);
-                for node in nodes.iter() {
-                    display_node(ui, &mut new_build_obj, node, appearance, node_open);
-                }
-            });
-        }
-
-        if new_build_obj != *obj_path {
-            if let Some(obj) = new_build_obj {
-                // Will set obj_changed, which will trigger a rebuild
-                config_guard.set_obj_path(obj);
+            if ui
+                .add_enabled(selected_obj.is_some(), egui::Button::new("⌖").small())
+                .on_hover_text_at_pointer("Current object")
+                .clicked()
+            {
+                root_open = Some(true);
+                node_open = NodeOpen::Object;
             }
+        });
+        if state.object_search.is_empty() {
+            if had_search {
+                root_open = Some(true);
+                node_open = NodeOpen::Object;
+            }
+        } else if !had_search {
+            root_open = Some(true);
+            node_open = NodeOpen::Open;
         }
-        if config_guard.obj_path.is_some()
-            && ui.add_enabled(!state.build_running, egui::Button::new("Build")).clicked()
-        {
-            state.queue_build = true;
+
+        CollapsingHeader::new(RichText::new("🗀 Objects").font(FontId {
+            size: appearance.ui_font.size,
+            family: appearance.code_font.family.clone(),
+        }))
+        .open(root_open)
+        .default_open(true)
+        .show(ui, |ui| {
+            let mut nodes = Cow::Borrowed(object_nodes);
+            if !state.object_search.is_empty() {
+                let search = state.object_search.to_ascii_lowercase();
+                nodes = Cow::Owned(
+                    object_nodes.iter().filter_map(|node| filter_node(node, &search)).collect(),
+                );
+            }
+
+            ui.style_mut().wrap = Some(false);
+            for node in nodes.iter() {
+                display_node(ui, &mut new_selected_obj, node, appearance, node_open);
+            }
+        });
+    }
+    if new_selected_obj != *selected_obj {
+        if let Some(obj) = new_selected_obj {
+            // Will set obj_changed, which will trigger a rebuild
+            config_guard.set_selected_obj(obj);
         }
-    } else {
-        ui.colored_label(appearance.delete_color, "Missing project settings");
+    }
+    if config_guard.selected_obj.is_some()
+        && ui.add_enabled(!state.build_running, egui::Button::new("Build")).clicked()
+    {
+        state.queue_build = true;
     }
 
     ui.separator();
@@ -304,13 +315,13 @@ pub fn config_ui(
 
 fn display_object(
     ui: &mut egui::Ui,
-    obj_path: &mut Option<String>,
+    selected_obj: &mut Option<ObjectConfig>,
     name: &str,
     object: &ProjectObject,
     appearance: &Appearance,
 ) {
-    let path_string = object.path.to_string_lossy().to_string();
-    let selected = matches!(obj_path, Some(path) if path == &path_string);
+    let object_name = object.name();
+    let selected = matches!(selected_obj, Some(obj) if obj.name == object_name);
     let color = if selected { appearance.emphasized_text_color } else { appearance.text_color };
     if SelectableLabel::new(
         selected,
@@ -324,7 +335,12 @@ fn display_object(
     .ui(ui)
     .clicked()
     {
-        *obj_path = Some(path_string);
+        *selected_obj = Some(ObjectConfig {
+            name: object_name.to_string(),
+            target_path: object.target_path.clone().unwrap_or_default(),
+            base_path: object.base_path.clone().unwrap_or_default(),
+            reverse_fn_order: object.reverse_fn_order,
+        });
     }
 }
 
@@ -339,17 +355,17 @@ enum NodeOpen {
 
 fn display_node(
     ui: &mut egui::Ui,
-    obj_path: &mut Option<String>,
+    selected_obj: &mut Option<ObjectConfig>,
     node: &ProjectObjectNode,
     appearance: &Appearance,
     node_open: NodeOpen,
 ) {
     match node {
         ProjectObjectNode::File(name, object) => {
-            display_object(ui, obj_path, name, object, appearance);
+            display_object(ui, selected_obj, name, object, appearance);
         }
         ProjectObjectNode::Dir(name, children) => {
-            let contains_obj = obj_path.as_ref().map(|path| contains_node(node, path));
+            let contains_obj = selected_obj.as_ref().map(|path| contains_node(node, path));
             let open = match node_open {
                 NodeOpen::Default => None,
                 NodeOpen::Open => Some(true),
@@ -372,21 +388,18 @@ fn display_node(
             .open(open)
             .show(ui, |ui| {
                 for node in children {
-                    display_node(ui, obj_path, node, appearance, node_open);
+                    display_node(ui, selected_obj, node, appearance, node_open);
                 }
             });
         }
     }
 }
 
-fn contains_node(node: &ProjectObjectNode, path: &str) -> bool {
+fn contains_node(node: &ProjectObjectNode, selected_obj: &ObjectConfig) -> bool {
     match node {
-        ProjectObjectNode::File(_, object) => {
-            let path_string = object.path.to_string_lossy().to_string();
-            path == path_string
-        }
+        ProjectObjectNode::File(_, object) => object.name() == selected_obj.name,
         ProjectObjectNode::Dir(_, children) => {
-            children.iter().any(|node| contains_node(node, path))
+            children.iter().any(|node| contains_node(node, selected_obj))
         }
     }
 }
@@ -444,11 +457,12 @@ fn pick_folder_ui(
     label: &str,
     tooltip: impl FnOnce(&mut egui::Ui),
     appearance: &Appearance,
+    enabled: bool,
 ) -> egui::Response {
     let response = ui.horizontal(|ui| {
         subheading(ui, label, appearance);
         ui.link(HELP_ICON).on_hover_ui(tooltip);
-        ui.button("Select")
+        ui.add_enabled(enabled, egui::Button::new("Select"))
     });
     ui.label(format_path(dir, appearance));
     response.inner
@@ -506,6 +520,7 @@ fn split_obj_config_ui(
             ui.label(job);
         },
         appearance,
+        true,
     );
     if response.clicked() {
         if let Some(path) = rfd::FileDialog::new().pick_folder() {
@@ -566,6 +581,7 @@ fn split_obj_config_ui(
                 ui.label(job);
             },
             appearance,
+            !config.project_config_loaded,
         );
         if response.clicked() {
             if let Some(path) = rfd::FileDialog::new().set_directory(&project_dir).pick_folder() {
@@ -615,6 +631,7 @@ fn split_obj_config_ui(
                 ui.label(job);
             },
             appearance,
+            !config.project_config_loaded,
         );
         if response.clicked() {
             if let Some(path) = rfd::FileDialog::new().set_directory(&project_dir).pick_folder() {
@@ -626,7 +643,7 @@ fn split_obj_config_ui(
 
     subheading(ui, "Watch settings", appearance);
     let response =
-        ui.checkbox(&mut config.watcher_enabled, "Rebuild on changes").on_hover_ui(|ui| {
+        ui.checkbox(&mut config.rebuild_on_changes, "Rebuild on changes").on_hover_ui(|ui| {
             let mut job = LayoutJob::default();
             job.append(
                 "Automatically re-run the build & diff when files change.",
