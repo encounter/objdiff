@@ -3,7 +3,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 
 use crate::{app::AppConfig, views::config::DEFAULT_WATCH_PATTERNS};
@@ -11,6 +11,7 @@ use crate::{app::AppConfig, views::config::DEFAULT_WATCH_PATTERNS};
 #[derive(Default, Clone, serde::Deserialize)]
 #[serde(default)]
 pub struct ProjectConfig {
+    pub min_version: Option<String>,
     pub custom_make: Option<String>,
     pub target_dir: Option<PathBuf>,
     pub base_dir: Option<PathBuf>,
@@ -121,6 +122,14 @@ pub fn load_project_config(config: &mut AppConfig) -> Result<()> {
     };
     if let Some(result) = try_project_config(project_dir) {
         let project_config = result?;
+        if let Some(min_version) = &project_config.min_version {
+            let version_str = env!("CARGO_PKG_VERSION");
+            let version = semver::Version::parse(version_str).unwrap();
+            let version_req = semver::VersionReq::parse(&format!(">={min_version}"))?;
+            if !version_req.matches(&version) {
+                bail!("Project requires objdiff version {} or higher", min_version);
+            }
+        }
         config.custom_make = project_config.custom_make;
         config.target_obj_dir = project_config.target_dir.map(|p| project_dir.join(p));
         config.base_obj_dir = project_config.base_dir.map(|p| project_dir.join(p));
