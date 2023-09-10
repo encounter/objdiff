@@ -377,13 +377,13 @@ fn asm_row_ui(
 
 fn asm_table_ui(
     table: TableBuilder<'_>,
-    left_obj: &ObjInfo,
-    right_obj: &ObjInfo,
+    left_obj: Option<&ObjInfo>,
+    right_obj: Option<&ObjInfo>,
     selected_symbol: &SymbolReference,
     appearance: &Appearance,
 ) -> Option<()> {
-    let left_symbol = find_symbol(left_obj, selected_symbol);
-    let right_symbol = find_symbol(right_obj, selected_symbol);
+    let left_symbol = left_obj.and_then(|obj| find_symbol(obj, selected_symbol));
+    let right_symbol = right_obj.and_then(|obj| find_symbol(obj, selected_symbol));
     let instructions_len = left_symbol.or(right_symbol).map(|s| s.instructions.len())?;
     table.body(|body| {
         body.rows(appearance.code_font.size, instructions_len, |row_index, mut row| {
@@ -492,7 +492,7 @@ pub fn function_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance
                                 &format!("{match_percent:.0}%"),
                             );
                         } else {
-                            ui.label("");
+                            ui.colored_label(appearance.replace_color, "Missing");
                         }
                         ui.label("Diff base:");
                     });
@@ -503,15 +503,19 @@ pub fn function_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance
     ui.separator();
 
     // Table
-    if let (Some(left_obj), Some(right_obj)) = (&result.first_obj, &result.second_obj) {
-        let available_height = ui.available_height();
-        let table = TableBuilder::new(ui)
-            .striped(false)
-            .cell_layout(Layout::left_to_right(Align::Min))
-            .columns(Column::exact(column_width).clip(true), 2)
-            .resizable(false)
-            .auto_shrink([false, false])
-            .min_scrolled_height(available_height);
-        asm_table_ui(table, left_obj, right_obj, selected_symbol, appearance);
-    }
+    let available_height = ui.available_height();
+    let table = TableBuilder::new(ui)
+        .striped(false)
+        .cell_layout(Layout::left_to_right(Align::Min))
+        .columns(Column::exact(column_width).clip(true), 2)
+        .resizable(false)
+        .auto_shrink([false, false])
+        .min_scrolled_height(available_height);
+    asm_table_ui(
+        table,
+        result.first_obj.as_ref(),
+        result.second_obj.as_ref(),
+        selected_symbol,
+        appearance,
+    );
 }

@@ -2483,6 +2483,7 @@ dependencies = [
  "rabbitizer",
  "reqwest",
  "rfd",
+ "ron",
  "self_update",
  "serde",
  "serde_json",

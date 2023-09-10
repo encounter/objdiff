@@ -132,31 +132,39 @@ fn split_diffs(diffs: &[ObjDataDiff]) -> Vec<Vec<ObjDataDiff>> {
 
 fn data_table_ui(
     table: TableBuilder<'_>,
-    left_obj: &ObjInfo,
-    right_obj: &ObjInfo,
+    left_obj: Option<&ObjInfo>,
+    right_obj: Option<&ObjInfo>,
     selected_symbol: &SymbolReference,
     config: &Appearance,
 ) -> Option<()> {
-    let left_section = find_section(left_obj, selected_symbol)?;
-    let right_section = find_section(right_obj, selected_symbol)?;
+    let left_section = left_obj.and_then(|obj| find_section(obj, selected_symbol));
+    let right_section = right_obj.and_then(|obj| find_section(obj, selected_symbol));
 
-    let total_bytes = left_section.data_diff.iter().fold(0usize, |accum, item| accum + item.len);
+    let total_bytes = left_section
+        .or(right_section)?
+        .data_diff
+        .iter()
+        .fold(0usize, |accum, item| accum + item.len);
     if total_bytes == 0 {
         return None;
     }
     let total_rows = (total_bytes - 1) / BYTES_PER_ROW + 1;
 
-    let left_diffs = split_diffs(&left_section.data_diff);
-    let right_diffs = split_diffs(&right_section.data_diff);
+    let left_diffs = left_section.map(|section| split_diffs(&section.data_diff));
+    let right_diffs = right_section.map(|section| split_diffs(&section.data_diff));
 
     table.body(|body| {
         body.rows(config.code_font.size, total_rows, |row_index, mut row| {
             let address = row_index * BYTES_PER_ROW;
             row.col(|ui| {
-                data_row_ui(ui, address, &left_diffs[row_index], config);
+                if let Some(left_diffs) = &left_diffs {
+                    data_row_ui(ui, address, &left_diffs[row_index], config);
+                }
             });
             row.col(|ui| {
-                data_row_ui(ui, address, &right_diffs[row_index], config);
+                if let Some(right_diffs) = &right_diffs {
+                    data_row_ui(ui, address, &right_diffs[row_index], config);
+                }
             });
         });
     });
@@ -243,15 +251,19 @@ pub fn data_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &A
     ui.separator();
 
     // Table
-    if let (Some(left_obj), Some(right_obj)) = (&result.first_obj, &result.second_obj) {
-        let available_height = ui.available_height();
-        let table = TableBuilder::new(ui)
-            .striped(false)
-            .cell_layout(Layout::left_to_right(Align::Min))
-            .columns(Column::exact(column_width).clip(true), 2)
-            .resizable(false)
-            .auto_shrink([false, false])
-            .min_scrolled_height(available_height);
-        data_table_ui(table, left_obj, right_obj, selected_symbol, appearance);
-    }
+    let available_height = ui.available_height();
+    let table = TableBuilder::new(ui)
+        .striped(false)
+        .cell_layout(Layout::left_to_right(Align::Min))
+        .columns(Column::exact(column_width).clip(true), 2)
+        .resizable(false)
+        .auto_shrink([false, false])
+        .min_scrolled_height(available_height);
+    data_table_ui(
+        table,
+        result.first_obj.as_ref(),
+        result.second_obj.as_ref(),
+        selected_symbol,
+        appearance,
+    );
 }

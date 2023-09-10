@@ -40,6 +40,7 @@ pub struct ConfigViewState {
     pub watch_pattern_text: String,
     pub load_error: Option<String>,
     pub object_search: String,
+    pub filter_diffable: bool,
     #[cfg(windows)]
     pub available_wsl_distros: Option<Vec<String>>,
 }
@@ -218,17 +219,19 @@ pub fn config_ui(
                         let target_path = target_dir.join(obj_path);
                         new_selected_obj = Some(ObjectConfig {
                             name: obj_path.display().to_string(),
-                            target_path,
-                            base_path: path,
+                            target_path: Some(target_path),
+                            base_path: Some(path),
                             reverse_fn_order: None,
+                            complete: None,
                         });
                     } else if let Ok(obj_path) = path.strip_prefix(&target_dir) {
                         let base_path = base_dir.join(obj_path);
                         new_selected_obj = Some(ObjectConfig {
                             name: obj_path.display().to_string(),
-                            target_path: path,
-                            base_path,
+                            target_path: Some(path),
+                            base_path: Some(base_path),
                             reverse_fn_order: None,
+                            complete: None,
                         });
                     }
                 }
@@ -266,6 +269,13 @@ pub fn config_ui(
                 root_open = Some(true);
                 node_open = NodeOpen::Object;
             }
+            if ui
+                .selectable_label(state.filter_diffable, "Diffable")
+                .on_hover_text_at_pointer("Only show objects with a source file")
+                .clicked()
+            {
+                state.filter_diffable = !state.filter_diffable;
+            }
         });
         if state.object_search.is_empty() {
             if had_search {
@@ -285,10 +295,13 @@ pub fn config_ui(
         .default_open(true)
         .show(ui, |ui| {
             let mut nodes = Cow::Borrowed(object_nodes);
-            if !state.object_search.is_empty() {
+            if !state.object_search.is_empty() || state.filter_diffable {
                 let search = state.object_search.to_ascii_lowercase();
                 nodes = Cow::Owned(
-                    object_nodes.iter().filter_map(|node| filter_node(node, &search)).collect(),
+                    object_nodes
+                        .iter()
+                        .filter_map(|node| filter_node(node, &search, state.filter_diffable))
+                        .collect(),
                 );
             }
 
@@ -322,8 +335,18 @@ fn display_object(
 ) {
     let object_name = object.name();
     let selected = matches!(selected_obj, Some(obj) if obj.name == object_name);
-    let color = if selected { appearance.emphasized_text_color } else { appearance.text_color };
-    if SelectableLabel::new(
+    let color = if selected {
+        appearance.emphasized_text_color
+    } else if let Some(complete) = object.complete {
+        if complete {
+            appearance.insert_color
+        } else {
+            appearance.delete_color
+        }
+    } else {
+        appearance.text_color
+    };
+    let clicked = SelectableLabel::new(
         selected,
         RichText::new(name)
             .font(FontId {
@@ -333,13 +356,16 @@ fn display_object(
             .color(color),
     )
     .ui(ui)
-    .clicked()
-    {
+    .clicked();
+    // Always recreate ObjectConfig if selected, in case the project config changed.
+    // ObjectConfig is compared using equality, so this won't unnecessarily trigger a rebuild.
+    if selected || clicked {
         *selected_obj = Some(ObjectConfig {
             name: object_name.to_string(),
-            target_path: object.target_path.clone().unwrap_or_default(),
-            base_path: object.base_path.clone().unwrap_or_default(),
+            target_path: object.target_path.clone(),
+            base_path: object.base_path.clone(),
             reverse_fn_order: object.reverse_fn_order,
+            complete: object.complete,
         });
     }
 }
@@ -404,21 +430,30 @@ fn contains_node(node: &ProjectObjectNode, selected_obj: &ObjectConfig) -> bool 
     }
 }
 
-fn filter_node(node: &ProjectObjectNode, search: &str) -> Option<ProjectObjectNode> {
+fn filter_node(
+    node: &ProjectObjectNode,
+    search: &str,
+    filter_diffable: bool,
+) -> Option<ProjectObjectNode> {
     match node {
-        ProjectObjectNode::File(name, _) => {
-            if name.to_ascii_lowercase().contains(search) {
+        ProjectObjectNode::File(name, object) => {
+            if (search.is_empty() || name.to_ascii_lowercase().contains(search))
+                && (!filter_diffable || object.base_path.is_some())
+            {
                 Some(node.clone())
             } else {
                 None
             }
         }
         ProjectObjectNode::Dir(name, children) => {
-            if name.to_ascii_lowercase().contains(search) {
+            if (search.is_empty() || name.to_ascii_lowercase().contains(search)) && !filter_diffable
+            {
                 return Some(node.clone());
             }
-            let new_children =
-                children.iter().filter_map(|child| filter_node(child, search)).collect::<Vec<_>>();
+            let new_children = children
+                .iter()
+                .filter_map(|child| filter_node(child, search, filter_diffable))
+                .collect::<Vec<_>>();
             if !new_children.is_empty() {
                 Some(ProjectObjectNode::Dir(name.clone(), new_children))
             } else {

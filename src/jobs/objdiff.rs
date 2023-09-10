@@ -79,56 +79,101 @@ fn run_build(
     let obj_config = config.selected_obj.as_ref().ok_or_else(|| Error::msg("Missing obj path"))?;
     let project_dir =
         config.project_dir.as_ref().ok_or_else(|| Error::msg("Missing project dir"))?;
-    let target_path_rel = obj_config.target_path.strip_prefix(project_dir).map_err(|_| {
-        anyhow!(
-            "Target path '{}' doesn't begin with '{}'",
-            obj_config.target_path.display(),
-            project_dir.display()
-        )
-    })?;
-    let base_path_rel = obj_config.base_path.strip_prefix(project_dir).map_err(|_| {
-        anyhow!(
-            "Base path '{}' doesn't begin with '{}'",
-            obj_config.base_path.display(),
-            project_dir.display()
-        )
-    })?;
+    let target_path_rel = if let Some(target_path) = &obj_config.target_path {
+        Some(target_path.strip_prefix(project_dir).map_err(|_| {
+            anyhow!(
+                "Target path '{}' doesn't begin with '{}'",
+                target_path.display(),
+                project_dir.display()
+            )
+        })?)
+    } else {
+        None
+    };
+    let base_path_rel = if let Some(base_path) = &obj_config.base_path {
+        Some(base_path.strip_prefix(project_dir).map_err(|_| {
+            anyhow!(
+                "Base path '{}' doesn't begin with '{}'",
+                base_path.display(),
+                project_dir.display()
+            )
+        })?)
+    } else {
+        None
+    };
 
-    let total = if config.build_target { 5 } else { 4 };
-    let first_status = if config.build_target {
-        update_status(status, format!("Building target {}", target_path_rel.display()), 0, total, &cancel)?;
-        run_make(project_dir, target_path_rel, &config)
+    let mut total = 3;
+    if config.build_target && target_path_rel.is_some() {
+        total += 1;
+    }
+    if base_path_rel.is_some() {
+        total += 1;
+    }
+    let first_status = match target_path_rel {
+        Some(target_path_rel) if config.build_target => {
+            update_status(
+                status,
+                format!("Building target {}", target_path_rel.display()),
+                0,
+                total,
+                &cancel,
+            )?;
+            run_make(project_dir, target_path_rel, &config)
+        }
+        _ => BuildStatus { success: true, log: String::new() },
+    };
+
+    let second_status = if let Some(base_path_rel) = base_path_rel {
+        update_status(
+            status,
+            format!("Building base {}", base_path_rel.display()),
+            1,
+            total,
+            &cancel,
+        )?;
+        run_make(project_dir, base_path_rel, &config)
     } else {
         BuildStatus { success: true, log: String::new() }
     };
 
-    update_status(status, format!("Building base {}", base_path_rel.display()), 1, total, &cancel)?;
-    let second_status = run_make(project_dir, base_path_rel, &config);
-
     let time = OffsetDateTime::now_utc();
 
-    let mut first_obj = if first_status.success {
-        update_status(status, format!("Loading target {}", target_path_rel.display()), 2, total, &cancel)?;
-        Some(elf::read(&obj_config.target_path).with_context(|| {
-            format!("Failed to read object '{}'", obj_config.target_path.display())
-        })?)
-    } else {
-        None
+    let mut first_obj =
+        match &obj_config.target_path {
+            Some(target_path) if first_status.success => {
+                update_status(
+                    status,
+                    format!("Loading target {}", target_path_rel.unwrap().display()),
+                    2,
+                    total,
+                    &cancel,
+                )?;
+                Some(elf::read(target_path).with_context(|| {
+                    format!("Failed to read object '{}'", target_path.display())
+                })?)
+            }
+            _ => None,
+        };
+
+    let mut second_obj = match &obj_config.base_path {
+        Some(base_path) if second_status.success => {
+            update_status(
+                status,
+                format!("Loading base {}", base_path_rel.unwrap().display()),
+                3,
+                total,
+                &cancel,
+            )?;
+            Some(
+                elf::read(base_path)
+                    .with_context(|| format!("Failed to read object '{}'", base_path.display()))?,
+            )
+        }
+        _ => None,
     };
 
-    let mut second_obj = if second_status.success {
-        update_status(status, format!("Loading base {}", base_path_rel.display()), 3, total, &cancel)?;
-        Some(elf::read(&obj_config.base_path).with_context(|| {
-            format!("Failed to read object '{}'", obj_config.base_path.display())
-        })?)
-    } else {
-        None
-    };
-
-    if let (Some(first_obj), Some(second_obj)) = (&mut first_obj, &mut second_obj) {
-        update_status(status, "Performing diff".to_string(), 4, total, &cancel)?;
-        diff_objs(first_obj, second_obj)?;
-    }
+    update_status(status, "Performing diff".to_string(), 4, total, &cancel)?;
+    diff_objs(first_obj.as_mut(), second_obj.as_mut())?;
 
     update_status(status, "Complete".to_string(), total, total, &cancel)?;
     Ok(Box::new(ObjDiffResult { first_status, second_status, first_obj, second_obj, time }))

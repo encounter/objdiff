@@ -14,13 +14,14 @@ use notify::{RecursiveMode, Watcher};
 use time::UtcOffset;
 
 use crate::{
+    app_config::{deserialize_config, AppConfigVersion},
     config::{
         build_globset, load_project_config, ProjectObject, ProjectObjectNode, CONFIG_FILENAMES,
     },
     jobs::{objdiff::start_build, Job, JobQueue, JobResult, JobStatus},
     views::{
         appearance::{appearance_window, Appearance},
-        config::{config_ui, project_window, ConfigViewState},
+        config::{config_ui, project_window, ConfigViewState, DEFAULT_WATCH_PATTERNS},
         data_diff::data_diff_ui,
         demangle::{demangle_window, DemangleViewState},
         function_diff::function_diff_ui,
@@ -44,16 +45,21 @@ pub struct ViewState {
 #[derive(Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct ObjectConfig {
     pub name: String,
-    pub target_path: PathBuf,
-    pub base_path: PathBuf,
+    pub target_path: Option<PathBuf>,
+    pub base_path: Option<PathBuf>,
     pub reverse_fn_order: Option<bool>,
+    pub complete: Option<bool>,
 }
 
 #[inline]
 fn bool_true() -> bool { true }
 
-#[derive(Default, Clone, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
 pub struct AppConfig {
+    // TODO: https://github.com/ron-rs/ron/pull/455
+    // #[serde(flatten)]
+    // pub version: AppConfigVersion,
+    pub version: u32,
     pub custom_make: Option<String>,
     pub selected_wsl_distro: Option<String>,
     pub project_dir: Option<PathBuf>,
@@ -80,6 +86,31 @@ pub struct AppConfig {
     pub queue_build: bool,
     #[serde(skip)]
     pub project_config_loaded: bool,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            version: AppConfigVersion::default().version,
+            custom_make: None,
+            selected_wsl_distro: None,
+            project_dir: None,
+            target_obj_dir: None,
+            base_obj_dir: None,
+            selected_obj: None,
+            build_target: false,
+            rebuild_on_changes: true,
+            auto_update_check: true,
+            watch_patterns: DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect(),
+            objects: vec![],
+            object_nodes: vec![],
+            watcher_change: false,
+            config_change: false,
+            obj_change: false,
+            queue_build: false,
+            project_config_loaded: false,
+        }
+    }
 }
 
 impl AppConfig {
@@ -133,8 +164,8 @@ pub struct App {
     should_relaunch: bool,
 }
 
-const APPEARANCE_KEY: &str = "appearance";
-const CONFIG_KEY: &str = "app_config";
+pub const APPEARANCE_KEY: &str = "appearance";
+pub const CONFIG_KEY: &str = "app_config";
 
 impl App {
     /// Called once before the first frame.
@@ -153,7 +184,7 @@ impl App {
             if let Some(appearance) = eframe::get_value::<Appearance>(storage, APPEARANCE_KEY) {
                 app.appearance = appearance;
             }
-            if let Some(mut config) = eframe::get_value::<AppConfig>(storage, CONFIG_KEY) {
+            if let Some(mut config) = deserialize_config(storage) {
                 if config.project_dir.is_some() {
                     config.config_change = true;
                     config.watcher_change = true;

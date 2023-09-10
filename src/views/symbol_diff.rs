@@ -1,7 +1,7 @@
 use std::mem::take;
 
 use egui::{
-    text::LayoutJob, Align, CollapsingHeader, Color32, Layout, Rgba, ScrollArea, SelectableLabel,
+    text::LayoutJob, Align, CollapsingHeader, Color32, Layout, ScrollArea, SelectableLabel,
     TextEdit, Ui, Vec2, Widget,
 };
 use egui_extras::{Size, StripBuilder};
@@ -263,6 +263,15 @@ fn build_log_ui(ui: &mut Ui, status: &BuildStatus, appearance: &Appearance) {
     });
 }
 
+fn missing_obj_ui(ui: &mut Ui, appearance: &Appearance) {
+    ui.scope(|ui| {
+        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+        ui.style_mut().wrap = Some(false);
+
+        ui.colored_label(appearance.replace_color, "No object configured");
+    });
+}
+
 pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appearance) {
     let DiffViewState { build, current_view, symbol_state, search, .. } = state;
     let Some(result) = build else {
@@ -289,9 +298,13 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
 
                         ui.label("Build target:");
                         if result.first_status.success {
-                            ui.label("OK");
+                            if result.first_obj.is_none() {
+                                ui.colored_label(appearance.replace_color, "Missing");
+                            } else {
+                                ui.label("OK");
+                            }
                         } else {
-                            ui.colored_label(Rgba::from_rgb(1.0, 0.0, 0.0), "Fail");
+                            ui.colored_label(appearance.delete_color, "Fail");
                         }
                     });
 
@@ -312,9 +325,13 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
 
                         ui.label("Build base:");
                         if result.second_status.success {
-                            ui.label("OK");
+                            if result.second_obj.is_none() {
+                                ui.colored_label(appearance.replace_color, "Missing");
+                            } else {
+                                ui.label("OK");
+                            }
                         } else {
-                            ui.colored_label(Rgba::from_rgb(1.0, 0.0, 0.0), "Fail");
+                            ui.colored_label(appearance.delete_color, "Fail");
                         }
                     });
 
@@ -348,6 +365,8 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                                     &lower_search,
                                     appearance,
                                 ));
+                            } else {
+                                missing_obj_ui(ui, appearance);
                             }
                         } else {
                             build_log_ui(ui, &result.first_status, appearance);
@@ -365,6 +384,8 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                                     &lower_search,
                                     appearance,
                                 ));
+                            } else {
+                                missing_obj_ui(ui, appearance);
                             }
                         } else {
                             build_log_ui(ui, &result.second_status, appearance);

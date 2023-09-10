@@ -42,6 +42,7 @@ png = "0.17.9"
 ppc750cl = { git = "https://github.com/terorie/ppc750cl", rev = "9ae36eef34aa6d74e00972c7671f547a2acfd0aa" }
 rabbitizer = "1.7.4"
 rfd = { version = "0.11.4" } #, default-features = false, features = ['xdg-portal']
+ron = "0.8.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.104"
 serde_yaml = "0.9.25"

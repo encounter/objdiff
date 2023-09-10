@@ -27,6 +27,7 @@ pub struct ProjectObject {
     pub target_path: Option<PathBuf>,
     pub base_path: Option<PathBuf>,
     pub reverse_fn_order: Option<bool>,
+    pub complete: Option<bool>,
 }
 
 impl ProjectObject {
