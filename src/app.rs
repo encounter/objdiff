@@ -71,6 +71,7 @@ pub struct AppConfig {
     pub rebuild_on_changes: bool,
     pub auto_update_check: bool,
     pub watch_patterns: Vec<Glob>,
+    pub recent_projects: Vec<PathBuf>,
 
     #[serde(skip)]
     pub objects: Vec<ProjectObject>,
@@ -102,6 +103,7 @@ impl Default for AppConfig {
             rebuild_on_changes: true,
             auto_update_check: true,
             watch_patterns: DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect(),
+            recent_projects: vec![],
             objects: vec![],
             object_nodes: vec![],
             watcher_change: false,
@@ -115,6 +117,11 @@ impl Default for AppConfig {
 
 impl AppConfig {
     pub fn set_project_dir(&mut self, path: PathBuf) {
+        self.recent_projects.retain(|p| p != &path);
+        if self.recent_projects.len() > 9 {
+            self.recent_projects.truncate(9);
+        }
+        self.recent_projects.insert(0, path.clone());
         self.project_dir = Some(path);
         self.target_obj_dir = None;
         self.base_obj_dir = None;
@@ -351,6 +358,23 @@ impl eframe::App for App {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
+                    let recent_projects = if let Ok(guard) = config.read() {
+                        guard.recent_projects.clone()
+                    } else {
+                        vec![]
+                    };
+                    if recent_projects.is_empty() {
+                        ui.add_enabled(false, egui::Button::new("Recent Projects…"));
+                    } else {
+                        ui.menu_button("Recent Projects…", |ui| {
+                            for path in recent_projects {
+                                if ui.button(format!("{}", path.display())).clicked() {
+                                    config.write().unwrap().set_project_dir(path);
+                                    ui.close_menu();
+                                }
+                            }
+                        });
+                    }
                     if ui.button("Appearance…").clicked() {
                         *show_appearance_config = !*show_appearance_config;
                         ui.close_menu();
