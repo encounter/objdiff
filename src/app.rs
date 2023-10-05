@@ -54,23 +54,38 @@ pub struct ObjectConfig {
 #[inline]
 fn bool_true() -> bool { true }
 
+#[inline]
+fn default_watch_patterns() -> Vec<Glob> {
+    DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect()
+}
+
 #[derive(Clone, serde::Deserialize, serde::Serialize)]
 pub struct AppConfig {
     // TODO: https://github.com/ron-rs/ron/pull/455
     // #[serde(flatten)]
     // pub version: AppConfigVersion,
     pub version: u32,
+    #[serde(default)]
     pub custom_make: Option<String>,
+    #[serde(default)]
     pub selected_wsl_distro: Option<String>,
+    #[serde(default)]
     pub project_dir: Option<PathBuf>,
+    #[serde(default)]
     pub target_obj_dir: Option<PathBuf>,
+    #[serde(default)]
     pub base_obj_dir: Option<PathBuf>,
+    #[serde(default)]
     pub selected_obj: Option<ObjectConfig>,
+    #[serde(default)]
     pub build_target: bool,
     #[serde(default = "bool_true")]
     pub rebuild_on_changes: bool,
+    #[serde(default)]
     pub auto_update_check: bool,
+    #[serde(default = "default_watch_patterns")]
     pub watch_patterns: Vec<Glob>,
+    #[serde(default)]
     pub recent_projects: Vec<PathBuf>,
 
     #[serde(skip)]
