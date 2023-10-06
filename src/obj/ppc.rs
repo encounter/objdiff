@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use anyhow::Result;
-use ppc750cl::{disasm_iter, Argument, Ins, SimplifiedIns};
+use ppc750cl::{disasm_iter, Argument, SimplifiedIns};
 
 use crate::obj::{ObjIns, ObjInsArg, ObjReloc, ObjRelocKind};
 
@@ -89,18 +89,8 @@ pub fn process_code(
             op: ins.op as u8,
             branch_dest: None,
             line,
-            orig: Some(format!("{}", basic_form(ins))),
+            orig: Some(format!("{}", SimplifiedIns::basic_form(ins))),
         });
     }
     Ok((ops, insts))
-}
-
-// TODO make public in ppc750cl
-fn basic_form(ins: Ins) -> SimplifiedIns {
-    SimplifiedIns {
-        mnemonic: ins.op.mnemonic(),
-        suffix: ins.suffix(),
-        args: ins.fields().iter().flat_map(|field| field.argument()).collect(),
-        ins,
-    }
 }

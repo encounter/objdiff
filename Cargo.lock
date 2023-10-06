@@ -2799,7 +2799,7 @@ checksum = "26f6a7b87c2e435a3241addceeeff740ff8b7e76b74c13bf9acb17fa454ea00b"
 [[package]]
 name = "ppc750cl"
 version = "0.2.0"
-source = "git+https://github.com/terorie/ppc750cl?rev=9ae36eef34aa6d74e00972c7671f547a2acfd0aa#9ae36eef34aa6d74e00972c7671f547a2acfd0aa"
+source = "git+https://github.com/encounter/ppc750cl?rev=4a2bbbc6f84dcb76255ab6f3595a8d4a0ce96618#4a2bbbc6f84dcb76255ab6f3595a8d4a0ce96618"
 dependencies = [
  "num-traits",
  "serde",
