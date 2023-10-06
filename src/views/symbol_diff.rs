@@ -13,7 +13,7 @@ use crate::{
         Job, JobQueue, JobResult,
     },
     obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags},
-    views::{appearance::Appearance, write_text},
+    views::{appearance::Appearance, function_diff::FunctionViewState, write_text},
 };
 
 pub struct SymbolReference {
@@ -35,6 +35,7 @@ pub struct DiffViewState {
     pub build: Option<Box<ObjDiffResult>>,
     pub current_view: View,
     pub symbol_state: SymbolViewState,
+    pub function_state: FunctionViewState,
     pub search: String,
     pub queue_build: bool,
     pub build_running: bool,

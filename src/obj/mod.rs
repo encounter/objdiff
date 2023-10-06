@@ -37,6 +37,7 @@ pub struct ObjSection {
     pub data_diff: Vec<ObjDataDiff>,
     pub match_percent: f32,
 }
+
 #[derive(Debug, Clone)]
 pub enum ObjInsArg {
     PpcArg(ppc750cl::Argument),
@@ -46,6 +47,40 @@ pub enum ObjInsArg {
     RelocWithBase,
     BranchOffset(i32),
 }
+
+// TODO derive PartialEq on ppc750cl::Argument so this isn't necessary
+impl PartialEq for ObjInsArg {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (ObjInsArg::PpcArg(a), ObjInsArg::PpcArg(b)) => {
+                use ppc750cl::Argument;
+                match (a, b) {
+                    (Argument::GPR(a), Argument::GPR(b)) => a == b,
+                    (Argument::FPR(a), Argument::FPR(b)) => a == b,
+                    (Argument::SR(a), Argument::SR(b)) => a == b,
+                    (Argument::SPR(a), Argument::SPR(b)) => a == b,
+                    (Argument::CRField(a), Argument::CRField(b)) => a == b,
+                    (Argument::CRBit(a), Argument::CRBit(b)) => a == b,
+                    (Argument::GQR(a), Argument::GQR(b)) => a == b,
+                    (Argument::Uimm(a), Argument::Uimm(b)) => a == b,
+                    (Argument::Simm(a), Argument::Simm(b)) => a == b,
+                    (Argument::Offset(a), Argument::Offset(b)) => a == b,
+                    (Argument::BranchDest(a), Argument::BranchDest(b)) => a == b,
+                    (Argument::Bit(a), Argument::Bit(b)) => a == b,
+                    (Argument::OpaqueU(a), Argument::OpaqueU(b)) => a == b,
+                    (_, _) => false,
+                }
+            }
+            (ObjInsArg::MipsArg(a), ObjInsArg::MipsArg(b)) => a == b,
+            (ObjInsArg::MipsArgWithBase(a), ObjInsArg::MipsArgWithBase(b)) => a == b,
+            (ObjInsArg::Reloc, ObjInsArg::Reloc) => true,
+            (ObjInsArg::RelocWithBase, ObjInsArg::RelocWithBase) => true,
+            (ObjInsArg::BranchOffset(a), ObjInsArg::BranchOffset(b)) => a == b,
+            (_, _) => false,
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct ObjInsArgDiff {
     /// Incrementing index for coloring
@@ -86,6 +121,8 @@ pub struct ObjIns {
     pub branch_dest: Option<u32>,
     /// Line info
     pub line: Option<u32>,
+    /// Original (unsimplified) instruction
+    pub orig: Option<String>,
 }
 #[derive(Debug, Clone, Default)]
 pub struct ObjInsDiff {

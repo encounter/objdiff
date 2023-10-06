@@ -91,6 +91,7 @@ pub fn process_code(
             reloc: reloc.cloned(),
             branch_dest,
             line,
+            orig: None,
         });
         cur_addr += 4;
     }
