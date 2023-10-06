@@ -2,7 +2,7 @@
 name = "objdiff"
 version = "0.5.0"
 edition = "2021"
-rust-version = "1.65"
+rust-version = "1.70"
 authors = ["Luke Street <luke@street.dev>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/encounter/objdiff"
@@ -22,46 +22,46 @@ default = []
 wgpu = ["eframe/wgpu"]
 
 [dependencies]
-anyhow = "1.0.71"
-byteorder = "1.4.3"
-bytes = "1.4.0"
+anyhow = "1.0.75"
+byteorder = "1.5.0"
+bytes = "1.5.0"
 cfg-if = "1.0.0"
 const_format = "0.2.31"
 cwdemangle = "0.1.6"
 dirs = "5.0.1"
-eframe = { version = "0.22.0", features = ["persistence"] }
-egui = "0.22.0"
-egui_extras = "0.22.0"
-flagset = "0.4.3"
+eframe = { version = "0.23.0", features = ["persistence"] }
+egui = "0.23.0"
+egui_extras = "0.23.0"
+flagset = "0.4.4"
 globset = { version = "0.4.13", features = ["serde1"] }
-log = "0.4.19"
-memmap2 = "0.7.1"
-notify = "6.0.1"
-object = { version = "0.31.1", features = ["read_core", "std", "elf"], default-features = false }
-png = "0.17.9"
+log = "0.4.20"
+memmap2 = "0.9.0"
+notify = "6.1.1"
+object = { version = "0.32.1", features = ["read_core", "std", "elf"], default-features = false }
+png = "0.17.10"
 ppc750cl = { git = "https://github.com/terorie/ppc750cl", rev = "9ae36eef34aa6d74e00972c7671f547a2acfd0aa" }
-rabbitizer = "1.7.4"
-rfd = { version = "0.11.4" } #, default-features = false, features = ['xdg-portal']
-ron = "0.8.0"
-semver = "1.0.17"
+rabbitizer = "1.7.10"
+rfd = { version = "0.12.0" } #, default-features = false, features = ['xdg-portal']
+ron = "0.8.1"
+semver = "1.0.19"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1.0.104"
+serde_json = "1.0.107"
 serde_yaml = "0.9.25"
-tempfile = "3.6.0"
-thiserror = "1.0.41"
-time = { version = "0.3.22", features = ["formatting", "local-offset"] }
-toml = "0.7.6"
+tempfile = "3.8.0"
+thiserror = "1.0.49"
+time = { version = "0.3.29", features = ["formatting", "local-offset"] }
+toml = "0.8.2"
 twox-hash = "1.6.3"
 
 # For Linux static binaries, use rustls
 [target.'cfg(target_os = "linux")'.dependencies]
-reqwest = { version = "0.11.18", default-features = false, features = ["blocking", "json", "rustls"] }
-self_update = { version = "0.37.0", default-features = false, features = ["rustls"] }
+reqwest = { version = "0.11.22", default-features = false, features = ["blocking", "json", "rustls"] }
+self_update = { version = "0.38.0", default-features = false, features = ["rustls"] }
 
 # For all other platforms, use native TLS
 [target.'cfg(not(target_os = "linux"))'.dependencies]
-reqwest = "0.11.18"
-self_update = "0.37.0"
+reqwest = "0.11.22"
+self_update = "0.38.0"
 
 [target.'cfg(windows)'.dependencies]
 path-slash = "0.2.1"
@@ -83,5 +83,5 @@ console_error_panic_hook = "0.1.7"
 tracing-wasm = "0.2"
 
 [build-dependencies]
-anyhow = "1.0.71"
-vergen = { version = "8.2.4", features = ["build", "cargo", "git", "gitcl"] }
+anyhow = "1.0.75"
+vergen = { version = "8.2.5", features = ["build", "cargo", "git", "gitcl"] }
