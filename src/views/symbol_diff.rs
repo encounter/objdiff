@@ -47,6 +47,7 @@ pub struct SymbolViewState {
     pub selected_symbol: Option<SymbolReference>,
     pub reverse_fn_order: bool,
     pub disable_reverse_fn_order: bool,
+    pub show_hidden_symbols: bool,
 }
 
 impl DiffViewState {
@@ -136,6 +137,9 @@ fn symbol_ui(
     state: &mut SymbolViewState,
     appearance: &Appearance,
 ) -> Option<View> {
+    if symbol.flags.0.contains(ObjSymbolFlags::Hidden) && !state.show_hidden_symbols {
+        return None;
+    }
     let mut ret = None;
     let mut job = LayoutJob::default();
     let name: &str =
@@ -154,6 +158,9 @@ fn symbol_ui(
     }
     if symbol.flags.0.contains(ObjSymbolFlags::Weak) {
         write_text("w", appearance.text_color, &mut job, appearance.code_font.clone());
+    }
+    if symbol.flags.0.contains(ObjSymbolFlags::Hidden) {
+        write_text("h", appearance.deemphasized_text_color, &mut job, appearance.code_font.clone());
     }
     write_text("] ", appearance.text_color, &mut job, appearance.code_font.clone());
     if let Some(match_percent) = symbol.match_percent {
@@ -336,13 +343,9 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                         }
                     });
 
-                    ui.add_enabled(
-                        !symbol_state.disable_reverse_fn_order,
-                        egui::Checkbox::new(
-                            &mut symbol_state.reverse_fn_order,
-                            "Reverse function order (-inline deferred)",
-                        ),
-                    );
+                    if ui.add_enabled(!state.build_running, egui::Button::new("Build")).clicked() {
+                        state.queue_build = true;
+                    }
                 },
             );
         },

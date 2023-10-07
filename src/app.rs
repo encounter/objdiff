@@ -373,15 +373,23 @@ impl eframe::App for App {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
+                    if ui.button("Project…").clicked() {
+                        *show_project_config = !*show_project_config;
+                        ui.close_menu();
+                    }
                     let recent_projects = if let Ok(guard) = config.read() {
                         guard.recent_projects.clone()
                     } else {
                         vec![]
                     };
                     if recent_projects.is_empty() {
-                        ui.add_enabled(false, egui::Button::new("Recent Projects…"));
+                        ui.add_enabled(false, egui::Button::new("Recent projects…"));
                     } else {
                         ui.menu_button("Recent Projects…", |ui| {
+                            if ui.button("Clear").clicked() {
+                                config.write().unwrap().recent_projects.clear();
+                            };
+                            ui.separator();
                             for path in recent_projects {
                                 if ui.button(format!("{}", path.display())).clicked() {
                                     config.write().unwrap().set_project_dir(path);
@@ -403,6 +411,29 @@ impl eframe::App for App {
                         *show_demangle = !*show_demangle;
                         ui.close_menu();
                     }
+                });
+                ui.menu_button("Diff Options", |ui| {
+                    let mut config = config.write().unwrap();
+                    let response = ui
+                        .checkbox(&mut config.rebuild_on_changes, "Rebuild on changes")
+                        .on_hover_text("Automatically re-run the build & diff when files change.");
+                    if response.changed() {
+                        config.watcher_change = true;
+                    };
+                    ui.add_enabled(
+                        !diff_state.symbol_state.disable_reverse_fn_order,
+                        egui::Checkbox::new(
+                            &mut diff_state.symbol_state.reverse_fn_order,
+                            "Reverse function order (-inline deferred)",
+                        ),
+                    )
+                    .on_disabled_hover_text(
+                        "Option disabled because it's set by the project configuration file.",
+                    );
+                    ui.checkbox(
+                        &mut diff_state.symbol_state.show_hidden_symbols,
+                        "Show hidden symbols",
+                    );
                 });
             });
         });

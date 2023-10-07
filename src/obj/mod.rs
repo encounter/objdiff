@@ -18,6 +18,7 @@ flags! {
         Local,
         Weak,
         Common,
+        Hidden,
     }
 }
 #[derive(Debug, Copy, Clone, Default)]

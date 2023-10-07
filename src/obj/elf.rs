@@ -6,7 +6,7 @@ use cwdemangle::demangle;
 use flagset::Flags;
 use object::{
     elf, Architecture, File, Object, ObjectSection, ObjectSymbol, RelocationKind, RelocationTarget,
-    SectionIndex, SectionKind, Symbol, SymbolKind, SymbolSection,
+    SectionIndex, SectionKind, Symbol, SymbolKind, SymbolScope, SymbolSection,
 };
 
 use crate::obj::{
@@ -41,6 +41,9 @@ fn to_obj_symbol(obj_file: &File<'_>, symbol: &Symbol<'_, '_>, addend: i64) -> R
     }
     if symbol.is_weak() {
         flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Weak);
+    }
+    if symbol.scope() == SymbolScope::Linkage {
+        flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Hidden);
     }
     let section_address = if let Some(section) =
         symbol.section_index().and_then(|idx| obj_file.section_by_index(idx).ok())
