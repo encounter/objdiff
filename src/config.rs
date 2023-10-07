@@ -1,33 +1,54 @@
 use std::{
     fs::File,
+    io::Read,
     path::{Component, Path, PathBuf},
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
+use filetime::FileTime;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 
-use crate::{app::AppConfig, views::config::DEFAULT_WATCH_PATTERNS};
+use crate::{
+    app::{AppConfig, ProjectConfigInfo},
+    views::config::DEFAULT_WATCH_PATTERNS,
+};
+
+#[inline]
+fn bool_true() -> bool { true }
 
 #[derive(Default, Clone, serde::Deserialize)]
-#[serde(default)]
 pub struct ProjectConfig {
+    #[serde(default)]
     pub min_version: Option<String>,
+    #[serde(default)]
     pub custom_make: Option<String>,
+    #[serde(default)]
     pub target_dir: Option<PathBuf>,
+    #[serde(default)]
     pub base_dir: Option<PathBuf>,
+    #[serde(default = "bool_true")]
+    pub build_base: bool,
+    #[serde(default)]
     pub build_target: bool,
+    #[serde(default)]
     pub watch_patterns: Option<Vec<Glob>>,
-    #[serde(alias = "units")]
+    #[serde(default, alias = "units")]
     pub objects: Vec<ProjectObject>,
 }
 
 #[derive(Default, Clone, serde::Deserialize)]
 pub struct ProjectObject {
+    #[serde(default)]
     pub name: Option<String>,
+    #[serde(default)]
     pub path: Option<PathBuf>,
+    #[serde(default)]
     pub target_path: Option<PathBuf>,
+    #[serde(default)]
     pub base_path: Option<PathBuf>,
+    #[serde(default)]
     pub reverse_fn_order: Option<bool>,
+    #[serde(default)]
     pub complete: Option<bool>,
 }
 
@@ -120,7 +141,7 @@ pub fn load_project_config(config: &mut AppConfig) -> Result<()> {
     let Some(project_dir) = &config.project_dir else {
         return Ok(());
     };
-    if let Some(result) = try_project_config(project_dir) {
+    if let Some((result, info)) = try_project_config(project_dir) {
         let project_config = result?;
         if let Some(min_version) = &project_config.min_version {
             let version_str = env!("CARGO_PKG_VERSION");
@@ -133,6 +154,7 @@ pub fn load_project_config(config: &mut AppConfig) -> Result<()> {
         config.custom_make = project_config.custom_make;
         config.target_obj_dir = project_config.target_dir.map(|p| project_dir.join(p));
         config.base_obj_dir = project_config.base_dir.map(|p| project_dir.join(p));
+        config.build_base = project_config.build_base;
         config.build_target = project_config.build_target;
         config.watch_patterns = project_config.watch_patterns.unwrap_or_else(|| {
             DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect()
@@ -141,34 +163,39 @@ pub fn load_project_config(config: &mut AppConfig) -> Result<()> {
         config.objects = project_config.objects;
         config.object_nodes =
             build_nodes(&config.objects, project_dir, &config.target_obj_dir, &config.base_obj_dir);
-        config.project_config_loaded = true;
+        config.project_config_info = Some(info);
     }
     Ok(())
 }
 
-fn try_project_config(dir: &Path) -> Option<Result<ProjectConfig>> {
+fn try_project_config(dir: &Path) -> Option<(Result<ProjectConfig>, ProjectConfigInfo)> {
     for filename in CONFIG_FILENAMES.iter() {
         let config_path = dir.join(filename);
-        if config_path.is_file() {
-            return match filename.contains("json") {
-                true => Some(read_json_config(&config_path)),
-                false => Some(read_yml_config(&config_path)),
+        let Ok(mut file) = File::open(&config_path) else {
+            continue;
+        };
+        let metadata = file.metadata();
+        if let Ok(metadata) = metadata {
+            if !metadata.is_file() {
+                continue;
+            }
+            let ts = FileTime::from_last_modification_time(&metadata);
+            let config = match filename.contains("json") {
+                true => read_json_config(&mut file),
+                false => read_yml_config(&mut file),
             };
+            return Some((config, ProjectConfigInfo { path: config_path, timestamp: ts }));
         }
     }
     None
 }
 
-fn read_yml_config(config_path: &Path) -> Result<ProjectConfig> {
-    let mut reader = File::open(config_path)
-        .with_context(|| format!("Failed to open config file '{}'", config_path.display()))?;
-    Ok(serde_yaml::from_reader(&mut reader)?)
+fn read_yml_config<R: Read>(reader: &mut R) -> Result<ProjectConfig> {
+    Ok(serde_yaml::from_reader(reader)?)
 }
 
-fn read_json_config(config_path: &Path) -> Result<ProjectConfig> {
-    let mut reader = File::open(config_path)
-        .with_context(|| format!("Failed to open config file '{}'", config_path.display()))?;
-    Ok(serde_json::from_reader(&mut reader)?)
+fn read_json_config<R: Read>(reader: &mut R) -> Result<ProjectConfig> {
+    Ok(serde_json::from_reader(reader)?)
 }
 
 pub fn build_globset(vec: &[Glob]) -> std::result::Result<GlobSet, globset::Error> {

@@ -4,6 +4,7 @@ pub mod ppc;
 
 use std::{collections::BTreeMap, path::PathBuf};
 
+use filetime::FileTime;
 use flagset::{flags, FlagSet};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -144,6 +145,7 @@ pub enum ObjArchitecture {
 pub struct ObjInfo {
     pub architecture: ObjArchitecture,
     pub path: PathBuf,
+    pub timestamp: FileTime,
     pub sections: Vec<ObjSection>,
     pub common: Vec<ObjSymbol>,
     pub line_info: Option<BTreeMap<u32, u32>>,

@@ -32,6 +32,7 @@ dirs = "5.0.1"
 eframe = { version = "0.23.0", features = ["persistence"] }
 egui = "0.23.0"
 egui_extras = "0.23.0"
+filetime = "0.2.22"
 flagset = "0.4.4"
 globset = { version = "0.4.13", features = ["serde1"] }
 log = "0.4.20"

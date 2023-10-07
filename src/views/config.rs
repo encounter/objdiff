@@ -616,7 +616,7 @@ fn split_obj_config_ui(
                 ui.label(job);
             },
             appearance,
-            !config.project_config_loaded,
+            config.project_config_info.is_none(),
         );
         if response.clicked() {
             if let Some(path) = rfd::FileDialog::new().set_directory(&project_dir).pick_folder() {
@@ -666,13 +666,36 @@ fn split_obj_config_ui(
                 ui.label(job);
             },
             appearance,
-            !config.project_config_loaded,
+            config.project_config_info.is_none(),
         );
         if response.clicked() {
             if let Some(path) = rfd::FileDialog::new().set_directory(&project_dir).pick_folder() {
                 config.set_base_obj_dir(path);
             }
         }
+        ui.checkbox(&mut config.build_base, "Build base objects").on_hover_ui(|ui| {
+            let mut job = LayoutJob::default();
+            job.append(
+                "Tells the build system to produce the base object.\n",
+                0.0,
+                text_format.clone(),
+            );
+            job.append("For example, this would call ", 0.0, text_format.clone());
+            job.append("make path/to/base.o", 0.0, code_format.clone());
+            job.append(".\n\n", 0.0, text_format.clone());
+            job.append(
+                "This can be disabled if you're running the build system\n",
+                0.0,
+                text_format.clone(),
+            );
+            job.append(
+                "externally, and just want objdiff to reload the files\n",
+                0.0,
+                text_format.clone(),
+            );
+            job.append("when they change.", 0.0, text_format.clone());
+            ui.label(job);
+        });
         ui.separator();
     }
 

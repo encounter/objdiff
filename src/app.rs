@@ -1,5 +1,6 @@
 use std::{
     default::Default,
+    fs,
     path::{Path, PathBuf},
     rc::Rc,
     sync::{
@@ -9,16 +10,18 @@ use std::{
     time::Duration,
 };
 
-use globset::{Glob, GlobSet, GlobSetBuilder};
+use filetime::FileTime;
+use globset::{Glob, GlobSet};
 use notify::{RecursiveMode, Watcher};
 use time::UtcOffset;
 
 use crate::{
     app_config::{deserialize_config, AppConfigVersion},
-    config::{
-        build_globset, load_project_config, ProjectObject, ProjectObjectNode, CONFIG_FILENAMES,
+    config::{build_globset, load_project_config, ProjectObject, ProjectObjectNode},
+    jobs::{
+        objdiff::{start_build, ObjDiffConfig},
+        Job, JobQueue, JobResult, JobStatus,
     },
-    jobs::{objdiff::start_build, Job, JobQueue, JobResult, JobStatus},
     views::{
         appearance::{appearance_window, Appearance},
         config::{config_ui, project_window, ConfigViewState, DEFAULT_WATCH_PATTERNS},
@@ -51,6 +54,12 @@ pub struct ObjectConfig {
     pub complete: Option<bool>,
 }
 
+#[derive(Clone, Eq, PartialEq)]
+pub struct ProjectConfigInfo {
+    pub path: PathBuf,
+    pub timestamp: FileTime,
+}
+
 #[inline]
 fn bool_true() -> bool { true }
 
@@ -77,6 +86,8 @@ pub struct AppConfig {
     pub base_obj_dir: Option<PathBuf>,
     #[serde(default)]
     pub selected_obj: Option<ObjectConfig>,
+    #[serde(default = "bool_true")]
+    pub build_base: bool,
     #[serde(default)]
     pub build_target: bool,
     #[serde(default = "bool_true")]
@@ -101,7 +112,9 @@ pub struct AppConfig {
     #[serde(skip)]
     pub queue_build: bool,
     #[serde(skip)]
-    pub project_config_loaded: bool,
+    pub queue_reload: bool,
+    #[serde(skip)]
+    pub project_config_info: Option<ProjectConfigInfo>,
 }
 
 impl Default for AppConfig {
@@ -114,6 +127,7 @@ impl Default for AppConfig {
             target_obj_dir: None,
             base_obj_dir: None,
             selected_obj: None,
+            build_base: true,
             build_target: false,
             rebuild_on_changes: true,
             auto_update_check: true,
@@ -125,7 +139,8 @@ impl Default for AppConfig {
             config_change: false,
             obj_change: false,
             queue_build: false,
-            project_config_loaded: false,
+            queue_reload: false,
+            project_config_info: None,
         }
     }
 }
@@ -148,7 +163,7 @@ impl AppConfig {
         self.config_change = true;
         self.obj_change = true;
         self.queue_build = false;
-        self.project_config_loaded = false;
+        self.project_config_info = None;
     }
 
     pub fn set_target_obj_dir(&mut self, path: PathBuf) {
@@ -180,7 +195,6 @@ pub struct App {
     view_state: ViewState,
     config: AppConfigRef,
     modified: Arc<AtomicBool>,
-    config_modified: Arc<AtomicBool>,
     watcher: Option<notify::RecommendedWatcher>,
     relaunch_path: Rc<Mutex<Option<PathBuf>>>,
     should_relaunch: bool,
@@ -286,8 +300,10 @@ impl App {
         };
         let config = &mut *config;
 
-        if self.config_modified.swap(false, Ordering::Relaxed) {
-            config.config_change = true;
+        if let Some(info) = &config.project_config_info {
+            if file_modified(&info.path, info.timestamp) {
+                config.config_change = true;
+            }
         }
 
         if config.config_change {
@@ -305,21 +321,14 @@ impl App {
             drop(self.watcher.take());
 
             if let Some(project_dir) = &config.project_dir {
-                if !config.watch_patterns.is_empty() {
-                    match build_globset(&config.watch_patterns)
-                        .map_err(anyhow::Error::new)
-                        .and_then(|globset| {
-                            create_watcher(
-                                self.modified.clone(),
-                                self.config_modified.clone(),
-                                project_dir,
-                                globset,
-                            )
+                match build_globset(&config.watch_patterns).map_err(anyhow::Error::new).and_then(
+                    |globset| {
+                        create_watcher(self.modified.clone(), project_dir, globset)
                             .map_err(anyhow::Error::new)
-                        }) {
-                        Ok(watcher) => self.watcher = Some(watcher),
-                        Err(e) => log::error!("Failed to create watcher: {e}"),
-                    }
+                    },
+                ) {
+                    Ok(watcher) => self.watcher = Some(watcher),
+                    Err(e) => log::error!("Failed to create watcher: {e}"),
                 }
                 config.watcher_change = false;
             }
@@ -337,11 +346,32 @@ impl App {
             config.queue_build = true;
         }
 
+        if let Some(result) = &diff_state.build {
+            if let Some(obj) = &result.first_obj {
+                if file_modified(&obj.path, obj.timestamp) {
+                    config.queue_reload = true;
+                }
+            }
+            if let Some(obj) = &result.second_obj {
+                if file_modified(&obj.path, obj.timestamp) {
+                    config.queue_reload = true;
+                }
+            }
+        }
+
         // Don't clear `queue_build` if a build is running. A file may have been modified during
         // the build, so we'll start another build after the current one finishes.
         if config.queue_build && config.selected_obj.is_some() && !jobs.is_running(Job::ObjDiff) {
-            jobs.push(start_build(self.config.clone()));
+            jobs.push(start_build(ObjDiffConfig::from_config(config)));
             config.queue_build = false;
+            config.queue_reload = false;
+        } else if config.queue_reload && !jobs.is_running(Job::ObjDiff) {
+            let mut diff_config = ObjDiffConfig::from_config(config);
+            // Don't build, just reload the current files
+            diff_config.build_base = false;
+            diff_config.build_target = false;
+            jobs.push(start_build(diff_config));
+            config.queue_reload = false;
         }
     }
 }
@@ -486,16 +516,9 @@ impl eframe::App for App {
 
 fn create_watcher(
     modified: Arc<AtomicBool>,
-    config_modified: Arc<AtomicBool>,
     project_dir: &Path,
     patterns: GlobSet,
 ) -> notify::Result<notify::RecommendedWatcher> {
-    let mut config_patterns = GlobSetBuilder::new();
-    for filename in CONFIG_FILENAMES {
-        config_patterns.add(Glob::new(filename).unwrap());
-    }
-    let config_patterns = config_patterns.build().unwrap();
-
     let base_dir = project_dir.to_owned();
     let mut watcher =
         notify::recommended_watcher(move |res: notify::Result<notify::Event>| match res {
@@ -510,9 +533,7 @@ fn create_watcher(
                         let Ok(path) = path.strip_prefix(&base_dir) else {
                             continue;
                         };
-                        if config_patterns.is_match(path) {
-                            config_modified.store(true, Ordering::Relaxed);
-                        } else if patterns.is_match(path) {
+                        if patterns.is_match(path) {
                             modified.store(true, Ordering::Relaxed);
                         }
                     }
@@ -522,4 +543,13 @@ fn create_watcher(
         })?;
     watcher.watch(project_dir, RecursiveMode::Recursive)?;
     Ok(watcher)
+}
+
+#[inline]
+fn file_modified(path: &Path, last_ts: FileTime) -> bool {
+    if let Ok(metadata) = fs::metadata(path) {
+        FileTime::from_last_modification_time(&metadata) != last_ts
+    } else {
+        false
+    }
 }

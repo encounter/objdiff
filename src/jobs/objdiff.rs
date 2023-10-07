@@ -1,10 +1,15 @@
-use std::{path::Path, process::Command, str::from_utf8, sync::mpsc::Receiver};
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+    str::from_utf8,
+    sync::mpsc::Receiver,
+};
 
 use anyhow::{anyhow, Context, Error, Result};
 use time::OffsetDateTime;
 
 use crate::{
-    app::{AppConfig, AppConfigRef},
+    app::{AppConfig, ObjectConfig},
     diff::diff_objs,
     jobs::{start_job, update_status, Job, JobResult, JobState, JobStatusRef},
     obj::{elf, ObjInfo},
@@ -15,6 +20,28 @@ pub struct BuildStatus {
     pub log: String,
 }
 
+pub struct ObjDiffConfig {
+    pub build_base: bool,
+    pub build_target: bool,
+    pub custom_make: Option<String>,
+    pub project_dir: Option<PathBuf>,
+    pub selected_obj: Option<ObjectConfig>,
+    pub selected_wsl_distro: Option<String>,
+}
+
+impl ObjDiffConfig {
+    pub(crate) fn from_config(config: &AppConfig) -> Self {
+        ObjDiffConfig {
+            build_base: config.build_base,
+            build_target: config.build_target,
+            custom_make: config.custom_make.clone(),
+            project_dir: config.project_dir.clone(),
+            selected_obj: config.selected_obj.clone(),
+            selected_wsl_distro: config.selected_wsl_distro.clone(),
+        }
+    }
+}
+
 pub struct ObjDiffResult {
     pub first_status: BuildStatus,
     pub second_status: BuildStatus,
@@ -23,7 +50,7 @@ pub struct ObjDiffResult {
     pub time: OffsetDateTime,
 }
 
-fn run_make(cwd: &Path, arg: &Path, config: &AppConfig) -> BuildStatus {
+fn run_make(cwd: &Path, arg: &Path, config: &ObjDiffConfig) -> BuildStatus {
     match (|| -> Result<BuildStatus> {
         let make = config.custom_make.as_deref().unwrap_or("make");
         #[cfg(not(windows))]
@@ -73,9 +100,8 @@ fn run_make(cwd: &Path, arg: &Path, config: &AppConfig) -> BuildStatus {
 fn run_build(
     status: &JobStatusRef,
     cancel: Receiver<()>,
-    config: AppConfigRef,
+    config: ObjDiffConfig,
 ) -> Result<Box<ObjDiffResult>> {
-    let config = config.read().map_err(|_| Error::msg("Failed to lock app config"))?.clone();
     let obj_config = config.selected_obj.as_ref().ok_or_else(|| Error::msg("Missing obj path"))?;
     let project_dir =
         config.project_dir.as_ref().ok_or_else(|| Error::msg("Missing project dir"))?;
@@ -106,7 +132,7 @@ fn run_build(
     if config.build_target && target_path_rel.is_some() {
         total += 1;
     }
-    if base_path_rel.is_some() {
+    if config.build_base && base_path_rel.is_some() {
         total += 1;
     }
     let first_status = match target_path_rel {
@@ -123,17 +149,18 @@ fn run_build(
         _ => BuildStatus { success: true, log: String::new() },
     };
 
-    let second_status = if let Some(base_path_rel) = base_path_rel {
-        update_status(
-            status,
-            format!("Building base {}", base_path_rel.display()),
-            1,
-            total,
-            &cancel,
-        )?;
-        run_make(project_dir, base_path_rel, &config)
-    } else {
-        BuildStatus { success: true, log: String::new() }
+    let second_status = match base_path_rel {
+        Some(base_path_rel) if config.build_base => {
+            update_status(
+                status,
+                format!("Building base {}", base_path_rel.display()),
+                0,
+                total,
+                &cancel,
+            )?;
+            run_make(project_dir, base_path_rel, &config)
+        }
+        _ => BuildStatus { success: true, log: String::new() },
     };
 
     let time = OffsetDateTime::now_utc();
@@ -179,7 +206,7 @@ fn run_build(
     Ok(Box::new(ObjDiffResult { first_status, second_status, first_obj, second_obj, time }))
 }
 
-pub fn start_build(config: AppConfigRef) -> JobState {
+pub fn start_build(config: ObjDiffConfig) -> JobState {
     start_job("Object diff", Job::ObjDiff, move |status, cancel| {
         run_build(status, cancel, config).map(|result| JobResult::ObjDiff(Some(result)))
     })

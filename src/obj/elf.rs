@@ -3,6 +3,7 @@ use std::{collections::BTreeMap, fs, io::Cursor, path::Path};
 use anyhow::{anyhow, bail, Context, Result};
 use byteorder::{BigEndian, ReadBytesExt};
 use cwdemangle::demangle;
+use filetime::FileTime;
 use flagset::Flags;
 use object::{
     elf, Architecture, File, Object, ObjectSection, ObjectSymbol, RelocationKind, RelocationTarget,
@@ -304,9 +305,10 @@ fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u32, u32>>> {
 }
 
 pub fn read(obj_path: &Path) -> Result<ObjInfo> {
-    let data = {
+    let (data, timestamp) = {
         let file = fs::File::open(obj_path)?;
-        unsafe { memmap2::Mmap::map(&file) }?
+        let timestamp = FileTime::from_last_modification_time(&file.metadata()?);
+        (unsafe { memmap2::Mmap::map(&file) }?, timestamp)
     };
     let obj_file = File::parse(&*data)?;
     let architecture = match obj_file.architecture() {
@@ -322,6 +324,7 @@ pub fn read(obj_path: &Path) -> Result<ObjInfo> {
     let mut result = ObjInfo {
         architecture,
         path: obj_path.to_owned(),
+        timestamp,
         sections: filter_sections(&obj_file)?,
         common: common_symbols(&obj_file)?,
         line_info: line_info(&obj_file)?,
