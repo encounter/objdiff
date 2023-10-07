@@ -163,7 +163,11 @@ fn write_ins(
         } else {
             Color32::TRANSPARENT
         });
-    if ui.add(Label::new(op_label).sense(Sense::click())).clicked() {
+    if ui
+        .add(Label::new(op_label).sense(Sense::click()))
+        .context_menu(|ui| ins_context_menu(ui, ins))
+        .clicked()
+    {
         if highlighted_op {
             ins_view_state.highlight = HighlightKind::None;
         } else {
@@ -262,7 +266,11 @@ fn write_ins(
             write_text(")", base_color, &mut job, appearance.code_font.clone());
         }
         writing_offset = new_writing_offset;
-        if ui.add(Label::new(job).sense(Sense::click())).clicked() {
+        if ui
+            .add(Label::new(job).sense(Sense::click()))
+            .context_menu(|ui| ins_context_menu(ui, ins))
+            .clicked()
+        {
             if highlighted_arg {
                 ins_view_state.highlight = HighlightKind::None;
             } else if matches!(arg, ObjInsArg::Reloc | ObjInsArg::RelocWithBase) {
@@ -444,7 +452,11 @@ fn asm_row_ui(
         },
         ..Default::default()
     });
-    if ui.add(Label::new(job).sense(Sense::click())).clicked() {
+    if ui
+        .add(Label::new(job).sense(Sense::click()))
+        .context_menu(|ui| ins_context_menu(ui, ins))
+        .clicked()
+    {
         if addr_highlight {
             ins_view_state.highlight = HighlightKind::None;
         } else {
