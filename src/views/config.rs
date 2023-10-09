@@ -438,7 +438,8 @@ fn filter_node(
     match node {
         ProjectObjectNode::File(name, object) => {
             if (search.is_empty() || name.to_ascii_lowercase().contains(search))
-                && (!filter_diffable || object.base_path.is_some())
+                && (!filter_diffable
+                    || (object.base_path.is_some() && object.target_path.is_some()))
             {
                 Some(node.clone())
             } else {
