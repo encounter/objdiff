@@ -20,6 +20,7 @@ strip = "debuginfo"
 [features]
 default = []
 wgpu = ["eframe/wgpu"]
+wsl = []
 
 [dependencies]
 anyhow = "1.0.75"
