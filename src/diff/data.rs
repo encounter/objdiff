@@ -393,7 +393,7 @@ pub fn diff_data_lev(left: &mut ObjSection, right: &mut ObjSection) -> Result<()
 
     left.data_diff = left_diff;
     right.data_diff = right_diff;
-    return Ok(());
+    Ok(())
 }
 
 pub fn no_diff_data(section: &mut ObjSection) {

@@ -9,6 +9,7 @@ on:
   workflow_dispatch:
 
 env:
+  BUILD_PROFILE: release-lto
   CARGO_BIN_NAME: objdiff
   CARGO_TARGET_DIR: target
 
@@ -30,9 +31,25 @@ jobs:
         with:
           components: rustfmt, clippy
       - name: Cargo check
-        run: cargo check --all-features
+        run: cargo check
       - name: Cargo clippy
-        run: cargo clippy --all-features
+        run: cargo clippy
+
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Setup Rust toolchain
+        # We use nightly options in rustfmt.toml
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+      - name: Cargo fmt
+        run: cargo fmt --all --check
 
   deny:
     name: Deny
@@ -52,6 +69,7 @@ jobs:
 
   test:
     name: Test
+    if: 'false' # No tests yet
     strategy:
       matrix:
         platform: [ ubuntu-latest, windows-latest, macos-latest ]
@@ -68,7 +86,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Cargo test
-        run: cargo test --release --all-features
+        run: cargo test --release
 
   build:
     name: Build
@@ -103,16 +121,16 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - name: Cargo build
-        run: cargo build --release --all-features --target ${{ matrix.target }} --bin ${{ env.CARGO_BIN_NAME }}
+        run: cargo build --profile ${{ env.BUILD_PROFILE }} --target ${{ matrix.target }} --bin ${{ env.CARGO_BIN_NAME }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
           name: ${{ matrix.name }}
           path: |
-            ${{ env.CARGO_TARGET_DIR }}/release/${{ env.CARGO_BIN_NAME }}
-            ${{ env.CARGO_TARGET_DIR }}/release/${{ env.CARGO_BIN_NAME }}.exe
-            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/release/${{ env.CARGO_BIN_NAME }}
-            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/release/${{ env.CARGO_BIN_NAME }}.exe
+            ${{ env.CARGO_TARGET_DIR }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}
+            ${{ env.CARGO_TARGET_DIR }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}.exe
+            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}
+            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}.exe
           if-no-files-found: error
 
   release:
@@ -129,8 +147,8 @@ jobs:
         working-directory: artifacts
         run: |
           mkdir ../out
-          for i in */*/release/$CARGO_BIN_NAME*; do
-            mv "$i" "../out/$(sed -E "s/([^/]+)\/[^/]+\/release\/($CARGO_BIN_NAME)/\2-\1/" <<< "$i")"
+          for i in */*/$BUILD_PROFILE/$CARGO_BIN_NAME*; do
+            mv "$i" "../out/$(sed -E "s/([^/]+)\/[^/]+\/$BUILD_PROFILE\/($CARGO_BIN_NAME)/\2-\1/" <<< "$i")"
           done
           ls -R ../out
       - name: Release

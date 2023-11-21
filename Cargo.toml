@@ -13,7 +13,8 @@ A local diffing tool for decompilation projects.
 publish = false
 build = "build.rs"
 
-[profile.release]
+[profile.release-lto]
+inherits = "release"
 lto = "thin"
 strip = "debuginfo"
 
