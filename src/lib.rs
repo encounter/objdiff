@@ -6,7 +6,6 @@ mod app;
 mod app_config;
 mod config;
 mod diff;
-mod editops;
 mod jobs;
 mod obj;
 mod update;

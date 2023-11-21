@@ -298,7 +298,7 @@ fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u32, u32>>> {
             let address_delta = reader.read_u32::<BigEndian>()?;
             map.insert(base_address + address_delta, line_number);
         }
-        log::debug!("Line info: {map:#X?}");
+        // log::debug!("Line info: {map:#X?}");
         return Ok(Some(map));
     }
     Ok(None)

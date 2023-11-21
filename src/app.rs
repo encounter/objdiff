@@ -18,13 +18,16 @@ use time::UtcOffset;
 use crate::{
     app_config::{deserialize_config, AppConfigVersion},
     config::{build_globset, load_project_config, ProjectObject, ProjectObjectNode},
+    diff::DiffAlg,
     jobs::{
         objdiff::{start_build, ObjDiffConfig},
         Job, JobQueue, JobResult, JobStatus,
     },
     views::{
         appearance::{appearance_window, Appearance},
-        config::{config_ui, project_window, ConfigViewState, DEFAULT_WATCH_PATTERNS},
+        config::{
+            config_ui, diff_options_window, project_window, ConfigViewState, DEFAULT_WATCH_PATTERNS,
+        },
         data_diff::data_diff_ui,
         demangle::{demangle_window, DemangleViewState},
         function_diff::function_diff_ui,
@@ -42,6 +45,7 @@ pub struct ViewState {
     pub show_appearance_config: bool,
     pub show_demangle: bool,
     pub show_project_config: bool,
+    pub show_diff_options: bool,
 }
 
 /// The configuration for a single object file.
@@ -98,6 +102,10 @@ pub struct AppConfig {
     pub watch_patterns: Vec<Glob>,
     #[serde(default)]
     pub recent_projects: Vec<PathBuf>,
+    #[serde(default)]
+    pub code_alg: DiffAlg,
+    #[serde(default)]
+    pub data_alg: DiffAlg,
 
     #[serde(skip)]
     pub objects: Vec<ProjectObject>,
@@ -133,6 +141,8 @@ impl Default for AppConfig {
             auto_update_check: true,
             watch_patterns: DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect(),
             recent_projects: vec![],
+            code_alg: Default::default(),
+            data_alg: Default::default(),
             objects: vec![],
             object_nodes: vec![],
             watcher_change: false,
@@ -398,6 +408,7 @@ impl eframe::App for App {
             diff_state,
             config_state,
             show_project_config,
+            show_diff_options,
         } = view_state;
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
@@ -443,6 +454,10 @@ impl eframe::App for App {
                     }
                 });
                 ui.menu_button("Diff Options", |ui| {
+                    if ui.button("Algorithm…").clicked() {
+                        *show_diff_options = !*show_diff_options;
+                        ui.close_menu();
+                    }
                     let mut config = config.write().unwrap();
                     let response = ui
                         .checkbox(&mut config.rebuild_on_changes, "Rebuild on changes")
@@ -493,6 +508,7 @@ impl eframe::App for App {
         project_window(ctx, config, show_project_config, config_state, appearance);
         appearance_window(ctx, show_appearance_config, appearance);
         demangle_window(ctx, show_demangle, demangle_state, appearance);
+        diff_options_window(ctx, config, show_diff_options, appearance);
 
         self.post_update();
 

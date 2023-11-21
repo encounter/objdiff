@@ -3,7 +3,10 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 use rabbitizer::{config, Abi, InstrCategory, Instruction, OperandType};
 
-use crate::obj::{ObjIns, ObjInsArg, ObjReloc};
+use crate::{
+    diff::ProcessCodeResult,
+    obj::{ObjIns, ObjInsArg, ObjReloc},
+};
 
 fn configure_rabbitizer() {
     unsafe {
@@ -17,7 +20,7 @@ pub fn process_code(
     end_address: u64,
     relocs: &[ObjReloc],
     line_info: &Option<BTreeMap<u32, u32>>,
-) -> Result<(Vec<u8>, Vec<ObjIns>)> {
+) -> Result<ProcessCodeResult> {
     configure_rabbitizer();
 
     let ins_count = data.len() / 4;
@@ -95,5 +98,5 @@ pub fn process_code(
         });
         cur_addr += 4;
     }
-    Ok((ops, insts))
+    Ok(ProcessCodeResult { ops, insts })
 }

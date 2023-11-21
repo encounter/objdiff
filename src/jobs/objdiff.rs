@@ -10,7 +10,7 @@ use time::OffsetDateTime;
 
 use crate::{
     app::{AppConfig, ObjectConfig},
-    diff::diff_objs,
+    diff::{diff_objs, DiffAlg, DiffObjConfig},
     jobs::{start_job, update_status, Job, JobResult, JobState, JobStatusRef},
     obj::{elf, ObjInfo},
 };
@@ -27,6 +27,8 @@ pub struct ObjDiffConfig {
     pub project_dir: Option<PathBuf>,
     pub selected_obj: Option<ObjectConfig>,
     pub selected_wsl_distro: Option<String>,
+    pub code_alg: DiffAlg,
+    pub data_alg: DiffAlg,
 }
 
 impl ObjDiffConfig {
@@ -38,6 +40,8 @@ impl ObjDiffConfig {
             project_dir: config.project_dir.clone(),
             selected_obj: config.selected_obj.clone(),
             selected_wsl_distro: config.selected_wsl_distro.clone(),
+            code_alg: config.code_alg,
+            data_alg: config.data_alg,
         }
     }
 }
@@ -200,7 +204,8 @@ fn run_build(
     };
 
     update_status(status, "Performing diff".to_string(), 4, total, &cancel)?;
-    diff_objs(first_obj.as_mut(), second_obj.as_mut())?;
+    let diff_config = DiffObjConfig { code_alg: config.code_alg, data_alg: config.data_alg };
+    diff_objs(&diff_config, first_obj.as_mut(), second_obj.as_mut())?;
 
     update_status(status, "Complete".to_string(), total, total, &cancel)?;
     Ok(Box::new(ObjDiffResult { first_status, second_status, first_obj, second_obj, time }))

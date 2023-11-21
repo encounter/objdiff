@@ -3,7 +3,10 @@ use std::collections::BTreeMap;
 use anyhow::Result;
 use ppc750cl::{disasm_iter, Argument, SimplifiedIns};
 
-use crate::obj::{ObjIns, ObjInsArg, ObjReloc, ObjRelocKind};
+use crate::{
+    diff::ProcessCodeResult,
+    obj::{ObjIns, ObjInsArg, ObjReloc, ObjRelocKind},
+};
 
 // Relative relocation, can be Simm or BranchOffset
 fn is_relative_arg(arg: &ObjInsArg) -> bool {
@@ -22,7 +25,7 @@ pub fn process_code(
     address: u64,
     relocs: &[ObjReloc],
     line_info: &Option<BTreeMap<u32, u32>>,
-) -> Result<(Vec<u8>, Vec<ObjIns>)> {
+) -> Result<ProcessCodeResult> {
     let ins_count = data.len() / 4;
     let mut ops = Vec::<u8>::with_capacity(ins_count);
     let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
@@ -92,5 +95,5 @@ pub fn process_code(
             orig: Some(format!("{}", SimplifiedIns::basic_form(ins))),
         });
     }
-    Ok((ops, insts))
+    Ok(ProcessCodeResult { ops, insts })
 }
