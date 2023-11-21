@@ -11,7 +11,7 @@ use time::OffsetDateTime;
 use crate::{
     app::{AppConfig, ObjectConfig},
     diff::{diff_objs, DiffAlg, DiffObjConfig},
-    jobs::{start_job, update_status, Job, JobResult, JobState, JobStatusRef},
+    jobs::{start_job, update_status, Job, JobContext, JobResult, JobState},
     obj::{elf, ObjInfo},
 };
 
@@ -102,7 +102,7 @@ fn run_make(cwd: &Path, arg: &Path, config: &ObjDiffConfig) -> BuildStatus {
 }
 
 fn run_build(
-    status: &JobStatusRef,
+    context: &JobContext,
     cancel: Receiver<()>,
     config: ObjDiffConfig,
 ) -> Result<Box<ObjDiffResult>> {
@@ -142,7 +142,7 @@ fn run_build(
     let first_status = match target_path_rel {
         Some(target_path_rel) if config.build_target => {
             update_status(
-                status,
+                context,
                 format!("Building target {}", target_path_rel.display()),
                 0,
                 total,
@@ -156,7 +156,7 @@ fn run_build(
     let second_status = match base_path_rel {
         Some(base_path_rel) if config.build_base => {
             update_status(
-                status,
+                context,
                 format!("Building base {}", base_path_rel.display()),
                 0,
                 total,
@@ -173,7 +173,7 @@ fn run_build(
         match &obj_config.target_path {
             Some(target_path) if first_status.success => {
                 update_status(
-                    status,
+                    context,
                     format!("Loading target {}", target_path_rel.unwrap().display()),
                     2,
                     total,
@@ -189,7 +189,7 @@ fn run_build(
     let mut second_obj = match &obj_config.base_path {
         Some(base_path) if second_status.success => {
             update_status(
-                status,
+                context,
                 format!("Loading base {}", base_path_rel.unwrap().display()),
                 3,
                 total,
@@ -203,16 +203,16 @@ fn run_build(
         _ => None,
     };
 
-    update_status(status, "Performing diff".to_string(), 4, total, &cancel)?;
+    update_status(context, "Performing diff".to_string(), 4, total, &cancel)?;
     let diff_config = DiffObjConfig { code_alg: config.code_alg, data_alg: config.data_alg };
     diff_objs(&diff_config, first_obj.as_mut(), second_obj.as_mut())?;
 
-    update_status(status, "Complete".to_string(), total, total, &cancel)?;
+    update_status(context, "Complete".to_string(), total, total, &cancel)?;
     Ok(Box::new(ObjDiffResult { first_status, second_status, first_obj, second_obj, time }))
 }
 
-pub fn start_build(config: ObjDiffConfig) -> JobState {
-    start_job("Object diff", Job::ObjDiff, move |status, cancel| {
-        run_build(status, cancel, config).map(|result| JobResult::ObjDiff(Some(result)))
+pub fn start_build(ctx: &egui::Context, config: ObjDiffConfig) -> JobState {
+    start_job(ctx, "Object diff", Job::ObjDiff, move |context, cancel| {
+        run_build(&context, cancel, config).map(|result| JobResult::ObjDiff(Some(result)))
     })
 }

@@ -42,6 +42,7 @@ memmap2 = "0.9.0"
 notify = "6.1.1"
 object = { version = "0.32.1", features = ["read_core", "std", "elf"], default-features = false }
 png = "0.17.10"
+pollster = "0.3.0"
 ppc750cl = { git = "https://github.com/encounter/ppc750cl", rev = "4a2bbbc6f84dcb76255ab6f3595a8d4a0ce96618" }
 rabbitizer = "1.8.0"
 rfd = { version = "0.12.1" } #, default-features = false, features = ['xdg-portal']

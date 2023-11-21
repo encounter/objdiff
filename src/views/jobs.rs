@@ -7,7 +7,7 @@ pub fn jobs_ui(ui: &mut egui::Ui, jobs: &mut JobQueue, appearance: &Appearance) 
 
     let mut remove_job: Option<usize> = None;
     for job in jobs.iter_mut() {
-        let Ok(status) = job.status.read() else {
+        let Ok(status) = job.context.status.read() else {
             continue;
         };
         ui.group(|ui| {

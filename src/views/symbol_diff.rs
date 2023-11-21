@@ -73,7 +73,7 @@ impl DiffViewState {
         }
     }
 
-    pub fn post_update(&mut self, _jobs: &mut JobQueue, config: &AppConfigRef) {
+    pub fn post_update(&mut self, config: &AppConfigRef) {
         if self.queue_build {
             self.queue_build = false;
             if let Ok(mut config) = config.write() {

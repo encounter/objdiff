@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use const_format::formatcp;
 
 use crate::{
-    jobs::{start_job, update_status, Job, JobResult, JobState, JobStatusRef},
+    jobs::{start_job, update_status, Job, JobContext, JobResult, JobState},
     update::{build_updater, BIN_NAME},
 };
 
@@ -17,7 +17,7 @@ pub struct UpdateResult {
     pub exe_path: PathBuf,
 }
 
-fn run_update(status: &JobStatusRef, cancel: Receiver<()>) -> Result<Box<UpdateResult>> {
+fn run_update(status: &JobContext, cancel: Receiver<()>) -> Result<Box<UpdateResult>> {
     update_status(status, "Fetching latest release".to_string(), 0, 3, &cancel)?;
     let updater = build_updater().context("Failed to create release updater")?;
     let latest_release = updater.get_latest_release()?;
@@ -53,8 +53,8 @@ fn run_update(status: &JobStatusRef, cancel: Receiver<()>) -> Result<Box<UpdateR
     Ok(Box::from(UpdateResult { exe_path: target_file }))
 }
 
-pub fn start_update() -> JobState {
-    start_job("Update app", Job::Update, move |status, cancel| {
-        run_update(status, cancel).map(JobResult::Update)
+pub fn start_update(ctx: &egui::Context) -> JobState {
+    start_job(ctx, "Update app", Job::Update, move |context, cancel| {
+        run_update(&context, cancel).map(JobResult::Update)
     })
 }

@@ -48,6 +48,7 @@ impl JobQueue {
     }
 
     /// Returns whether any job is running.
+    #[allow(dead_code)]
     pub fn any_running(&self) -> bool {
         self.jobs.iter().any(|job| {
             if let Some(handle) = &job.handle {
@@ -81,7 +82,7 @@ impl JobQueue {
         self.jobs.retain(|job| {
             !(job.should_remove
                 && job.handle.is_none()
-                && job.status.read().unwrap().error.is_none())
+                && job.context.status.read().unwrap().error.is_none())
         });
     }
 
@@ -89,13 +90,17 @@ impl JobQueue {
     pub fn remove(&mut self, id: usize) { self.jobs.retain(|job| job.id != id); }
 }
 
-pub type JobStatusRef = Arc<RwLock<JobStatus>>;
+#[derive(Clone)]
+pub struct JobContext {
+    pub status: Arc<RwLock<JobStatus>>,
+    pub egui: egui::Context,
+}
 
 pub struct JobState {
     pub id: usize,
     pub kind: Job,
     pub handle: Option<JoinHandle<JobResult>>,
-    pub status: JobStatusRef,
+    pub context: JobContext,
     pub cancel: Sender<()>,
     pub should_remove: bool,
 }
@@ -124,9 +129,10 @@ fn should_cancel(rx: &Receiver<()>) -> bool {
 }
 
 fn start_job(
+    ctx: &egui::Context,
     title: &str,
     kind: Job,
-    run: impl FnOnce(&JobStatusRef, Receiver<()>) -> Result<JobResult> + Send + 'static,
+    run: impl FnOnce(JobContext, Receiver<()>) -> Result<JobResult> + Send + 'static,
 ) -> JobState {
     let status = Arc::new(RwLock::new(JobStatus {
         title: title.to_string(),
@@ -135,10 +141,11 @@ fn start_job(
         status: String::new(),
         error: None,
     }));
-    let status_clone = status.clone();
+    let context = JobContext { status: status.clone(), egui: ctx.clone() };
+    let context_inner = JobContext { status: status.clone(), egui: ctx.clone() };
     let (tx, rx) = std::sync::mpsc::channel();
     let handle = std::thread::spawn(move || {
-        return match run(&status, rx) {
+        return match run(context_inner, rx) {
             Ok(state) => state,
             Err(e) => {
                 if let Ok(mut w) = status.write() {
@@ -150,24 +157,18 @@ fn start_job(
     });
     let id = JOB_ID.fetch_add(1, Ordering::Relaxed);
     log::info!("Started job {}", id);
-    JobState {
-        id,
-        kind,
-        handle: Some(handle),
-        status: status_clone,
-        cancel: tx,
-        should_remove: true,
-    }
+    JobState { id, kind, handle: Some(handle), context, cancel: tx, should_remove: true }
 }
 
 fn update_status(
-    status: &JobStatusRef,
+    context: &JobContext,
     str: String,
     count: u32,
     total: u32,
     cancel: &Receiver<()>,
 ) -> Result<()> {
-    let mut w = status.write().map_err(|_| anyhow::Error::msg("Failed to lock job status"))?;
+    let mut w =
+        context.status.write().map_err(|_| anyhow::Error::msg("Failed to lock job status"))?;
     w.progress_items = Some([count, total]);
     w.progress_percent = count as f32 / total as f32;
     if should_cancel(cancel) {
@@ -176,5 +177,7 @@ fn update_status(
     } else {
         w.status = str;
     }
+    drop(w);
+    context.egui.request_repaint();
     Ok(())
 }

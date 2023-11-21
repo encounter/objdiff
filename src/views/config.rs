@@ -26,7 +26,10 @@ use crate::{
         Job, JobQueue, JobResult,
     },
     update::RELEASE_URL,
-    views::appearance::Appearance,
+    views::{
+        appearance::Appearance,
+        file::{FileDialogResult, FileDialogState},
+    },
 };
 
 #[derive(Default)]
@@ -45,10 +48,11 @@ pub struct ConfigViewState {
     pub filter_incomplete: bool,
     #[cfg(feature = "wsl")]
     pub available_wsl_distros: Option<Vec<String>>,
+    pub file_dialog_state: FileDialogState,
 }
 
 impl ConfigViewState {
-    pub fn pre_update(&mut self, jobs: &mut JobQueue) {
+    pub fn pre_update(&mut self, jobs: &mut JobQueue, config: &AppConfigRef) {
         jobs.results.retain_mut(|result| {
             if let JobResult::CheckUpdate(result) = result {
                 self.check_update = take(result);
@@ -60,9 +64,52 @@ impl ConfigViewState {
         self.build_running = jobs.is_running(Job::ObjDiff);
         self.check_update_running = jobs.is_running(Job::CheckUpdate);
         self.update_running = jobs.is_running(Job::Update);
+
+        // Check async file dialog results
+        match self.file_dialog_state.poll() {
+            FileDialogResult::None => {}
+            FileDialogResult::ProjectDir(path) => {
+                let mut guard = config.write().unwrap();
+                guard.set_project_dir(path.to_path_buf());
+            }
+            FileDialogResult::TargetDir(path) => {
+                let mut guard = config.write().unwrap();
+                guard.set_target_obj_dir(path.to_path_buf());
+            }
+            FileDialogResult::BaseDir(path) => {
+                let mut guard = config.write().unwrap();
+                guard.set_base_obj_dir(path.to_path_buf());
+            }
+            FileDialogResult::Object(path) => {
+                let mut guard = config.write().unwrap();
+                if let (Some(base_dir), Some(target_dir)) =
+                    (&guard.base_obj_dir, &guard.target_obj_dir)
+                {
+                    if let Ok(obj_path) = path.strip_prefix(base_dir) {
+                        let target_path = target_dir.join(obj_path);
+                        guard.set_selected_obj(ObjectConfig {
+                            name: obj_path.display().to_string(),
+                            target_path: Some(target_path),
+                            base_path: Some(path),
+                            reverse_fn_order: None,
+                            complete: None,
+                        });
+                    } else if let Ok(obj_path) = path.strip_prefix(target_dir) {
+                        let base_path = base_dir.join(obj_path);
+                        guard.set_selected_obj(ObjectConfig {
+                            name: obj_path.display().to_string(),
+                            target_path: Some(path),
+                            base_path: Some(base_path),
+                            reverse_fn_order: None,
+                            complete: None,
+                        });
+                    }
+                }
+            }
+        }
     }
 
-    pub fn post_update(&mut self, jobs: &mut JobQueue, config: &AppConfigRef) {
+    pub fn post_update(&mut self, ctx: &egui::Context, jobs: &mut JobQueue, config: &AppConfigRef) {
         if self.queue_build {
             self.queue_build = false;
             if let Ok(mut config) = config.write() {
@@ -72,12 +119,12 @@ impl ConfigViewState {
 
         if self.queue_check_update {
             self.queue_check_update = false;
-            jobs.push_once(Job::CheckUpdate, start_check_update);
+            jobs.push_once(Job::CheckUpdate, || start_check_update(ctx));
         }
 
         if self.queue_update {
             self.queue_update = false;
-            jobs.push_once(Job::Update, start_update);
+            jobs.push_once(Job::Update, || start_update(ctx));
         }
     }
 }
@@ -210,33 +257,19 @@ pub fn config_ui(
 
     let mut new_selected_obj = selected_obj.clone();
     if objects.is_empty() {
-        if let (Some(base_dir), Some(target_dir)) = (base_obj_dir, target_obj_dir) {
+        if let (Some(_base_dir), Some(target_dir)) = (base_obj_dir, target_obj_dir) {
             if ui.button("Select object").clicked() {
-                if let Some(path) = rfd::FileDialog::new()
-                    .set_directory(&target_dir)
-                    .add_filter("Object file", &["o", "elf"])
-                    .pick_file()
-                {
-                    if let Ok(obj_path) = path.strip_prefix(&base_dir) {
-                        let target_path = target_dir.join(obj_path);
-                        new_selected_obj = Some(ObjectConfig {
-                            name: obj_path.display().to_string(),
-                            target_path: Some(target_path),
-                            base_path: Some(path),
-                            reverse_fn_order: None,
-                            complete: None,
-                        });
-                    } else if let Ok(obj_path) = path.strip_prefix(&target_dir) {
-                        let base_path = base_dir.join(obj_path);
-                        new_selected_obj = Some(ObjectConfig {
-                            name: obj_path.display().to_string(),
-                            target_path: Some(path),
-                            base_path: Some(base_path),
-                            reverse_fn_order: None,
-                            complete: None,
-                        });
-                    }
-                }
+                state.file_dialog_state.queue(
+                    || {
+                        Box::pin(
+                            rfd::AsyncFileDialog::new()
+                                .set_directory(&target_dir)
+                                .add_filter("Object file", &["o", "elf"])
+                                .pick_file(),
+                        )
+                    },
+                    FileDialogResult::Object,
+                );
             }
             if let Some(obj) = selected_obj {
                 ui.label(
@@ -579,9 +612,10 @@ fn split_obj_config_ui(
         true,
     );
     if response.clicked() {
-        if let Some(path) = rfd::FileDialog::new().pick_folder() {
-            config.set_project_dir(path);
-        }
+        state.file_dialog_state.queue(
+            || Box::pin(rfd::AsyncFileDialog::new().pick_folder()),
+            FileDialogResult::ProjectDir,
+        );
     }
     ui.separator();
 
@@ -640,9 +674,10 @@ fn split_obj_config_ui(
             config.project_config_info.is_none(),
         );
         if response.clicked() {
-            if let Some(path) = rfd::FileDialog::new().set_directory(&project_dir).pick_folder() {
-                config.set_target_obj_dir(path);
-            }
+            state.file_dialog_state.queue(
+                || Box::pin(rfd::AsyncFileDialog::new().set_directory(&project_dir).pick_folder()),
+                FileDialogResult::TargetDir,
+            );
         }
         ui.checkbox(&mut config.build_target, "Build target objects").on_hover_ui(|ui| {
             let mut job = LayoutJob::default();
@@ -690,9 +725,10 @@ fn split_obj_config_ui(
             config.project_config_info.is_none(),
         );
         if response.clicked() {
-            if let Some(path) = rfd::FileDialog::new().set_directory(&project_dir).pick_folder() {
-                config.set_base_obj_dir(path);
-            }
+            state.file_dialog_state.queue(
+                || Box::pin(rfd::AsyncFileDialog::new().set_directory(&project_dir).pick_folder()),
+                FileDialogResult::BaseDir,
+            );
         }
         ui.checkbox(&mut config.build_base, "Build base objects").on_hover_ui(|ui| {
             let mut job = LayoutJob::default();

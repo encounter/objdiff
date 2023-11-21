@@ -7,7 +7,6 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex, RwLock,
     },
-    time::Duration,
 };
 
 use filetime::FileTime;
@@ -29,7 +28,9 @@ use crate::{
             config_ui, diff_options_window, project_window, ConfigViewState, DEFAULT_WATCH_PATTERNS,
         },
         data_diff::data_diff_ui,
+        debug::debug_window,
         demangle::{demangle_window, DemangleViewState},
+        frame_history::FrameHistory,
         function_diff::function_diff_ui,
         jobs::jobs_ui,
         symbol_diff::{symbol_diff_ui, DiffViewState, View},
@@ -42,10 +43,12 @@ pub struct ViewState {
     pub config_state: ConfigViewState,
     pub demangle_state: DemangleViewState,
     pub diff_state: DiffViewState,
+    pub frame_history: FrameHistory,
     pub show_appearance_config: bool,
     pub show_demangle: bool,
     pub show_project_config: bool,
     pub show_diff_options: bool,
+    pub show_debug: bool,
 }
 
 /// The configuration for a single object file.
@@ -257,7 +260,7 @@ impl App {
                     log::info!("Job {} finished", job.id);
                     match result {
                         JobResult::None => {
-                            if let Some(err) = &job.status.read().unwrap().error {
+                            if let Some(err) = &job.context.status.read().unwrap().error {
                                 log::error!("{:?}", err);
                             }
                         }
@@ -278,12 +281,12 @@ impl App {
                     } else {
                         anyhow::Error::msg("Thread panicked")
                     };
-                    let result = job.status.write();
+                    let result = job.context.status.write();
                     if let Ok(mut guard) = result {
                         guard.error = Some(err);
                     } else {
                         drop(result);
-                        job.status = Arc::new(RwLock::new(JobStatus {
+                        job.context.status = Arc::new(RwLock::new(JobStatus {
                             title: "Error".to_string(),
                             progress_percent: 0.0,
                             progress_items: None,
@@ -298,14 +301,14 @@ impl App {
         jobs.clear_finished();
 
         diff_state.pre_update(jobs, &self.config);
-        config_state.pre_update(jobs);
+        config_state.pre_update(jobs, &self.config);
         debug_assert!(jobs.results.is_empty());
     }
 
-    fn post_update(&mut self) {
+    fn post_update(&mut self, ctx: &egui::Context) {
         let ViewState { jobs, diff_state, config_state, .. } = &mut self.view_state;
-        config_state.post_update(jobs, &self.config);
-        diff_state.post_update(jobs, &self.config);
+        config_state.post_update(ctx, jobs, &self.config);
+        diff_state.post_update(&self.config);
 
         let Ok(mut config) = self.config.write() else {
             return;
@@ -335,7 +338,7 @@ impl App {
             if let Some(project_dir) = &config.project_dir {
                 match build_globset(&config.watch_patterns).map_err(anyhow::Error::new).and_then(
                     |globset| {
-                        create_watcher(self.modified.clone(), project_dir, globset)
+                        create_watcher(ctx.clone(), self.modified.clone(), project_dir, globset)
                             .map_err(anyhow::Error::new)
                     },
                 ) {
@@ -374,7 +377,7 @@ impl App {
         // Don't clear `queue_build` if a build is running. A file may have been modified during
         // the build, so we'll start another build after the current one finishes.
         if config.queue_build && config.selected_obj.is_some() && !jobs.is_running(Job::ObjDiff) {
-            jobs.push(start_build(ObjDiffConfig::from_config(config)));
+            jobs.push(start_build(ctx, ObjDiffConfig::from_config(config)));
             config.queue_build = false;
             config.queue_reload = false;
         } else if config.queue_reload && !jobs.is_running(Job::ObjDiff) {
@@ -382,7 +385,7 @@ impl App {
             // Don't build, just reload the current files
             diff_config.build_base = false;
             diff_config.build_target = false;
-            jobs.push(start_build(diff_config));
+            jobs.push(start_build(ctx, diff_config));
             config.queue_reload = false;
         }
     }
@@ -404,18 +407,27 @@ impl eframe::App for App {
 
         let ViewState {
             jobs,
-            show_appearance_config,
-            demangle_state,
-            show_demangle,
-            diff_state,
             config_state,
+            demangle_state,
+            diff_state,
+            frame_history,
+            show_appearance_config,
+            show_demangle,
             show_project_config,
             show_diff_options,
+            show_debug,
         } = view_state;
+
+        frame_history.on_new_frame(ctx.input(|i| i.time), frame.info().cpu_usage);
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
                 ui.menu_button("File", |ui| {
+                    #[cfg(debug_assertions)]
+                    if ui.button("Debug…").clicked() {
+                        *show_debug = !*show_debug;
+                        ui.close_menu();
+                    }
                     if ui.button("Project…").clicked() {
                         *show_project_config = !*show_project_config;
                         ui.close_menu();
@@ -511,16 +523,9 @@ impl eframe::App for App {
         appearance_window(ctx, show_appearance_config, appearance);
         demangle_window(ctx, show_demangle, demangle_state, appearance);
         diff_options_window(ctx, config, show_diff_options, appearance);
+        debug_window(ctx, show_debug, frame_history, appearance);
 
-        self.post_update();
-
-        // Windows + request_repaint_after breaks dialogs:
-        // https://github.com/emilk/egui/issues/2003
-        if cfg!(windows) || self.view_state.jobs.any_running() {
-            ctx.request_repaint();
-        } else {
-            ctx.request_repaint_after(Duration::from_millis(100));
-        }
+        self.post_update(ctx);
     }
 
     /// Called by the frame work to save state before shutdown.
@@ -533,6 +538,7 @@ impl eframe::App for App {
 }
 
 fn create_watcher(
+    ctx: egui::Context,
     modified: Arc<AtomicBool>,
     project_dir: &Path,
     patterns: GlobSet,
@@ -552,7 +558,9 @@ fn create_watcher(
                             continue;
                         };
                         if patterns.is_match(path) {
+                            log::info!("File modified: {}", path.display());
                             modified.store(true, Ordering::Relaxed);
+                            ctx.request_repaint();
                         }
                     }
                 }
