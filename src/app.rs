@@ -234,7 +234,9 @@ impl App {
                 if config.project_dir.is_some() {
                     config.config_change = true;
                     config.watcher_change = true;
-                    app.modified.store(true, Ordering::Relaxed);
+                }
+                if config.selected_obj.is_some() {
+                    config.queue_build = true;
                 }
                 app.view_state.config_state.queue_check_update = config.auto_update_check;
                 app.config = Arc::new(RwLock::new(config));
