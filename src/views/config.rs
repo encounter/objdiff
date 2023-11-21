@@ -42,6 +42,7 @@ pub struct ConfigViewState {
     pub load_error: Option<String>,
     pub object_search: String,
     pub filter_diffable: bool,
+    pub filter_incomplete: bool,
     #[cfg(windows)]
     pub available_wsl_distros: Option<Vec<String>>,
 }
@@ -277,6 +278,13 @@ pub fn config_ui(
             {
                 state.filter_diffable = !state.filter_diffable;
             }
+            if ui
+                .selectable_label(state.filter_incomplete, "Incomplete")
+                .on_hover_text_at_pointer("Only show objects not marked complete")
+                .clicked()
+            {
+                state.filter_incomplete = !state.filter_incomplete;
+            }
         });
         if state.object_search.is_empty() {
             if had_search {
@@ -296,12 +304,19 @@ pub fn config_ui(
         .default_open(true)
         .show(ui, |ui| {
             let mut nodes = Cow::Borrowed(object_nodes);
-            if !state.object_search.is_empty() || state.filter_diffable {
+            if !state.object_search.is_empty() || state.filter_diffable || state.filter_incomplete {
                 let search = state.object_search.to_ascii_lowercase();
                 nodes = Cow::Owned(
                     object_nodes
                         .iter()
-                        .filter_map(|node| filter_node(node, &search, state.filter_diffable))
+                        .filter_map(|node| {
+                            filter_node(
+                                node,
+                                &search,
+                                state.filter_diffable,
+                                state.filter_incomplete,
+                            )
+                        })
                         .collect(),
                 );
             }
@@ -435,12 +450,14 @@ fn filter_node(
     node: &ProjectObjectNode,
     search: &str,
     filter_diffable: bool,
+    filter_incomplete: bool,
 ) -> Option<ProjectObjectNode> {
     match node {
         ProjectObjectNode::File(name, object) => {
             if (search.is_empty() || name.to_ascii_lowercase().contains(search))
                 && (!filter_diffable
                     || (object.base_path.is_some() && object.target_path.is_some()))
+                && (!filter_incomplete || matches!(object.complete, None | Some(false)))
             {
                 Some(node.clone())
             } else {
@@ -448,13 +465,15 @@ fn filter_node(
             }
         }
         ProjectObjectNode::Dir(name, children) => {
-            if (search.is_empty() || name.to_ascii_lowercase().contains(search)) && !filter_diffable
+            if (search.is_empty() || name.to_ascii_lowercase().contains(search))
+                && !filter_diffable
+                && !filter_incomplete
             {
                 return Some(node.clone());
             }
             let new_children = children
                 .iter()
-                .filter_map(|child| filter_node(child, search, filter_diffable))
+                .filter_map(|child| filter_node(child, search, filter_diffable, filter_incomplete))
                 .collect::<Vec<_>>();
             if !new_children.is_empty() {
                 Some(ProjectObjectNode::Dir(name.clone(), new_children))
