@@ -223,9 +223,6 @@ impl App {
         utc_offset: UtcOffset,
         relaunch_path: Rc<Mutex<Option<PathBuf>>>,
     ) -> Self {
-        // This is also where you can customized the look at feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
         let mut app = Self::default();
@@ -245,12 +242,15 @@ impl App {
                 app.config = Arc::new(RwLock::new(config));
             }
         }
+        app.appearance.init_fonts(&cc.egui_ctx);
         app.appearance.utc_offset = utc_offset;
         app.relaunch_path = relaunch_path;
         app
     }
 
-    fn pre_update(&mut self) {
+    fn pre_update(&mut self, ctx: &egui::Context) {
+        self.appearance.pre_update(ctx);
+
         let ViewState { jobs, diff_state, config_state, .. } = &mut self.view_state;
 
         let mut results = vec![];
@@ -306,6 +306,8 @@ impl App {
     }
 
     fn post_update(&mut self, ctx: &egui::Context) {
+        self.appearance.post_update(ctx);
+
         let ViewState { jobs, diff_state, config_state, .. } = &mut self.view_state;
         config_state.post_update(ctx, jobs, &self.config);
         diff_state.post_update(&self.config);
@@ -400,11 +402,9 @@ impl eframe::App for App {
             return;
         }
 
-        self.pre_update();
+        self.pre_update(ctx);
 
         let Self { config, appearance, view_state, .. } = self;
-        ctx.set_style(appearance.apply(ctx.style().as_ref()));
-
         let ViewState {
             jobs,
             config_state,

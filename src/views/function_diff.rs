@@ -4,8 +4,7 @@ use std::{
 };
 
 use cwdemangle::demangle;
-use eframe::emath::Align;
-use egui::{text::LayoutJob, Color32, Label, Layout, RichText, Sense, TextFormat, Vec2};
+use egui::{text::LayoutJob, Align, Color32, Label, Layout, RichText, Sense, TextFormat, Vec2};
 use egui_extras::{Column, TableBuilder, TableRow};
 use ppc750cl::Argument;
 use time::format_description;

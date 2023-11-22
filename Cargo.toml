@@ -36,6 +36,8 @@ egui = "0.23.0"
 egui_extras = "0.23.0"
 filetime = "0.2.22"
 flagset = "0.4.4"
+float-ord = "0.3.2"
+font-kit = "0.11.0"
 globset = { version = "0.4.13", features = ["serde1"] }
 log = "0.4.20"
 memmap2 = "0.9.0"
