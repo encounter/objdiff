@@ -50,6 +50,30 @@ pub enum ObjInsArg {
     BranchOffset(i32),
 }
 
+impl ObjInsArg {
+    pub fn loose_eq(&self, other: &ObjInsArg) -> bool {
+        match (self, other) {
+            (ObjInsArg::PpcArg(a), ObjInsArg::PpcArg(b)) => {
+                a == b
+                    || match (a, b) {
+                        // Consider Simm and Offset equivalent
+                        (ppc750cl::Argument::Simm(simm), ppc750cl::Argument::Offset(off))
+                        | (ppc750cl::Argument::Offset(off), ppc750cl::Argument::Simm(simm)) => {
+                            simm.0 == off.0
+                        }
+                        _ => false,
+                    }
+            }
+            (ObjInsArg::MipsArg(a), ObjInsArg::MipsArg(b)) => a == b,
+            (ObjInsArg::MipsArgWithBase(a), ObjInsArg::MipsArgWithBase(b)) => a == b,
+            (ObjInsArg::Reloc, ObjInsArg::Reloc) => true,
+            (ObjInsArg::RelocWithBase, ObjInsArg::RelocWithBase) => true,
+            (ObjInsArg::BranchOffset(a), ObjInsArg::BranchOffset(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct ObjInsArgDiff {
     /// Incrementing index for coloring

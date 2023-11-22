@@ -194,7 +194,7 @@ fn write_ins(
             HighlightKind::Address(v) => {
                 matches!(arg, ObjInsArg::BranchOffset(offset) if (offset + ins.address as i32 - base_addr as i32) as u32 == *v)
             }
-            HighlightKind::Arg(v) => v == arg,
+            HighlightKind::Arg(v) => v.loose_eq(arg),
             _ => false,
         };
         let color = if highlighted_arg {
