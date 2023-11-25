@@ -3,7 +3,15 @@
 [Build Status]: https://github.com/encounter/objdiff/actions/workflows/build.yaml/badge.svg
 [actions]: https://github.com/encounter/objdiff/actions
 
-A local diffing tool for decompilation projects.
+A local diffing tool for decompilation projects. Inspired by [decomp.me](https://decomp.me) and [asm-differ](https://github.com/simonlindholm/asm-differ).
+
+Features:
+- Compare entire object files: functions and data.
+- Built-in symbol demangling for C++.
+- Automatic rebuild on source file changes.
+- Project integration via [configuration file](#configuration).
+- Search and filter all of a project's objects and quickly switch.
+- Click to highlight all instances of values and registers.
 
 Supports:
 - PowerPC 750CL (GameCube & Wii)
