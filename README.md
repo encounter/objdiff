@@ -126,7 +126,17 @@ If not specified, objdiff will use the default patterns listed above.
 > `reverse_fn_order` _(optional)_: Displays function symbols in reversed order.  
 Used to support MWCC's `-inline deferred` option, which reverses the order of functions in the object file.
 
+## Building
 
+Install Rust via [rustup](https://rustup.rs).
+
+```shell
+$ git clone https://github.com/encounter/objdiff.git
+$ cd objdiff
+$ cargo run --release
+# or, for wgpu backend (recommended on macOS)
+$ cargo run --release --features wgpu
+```
 
 ## License
 
