@@ -125,9 +125,7 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - name: Cargo build
-        run: |
-          cargo build --profile ${{ env.BUILD_PROFILE }} --target ${{ matrix.target }} \
-            --bin ${{ env.CARGO_BIN_NAME }} --features ${{ matrix.features }}
+        run: cargo build --profile ${{ env.BUILD_PROFILE }} --target ${{ matrix.target }} --bin ${{ env.CARGO_BIN_NAME }} --features ${{ matrix.features }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
