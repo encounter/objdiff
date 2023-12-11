@@ -1,14 +1,17 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-use std::{path::PathBuf, rc::Rc, sync::Mutex};
+use std::{
+    path::PathBuf,
+    rc::Rc,
+    sync::{Arc, Mutex},
+};
 
 use anyhow::{Error, Result};
 use cfg_if::cfg_if;
-use eframe::IconData;
 use time::UtcOffset;
 
-fn load_icon() -> Result<IconData> {
+fn load_icon() -> Result<egui::IconData> {
     use bytes::Buf;
     let decoder = png::Decoder::new(include_bytes!("../assets/icon_64.png").reader());
     let mut reader = decoder.read_info()?;
@@ -21,7 +24,7 @@ fn load_icon() -> Result<IconData> {
         return Err(Error::msg("Invalid color type"));
     }
     buf.truncate(info.buffer_size());
-    Ok(IconData { rgba: buf, width: info.width, height: info.height })
+    Ok(egui::IconData { rgba: buf, width: info.width, height: info.height })
 }
 
 // When compiling natively:
@@ -41,7 +44,7 @@ fn main() {
         eframe::NativeOptions { follow_system_theme: false, ..Default::default() };
     match load_icon() {
         Ok(data) => {
-            native_options.icon_data = Some(data);
+            native_options.viewport.icon = Some(Arc::new(data));
         }
         Err(e) => {
             log::warn!("Failed to load application icon: {}", e);

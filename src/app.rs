@@ -398,7 +398,7 @@ impl eframe::App for App {
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if self.should_relaunch {
-            frame.close();
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             return;
         }
 
@@ -458,7 +458,7 @@ impl eframe::App for App {
                         ui.close_menu();
                     }
                     if ui.button("Quit").clicked() {
-                        frame.close();
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
                 ui.menu_button("Tools", |ui| {
