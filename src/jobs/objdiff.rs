@@ -17,7 +17,20 @@ use crate::{
 
 pub struct BuildStatus {
     pub success: bool,
-    pub log: String,
+    pub cmdline: String,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+impl Default for BuildStatus {
+    fn default() -> Self {
+        BuildStatus {
+            success: true,
+            cmdline: String::new(),
+            stdout: String::new(),
+            stderr: String::new(),
+        }
+    }
 }
 
 pub struct ObjDiffConfig {
@@ -88,16 +101,24 @@ fn run_make(cwd: &Path, arg: &Path, config: &ObjDiffConfig) -> BuildStatus {
             command.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
             command
         };
+        let mut cmdline =
+            shell_escape::escape(command.get_program().to_string_lossy()).into_owned();
+        for arg in command.get_args() {
+            cmdline.push(' ');
+            cmdline.push_str(shell_escape::escape(arg.to_string_lossy()).as_ref());
+        }
         let output = command.output().context("Failed to execute build")?;
         let stdout = from_utf8(&output.stdout).context("Failed to process stdout")?;
         let stderr = from_utf8(&output.stderr).context("Failed to process stderr")?;
         Ok(BuildStatus {
             success: output.status.code().unwrap_or(-1) == 0,
-            log: format!("{stdout}\n{stderr}"),
+            cmdline,
+            stdout: stdout.to_string(),
+            stderr: stderr.to_string(),
         })
     })() {
         Ok(status) => status,
-        Err(e) => BuildStatus { success: false, log: e.to_string() },
+        Err(e) => BuildStatus { success: false, stderr: e.to_string(), ..Default::default() },
     }
 }
 
@@ -150,7 +171,7 @@ fn run_build(
             )?;
             run_make(project_dir, target_path_rel, &config)
         }
-        _ => BuildStatus { success: true, log: String::new() },
+        _ => BuildStatus::default(),
     };
 
     let second_status = match base_path_rel {
@@ -164,7 +185,7 @@ fn run_build(
             )?;
             run_make(project_dir, base_path_rel, &config)
         }
-        _ => BuildStatus { success: true, log: String::new() },
+        _ => BuildStatus::default(),
     };
 
     let time = OffsetDateTime::now_utc();

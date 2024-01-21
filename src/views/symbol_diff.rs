@@ -262,11 +262,23 @@ fn symbol_list_ui(
 
 fn build_log_ui(ui: &mut Ui, status: &BuildStatus, appearance: &Appearance) {
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
+        ui.horizontal(|ui| {
+            if ui.button("Copy command").clicked() {
+                ui.output_mut(|output| output.copied_text = status.cmdline.clone());
+            }
+            if ui.button("Copy log").clicked() {
+                ui.output_mut(|output| {
+                    output.copied_text = format!("{}\n{}", status.stdout, status.stderr)
+                });
+            }
+        });
         ui.scope(|ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
             ui.style_mut().wrap = Some(false);
 
-            ui.colored_label(appearance.replace_color, &status.log);
+            ui.label(&status.cmdline);
+            ui.colored_label(appearance.replace_color, &status.stdout);
+            ui.colored_label(appearance.delete_color, &status.stderr);
         });
     });
 }

@@ -105,11 +105,11 @@ jobs:
           - platform: macos-latest
             target: x86_64-apple-darwin
             name: macos-x86_64
-            features: wgpu
+            features: default
           - platform: macos-latest
             target: aarch64-apple-darwin
             name: macos-arm64
-            features: wgpu
+            features: default
       fail-fast: false
     runs-on: ${{ matrix.platform }}
     steps:

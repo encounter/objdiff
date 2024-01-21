@@ -1,6 +1,6 @@
 [package]
 name = "objdiff"
-version = "0.6.1"
+version = "0.7.0"
 edition = "2021"
 rust-version = "1.70"
 authors = ["Luke Street <luke@street.dev>"]
@@ -19,7 +19,7 @@ lto = "thin"
 strip = "debuginfo"
 
 [features]
-default = []
+default = ["wgpu", "wsl"]
 wgpu = ["eframe/wgpu"]
 wsl = []
 
@@ -53,6 +53,7 @@ semver = "1.0.20"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.108"
 serde_yaml = "0.9.27"
+shell-escape = "0.1.5"
 similar = "2.3.0"
 tempfile = "3.8.1"
 thiserror = "1.0.50"

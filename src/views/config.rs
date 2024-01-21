@@ -1,4 +1,4 @@
-#[cfg(feature = "wsl")]
+#[cfg(all(windows, feature = "wsl"))]
 use std::string::FromUtf16Error;
 use std::{
     borrow::Cow,
@@ -6,7 +6,7 @@ use std::{
     path::{PathBuf, MAIN_SEPARATOR},
 };
 
-#[cfg(feature = "wsl")]
+#[cfg(all(windows, feature = "wsl"))]
 use anyhow::{Context, Result};
 use const_format::formatcp;
 use egui::{
@@ -46,7 +46,7 @@ pub struct ConfigViewState {
     pub object_search: String,
     pub filter_diffable: bool,
     pub filter_incomplete: bool,
-    #[cfg(feature = "wsl")]
+    #[cfg(all(windows, feature = "wsl"))]
     pub available_wsl_distros: Option<Vec<String>>,
     pub file_dialog_state: FileDialogState,
 }
@@ -134,7 +134,7 @@ pub const DEFAULT_WATCH_PATTERNS: &[&str] = &[
     "*.inc", "*.py", "*.yml", "*.txt", "*.json",
 ];
 
-#[cfg(feature = "wsl")]
+#[cfg(all(windows, feature = "wsl"))]
 fn process_utf16(bytes: &[u8]) -> Result<String, FromUtf16Error> {
     let u16_bytes: Vec<u16> = bytes
         .chunks_exact(2)
@@ -143,7 +143,7 @@ fn process_utf16(bytes: &[u8]) -> Result<String, FromUtf16Error> {
     String::from_utf16(&u16_bytes)
 }
 
-#[cfg(feature = "wsl")]
+#[cfg(all(windows, feature = "wsl"))]
 fn wsl_cmd(args: &[&str]) -> Result<String> {
     use std::{os::windows::process::CommandExt, process::Command};
     let output = Command::new("wsl")
@@ -154,7 +154,7 @@ fn wsl_cmd(args: &[&str]) -> Result<String> {
     process_utf16(&output.stdout).context("Failed to process stdout")
 }
 
-#[cfg(feature = "wsl")]
+#[cfg(all(windows, feature = "wsl"))]
 fn fetch_wsl2_distros() -> Vec<String> {
     wsl_cmd(&["-l", "-q"])
         .map(|stdout| {
@@ -176,7 +176,6 @@ pub fn config_ui(
 ) {
     let mut config_guard = config.write().unwrap();
     let AppConfig {
-        selected_wsl_distro,
         target_obj_dir,
         base_obj_dir,
         selected_obj,
@@ -226,27 +225,6 @@ pub fn config_ui(
         }
     }
     ui.separator();
-
-    #[cfg(feature = "wsl")]
-    {
-        ui.heading("Build");
-        if state.available_wsl_distros.is_none() {
-            state.available_wsl_distros = Some(fetch_wsl2_distros());
-        }
-        egui::ComboBox::from_label("Run in WSL2")
-            .selected_text(selected_wsl_distro.as_ref().unwrap_or(&"Disabled".to_string()))
-            .show_ui(ui, |ui| {
-                ui.selectable_value(selected_wsl_distro, None, "Disabled");
-                for distro in state.available_wsl_distros.as_ref().unwrap() {
-                    ui.selectable_value(selected_wsl_distro, Some(distro.clone()), distro);
-                }
-            });
-        ui.separator();
-    }
-    #[cfg(not(feature = "wsl"))]
-    {
-        let _ = selected_wsl_distro;
-    }
 
     ui.horizontal(|ui| {
         ui.heading("Project");
@@ -648,6 +626,24 @@ fn split_obj_config_ui(
         } else {
             config.custom_make = Some(custom_make_str);
         }
+    }
+    #[cfg(all(windows, feature = "wsl"))]
+    {
+        if state.available_wsl_distros.is_none() {
+            state.available_wsl_distros = Some(fetch_wsl2_distros());
+        }
+        egui::ComboBox::from_label("Run in WSL2")
+            .selected_text(config.selected_wsl_distro.as_ref().unwrap_or(&"Disabled".to_string()))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut config.selected_wsl_distro, None, "Disabled");
+                for distro in state.available_wsl_distros.as_ref().unwrap() {
+                    ui.selectable_value(
+                        &mut config.selected_wsl_distro,
+                        Some(distro.clone()),
+                        distro,
+                    );
+                }
+            });
     }
     ui.separator();
 
