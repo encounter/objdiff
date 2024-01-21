@@ -537,7 +537,8 @@ fn asm_table_ui(
     let right_symbol = right_obj.and_then(|obj| find_symbol(obj, selected_symbol));
     let instructions_len = left_symbol.or(right_symbol).map(|s| s.instructions.len())?;
     table.body(|body| {
-        body.rows(appearance.code_font.size, instructions_len, |row_index, mut row| {
+        body.rows(appearance.code_font.size, instructions_len, |mut row| {
+            let row_index = row.index();
             if let Some(symbol) = left_symbol {
                 asm_col_ui(
                     &mut row,

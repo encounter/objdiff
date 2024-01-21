@@ -154,7 +154,8 @@ fn data_table_ui(
     let right_diffs = right_section.map(|section| split_diffs(&section.data_diff));
 
     table.body(|body| {
-        body.rows(config.code_font.size, total_rows, |row_index, mut row| {
+        body.rows(config.code_font.size, total_rows, |mut row| {
+            let row_index = row.index();
             let address = row_index * BYTES_PER_ROW;
             row.col(|ui| {
                 if let Some(left_diffs) = &left_diffs {
