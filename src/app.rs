@@ -16,7 +16,7 @@ use time::UtcOffset;
 
 use crate::{
     app_config::{deserialize_config, AppConfigVersion},
-    config::{build_globset, load_project_config, ProjectObject, ProjectObjectNode},
+    config::{build_globset, load_project_config, ProjectObject, ProjectObjectNode, ScratchConfig},
     diff::DiffAlg,
     jobs::{
         objdiff::{start_build, ObjDiffConfig},
@@ -60,6 +60,7 @@ pub struct ObjectConfig {
     pub base_path: Option<PathBuf>,
     pub reverse_fn_order: Option<bool>,
     pub complete: Option<bool>,
+    pub scratch: Option<ScratchConfig>,
 }
 
 #[derive(Clone, Eq, PartialEq)]
@@ -128,6 +129,8 @@ pub struct AppConfig {
     #[serde(skip)]
     pub queue_reload: bool,
     #[serde(skip)]
+    pub queue_scratch: bool,
+    #[serde(skip)]
     pub project_config_info: Option<ProjectConfigInfo>,
 }
 
@@ -157,6 +160,7 @@ impl Default for AppConfig {
             obj_change: false,
             queue_build: false,
             queue_reload: false,
+            queue_scratch: false,
             project_config_info: None,
         }
     }
@@ -314,7 +318,7 @@ impl App {
 
         let ViewState { jobs, diff_state, config_state, .. } = &mut self.view_state;
         config_state.post_update(ctx, jobs, &self.config);
-        diff_state.post_update(&self.config);
+        diff_state.post_update(ctx, jobs, &self.config);
 
         let Ok(mut config) = self.config.write() else {
             return;

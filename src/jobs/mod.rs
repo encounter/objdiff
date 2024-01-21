@@ -9,9 +9,13 @@ use std::{
 
 use anyhow::Result;
 
-use crate::jobs::{check_update::CheckUpdateResult, objdiff::ObjDiffResult, update::UpdateResult};
+use crate::jobs::{
+    check_update::CheckUpdateResult, create_scratch::CreateScratchResult, objdiff::ObjDiffResult,
+    update::UpdateResult,
+};
 
 pub mod check_update;
+pub mod create_scratch;
 pub mod objdiff;
 pub mod update;
 
@@ -20,6 +24,7 @@ pub enum Job {
     ObjDiff,
     CheckUpdate,
     Update,
+    CreateScratch,
 }
 pub static JOB_ID: AtomicUsize = AtomicUsize::new(0);
 
@@ -119,6 +124,7 @@ pub enum JobResult {
     ObjDiff(Option<Box<ObjDiffResult>>),
     CheckUpdate(Option<Box<CheckUpdateResult>>),
     Update(Box<UpdateResult>),
+    CreateScratch(Option<Box<CreateScratchResult>>),
 }
 
 fn should_cancel(rx: &Receiver<()>) -> bool {

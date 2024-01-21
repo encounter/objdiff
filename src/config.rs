@@ -50,6 +50,22 @@ pub struct ProjectObject {
     pub reverse_fn_order: Option<bool>,
     #[serde(default)]
     pub complete: Option<bool>,
+    #[serde(default)]
+    pub scratch: Option<ScratchConfig>,
+}
+
+#[derive(Default, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct ScratchConfig {
+    #[serde(default)]
+    pub platform: Option<String>,
+    #[serde(default)]
+    pub compiler: Option<String>,
+    #[serde(default)]
+    pub c_flags: Option<String>,
+    #[serde(default)]
+    pub ctx_path: Option<PathBuf>,
+    #[serde(default)]
+    pub build_ctx: bool,
 }
 
 impl ProjectObject {
@@ -66,7 +82,7 @@ impl ProjectObject {
 
 #[derive(Clone)]
 pub enum ProjectObjectNode {
-    File(String, ProjectObject),
+    File(String, Box<ProjectObject>),
     Dir(String, Vec<ProjectObjectNode>),
 }
 
@@ -114,7 +130,7 @@ fn build_nodes(
                 }
             }
         }
-        let mut object = object.clone();
+        let mut object = Box::new(object.clone());
         if let (Some(target_obj_dir), Some(path), None) =
             (target_obj_dir, &object.path, &object.target_path)
         {

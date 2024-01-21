@@ -93,6 +93,7 @@ impl ConfigViewState {
                             base_path: Some(path),
                             reverse_fn_order: None,
                             complete: None,
+                            scratch: None,
                         });
                     } else if let Ok(obj_path) = path.strip_prefix(target_dir) {
                         let base_path = base_dir.join(obj_path);
@@ -102,6 +103,7 @@ impl ConfigViewState {
                             base_path: Some(base_path),
                             reverse_fn_order: None,
                             complete: None,
+                            scratch: None,
                         });
                     }
                 }
@@ -393,6 +395,7 @@ fn display_object(
             base_path: object.base_path.clone(),
             reverse_fn_order: object.reverse_fn_order,
             complete: object.complete,
+            scratch: object.scratch.clone(),
         });
     }
 }

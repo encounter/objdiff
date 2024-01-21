@@ -60,6 +60,7 @@ impl ObjectConfigV0 {
             base_path: Some(self.base_path),
             reverse_fn_order: self.reverse_fn_order,
             complete: None,
+            scratch: None,
         }
     }
 }

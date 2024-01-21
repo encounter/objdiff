@@ -1,14 +1,15 @@
 use std::mem::take;
 
 use egui::{
-    text::LayoutJob, Align, CollapsingHeader, Color32, Id, Layout, ScrollArea, SelectableLabel,
-    TextEdit, Ui, Vec2, Widget,
+    text::LayoutJob, Align, CollapsingHeader, Color32, Id, Layout, OpenUrl, ScrollArea,
+    SelectableLabel, TextEdit, Ui, Vec2, Widget,
 };
 use egui_extras::{Size, StripBuilder};
 
 use crate::{
     app::AppConfigRef,
     jobs::{
+        create_scratch::{start_create_scratch, CreateScratchConfig, CreateScratchResult},
         objdiff::{BuildStatus, ObjDiffResult},
         Job, JobQueue, JobResult,
     },
@@ -33,12 +34,16 @@ pub enum View {
 #[derive(Default)]
 pub struct DiffViewState {
     pub build: Option<Box<ObjDiffResult>>,
+    pub scratch: Option<Box<CreateScratchResult>>,
     pub current_view: View,
     pub symbol_state: SymbolViewState,
     pub function_state: FunctionViewState,
     pub search: String,
     pub queue_build: bool,
     pub build_running: bool,
+    pub scratch_available: bool,
+    pub queue_scratch: bool,
+    pub scratch_running: bool,
 }
 
 #[derive(Default)]
@@ -52,15 +57,19 @@ pub struct SymbolViewState {
 
 impl DiffViewState {
     pub fn pre_update(&mut self, jobs: &mut JobQueue, config: &AppConfigRef) {
-        jobs.results.retain_mut(|result| {
-            if let JobResult::ObjDiff(result) = result {
+        jobs.results.retain_mut(|result| match result {
+            JobResult::ObjDiff(result) => {
                 self.build = take(result);
                 false
-            } else {
-                true
             }
+            JobResult::CreateScratch(result) => {
+                self.scratch = take(result);
+                false
+            }
+            _ => true,
         });
         self.build_running = jobs.is_running(Job::ObjDiff);
+        self.scratch_running = jobs.is_running(Job::CreateScratch);
 
         self.symbol_state.disable_reverse_fn_order = false;
         if let Ok(config) = config.read() {
@@ -70,14 +79,39 @@ impl DiffViewState {
                     self.symbol_state.disable_reverse_fn_order = true;
                 }
             }
+            self.scratch_available = CreateScratchConfig::is_available(&config);
         }
     }
 
-    pub fn post_update(&mut self, config: &AppConfigRef) {
+    pub fn post_update(&mut self, ctx: &egui::Context, jobs: &mut JobQueue, config: &AppConfigRef) {
+        if let Some(result) = take(&mut self.scratch) {
+            ctx.output_mut(|o| o.open_url = Some(OpenUrl::new_tab(result.scratch_url)));
+        }
+
         if self.queue_build {
             self.queue_build = false;
             if let Ok(mut config) = config.write() {
                 config.queue_build = true;
+            }
+        }
+
+        if self.queue_scratch {
+            self.queue_scratch = false;
+            if let Some(function_name) =
+                self.symbol_state.selected_symbol.as_ref().map(|sym| sym.symbol_name.clone())
+            {
+                if let Ok(config) = config.read() {
+                    match CreateScratchConfig::from_config(&config, function_name) {
+                        Ok(config) => {
+                            jobs.push_once(Job::CreateScratch, || {
+                                start_create_scratch(ctx, config)
+                            });
+                        }
+                        Err(err) => {
+                            log::error!("Failed to create scratch config: {err}");
+                        }
+                    }
+                }
             }
         }
     }

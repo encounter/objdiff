@@ -192,7 +192,7 @@ pub fn data_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &A
                 |ui| {
                     ui.set_width(column_width);
 
-                    if ui.button("Back").clicked() {
+                    if ui.button("⏴ Back").clicked() {
                         state.current_view = View::SymbolDiff;
                     }
 

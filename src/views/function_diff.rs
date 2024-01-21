@@ -586,9 +586,23 @@ pub fn function_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance
                 |ui| {
                     ui.set_width(column_width);
 
-                    if ui.button("Back").clicked() {
-                        state.current_view = View::SymbolDiff;
-                    }
+                    ui.horizontal(|ui| {
+                        if ui.button("⏴ Back").clicked() {
+                            state.current_view = View::SymbolDiff;
+                        }
+                        ui.separator();
+                        if ui
+                            .add_enabled(
+                                !state.scratch_running && state.scratch_available,
+                                egui::Button::new("📲 decomp.me"),
+                            )
+                            .on_hover_text_at_pointer("Create a new scratch on decomp.me (beta)")
+                            .on_disabled_hover_text("Scratch configuration missing")
+                            .clicked()
+                        {
+                            state.queue_scratch = true;
+                        }
+                    });
 
                     let demangled = demangle(&selected_symbol.symbol_name, &Default::default());
                     let name = demangled.as_deref().unwrap_or(&selected_symbol.symbol_name);

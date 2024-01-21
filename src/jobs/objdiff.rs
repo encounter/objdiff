@@ -33,13 +33,28 @@ impl Default for BuildStatus {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct BuildConfig {
+    pub project_dir: Option<PathBuf>,
+    pub custom_make: Option<String>,
+    pub selected_wsl_distro: Option<String>,
+}
+
+impl BuildConfig {
+    pub(crate) fn from_config(config: &AppConfig) -> Self {
+        Self {
+            project_dir: config.project_dir.clone(),
+            custom_make: config.custom_make.clone(),
+            selected_wsl_distro: config.selected_wsl_distro.clone(),
+        }
+    }
+}
+
 pub struct ObjDiffConfig {
+    pub build_config: BuildConfig,
     pub build_base: bool,
     pub build_target: bool,
-    pub custom_make: Option<String>,
-    pub project_dir: Option<PathBuf>,
     pub selected_obj: Option<ObjectConfig>,
-    pub selected_wsl_distro: Option<String>,
     pub code_alg: DiffAlg,
     pub data_alg: DiffAlg,
     pub relax_reloc_diffs: bool,
@@ -47,13 +62,11 @@ pub struct ObjDiffConfig {
 
 impl ObjDiffConfig {
     pub(crate) fn from_config(config: &AppConfig) -> Self {
-        ObjDiffConfig {
+        Self {
+            build_config: BuildConfig::from_config(config),
             build_base: config.build_base,
             build_target: config.build_target,
-            custom_make: config.custom_make.clone(),
-            project_dir: config.project_dir.clone(),
             selected_obj: config.selected_obj.clone(),
-            selected_wsl_distro: config.selected_wsl_distro.clone(),
             code_alg: config.code_alg,
             data_alg: config.data_alg,
             relax_reloc_diffs: config.relax_reloc_diffs,
@@ -69,7 +82,14 @@ pub struct ObjDiffResult {
     pub time: OffsetDateTime,
 }
 
-fn run_make(cwd: &Path, arg: &Path, config: &ObjDiffConfig) -> BuildStatus {
+pub(crate) fn run_make(config: &BuildConfig, arg: &Path) -> BuildStatus {
+    let Some(cwd) = &config.project_dir else {
+        return BuildStatus {
+            success: false,
+            stderr: "Missing project dir".to_string(),
+            ..Default::default()
+        };
+    };
     match (|| -> Result<BuildStatus> {
         let make = config.custom_make.as_deref().unwrap_or("make");
         #[cfg(not(windows))]
@@ -130,8 +150,11 @@ fn run_build(
     config: ObjDiffConfig,
 ) -> Result<Box<ObjDiffResult>> {
     let obj_config = config.selected_obj.as_ref().ok_or_else(|| Error::msg("Missing obj path"))?;
-    let project_dir =
-        config.project_dir.as_ref().ok_or_else(|| Error::msg("Missing project dir"))?;
+    let project_dir = config
+        .build_config
+        .project_dir
+        .as_ref()
+        .ok_or_else(|| Error::msg("Missing project dir"))?;
     let target_path_rel = if let Some(target_path) = &obj_config.target_path {
         Some(target_path.strip_prefix(project_dir).map_err(|_| {
             anyhow!(
@@ -171,7 +194,7 @@ fn run_build(
                 total,
                 &cancel,
             )?;
-            run_make(project_dir, target_path_rel, &config)
+            run_make(&config.build_config, target_path_rel)
         }
         _ => BuildStatus::default(),
     };
@@ -185,7 +208,7 @@ fn run_build(
                 total,
                 &cancel,
             )?;
-            run_make(project_dir, base_path_rel, &config)
+            run_make(&config.build_config, base_path_rel)
         }
         _ => BuildStatus::default(),
     };
