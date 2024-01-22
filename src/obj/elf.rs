@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fs, io::Cursor, path::Path};
+use std::{borrow::Cow, collections::BTreeMap, fs, io::Cursor, path::Path};
 
 use anyhow::{anyhow, bail, Context, Result};
 use byteorder::{BigEndian, ReadBytesExt};
@@ -6,8 +6,8 @@ use cwdemangle::demangle;
 use filetime::FileTime;
 use flagset::Flags;
 use object::{
-    elf, Architecture, File, Object, ObjectSection, ObjectSymbol, RelocationKind, RelocationTarget,
-    SectionIndex, SectionKind, Symbol, SymbolKind, SymbolScope, SymbolSection,
+    elf, Architecture, Endianness, File, Object, ObjectSection, ObjectSymbol, RelocationKind,
+    RelocationTarget, SectionIndex, SectionKind, Symbol, SymbolKind, SymbolScope, SymbolSection,
 };
 
 use crate::obj::{
@@ -278,7 +278,9 @@ fn relocations_by_section(
     Ok(relocations)
 }
 
-fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u32, u32>>> {
+fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u64, u64>>> {
+    // DWARF 1.1
+    let mut map = BTreeMap::new();
     if let Some(section) = obj_file.section_by_name(".line") {
         if section.size() == 0 {
             return Ok(None);
@@ -286,22 +288,49 @@ fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u32, u32>>> {
         let data = section.uncompressed_data()?;
         let mut reader = Cursor::new(data.as_ref());
 
-        let mut map = BTreeMap::new();
         let size = reader.read_u32::<BigEndian>()?;
-        let base_address = reader.read_u32::<BigEndian>()?;
+        let base_address = reader.read_u32::<BigEndian>()? as u64;
         while reader.position() < size as u64 {
-            let line_number = reader.read_u32::<BigEndian>()?;
+            let line_number = reader.read_u32::<BigEndian>()? as u64;
             let statement_pos = reader.read_u16::<BigEndian>()?;
             if statement_pos != 0xFFFF {
                 log::warn!("Unhandled statement pos {}", statement_pos);
             }
-            let address_delta = reader.read_u32::<BigEndian>()?;
+            let address_delta = reader.read_u32::<BigEndian>()? as u64;
             map.insert(base_address + address_delta, line_number);
         }
-        // log::debug!("Line info: {map:#X?}");
-        return Ok(Some(map));
     }
-    Ok(None)
+
+    // DWARF 2+
+    let dwarf_cow = gimli::Dwarf::load(|id| {
+        Ok::<_, gimli::Error>(
+            obj_file
+                .section_by_name(id.name())
+                .and_then(|section| section.uncompressed_data().ok())
+                .unwrap_or(Cow::Borrowed(&[][..])),
+        )
+    })?;
+    let endian = match obj_file.endianness() {
+        Endianness::Little => gimli::RunTimeEndian::Little,
+        Endianness::Big => gimli::RunTimeEndian::Big,
+    };
+    let dwarf = dwarf_cow.borrow(|section| gimli::EndianSlice::new(section, endian));
+    let mut iter = dwarf.units();
+    while let Some(header) = iter.next()? {
+        let unit = dwarf.unit(header)?;
+        if let Some(program) = unit.line_program.clone() {
+            let mut rows = program.rows();
+            while let Some((_header, row)) = rows.next_row()? {
+                if let Some(line) = row.line() {
+                    map.insert(row.address(), line.get());
+                }
+            }
+        }
+    }
+    if map.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(map))
 }
 
 pub fn read(obj_path: &Path) -> Result<ObjInfo> {

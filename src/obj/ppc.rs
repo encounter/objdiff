@@ -24,7 +24,7 @@ pub fn process_code(
     data: &[u8],
     address: u64,
     relocs: &[ObjReloc],
-    line_info: &Option<BTreeMap<u32, u32>>,
+    line_info: &Option<BTreeMap<u64, u64>>,
 ) -> Result<ProcessCodeResult> {
     let ins_count = data.len() / 4;
     let mut ops = Vec::<u8>::with_capacity(ins_count);
@@ -82,7 +82,7 @@ pub fn process_code(
         ops.push(simplified.ins.op as u8);
         let line = line_info
             .as_ref()
-            .and_then(|map| map.range(..=simplified.ins.addr).last().map(|(_, &b)| b));
+            .and_then(|map| map.range(..=simplified.ins.addr as u64).last().map(|(_, &b)| b));
         insts.push(ObjIns {
             address: simplified.ins.addr,
             code: simplified.ins.code,

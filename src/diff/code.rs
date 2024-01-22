@@ -23,7 +23,7 @@ pub fn no_diff_code(
     data: &[u8],
     symbol: &mut ObjSymbol,
     relocs: &[ObjReloc],
-    line_info: &Option<BTreeMap<u32, u32>>,
+    line_info: &Option<BTreeMap<u64, u64>>,
 ) -> Result<()> {
     let code =
         &data[symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
@@ -57,8 +57,8 @@ pub fn diff_code(
     right_symbol: &mut ObjSymbol,
     left_relocs: &[ObjReloc],
     right_relocs: &[ObjReloc],
-    left_line_info: &Option<BTreeMap<u32, u32>>,
-    right_line_info: &Option<BTreeMap<u32, u32>>,
+    left_line_info: &Option<BTreeMap<u64, u64>>,
+    right_line_info: &Option<BTreeMap<u64, u64>>,
 ) -> Result<()> {
     let left_code = &left_data[left_symbol.section_address as usize
         ..(left_symbol.section_address + left_symbol.size) as usize];

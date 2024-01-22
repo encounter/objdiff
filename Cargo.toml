@@ -38,6 +38,7 @@ filetime = "0.2.23"
 flagset = "0.4.4"
 float-ord = "0.3.2"
 font-kit = "0.12.0"
+gimli = { version = "0.28.1", default-features = false, features = ["read-all"] }
 globset = { version = "0.4.14", features = ["serde1"] }
 log = "0.4.20"
 memmap2 = "0.9.3"

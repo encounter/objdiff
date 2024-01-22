@@ -113,7 +113,7 @@ pub struct ObjIns {
     pub reloc: Option<ObjReloc>,
     pub branch_dest: Option<u32>,
     /// Line info
-    pub line: Option<u32>,
+    pub line: Option<u64>,
     /// Original (unsimplified) instruction
     pub orig: Option<String>,
 }
@@ -172,7 +172,7 @@ pub struct ObjInfo {
     pub timestamp: FileTime,
     pub sections: Vec<ObjSection>,
     pub common: Vec<ObjSymbol>,
-    pub line_info: Option<BTreeMap<u32, u32>>,
+    pub line_info: Option<BTreeMap<u64, u64>>,
 }
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum ObjRelocKind {
