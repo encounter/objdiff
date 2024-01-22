@@ -61,6 +61,16 @@ impl ObjInsArg {
                         | (ppc750cl::Argument::Offset(off), ppc750cl::Argument::Simm(simm)) => {
                             simm.0 == off.0
                         }
+                        // Consider Uimm and Offset equivalent
+                        (ppc750cl::Argument::Uimm(uimm), ppc750cl::Argument::Offset(off))
+                        | (ppc750cl::Argument::Offset(off), ppc750cl::Argument::Uimm(uimm)) => {
+                            uimm.0 == off.0 as u16
+                        }
+                        // Consider Uimm and Simm equivalent
+                        (ppc750cl::Argument::Uimm(uimm), ppc750cl::Argument::Simm(simm))
+                        | (ppc750cl::Argument::Simm(simm), ppc750cl::Argument::Uimm(uimm)) => {
+                            uimm.0 == simm.0 as u16
+                        }
                         _ => false,
                     }
             }
