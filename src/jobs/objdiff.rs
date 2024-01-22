@@ -42,6 +42,7 @@ pub struct ObjDiffConfig {
     pub selected_wsl_distro: Option<String>,
     pub code_alg: DiffAlg,
     pub data_alg: DiffAlg,
+    pub relax_reloc_diffs: bool,
 }
 
 impl ObjDiffConfig {
@@ -55,6 +56,7 @@ impl ObjDiffConfig {
             selected_wsl_distro: config.selected_wsl_distro.clone(),
             code_alg: config.code_alg,
             data_alg: config.data_alg,
+            relax_reloc_diffs: config.relax_reloc_diffs,
         }
     }
 }
@@ -225,7 +227,11 @@ fn run_build(
     };
 
     update_status(context, "Performing diff".to_string(), 4, total, &cancel)?;
-    let diff_config = DiffObjConfig { code_alg: config.code_alg, data_alg: config.data_alg };
+    let diff_config = DiffObjConfig {
+        code_alg: config.code_alg,
+        data_alg: config.data_alg,
+        relax_reloc_diffs: config.relax_reloc_diffs,
+    };
     diff_objs(&diff_config, first_obj.as_mut(), second_obj.as_mut())?;
 
     update_status(context, "Complete".to_string(), total, total, &cancel)?;

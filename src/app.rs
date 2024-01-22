@@ -110,6 +110,8 @@ pub struct AppConfig {
     pub code_alg: DiffAlg,
     #[serde(default)]
     pub data_alg: DiffAlg,
+    #[serde(default)]
+    pub relax_reloc_diffs: bool,
 
     #[serde(skip)]
     pub objects: Vec<ProjectObject>,
@@ -147,6 +149,7 @@ impl Default for AppConfig {
             recent_projects: vec![],
             code_alg: Default::default(),
             data_alg: Default::default(),
+            relax_reloc_diffs: false,
             objects: vec![],
             object_nodes: vec![],
             watcher_change: false,
@@ -492,6 +495,15 @@ impl eframe::App for App {
                         &mut diff_state.symbol_state.show_hidden_symbols,
                         "Show hidden symbols",
                     );
+                    if ui
+                        .checkbox(&mut config.relax_reloc_diffs, "Relax relocation diffs")
+                        .on_hover_text(
+                            "Ignores differences in relocation targets. (Address, name, etc)",
+                        )
+                        .changed()
+                    {
+                        config.queue_reload = true;
+                    }
                 });
             });
         });

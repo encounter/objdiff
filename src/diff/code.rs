@@ -10,7 +10,7 @@ use similar::{capture_diff_slices_deadline, Algorithm};
 use crate::{
     diff::{
         editops::{editops_find, LevEditType},
-        DiffAlg, ProcessCodeResult,
+        DiffAlg, DiffObjConfig, ProcessCodeResult,
     },
     obj::{
         mips, ppc, ObjArchitecture, ObjInfo, ObjInsArg, ObjInsArgDiff, ObjInsBranchFrom,
@@ -49,7 +49,7 @@ pub fn no_diff_code(
 
 #[allow(clippy::too_many_arguments)]
 pub fn diff_code(
-    alg: DiffAlg,
+    config: &DiffObjConfig,
     arch: ObjArchitecture,
     left_data: &[u8],
     right_data: &[u8],
@@ -89,7 +89,7 @@ pub fn diff_code(
 
     let mut left_diff = Vec::<ObjInsDiff>::new();
     let mut right_diff = Vec::<ObjInsDiff>::new();
-    match alg {
+    match config.code_alg {
         DiffAlg::Levenshtein => {
             diff_instructions_lev(
                 &mut left_diff,
@@ -134,7 +134,7 @@ pub fn diff_code(
 
     let mut diff_state = InsDiffState::default();
     for (left, right) in left_diff.iter_mut().zip(right_diff.iter_mut()) {
-        let result = compare_ins(left, right, &mut diff_state)?;
+        let result = compare_ins(config, left, right, &mut diff_state)?;
         left.kind = result.kind;
         right.kind = result.kind;
         left.arg_diff = result.left_args_diff;
@@ -322,12 +322,19 @@ fn address_eq(left: &ObjSymbol, right: &ObjSymbol) -> bool {
     left.address as i64 + left.addend == right.address as i64 + right.addend
 }
 
-fn reloc_eq(left_reloc: Option<&ObjReloc>, right_reloc: Option<&ObjReloc>) -> bool {
+fn reloc_eq(
+    config: &DiffObjConfig,
+    left_reloc: Option<&ObjReloc>,
+    right_reloc: Option<&ObjReloc>,
+) -> bool {
     let (Some(left), Some(right)) = (left_reloc, right_reloc) else {
         return false;
     };
     if left.kind != right.kind {
         return false;
+    }
+    if config.relax_reloc_diffs {
+        return true;
     }
 
     let name_matches = left.target.name == right.target.name;
@@ -346,6 +353,7 @@ fn reloc_eq(left_reloc: Option<&ObjReloc>, right_reloc: Option<&ObjReloc>) -> bo
 }
 
 fn arg_eq(
+    config: &DiffObjConfig,
     left: &ObjInsArg,
     right: &ObjInsArg,
     left_diff: &ObjInsDiff,
@@ -359,6 +367,7 @@ fn arg_eq(
         ObjInsArg::Reloc => {
             matches!(right, ObjInsArg::Reloc)
                 && reloc_eq(
+                    config,
                     left_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
                     right_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
                 )
@@ -366,6 +375,7 @@ fn arg_eq(
         ObjInsArg::RelocWithBase => {
             matches!(right, ObjInsArg::RelocWithBase)
                 && reloc_eq(
+                    config,
                     left_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
                     right_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
                 )
@@ -398,6 +408,7 @@ struct InsDiffResult {
 }
 
 fn compare_ins(
+    config: &DiffObjConfig,
     left: &ObjInsDiff,
     right: &ObjInsDiff,
     state: &mut InsDiffState,
@@ -416,7 +427,7 @@ fn compare_ins(
             state.diff_count += 1;
         }
         for (a, b) in left_ins.args.iter().zip(&right_ins.args) {
-            if arg_eq(a, b, left, right) {
+            if arg_eq(config, a, b, left, right) {
                 result.left_args_diff.push(None);
                 result.right_args_diff.push(None);
             } else {

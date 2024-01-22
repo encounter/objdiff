@@ -1,7 +1,7 @@
 use std::mem::take;
 
 use egui::{
-    text::LayoutJob, Align, CollapsingHeader, Color32, Layout, ScrollArea, SelectableLabel,
+    text::LayoutJob, Align, CollapsingHeader, Color32, Id, Layout, ScrollArea, SelectableLabel,
     TextEdit, Ui, Vec2, Widget,
 };
 use egui_extras::{Size, StripBuilder};
@@ -234,6 +234,7 @@ fn symbol_list_ui(
 
             for section in &obj.sections {
                 CollapsingHeader::new(format!("{} ({:x})", section.name, section.size))
+                    .id_source(Id::new(section.name.clone()).with(section.index))
                     .default_open(true)
                     .show(ui, |ui| {
                         if section.kind == ObjSectionKind::Code && state.reverse_fn_order {

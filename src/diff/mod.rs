@@ -25,6 +25,7 @@ pub enum DiffAlg {
 pub struct DiffObjConfig {
     pub code_alg: DiffAlg,
     pub data_alg: DiffAlg,
+    pub relax_reloc_diffs: bool,
 }
 
 pub struct ProcessCodeResult {
@@ -51,7 +52,7 @@ pub fn diff_objs(
                         left_symbol.diff_symbol = Some(right_symbol.name.clone());
                         right_symbol.diff_symbol = Some(left_symbol.name.clone());
                         diff_code(
-                            config.code_alg,
+                            config,
                             left.architecture,
                             &left_section.data,
                             &right_section.data,
