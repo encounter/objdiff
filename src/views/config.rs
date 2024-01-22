@@ -518,6 +518,9 @@ fn format_path(path: &Option<PathBuf>, appearance: &Appearance) -> RichText {
     RichText::new(text).color(color).family(FontFamily::Monospace)
 }
 
+pub const CONFIG_DISABLED_TEXT: &str =
+    "Option disabled because it's set by the project configuration file.";
+
 fn pick_folder_ui(
     ui: &mut egui::Ui,
     dir: &Option<PathBuf>,
@@ -530,6 +533,7 @@ fn pick_folder_ui(
         subheading(ui, label, appearance);
         ui.link(HELP_ICON).on_hover_ui(tooltip);
         ui.add_enabled(enabled, egui::Button::new("Select"))
+            .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
     });
     ui.label(format_path(dir, appearance));
     response.inner
@@ -620,7 +624,14 @@ fn split_obj_config_ui(
         });
     });
     let mut custom_make_str = config.custom_make.clone().unwrap_or_default();
-    if ui.text_edit_singleline(&mut custom_make_str).changed() {
+    if ui
+        .add_enabled(
+            config.project_config_info.is_none(),
+            egui::TextEdit::singleline(&mut custom_make_str),
+        )
+        .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
+        .changed()
+    {
         if custom_make_str.is_empty() {
             config.custom_make = None;
         } else {
@@ -675,7 +686,12 @@ fn split_obj_config_ui(
                 FileDialogResult::TargetDir,
             );
         }
-        ui.checkbox(&mut config.build_target, "Build target objects").on_hover_ui(|ui| {
+        ui.add_enabled(
+            config.project_config_info.is_none(),
+            egui::Checkbox::new(&mut config.build_target, "Build target objects"),
+        )
+        .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
+        .on_hover_ui(|ui| {
             let mut job = LayoutJob::default();
             job.append(
                 "Tells the build system to produce the target object.\n",
@@ -726,7 +742,12 @@ fn split_obj_config_ui(
                 FileDialogResult::BaseDir,
             );
         }
-        ui.checkbox(&mut config.build_base, "Build base objects").on_hover_ui(|ui| {
+        ui.add_enabled(
+            config.project_config_info.is_none(),
+            egui::Checkbox::new(&mut config.build_base, "Build base objects"),
+        )
+        .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
+        .on_hover_ui(|ui| {
             let mut job = LayoutJob::default();
             job.append(
                 "Tells the build system to produce the base object.\n",
@@ -769,7 +790,11 @@ fn split_obj_config_ui(
 
     ui.horizontal(|ui| {
         ui.label(RichText::new("File patterns").color(appearance.text_color));
-        if ui.button("Reset").clicked() {
+        if ui
+            .add_enabled(config.project_config_info.is_none(), egui::Button::new("Reset"))
+            .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
+            .clicked()
+        {
             config.watch_patterns =
                 DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect();
             config.watcher_change = true;
@@ -783,7 +808,11 @@ fn split_obj_config_ui(
                     .color(appearance.text_color)
                     .family(FontFamily::Monospace),
             );
-            if ui.small_button("-").clicked() {
+            if ui
+                .add_enabled(config.project_config_info.is_none(), egui::Button::new("-").small())
+                .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
+                .clicked()
+            {
                 remove_at = Some(idx);
             }
         });
@@ -793,8 +822,16 @@ fn split_obj_config_ui(
         config.watcher_change = true;
     }
     ui.horizontal(|ui| {
-        egui::TextEdit::singleline(&mut state.watch_pattern_text).desired_width(100.0).show(ui);
-        if ui.small_button("+").clicked() {
+        ui.add_enabled(
+            config.project_config_info.is_none(),
+            egui::TextEdit::singleline(&mut state.watch_pattern_text).desired_width(100.0),
+        )
+        .on_disabled_hover_text(CONFIG_DISABLED_TEXT);
+        if ui
+            .add_enabled(config.project_config_info.is_none(), egui::Button::new("+").small())
+            .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
+            .clicked()
+        {
             if let Ok(glob) = Glob::new(&state.watch_pattern_text) {
                 config.watch_patterns.push(glob);
                 config.watcher_change = true;

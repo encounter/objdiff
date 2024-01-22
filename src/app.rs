@@ -25,7 +25,8 @@ use crate::{
     views::{
         appearance::{appearance_window, Appearance},
         config::{
-            config_ui, diff_options_window, project_window, ConfigViewState, DEFAULT_WATCH_PATTERNS,
+            config_ui, diff_options_window, project_window, ConfigViewState, CONFIG_DISABLED_TEXT,
+            DEFAULT_WATCH_PATTERNS,
         },
         data_diff::data_diff_ui,
         debug::debug_window,
@@ -486,9 +487,7 @@ impl eframe::App for App {
                             "Reverse function order (-inline deferred)",
                         ),
                     )
-                    .on_disabled_hover_text(
-                        "Option disabled because it's set by the project configuration file.",
-                    );
+                    .on_disabled_hover_text(CONFIG_DISABLED_TEXT);
                     ui.checkbox(
                         &mut diff_state.symbol_state.show_hidden_symbols,
                         "Show hidden symbols",
