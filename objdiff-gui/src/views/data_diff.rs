@@ -1,16 +1,14 @@
 use std::{cmp::min, default::Default, mem::take};
 
-use egui::{text::LayoutJob, Align, Label, Layout, Sense, Vec2};
+use egui::{text::LayoutJob, Align, Label, Layout, Sense, Vec2, Widget};
 use egui_extras::{Column, TableBuilder};
+use objdiff_core::obj::{ObjDataDiff, ObjDataDiffKind, ObjInfo, ObjSection};
 use time::format_description;
 
-use crate::{
-    obj::{ObjDataDiff, ObjDataDiffKind, ObjInfo, ObjSection},
-    views::{
-        appearance::Appearance,
-        symbol_diff::{DiffViewState, SymbolReference, View},
-        write_text,
-    },
+use crate::views::{
+    appearance::Appearance,
+    symbol_diff::{DiffViewState, SymbolReference, View},
+    write_text,
 };
 
 const BYTES_PER_ROW: usize = 16;
@@ -90,7 +88,7 @@ fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], appeara
             write_text(text.as_str(), base_color, &mut job, appearance.code_font.clone());
         }
     }
-    ui.add(Label::new(job).sense(Sense::click()));
+    Label::new(job).sense(Sense::click()).ui(ui);
     //     .on_hover_ui_at_pointer(|ui| ins_hover_ui(ui, ins))
     //     .context_menu(|ui| ins_context_menu(ui, ins));
 }
@@ -252,6 +250,7 @@ pub fn data_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &A
     ui.separator();
 
     // Table
+    ui.style_mut().interaction.selectable_labels = false;
     let available_height = ui.available_height();
     let table = TableBuilder::new(ui)
         .striped(false)

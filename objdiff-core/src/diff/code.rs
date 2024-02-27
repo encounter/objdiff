@@ -12,9 +12,10 @@ use crate::{
         editops::{editops_find, LevEditType},
         DiffAlg, DiffObjConfig, ProcessCodeResult,
     },
+    obj,
     obj::{
-        mips, ppc, ObjArchitecture, ObjInfo, ObjInsArg, ObjInsArgDiff, ObjInsBranchFrom,
-        ObjInsBranchTo, ObjInsDiff, ObjInsDiffKind, ObjReloc, ObjSymbol, ObjSymbolFlags,
+        ObjArchitecture, ObjInfo, ObjInsArg, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo,
+        ObjInsDiff, ObjInsDiffKind, ObjReloc, ObjSymbol, ObjSymbolFlags,
     },
 };
 
@@ -27,9 +28,13 @@ pub fn no_diff_code(
 ) -> Result<()> {
     let code =
         &data[symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
-    let out = match arch {
-        ObjArchitecture::PowerPc => ppc::process_code(code, symbol.address, relocs, line_info)?,
-        ObjArchitecture::Mips => mips::process_code(
+    let out: ProcessCodeResult = match arch {
+        #[cfg(feature = "ppc")]
+        ObjArchitecture::PowerPc => {
+            obj::ppc::process_code(code, symbol.address, relocs, line_info)?
+        }
+        #[cfg(feature = "mips")]
+        ObjArchitecture::Mips => obj::mips::process_code(
             code,
             symbol.address,
             symbol.address + symbol.size,
@@ -65,19 +70,26 @@ pub fn diff_code(
     let right_code = &right_data[right_symbol.section_address as usize
         ..(right_symbol.section_address + right_symbol.size) as usize];
     let (left_out, right_out) = match arch {
+        #[cfg(feature = "ppc")]
         ObjArchitecture::PowerPc => (
-            ppc::process_code(left_code, left_symbol.address, left_relocs, left_line_info)?,
-            ppc::process_code(right_code, right_symbol.address, right_relocs, right_line_info)?,
+            obj::ppc::process_code(left_code, left_symbol.address, left_relocs, left_line_info)?,
+            obj::ppc::process_code(
+                right_code,
+                right_symbol.address,
+                right_relocs,
+                right_line_info,
+            )?,
         ),
+        #[cfg(feature = "mips")]
         ObjArchitecture::Mips => (
-            mips::process_code(
+            obj::mips::process_code(
                 left_code,
                 left_symbol.address,
                 left_symbol.address + left_symbol.size,
                 left_relocs,
                 left_line_info,
             )?,
-            mips::process_code(
+            obj::mips::process_code(
                 right_code,
                 right_symbol.address,
                 left_symbol.address + left_symbol.size,
@@ -235,12 +247,8 @@ fn diff_instructions_lev(
             cur_right = right_iter.next();
         }
         if let (Some(left), Some(right)) = (cur_left, cur_right) {
-            if (left.address - left_symbol.address as u32) != left_addr {
-                return Err(anyhow::Error::msg("Instruction address mismatch (left)"));
-            }
-            if (right.address - right_symbol.address as u32) != right_addr {
-                return Err(anyhow::Error::msg("Instruction address mismatch (right)"));
-            }
+            debug_assert_eq!(left.address - left_symbol.address as u32, left_addr);
+            debug_assert_eq!(right.address - right_symbol.address as u32, right_addr);
             match op.op_type {
                 LevEditType::Replace => {
                     left_diff.push(ObjInsDiff { ins: Some(left.clone()), ..ObjInsDiff::default() });
@@ -360,8 +368,8 @@ fn arg_eq(
     right_diff: &ObjInsDiff,
 ) -> bool {
     return match left {
-        ObjInsArg::PpcArg(l) => match right {
-            ObjInsArg::PpcArg(r) => format!("{l}") == format!("{r}"),
+        ObjInsArg::Arg(l) | ObjInsArg::ArgWithBase(l) => match right {
+            ObjInsArg::Arg(r) | ObjInsArg::ArgWithBase(r) => l == r,
             _ => false,
         },
         ObjInsArg::Reloc => {
@@ -379,9 +387,6 @@ fn arg_eq(
                     left_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
                     right_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
                 )
-        }
-        ObjInsArg::MipsArg(ls) | ObjInsArg::MipsArgWithBase(ls) => {
-            matches!(right, ObjInsArg::MipsArg(rs) | ObjInsArg::MipsArgWithBase(rs) if ls == rs)
         }
         ObjInsArg::BranchOffset(_) => {
             // Compare dest instruction idx after diffing
@@ -436,9 +441,8 @@ fn compare_ins(
                     state.diff_count += 1;
                 }
                 let a_str = match a {
-                    ObjInsArg::PpcArg(arg) => format!("{arg}"),
+                    ObjInsArg::Arg(arg) | ObjInsArg::ArgWithBase(arg) => arg.to_string(),
                     ObjInsArg::Reloc | ObjInsArg::RelocWithBase => String::new(),
-                    ObjInsArg::MipsArg(str) | ObjInsArg::MipsArgWithBase(str) => str.clone(),
                     ObjInsArg::BranchOffset(arg) => format!("{arg}"),
                 };
                 let a_diff = if let Some(idx) = state.left_args_idx.get(&a_str) {
@@ -450,9 +454,8 @@ fn compare_ins(
                     ObjInsArgDiff { idx }
                 };
                 let b_str = match b {
-                    ObjInsArg::PpcArg(arg) => format!("{arg}"),
+                    ObjInsArg::Arg(arg) | ObjInsArg::ArgWithBase(arg) => arg.to_string(),
                     ObjInsArg::Reloc | ObjInsArg::RelocWithBase => String::new(),
-                    ObjInsArg::MipsArg(str) | ObjInsArg::MipsArgWithBase(str) => str.clone(),
                     ObjInsArg::BranchOffset(arg) => format!("{arg}"),
                 };
                 let b_diff = if let Some(idx) = state.right_args_idx.get(&b_str) {

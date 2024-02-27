@@ -1,11 +1,15 @@
 pub mod elf;
+#[cfg(feature = "mips")]
 pub mod mips;
+#[cfg(feature = "ppc")]
 pub mod ppc;
 
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{collections::BTreeMap, fmt, path::PathBuf};
 
 use filetime::FileTime;
 use flagset::{flags, FlagSet};
+
+use crate::util::ReallySigned;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum ObjSectionKind {
@@ -23,7 +27,8 @@ flags! {
     }
 }
 #[derive(Debug, Copy, Clone, Default)]
-pub struct ObjSymbolFlagSet(pub(crate) FlagSet<ObjSymbolFlags>);
+pub struct ObjSymbolFlagSet(pub FlagSet<ObjSymbolFlags>);
+
 #[derive(Debug, Clone)]
 pub struct ObjSection {
     pub name: String,
@@ -41,10 +46,39 @@ pub struct ObjSection {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
+pub enum ObjInsArgValue {
+    Signed(i16),
+    Unsigned(u16),
+    Opaque(String),
+}
+
+impl ObjInsArgValue {
+    pub fn loose_eq(&self, other: &ObjInsArgValue) -> bool {
+        match (self, other) {
+            (ObjInsArgValue::Signed(a), ObjInsArgValue::Signed(b)) => a == b,
+            (ObjInsArgValue::Unsigned(a), ObjInsArgValue::Unsigned(b)) => a == b,
+            (ObjInsArgValue::Signed(a), ObjInsArgValue::Unsigned(b))
+            | (ObjInsArgValue::Unsigned(b), ObjInsArgValue::Signed(a)) => *a as u16 == *b,
+            (ObjInsArgValue::Opaque(a), ObjInsArgValue::Opaque(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl fmt::Display for ObjInsArgValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ObjInsArgValue::Signed(v) => write!(f, "{:#x}", ReallySigned(*v)),
+            ObjInsArgValue::Unsigned(v) => write!(f, "{:#x}", v),
+            ObjInsArgValue::Opaque(v) => write!(f, "{}", v),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ObjInsArg {
-    PpcArg(ppc750cl::Argument),
-    MipsArg(String),
-    MipsArgWithBase(String),
+    Arg(ObjInsArgValue),
+    ArgWithBase(ObjInsArgValue),
     Reloc,
     RelocWithBase,
     BranchOffset(i32),
@@ -53,29 +87,8 @@ pub enum ObjInsArg {
 impl ObjInsArg {
     pub fn loose_eq(&self, other: &ObjInsArg) -> bool {
         match (self, other) {
-            (ObjInsArg::PpcArg(a), ObjInsArg::PpcArg(b)) => {
-                a == b
-                    || match (a, b) {
-                        // Consider Simm and Offset equivalent
-                        (ppc750cl::Argument::Simm(simm), ppc750cl::Argument::Offset(off))
-                        | (ppc750cl::Argument::Offset(off), ppc750cl::Argument::Simm(simm)) => {
-                            simm.0 == off.0
-                        }
-                        // Consider Uimm and Offset equivalent
-                        (ppc750cl::Argument::Uimm(uimm), ppc750cl::Argument::Offset(off))
-                        | (ppc750cl::Argument::Offset(off), ppc750cl::Argument::Uimm(uimm)) => {
-                            uimm.0 == off.0 as u16
-                        }
-                        // Consider Uimm and Simm equivalent
-                        (ppc750cl::Argument::Uimm(uimm), ppc750cl::Argument::Simm(simm))
-                        | (ppc750cl::Argument::Simm(simm), ppc750cl::Argument::Uimm(uimm)) => {
-                            uimm.0 == simm.0 as u16
-                        }
-                        _ => false,
-                    }
-            }
-            (ObjInsArg::MipsArg(a), ObjInsArg::MipsArg(b)) => a == b,
-            (ObjInsArg::MipsArgWithBase(a), ObjInsArg::MipsArgWithBase(b)) => a == b,
+            (ObjInsArg::Arg(a), ObjInsArg::Arg(b)) => a.loose_eq(b),
+            (ObjInsArg::ArgWithBase(a), ObjInsArg::ArgWithBase(b)) => a.loose_eq(b),
             (ObjInsArg::Reloc, ObjInsArg::Reloc) => true,
             (ObjInsArg::RelocWithBase, ObjInsArg::RelocWithBase) => true,
             (ObjInsArg::BranchOffset(a), ObjInsArg::BranchOffset(b)) => a == b,
@@ -89,6 +102,7 @@ pub struct ObjInsArgDiff {
     /// Incrementing index for coloring
     pub idx: usize,
 }
+
 #[derive(Debug, Clone)]
 pub struct ObjInsBranchFrom {
     /// Source instruction indices
@@ -96,6 +110,7 @@ pub struct ObjInsBranchFrom {
     /// Incrementing index for coloring
     pub branch_idx: usize,
 }
+
 #[derive(Debug, Clone)]
 pub struct ObjInsBranchTo {
     /// Target instruction index
@@ -103,6 +118,7 @@ pub struct ObjInsBranchTo {
     /// Incrementing index for coloring
     pub branch_idx: usize,
 }
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
 pub enum ObjInsDiffKind {
     #[default]
@@ -113,6 +129,7 @@ pub enum ObjInsDiffKind {
     Delete,
     Insert,
 }
+
 #[derive(Debug, Clone)]
 pub struct ObjIns {
     pub address: u32,
@@ -127,6 +144,7 @@ pub struct ObjIns {
     /// Original (unsimplified) instruction
     pub orig: Option<String>,
 }
+
 #[derive(Debug, Clone, Default)]
 pub struct ObjInsDiff {
     pub ins: Option<ObjIns>,
@@ -139,6 +157,7 @@ pub struct ObjInsDiff {
     /// Arg diffs
     pub arg_diff: Vec<Option<ObjInsArgDiff>>,
 }
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
 pub enum ObjDataDiffKind {
     #[default]
@@ -147,6 +166,7 @@ pub enum ObjDataDiffKind {
     Delete,
     Insert,
 }
+
 #[derive(Debug, Clone, Default)]
 pub struct ObjDataDiff {
     pub data: Vec<u8>,
@@ -154,6 +174,7 @@ pub struct ObjDataDiff {
     pub len: usize,
     pub symbol: String,
 }
+
 #[derive(Debug, Clone)]
 pub struct ObjSymbol {
     pub name: String,
@@ -170,11 +191,15 @@ pub struct ObjSymbol {
     pub instructions: Vec<ObjInsDiff>,
     pub match_percent: Option<f32>,
 }
+
 #[derive(Debug, Copy, Clone)]
 pub enum ObjArchitecture {
+    #[cfg(feature = "ppc")]
     PowerPc,
+    #[cfg(feature = "mips")]
     Mips,
 }
+
 #[derive(Debug, Clone)]
 pub struct ObjInfo {
     pub architecture: ObjArchitecture,
@@ -184,27 +209,46 @@ pub struct ObjInfo {
     pub common: Vec<ObjSymbol>,
     pub line_info: Option<BTreeMap<u64, u64>>,
 }
+
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum ObjRelocKind {
     Absolute,
+    #[cfg(feature = "ppc")]
     PpcAddr16Hi,
+    #[cfg(feature = "ppc")]
     PpcAddr16Ha,
+    #[cfg(feature = "ppc")]
     PpcAddr16Lo,
+    // #[cfg(feature = "ppc")]
     // PpcAddr32,
+    // #[cfg(feature = "ppc")]
     // PpcRel32,
+    // #[cfg(feature = "ppc")]
     // PpcAddr24,
+    #[cfg(feature = "ppc")]
     PpcRel24,
+    // #[cfg(feature = "ppc")]
     // PpcAddr14,
+    #[cfg(feature = "ppc")]
     PpcRel14,
+    #[cfg(feature = "ppc")]
     PpcEmbSda21,
+    #[cfg(feature = "mips")]
     Mips26,
+    #[cfg(feature = "mips")]
     MipsHi16,
+    #[cfg(feature = "mips")]
     MipsLo16,
+    #[cfg(feature = "mips")]
     MipsGot16,
+    #[cfg(feature = "mips")]
     MipsCall16,
+    #[cfg(feature = "mips")]
     MipsGpRel16,
+    #[cfg(feature = "mips")]
     MipsGpRel32,
 }
+
 #[derive(Debug, Clone)]
 pub struct ObjReloc {
     pub kind: ObjRelocKind,

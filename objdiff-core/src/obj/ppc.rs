@@ -5,20 +5,26 @@ use ppc750cl::{disasm_iter, Argument, SimplifiedIns};
 
 use crate::{
     diff::ProcessCodeResult,
-    obj::{ObjIns, ObjInsArg, ObjReloc, ObjRelocKind},
+    obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjRelocKind},
 };
 
 // Relative relocation, can be Simm or BranchOffset
 fn is_relative_arg(arg: &ObjInsArg) -> bool {
-    matches!(arg, ObjInsArg::PpcArg(Argument::Simm(_)) | ObjInsArg::BranchOffset(_))
+    matches!(arg, ObjInsArg::Arg(ObjInsArgValue::Signed(_)) | ObjInsArg::BranchOffset(_))
 }
 
 // Relative or absolute relocation, can be Uimm, Simm or Offset
 fn is_rel_abs_arg(arg: &ObjInsArg) -> bool {
-    matches!(arg, ObjInsArg::PpcArg(arg) if matches!(arg, Argument::Uimm(_) | Argument::Simm(_) | Argument::Offset(_)))
+    matches!(
+        arg,
+        ObjInsArg::Arg(ObjInsArgValue::Signed(_) | ObjInsArgValue::Unsigned(_))
+            | ObjInsArg::ArgWithBase(ObjInsArgValue::Signed(_))
+    )
 }
 
-fn is_offset_arg(arg: &ObjInsArg) -> bool { matches!(arg, ObjInsArg::PpcArg(Argument::Offset(_))) }
+fn is_offset_arg(arg: &ObjInsArg) -> bool {
+    matches!(arg, ObjInsArg::ArgWithBase(ObjInsArgValue::Signed(_)))
+}
 
 pub fn process_code(
     data: &[u8],
@@ -48,8 +54,13 @@ pub fn process_code(
             .args
             .iter()
             .map(|a| match a {
+                Argument::Simm(simm) => ObjInsArg::Arg(ObjInsArgValue::Signed(simm.0)),
+                Argument::Uimm(uimm) => ObjInsArg::Arg(ObjInsArgValue::Unsigned(uimm.0)),
+                Argument::Offset(offset) => {
+                    ObjInsArg::ArgWithBase(ObjInsArgValue::Signed(offset.0))
+                }
                 Argument::BranchDest(dest) => ObjInsArg::BranchOffset(dest.0),
-                _ => ObjInsArg::PpcArg(a.clone()),
+                _ => ObjInsArg::Arg(ObjInsArgValue::Opaque(a.to_string())),
             })
             .collect();
         if let Some(reloc) = reloc {

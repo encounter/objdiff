@@ -1,96 +1,11 @@
-[package]
-name = "objdiff"
-version = "1.0.0"
-edition = "2021"
-rust-version = "1.70"
-authors = ["Luke Street <luke@street.dev>"]
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/encounter/objdiff"
-readme = "README.md"
-description = """
-A local diffing tool for decompilation projects.
-"""
-publish = false
-build = "build.rs"
+[workspace]
+members = [
+    "objdiff-core",
+    "objdiff-gui",
+]
+resolver = "2"
 
 [profile.release-lto]
 inherits = "release"
 lto = "thin"
 strip = "debuginfo"
-
-[features]
-default = ["wgpu", "wsl"]
-wgpu = ["eframe/wgpu"]
-wsl = []
-
-[dependencies]
-anyhow = "1.0.79"
-byteorder = "1.5.0"
-bytes = "1.5.0"
-cfg-if = "1.0.0"
-const_format = "0.2.32"
-cwdemangle = "0.1.6"
-dirs = "5.0.1"
-eframe = { version = "0.25.0", features = ["persistence"] }
-egui = "0.25.0"
-egui_extras = "0.25.0"
-filetime = "0.2.23"
-flagset = "0.4.4"
-float-ord = "0.3.2"
-font-kit = "0.12.0"
-gimli = { version = "0.28.1", default-features = false, features = ["read-all"] }
-globset = { version = "0.4.14", features = ["serde1"] }
-log = "0.4.20"
-memmap2 = "0.9.3"
-notify = "6.1.1"
-object = { version = "0.32.2", features = ["read_core", "std", "elf"], default-features = false }
-png = "0.17.11"
-pollster = "0.3.0"
-ppc750cl = { git = "https://github.com/encounter/ppc750cl", rev = "4a2bbbc6f84dcb76255ab6f3595a8d4a0ce96618" }
-rabbitizer = "1.8.1"
-rfd = { version = "0.13.0" } #, default-features = false, features = ['xdg-portal']
-ron = "0.8.1"
-semver = "1.0.21"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1.0.111"
-serde_yaml = "0.9.30"
-shell-escape = "0.1.5"
-similar = "2.4.0"
-tempfile = "3.9.0"
-thiserror = "1.0.56"
-time = { version = "0.3.31", features = ["formatting", "local-offset"] }
-toml = "0.8.8"
-twox-hash = "1.6.3"
-
-# For Linux static binaries, use rustls
-[target.'cfg(target_os = "linux")'.dependencies]
-reqwest = { version = "0.11.23", default-features = false, features = ["blocking", "json", "multipart", "rustls"] }
-self_update = { version = "0.39.0", default-features = false, features = ["rustls"] }
-
-# For all other platforms, use native TLS
-[target.'cfg(not(target_os = "linux"))'.dependencies]
-reqwest = { version = "0.11.23", default-features = false, features = ["blocking", "json", "multipart", "default-tls"] }
-self_update = "0.39.0"
-
-[target.'cfg(windows)'.dependencies]
-path-slash = "0.2.1"
-winapi = "0.3.9"
-
-[target.'cfg(windows)'.build-dependencies]
-winres = "0.1.12"
-
-[target.'cfg(unix)'.dependencies]
-exec = "0.3.1"
-
-# native:
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tracing-subscriber = "0.3"
-
-# web:
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-console_error_panic_hook = "0.1.7"
-tracing-wasm = "0.2"
-
-[build-dependencies]
-anyhow = "1.0.79"
-vergen = { version = "8.3.1", features = ["build", "cargo", "git", "gitcl"] }

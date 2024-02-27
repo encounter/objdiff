@@ -1,0 +1,83 @@
+[package]
+name = "objdiff-gui"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.70"
+authors = ["Luke Street <luke@street.dev>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/encounter/objdiff"
+readme = "../README.md"
+description = """
+A local diffing tool for decompilation projects.
+"""
+publish = false
+build = "build.rs"
+
+[features]
+default = ["wgpu", "wsl"]
+wgpu = ["eframe/wgpu"]
+wsl = []
+
+[dependencies]
+anyhow = "1.0.79"
+bytes = "1.5.0"
+cfg-if = "1.0.0"
+const_format = "0.2.32"
+cwdemangle = "0.1.6"
+dirs = "5.0.1"
+eframe = { version = "0.26.2", features = ["persistence"] }
+egui = "0.26.2"
+egui_extras = "0.26.2"
+filetime = "0.2.23"
+float-ord = "0.3.2"
+font-kit = "0.12.0"
+globset = { version = "0.4.14", features = ["serde1"] }
+log = "0.4.20"
+notify = "6.1.1"
+objdiff-core = { path = "../objdiff-core", features = ["all"] }
+png = "0.17.11"
+pollster = "0.3.0"
+rfd = { version = "0.14.0" } #, default-features = false, features = ['xdg-portal']
+ron = "0.8.1"
+semver = "1.0.21"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.111"
+serde_yaml = "0.9.30"
+shell-escape = "0.1.5"
+tempfile = "3.9.0"
+thiserror = "1.0.56"
+time = { version = "0.3.31", features = ["formatting", "local-offset"] }
+toml = "0.8.8"
+
+# For Linux static binaries, use rustls
+[target.'cfg(target_os = "linux")'.dependencies]
+reqwest = { version = "0.11.23", default-features = false, features = ["blocking", "json", "multipart", "rustls"] }
+self_update = { version = "0.39.0", default-features = false, features = ["rustls"] }
+
+# For all other platforms, use native TLS
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+reqwest = { version = "0.11.23", default-features = false, features = ["blocking", "json", "multipart", "default-tls"] }
+self_update = "0.39.0"
+
+[target.'cfg(windows)'.dependencies]
+path-slash = "0.2.1"
+winapi = "0.3.9"
+
+[target.'cfg(windows)'.build-dependencies]
+winres = "0.1.12"
+
+[target.'cfg(unix)'.dependencies]
+exec = "0.3.1"
+
+# native:
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tracing-subscriber = "0.3"
+
+# web:
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.7"
+tracing-wasm = "0.2"
+
+[build-dependencies]
+anyhow = "1.0.79"
+vergen = { version = "8.3.1", features = ["build", "cargo", "git", "gitcl"] }

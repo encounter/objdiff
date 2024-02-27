@@ -4,7 +4,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use anyhow::{bail, Result};
+use anyhow::{ensure, Result};
 use filetime::FileTime;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 
@@ -163,9 +163,10 @@ pub fn load_project_config(config: &mut AppConfig) -> Result<()> {
             let version_str = env!("CARGO_PKG_VERSION");
             let version = semver::Version::parse(version_str).unwrap();
             let version_req = semver::VersionReq::parse(&format!(">={min_version}"))?;
-            if !version_req.matches(&version) {
-                bail!("Project requires objdiff version {} or higher", min_version);
-            }
+            ensure!(
+                version_req.matches(&version),
+                "Project requires objdiff version {min_version} or higher"
+            );
         }
         config.custom_make = project_config.custom_make;
         config.target_obj_dir = project_config.target_dir.map(|p| project_dir.join(p));

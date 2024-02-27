@@ -5,7 +5,7 @@ use rabbitizer::{config, Abi, InstrCategory, Instruction, OperandType};
 
 use crate::{
     diff::ProcessCodeResult,
-    obj::{ObjIns, ObjInsArg, ObjReloc},
+    obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc},
 };
 
 fn configure_rabbitizer() {
@@ -63,23 +63,27 @@ pub fn process_code(
                             args.push(ObjInsArg::Reloc);
                         }
                     } else {
-                        args.push(ObjInsArg::MipsArg(op.disassemble(&instruction, None)));
+                        args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
+                            op.disassemble(&instruction, None),
+                        )));
                     }
                 }
                 OperandType::cpu_immediate_base => {
                     if reloc.is_some() {
                         args.push(ObjInsArg::RelocWithBase);
                     } else {
-                        args.push(ObjInsArg::MipsArgWithBase(
+                        args.push(ObjInsArg::ArgWithBase(ObjInsArgValue::Opaque(
                             OperandType::cpu_immediate.disassemble(&instruction, None),
-                        ));
+                        )));
                     }
-                    args.push(ObjInsArg::MipsArg(
+                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
                         OperandType::cpu_rs.disassemble(&instruction, None),
-                    ));
+                    )));
                 }
                 _ => {
-                    args.push(ObjInsArg::MipsArg(op.disassemble(&instruction, None)));
+                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
+                        op.disassemble(&instruction, None),
+                    )));
                 }
             }
         }

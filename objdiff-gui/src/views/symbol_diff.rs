@@ -5,6 +5,7 @@ use egui::{
     SelectableLabel, TextEdit, Ui, Vec2, Widget,
 };
 use egui_extras::{Size, StripBuilder};
+use objdiff_core::obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags};
 
 use crate::{
     app::AppConfigRef,
@@ -13,12 +14,12 @@ use crate::{
         objdiff::{BuildStatus, ObjDiffResult},
         Job, JobQueue, JobResult,
     },
-    obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags},
     views::{appearance::Appearance, function_diff::FunctionViewState, write_text},
 };
 
 pub struct SymbolReference {
     pub symbol_name: String,
+    pub demangled_symbol_name: Option<String>,
     pub section_name: String,
 }
 
@@ -210,19 +211,21 @@ fn symbol_ui(
     write_text(name, appearance.highlight_color, &mut job, appearance.code_font.clone());
     let response = SelectableLabel::new(selected, job)
         .ui(ui)
-        .context_menu(|ui| symbol_context_menu_ui(ui, symbol))
         .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, symbol, appearance));
+    response.context_menu(|ui| symbol_context_menu_ui(ui, symbol));
     if response.clicked() {
         if let Some(section) = section {
             if section.kind == ObjSectionKind::Code {
                 state.selected_symbol = Some(SymbolReference {
                     symbol_name: symbol.name.clone(),
+                    demangled_symbol_name: symbol.demangled_name.clone(),
                     section_name: section.name.clone(),
                 });
                 ret = Some(View::FunctionDiff);
             } else if section.kind == ObjSectionKind::Data {
                 state.selected_symbol = Some(SymbolReference {
                     symbol_name: section.name.clone(),
+                    demangled_symbol_name: None,
                     section_name: section.name.clone(),
                 });
                 ret = Some(View::DataDiff);

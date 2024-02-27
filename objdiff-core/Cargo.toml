@@ -1,0 +1,36 @@
+[package]
+name = "objdiff-core"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.70"
+authors = ["Luke Street <luke@street.dev>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/encounter/objdiff"
+readme = "../README.md"
+description = """
+A local diffing tool for decompilation projects.
+"""
+
+[features]
+all = ["dwarf", "mips", "ppc"]
+any-arch = [] # Implicit, used to check if any arch is enabled
+dwarf = ["gimli"]
+mips = ["any-arch", "rabbitizer"]
+ppc = ["any-arch", "cwdemangle", "ppc750cl"]
+
+[dependencies]
+anyhow = "1.0.79"
+byteorder = "1.5.0"
+cwdemangle = { version = "0.1.6", optional = true }
+filetime = "0.2.23"
+flagset = "0.4.4"
+gimli = { version = "0.28.1", default-features = false, features = ["read-all"], optional = true }
+log = "0.4.20"
+memmap2 = "0.9.3"
+num-traits = "0.2.18"
+object = { version = "0.32.2", features = ["read_core", "std", "elf"], default-features = false }
+ppc750cl = { git = "https://github.com/encounter/ppc750cl", rev = "4a2bbbc6f84dcb76255ab6f3595a8d4a0ce96618", optional = true }
+rabbitizer = { version = "1.8.1", optional = true }
+serde = { version = "1", features = ["derive"] }
+similar = "2.4.0"
+twox-hash = "1.6.3"

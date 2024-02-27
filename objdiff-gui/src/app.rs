@@ -12,12 +12,12 @@ use std::{
 use filetime::FileTime;
 use globset::{Glob, GlobSet};
 use notify::{RecursiveMode, Watcher};
+use objdiff_core::diff::DiffAlg;
 use time::UtcOffset;
 
 use crate::{
     app_config::{deserialize_config, AppConfigVersion},
     config::{build_globset, load_project_config, ProjectObject, ProjectObjectNode, ScratchConfig},
-    diff::DiffAlg,
     jobs::{
         objdiff::{start_build, ObjDiffConfig},
         Job, JobQueue, JobResult, JobStatus,

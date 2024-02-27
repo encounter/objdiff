@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{bail, Result};
+use anyhow::{ensure, Result};
 use similar::{capture_diff_slices_deadline, Algorithm};
 
 use crate::{
@@ -177,15 +177,14 @@ pub fn diff_data_similar(
 
 pub fn diff_data_lev(left: &mut ObjSection, right: &mut ObjSection) -> Result<()> {
     let matrix_size = (left.data.len() as u64).saturating_mul(right.data.len() as u64);
-    if matrix_size > 1_000_000_000 {
-        bail!(
-            "Data section {} too large for Levenshtein diff ({} * {} = {})",
-            left.name,
-            left.data.len(),
-            right.data.len(),
-            matrix_size
-        );
-    }
+    ensure!(
+        matrix_size < 1_000_000_000,
+        "Data section {} too large for Levenshtein diff ({} * {} = {})",
+        left.name,
+        left.data.len(),
+        right.data.len(),
+        matrix_size
+    );
 
     let edit_ops = editops_find(&left.data, &right.data);
     if edit_ops.is_empty() && !left.data.is_empty() {

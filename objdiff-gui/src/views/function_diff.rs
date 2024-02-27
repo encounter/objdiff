@@ -3,22 +3,20 @@ use std::{
     default::Default,
 };
 
-use cwdemangle::demangle;
-use egui::{text::LayoutJob, Align, Color32, Label, Layout, RichText, Sense, TextFormat, Vec2};
+use egui::{
+    text::LayoutJob, Align, Color32, Label, Layout, RichText, Sense, TextFormat, Vec2, Widget,
+};
 use egui_extras::{Column, TableBuilder, TableRow};
-use ppc750cl::Argument;
+use objdiff_core::obj::{
+    ObjInfo, ObjIns, ObjInsArg, ObjInsArgDiff, ObjInsArgValue, ObjInsDiff, ObjInsDiffKind,
+    ObjReloc, ObjRelocKind, ObjSymbol,
+};
 use time::format_description;
 
-use crate::{
-    obj::{
-        ObjInfo, ObjIns, ObjInsArg, ObjInsArgDiff, ObjInsDiff, ObjInsDiffKind, ObjReloc,
-        ObjRelocKind, ObjSymbol,
-    },
-    views::{
-        appearance::Appearance,
-        symbol_diff::{match_color_for_symbol, DiffViewState, SymbolReference, View},
-        write_text,
-    },
+use crate::views::{
+    appearance::Appearance,
+    symbol_diff::{match_color_for_symbol, DiffViewState, SymbolReference, View},
+    write_text,
 };
 
 #[derive(Default)]
@@ -162,11 +160,9 @@ fn write_ins(
         } else {
             Color32::TRANSPARENT
         });
-    if ui
-        .add(Label::new(op_label).sense(Sense::click()))
-        .context_menu(|ui| ins_context_menu(ui, ins))
-        .clicked()
-    {
+    let response = Label::new(op_label).sense(Sense::click()).ui(ui);
+    response.context_menu(|ui| ins_context_menu(ui, ins));
+    if response.clicked() {
         if highlighted_op {
             ins_view_state.highlight = HighlightKind::None;
         } else {
@@ -215,19 +211,14 @@ fn write_ins(
         };
         let mut new_writing_offset = false;
         match arg {
-            ObjInsArg::PpcArg(arg) => match arg {
-                Argument::Offset(val) => {
-                    job.append(&format!("{val}"), 0.0, text_format);
-                    write_text("(", base_color, &mut job, appearance.code_font.clone());
-                    new_writing_offset = true;
-                }
-                Argument::Uimm(_) | Argument::Simm(_) => {
-                    job.append(&format!("{arg}"), 0.0, text_format);
-                }
-                _ => {
-                    job.append(&format!("{arg}"), 0.0, text_format);
-                }
-            },
+            ObjInsArg::Arg(arg) => {
+                job.append(&arg.to_string(), 0.0, text_format);
+            }
+            ObjInsArg::ArgWithBase(arg) => {
+                job.append(&arg.to_string(), 0.0, text_format);
+                write_text("(", base_color, &mut job, appearance.code_font.clone());
+                new_writing_offset = true;
+            }
             ObjInsArg::Reloc => {
                 write_reloc(
                     ins.reloc.as_ref().unwrap(),
@@ -248,14 +239,6 @@ fn write_ins(
                 write_text("(", base_color, &mut job, appearance.code_font.clone());
                 new_writing_offset = true;
             }
-            ObjInsArg::MipsArg(str) => {
-                job.append(str.strip_prefix('$').unwrap_or(str), 0.0, text_format);
-            }
-            ObjInsArg::MipsArgWithBase(str) => {
-                job.append(str.strip_prefix('$').unwrap_or(str), 0.0, text_format);
-                write_text("(", base_color, &mut job, appearance.code_font.clone());
-                new_writing_offset = true;
-            }
             ObjInsArg::BranchOffset(offset) => {
                 let addr = offset + ins.address as i32 - base_addr as i32;
                 job.append(&format!("{addr:x}"), 0.0, text_format);
@@ -264,12 +247,14 @@ fn write_ins(
         if writing_offset {
             write_text(")", base_color, &mut job, appearance.code_font.clone());
         }
+        // For text selection / copy
+        if i == ins.args.len() - 1 {
+            write_text("\n", base_color, &mut job, appearance.code_font.clone());
+        }
         writing_offset = new_writing_offset;
-        if ui
-            .add(Label::new(job).sense(Sense::click()))
-            .context_menu(|ui| ins_context_menu(ui, ins))
-            .clicked()
-        {
+        let response = Label::new(job).sense(Sense::click()).ui(ui);
+        response.context_menu(|ui| ins_context_menu(ui, ins));
+        if response.clicked() {
             if highlighted_arg {
                 ins_view_state.highlight = HighlightKind::None;
             } else if matches!(arg, ObjInsArg::Reloc | ObjInsArg::RelocWithBase) {
@@ -297,16 +282,13 @@ fn ins_hover_ui(ui: &mut egui::Ui, ins: &ObjIns, appearance: &Appearance) {
         }
 
         for arg in &ins.args {
-            if let ObjInsArg::PpcArg(arg) = arg {
+            if let ObjInsArg::Arg(arg) | ObjInsArg::ArgWithBase(arg) = arg {
                 match arg {
-                    Argument::Uimm(v) => {
-                        ui.label(format!("{} == {}", v, v.0));
+                    ObjInsArgValue::Signed(v) => {
+                        ui.label(format!("{arg} == {v}"));
                     }
-                    Argument::Simm(v) => {
-                        ui.label(format!("{} == {}", v, v.0));
-                    }
-                    Argument::Offset(v) => {
-                        ui.label(format!("{} == {}", v, v.0));
+                    ObjInsArgValue::Unsigned(v) => {
+                        ui.label(format!("{arg} == {v}"));
                     }
                     _ => {}
                 }
@@ -341,35 +323,25 @@ fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
         // if ui.button("Copy hex").clicked() {}
 
         for arg in &ins.args {
-            if let ObjInsArg::PpcArg(arg) = arg {
+            if let ObjInsArg::Arg(arg) | ObjInsArg::ArgWithBase(arg) = arg {
                 match arg {
-                    Argument::Uimm(v) => {
-                        if ui.button(format!("Copy \"{v}\"")).clicked() {
-                            ui.output_mut(|output| output.copied_text = format!("{v}"));
+                    ObjInsArgValue::Signed(v) => {
+                        if ui.button(format!("Copy \"{arg}\"")).clicked() {
+                            ui.output_mut(|output| output.copied_text = arg.to_string());
                             ui.close_menu();
                         }
-                        if ui.button(format!("Copy \"{}\"", v.0)).clicked() {
-                            ui.output_mut(|output| output.copied_text = format!("{}", v.0));
+                        if ui.button(format!("Copy \"{v}\"")).clicked() {
+                            ui.output_mut(|output| output.copied_text = v.to_string());
                             ui.close_menu();
                         }
                     }
-                    Argument::Simm(v) => {
+                    ObjInsArgValue::Unsigned(v) => {
+                        if ui.button(format!("Copy \"{arg}\"")).clicked() {
+                            ui.output_mut(|output| output.copied_text = arg.to_string());
+                            ui.close_menu();
+                        }
                         if ui.button(format!("Copy \"{v}\"")).clicked() {
-                            ui.output_mut(|output| output.copied_text = format!("{v}"));
-                            ui.close_menu();
-                        }
-                        if ui.button(format!("Copy \"{}\"", v.0)).clicked() {
-                            ui.output_mut(|output| output.copied_text = format!("{}", v.0));
-                            ui.close_menu();
-                        }
-                    }
-                    Argument::Offset(v) => {
-                        if ui.button(format!("Copy \"{v}\"")).clicked() {
-                            ui.output_mut(|output| output.copied_text = format!("{v}"));
-                            ui.close_menu();
-                        }
-                        if ui.button(format!("Copy \"{}\"", v.0)).clicked() {
-                            ui.output_mut(|output| output.copied_text = format!("{}", v.0));
+                            ui.output_mut(|output| output.copied_text = v.to_string());
                             ui.close_menu();
                         }
                     }
@@ -451,11 +423,9 @@ fn asm_row_ui(
         },
         ..Default::default()
     });
-    if ui
-        .add(Label::new(job).sense(Sense::click()))
-        .context_menu(|ui| ins_context_menu(ui, ins))
-        .clicked()
-    {
+    let response = Label::new(job).sense(Sense::click()).selectable(false).ui(ui);
+    response.context_menu(|ui| ins_context_menu(ui, ins));
+    if response.clicked() {
         if addr_highlight {
             ins_view_state.highlight = HighlightKind::None;
         } else {
@@ -484,7 +454,7 @@ fn asm_row_ui(
             ..Default::default()
         });
     }
-    ui.add(Label::new(job));
+    Label::new(job).selectable(false).ui(ui);
     write_ins(ins, &ins_diff.kind, &ins_diff.arg_diff, base_addr, ui, appearance, ins_view_state);
     if let Some(branch) = &ins_diff.branch_to {
         let mut job = LayoutJob::default();
@@ -494,7 +464,7 @@ fn asm_row_ui(
             &mut job,
             appearance.code_font.clone(),
         );
-        ui.add(Label::new(job));
+        Label::new(job).selectable(false).ui(ui);
     }
 }
 
@@ -509,13 +479,8 @@ fn asm_col_ui(
         asm_row_ui(ui, ins_diff, symbol, appearance, ins_view_state);
     });
     if let Some(ins) = &ins_diff.ins {
-        response
-            .on_hover_ui_at_pointer(|ui| {
-                ins_hover_ui(ui, ins, appearance);
-            })
-            .context_menu(|ui| {
-                ins_context_menu(ui, ins);
-            });
+        response.on_hover_ui_at_pointer(|ui| ins_hover_ui(ui, ins, appearance));
+        // .context_menu(|ui| ins_context_menu(ui, ins));
     }
 }
 
@@ -604,8 +569,10 @@ pub fn function_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance
                         }
                     });
 
-                    let demangled = demangle(&selected_symbol.symbol_name, &Default::default());
-                    let name = demangled.as_deref().unwrap_or(&selected_symbol.symbol_name);
+                    let name = selected_symbol
+                        .demangled_symbol_name
+                        .as_deref()
+                        .unwrap_or(&selected_symbol.symbol_name);
                     let mut job = LayoutJob::simple(
                         name.to_string(),
                         appearance.code_font.clone(),
@@ -681,6 +648,7 @@ pub fn function_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance
     ui.separator();
 
     // Table
+    ui.style_mut().interaction.selectable_labels = false;
     let available_height = ui.available_height();
     let table = TableBuilder::new(ui)
         .striped(false)

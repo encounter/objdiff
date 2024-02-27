@@ -14,12 +14,12 @@ use egui::{
     SelectableLabel, TextFormat, Widget, WidgetText,
 };
 use globset::Glob;
+use objdiff_core::diff::DiffAlg;
 use self_update::cargo_crate_version;
 
 use crate::{
     app::{AppConfig, AppConfigRef, ObjectConfig},
     config::{ProjectObject, ProjectObjectNode},
-    diff::DiffAlg,
     jobs::{
         check_update::{start_check_update, CheckUpdateResult},
         update::start_update,
@@ -605,7 +605,7 @@ fn split_obj_config_ui(
     ui.separator();
 
     ui.horizontal(|ui| {
-        subheading(ui, "Custom make program", appearance);
+        subheading(ui, "Build program", appearance);
         ui.link(HELP_ICON).on_hover_ui(|ui| {
             let mut job = LayoutJob::default();
             job.append("By default, objdiff will build with ", 0.0, text_format.clone());
@@ -630,7 +630,7 @@ fn split_obj_config_ui(
     if ui
         .add_enabled(
             config.project_config_info.is_none(),
-            egui::TextEdit::singleline(&mut custom_make_str),
+            egui::TextEdit::singleline(&mut custom_make_str).hint_text("make"),
         )
         .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
         .changed()

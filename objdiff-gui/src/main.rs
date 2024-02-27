@@ -1,13 +1,21 @@
 #![warn(clippy::all, rust_2018_idioms)]
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
+mod app;
+mod app_config;
+mod config;
+mod fonts;
+mod jobs;
+mod update;
+mod views;
+
 use std::{
     path::PathBuf,
     rc::Rc,
     sync::{Arc, Mutex},
 };
 
-use anyhow::{Error, Result};
+use anyhow::{ensure, Result};
 use cfg_if::cfg_if;
 use time::UtcOffset;
 
@@ -17,12 +25,8 @@ fn load_icon() -> Result<egui::IconData> {
     let mut reader = decoder.read_info()?;
     let mut buf = vec![0; reader.output_buffer_size()];
     let info = reader.next_frame(&mut buf)?;
-    if info.bit_depth != png::BitDepth::Eight {
-        return Err(Error::msg("Invalid bit depth"));
-    }
-    if info.color_type != png::ColorType::Rgba {
-        return Err(Error::msg("Invalid color type"));
-    }
+    ensure!(info.bit_depth == png::BitDepth::Eight);
+    ensure!(info.color_type == png::ColorType::Rgba);
     buf.truncate(info.buffer_size());
     Ok(egui::IconData { rgba: buf, width: info.width, height: info.height })
 }
@@ -57,7 +61,7 @@ fn main() {
     eframe::run_native(
         "objdiff",
         native_options,
-        Box::new(move |cc| Box::new(objdiff::App::new(cc, utc_offset, exec_path_clone))),
+        Box::new(move |cc| Box::new(app::App::new(cc, utc_offset, exec_path_clone))),
     )
     .expect("Failed to run eframe application");
 

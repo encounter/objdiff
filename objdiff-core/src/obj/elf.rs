@@ -1,8 +1,7 @@
 use std::{borrow::Cow, collections::BTreeMap, fs, io::Cursor, path::Path};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, ensure, Context, Result};
 use byteorder::{BigEndian, ReadBytesExt};
-use cwdemangle::demangle;
 use filetime::FileTime;
 use flagset::Flags;
 use object::{
@@ -53,9 +52,14 @@ fn to_obj_symbol(obj_file: &File<'_>, symbol: &Symbol<'_, '_>, addend: i64) -> R
     } else {
         symbol.address()
     };
+    let mut demangled_name = None;
+    #[cfg(feature = "ppc")]
+    if obj_file.architecture() == Architecture::PowerPc {
+        demangled_name = cwdemangle::demangle(name, &Default::default());
+    }
     Ok(ObjSymbol {
         name: name.to_string(),
-        demangled_name: demangle(name, &Default::default()),
+        demangled_name,
         address: symbol.address(),
         section_address,
         size: symbol.size(),
@@ -194,16 +198,12 @@ fn relocations_by_section(
             RelocationTarget::Symbol(idx) => obj_file
                 .symbol_by_index(idx)
                 .context("Failed to locate relocation target symbol")?,
-            _ => {
-                return Err(anyhow::Error::msg(format!(
-                    "Unhandled relocation target: {:?}",
-                    reloc.target()
-                )));
-            }
+            _ => bail!("Unhandled relocation target: {:?}", reloc.target()),
         };
         let kind = match reloc.kind() {
             RelocationKind::Absolute => ObjRelocKind::Absolute,
             RelocationKind::Elf(kind) => match arch {
+                #[cfg(feature = "ppc")]
                 ObjArchitecture::PowerPc => match kind {
                     elf::R_PPC_ADDR16_LO => ObjRelocKind::PpcAddr16Lo,
                     elf::R_PPC_ADDR16_HI => ObjRelocKind::PpcAddr16Hi,
@@ -211,12 +211,9 @@ fn relocations_by_section(
                     elf::R_PPC_REL24 => ObjRelocKind::PpcRel24,
                     elf::R_PPC_REL14 => ObjRelocKind::PpcRel14,
                     elf::R_PPC_EMB_SDA21 => ObjRelocKind::PpcEmbSda21,
-                    _ => {
-                        return Err(anyhow::Error::msg(format!(
-                            "Unhandled PPC relocation type: {kind}"
-                        )))
-                    }
+                    _ => bail!("Unhandled PPC relocation type: {kind}"),
                 },
+                #[cfg(feature = "mips")]
                 ObjArchitecture::Mips => match kind {
                     elf::R_MIPS_26 => ObjRelocKind::Mips26,
                     elf::R_MIPS_HI16 => ObjRelocKind::MipsHi16,
@@ -228,12 +225,7 @@ fn relocations_by_section(
                     _ => bail!("Unhandled MIPS relocation type: {kind}"),
                 },
             },
-            _ => {
-                return Err(anyhow::Error::msg(format!(
-                    "Unhandled relocation type: {:?}",
-                    reloc.kind()
-                )))
-            }
+            _ => bail!("Unhandled relocation type: {:?}", reloc.kind()),
         };
         let target_section = match symbol.section() {
             SymbolSection::Common => Some(".comm".to_string()),
@@ -248,12 +240,16 @@ fn relocations_by_section(
             );
             match kind {
                 ObjRelocKind::Absolute => addend as i64,
+                #[cfg(feature = "mips")]
                 ObjRelocKind::MipsHi16 => ((addend & 0x0000FFFF) << 16) as i32 as i64,
+                #[cfg(feature = "mips")]
                 ObjRelocKind::MipsLo16
                 | ObjRelocKind::MipsGot16
                 | ObjRelocKind::MipsCall16
                 | ObjRelocKind::MipsGpRel16 => (addend & 0x0000FFFF) as i16 as i64,
+                #[cfg(feature = "mips")]
                 ObjRelocKind::MipsGpRel32 => addend as i32 as i64,
+                #[cfg(feature = "mips")]
                 ObjRelocKind::Mips26 => ((addend & 0x03FFFFFF) << 2) as i64,
                 _ => bail!("Unsupported implicit relocation {kind:?}"),
             }
@@ -266,9 +262,7 @@ fn relocations_by_section(
                 to_obj_symbol(obj_file, &symbol, addend)
             }
             SymbolKind::Section => {
-                if addend < 0 {
-                    return Err(anyhow::Error::msg(format!("Negative addend in reloc: {addend}")));
-                }
+                ensure!(addend >= 0, "Negative addend in reloc: {addend}");
                 find_section_symbol(obj_file, &symbol, addend as u64)
             }
             kind => Err(anyhow!("Unhandled relocation symbol type {kind:?}")),
@@ -302,27 +296,30 @@ fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u64, u64>>> {
     }
 
     // DWARF 2+
-    let dwarf_cow = gimli::Dwarf::load(|id| {
-        Ok::<_, gimli::Error>(
-            obj_file
-                .section_by_name(id.name())
-                .and_then(|section| section.uncompressed_data().ok())
-                .unwrap_or(Cow::Borrowed(&[][..])),
-        )
-    })?;
-    let endian = match obj_file.endianness() {
-        Endianness::Little => gimli::RunTimeEndian::Little,
-        Endianness::Big => gimli::RunTimeEndian::Big,
-    };
-    let dwarf = dwarf_cow.borrow(|section| gimli::EndianSlice::new(section, endian));
-    let mut iter = dwarf.units();
-    while let Some(header) = iter.next()? {
-        let unit = dwarf.unit(header)?;
-        if let Some(program) = unit.line_program.clone() {
-            let mut rows = program.rows();
-            while let Some((_header, row)) = rows.next_row()? {
-                if let Some(line) = row.line() {
-                    map.insert(row.address(), line.get());
+    #[cfg(feature = "dwarf")]
+    {
+        let dwarf_cow = gimli::Dwarf::load(|id| {
+            Ok::<_, gimli::Error>(
+                obj_file
+                    .section_by_name(id.name())
+                    .and_then(|section| section.uncompressed_data().ok())
+                    .unwrap_or(Cow::Borrowed(&[][..])),
+            )
+        })?;
+        let endian = match obj_file.endianness() {
+            Endianness::Little => gimli::RunTimeEndian::Little,
+            Endianness::Big => gimli::RunTimeEndian::Big,
+        };
+        let dwarf = dwarf_cow.borrow(|section| gimli::EndianSlice::new(section, endian));
+        let mut iter = dwarf.units();
+        while let Some(header) = iter.next()? {
+            let unit = dwarf.unit(header)?;
+            if let Some(program) = unit.line_program.clone() {
+                let mut rows = program.rows();
+                while let Some((_header, row)) = rows.next_row()? {
+                    if let Some(line) = row.line() {
+                        map.insert(row.address(), line.get());
+                    }
                 }
             }
         }
@@ -341,14 +338,11 @@ pub fn read(obj_path: &Path) -> Result<ObjInfo> {
     };
     let obj_file = File::parse(&*data)?;
     let architecture = match obj_file.architecture() {
+        #[cfg(feature = "ppc")]
         Architecture::PowerPc => ObjArchitecture::PowerPc,
+        #[cfg(feature = "mips")]
         Architecture::Mips => ObjArchitecture::Mips,
-        _ => {
-            return Err(anyhow::Error::msg(format!(
-                "Unsupported architecture: {:?}",
-                obj_file.architecture()
-            )))
-        }
+        _ => bail!("Unsupported architecture: {:?}", obj_file.architecture()),
     };
     let mut result = ObjInfo {
         architecture,
