@@ -1,22 +1,16 @@
-use std::{
-    cmp::{max, Ordering},
-    default::Default,
-};
+use std::default::Default;
 
-use egui::{
-    text::LayoutJob, Align, Color32, Label, Layout, RichText, Sense, TextFormat, Vec2, Widget,
-};
+use egui::{text::LayoutJob, Align, Label, Layout, Sense, Vec2, Widget};
 use egui_extras::{Column, TableBuilder, TableRow};
-use objdiff_core::obj::{
-    ObjInfo, ObjIns, ObjInsArg, ObjInsArgDiff, ObjInsArgValue, ObjInsDiff, ObjInsDiffKind,
-    ObjReloc, ObjRelocKind, ObjSymbol,
+use objdiff_core::{
+    diff::display::{display_diff, DiffText},
+    obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjInsDiff, ObjInsDiffKind, ObjSymbol},
 };
 use time::format_description;
 
 use crate::views::{
     appearance::Appearance,
     symbol_diff::{match_color_for_symbol, DiffViewState, SymbolReference, View},
-    write_text,
 };
 
 #[derive(Default)]
@@ -24,250 +18,27 @@ pub enum HighlightKind {
     #[default]
     None,
     Opcode(u8),
-    Arg(ObjInsArg),
+    Arg(ObjInsArgValue),
     Symbol(String),
     Address(u32),
+}
+
+impl PartialEq for HighlightKind {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (HighlightKind::None, HighlightKind::None) => false,
+            (HighlightKind::Opcode(a), HighlightKind::Opcode(b)) => a == b,
+            (HighlightKind::Arg(a), HighlightKind::Arg(b)) => a.loose_eq(b),
+            (HighlightKind::Symbol(a), HighlightKind::Symbol(b)) => a == b,
+            (HighlightKind::Address(a), HighlightKind::Address(b)) => a == b,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Default)]
 pub struct FunctionViewState {
     pub highlight: HighlightKind,
-}
-
-fn write_reloc_name(
-    reloc: &ObjReloc,
-    color: Color32,
-    background_color: Color32,
-    job: &mut LayoutJob,
-    appearance: &Appearance,
-) {
-    let name = reloc.target.demangled_name.as_ref().unwrap_or(&reloc.target.name);
-    job.append(name, 0.0, TextFormat {
-        font_id: appearance.code_font.clone(),
-        color: appearance.emphasized_text_color,
-        background: background_color,
-        ..Default::default()
-    });
-    match reloc.target.addend.cmp(&0i64) {
-        Ordering::Greater => write_text(
-            &format!("+{:#X}", reloc.target.addend),
-            color,
-            job,
-            appearance.code_font.clone(),
-        ),
-        Ordering::Less => {
-            write_text(
-                &format!("-{:#X}", -reloc.target.addend),
-                color,
-                job,
-                appearance.code_font.clone(),
-            );
-        }
-        _ => {}
-    }
-}
-
-fn write_reloc(
-    reloc: &ObjReloc,
-    color: Color32,
-    background_color: Color32,
-    job: &mut LayoutJob,
-    appearance: &Appearance,
-) {
-    match reloc.kind {
-        ObjRelocKind::PpcAddr16Lo => {
-            write_reloc_name(reloc, color, background_color, job, appearance);
-            write_text("@l", color, job, appearance.code_font.clone());
-        }
-        ObjRelocKind::PpcAddr16Hi => {
-            write_reloc_name(reloc, color, background_color, job, appearance);
-            write_text("@h", color, job, appearance.code_font.clone());
-        }
-        ObjRelocKind::PpcAddr16Ha => {
-            write_reloc_name(reloc, color, background_color, job, appearance);
-            write_text("@ha", color, job, appearance.code_font.clone());
-        }
-        ObjRelocKind::PpcEmbSda21 => {
-            write_reloc_name(reloc, color, background_color, job, appearance);
-            write_text("@sda21", color, job, appearance.code_font.clone());
-        }
-        ObjRelocKind::MipsHi16 => {
-            write_text("%hi(", color, job, appearance.code_font.clone());
-            write_reloc_name(reloc, color, background_color, job, appearance);
-            write_text(")", color, job, appearance.code_font.clone());
-        }
-        ObjRelocKind::MipsLo16 => {
-            write_text("%lo(", color, job, appearance.code_font.clone());
-            write_reloc_name(reloc, color, background_color, job, appearance);
-            write_text(")", color, job, appearance.code_font.clone());
-        }
-        ObjRelocKind::MipsGot16 => {
-            write_text("%got(", color, job, appearance.code_font.clone());
-            write_reloc_name(reloc, color, background_color, job, appearance);
-            write_text(")", color, job, appearance.code_font.clone());
-        }
-        ObjRelocKind::MipsCall16 => {
-            write_text("%call16(", color, job, appearance.code_font.clone());
-            write_reloc_name(reloc, color, background_color, job, appearance);
-            write_text(")", color, job, appearance.code_font.clone());
-        }
-        ObjRelocKind::MipsGpRel16 => {
-            write_text("%gp_rel(", color, job, appearance.code_font.clone());
-            write_reloc_name(reloc, color, background_color, job, appearance);
-            write_text(")", color, job, appearance.code_font.clone());
-        }
-        ObjRelocKind::PpcRel24 | ObjRelocKind::PpcRel14 | ObjRelocKind::Mips26 => {
-            write_reloc_name(reloc, color, background_color, job, appearance);
-        }
-        ObjRelocKind::Absolute | ObjRelocKind::MipsGpRel32 => {
-            write_text("[INVALID]", color, job, appearance.code_font.clone());
-        }
-    };
-}
-
-fn write_ins(
-    ins: &ObjIns,
-    diff_kind: &ObjInsDiffKind,
-    args: &[Option<ObjInsArgDiff>],
-    base_addr: u32,
-    ui: &mut egui::Ui,
-    appearance: &Appearance,
-    ins_view_state: &mut FunctionViewState,
-) {
-    let base_color = match diff_kind {
-        ObjInsDiffKind::None | ObjInsDiffKind::OpMismatch | ObjInsDiffKind::ArgMismatch => {
-            appearance.text_color
-        }
-        ObjInsDiffKind::Replace => appearance.replace_color,
-        ObjInsDiffKind::Delete => appearance.delete_color,
-        ObjInsDiffKind::Insert => appearance.insert_color,
-    };
-
-    let highlighted_op =
-        matches!(ins_view_state.highlight, HighlightKind::Opcode(op) if op == ins.op);
-    let op_label = RichText::new(ins.mnemonic.clone())
-        .font(appearance.code_font.clone())
-        .color(if highlighted_op {
-            appearance.emphasized_text_color
-        } else {
-            match diff_kind {
-                ObjInsDiffKind::OpMismatch => appearance.replace_color,
-                _ => base_color,
-            }
-        })
-        .background_color(if highlighted_op {
-            appearance.deemphasized_text_color
-        } else {
-            Color32::TRANSPARENT
-        });
-    let response = Label::new(op_label).sense(Sense::click()).ui(ui);
-    response.context_menu(|ui| ins_context_menu(ui, ins));
-    if response.clicked() {
-        if highlighted_op {
-            ins_view_state.highlight = HighlightKind::None;
-        } else {
-            ins_view_state.highlight = HighlightKind::Opcode(ins.op);
-        }
-    }
-    let space_width = ui.fonts(|f| f.glyph_width(&appearance.code_font, ' '));
-    ui.add_space(space_width * (max(11, ins.mnemonic.len()) - ins.mnemonic.len()) as f32);
-
-    let mut writing_offset = false;
-    for (i, arg) in ins.args.iter().enumerate() {
-        let mut job = LayoutJob::default();
-        if i == 0 {
-            write_text(" ", base_color, &mut job, appearance.code_font.clone());
-        }
-        if i > 0 && !writing_offset {
-            write_text(", ", base_color, &mut job, appearance.code_font.clone());
-        }
-        let highlighted_arg = match &ins_view_state.highlight {
-            HighlightKind::Symbol(v) => {
-                matches!(arg, ObjInsArg::Reloc | ObjInsArg::RelocWithBase)
-                    && matches!(&ins.reloc, Some(reloc) if &reloc.target.name == v)
-            }
-            HighlightKind::Address(v) => {
-                matches!(arg, ObjInsArg::BranchOffset(offset) if (offset + ins.address as i32 - base_addr as i32) as u32 == *v)
-            }
-            HighlightKind::Arg(v) => v.loose_eq(arg),
-            _ => false,
-        };
-        let color = if highlighted_arg {
-            appearance.emphasized_text_color
-        } else if let Some(diff) = args.get(i).and_then(|a| a.as_ref()) {
-            appearance.diff_colors[diff.idx % appearance.diff_colors.len()]
-        } else {
-            base_color
-        };
-        let text_format = TextFormat {
-            font_id: appearance.code_font.clone(),
-            color,
-            background: if highlighted_arg {
-                appearance.deemphasized_text_color
-            } else {
-                Color32::TRANSPARENT
-            },
-            ..Default::default()
-        };
-        let mut new_writing_offset = false;
-        match arg {
-            ObjInsArg::Arg(arg) => {
-                job.append(&arg.to_string(), 0.0, text_format);
-            }
-            ObjInsArg::ArgWithBase(arg) => {
-                job.append(&arg.to_string(), 0.0, text_format);
-                write_text("(", base_color, &mut job, appearance.code_font.clone());
-                new_writing_offset = true;
-            }
-            ObjInsArg::Reloc => {
-                write_reloc(
-                    ins.reloc.as_ref().unwrap(),
-                    base_color,
-                    text_format.background,
-                    &mut job,
-                    appearance,
-                );
-            }
-            ObjInsArg::RelocWithBase => {
-                write_reloc(
-                    ins.reloc.as_ref().unwrap(),
-                    base_color,
-                    text_format.background,
-                    &mut job,
-                    appearance,
-                );
-                write_text("(", base_color, &mut job, appearance.code_font.clone());
-                new_writing_offset = true;
-            }
-            ObjInsArg::BranchOffset(offset) => {
-                let addr = offset + ins.address as i32 - base_addr as i32;
-                job.append(&format!("{addr:x}"), 0.0, text_format);
-            }
-        }
-        if writing_offset {
-            write_text(")", base_color, &mut job, appearance.code_font.clone());
-        }
-        // For text selection / copy
-        if i == ins.args.len() - 1 {
-            write_text("\n", base_color, &mut job, appearance.code_font.clone());
-        }
-        writing_offset = new_writing_offset;
-        let response = Label::new(job).sense(Sense::click()).ui(ui);
-        response.context_menu(|ui| ins_context_menu(ui, ins));
-        if response.clicked() {
-            if highlighted_arg {
-                ins_view_state.highlight = HighlightKind::None;
-            } else if matches!(arg, ObjInsArg::Reloc | ObjInsArg::RelocWithBase) {
-                ins_view_state.highlight =
-                    HighlightKind::Symbol(ins.reloc.as_ref().unwrap().target.name.clone());
-            } else if let ObjInsArg::BranchOffset(offset) = arg {
-                ins_view_state.highlight =
-                    HighlightKind::Address((offset + ins.address as i32 - base_addr as i32) as u32);
-            } else {
-                ins_view_state.highlight = HighlightKind::Arg(arg.clone());
-            }
-        }
-    }
 }
 
 fn ins_hover_ui(ui: &mut egui::Ui, ins: &ObjIns, appearance: &Appearance) {
@@ -370,6 +141,98 @@ fn find_symbol<'a>(obj: &'a ObjInfo, selected_symbol: &SymbolReference) -> Optio
     })
 }
 
+fn diff_text_ui(
+    ui: &mut egui::Ui,
+    text: DiffText<'_>,
+    ins_diff: &ObjInsDiff,
+    appearance: &Appearance,
+    ins_view_state: &mut FunctionViewState,
+    space_width: f32,
+) {
+    let label_text;
+    let mut base_color = match ins_diff.kind {
+        ObjInsDiffKind::None | ObjInsDiffKind::OpMismatch | ObjInsDiffKind::ArgMismatch => {
+            appearance.text_color
+        }
+        ObjInsDiffKind::Replace => appearance.replace_color,
+        ObjInsDiffKind::Delete => appearance.delete_color,
+        ObjInsDiffKind::Insert => appearance.insert_color,
+    };
+    let mut pad_to = 0;
+    let mut highlight_kind = HighlightKind::None;
+    match text {
+        DiffText::Basic(text) => {
+            label_text = text.to_string();
+        }
+        DiffText::BasicColor(s, idx) => {
+            label_text = s.to_string();
+            base_color = appearance.diff_colors[idx % appearance.diff_colors.len()];
+        }
+        DiffText::Line(num) => {
+            label_text = num.to_string();
+            base_color = appearance.deemphasized_text_color;
+            pad_to = 5;
+        }
+        DiffText::Address(addr) => {
+            label_text = format!("{:x}:", addr);
+            pad_to = 5;
+            highlight_kind = HighlightKind::Address(addr);
+        }
+        DiffText::Opcode(mnemonic, op) => {
+            label_text = mnemonic.to_string();
+            if ins_diff.kind == ObjInsDiffKind::OpMismatch {
+                base_color = appearance.replace_color;
+            }
+            pad_to = 8;
+            highlight_kind = HighlightKind::Opcode(op);
+        }
+        DiffText::Argument(arg, diff) => {
+            label_text = arg.to_string();
+            if let Some(diff) = diff {
+                base_color = appearance.diff_colors[diff.idx % appearance.diff_colors.len()]
+            }
+            highlight_kind = HighlightKind::Arg(arg.clone());
+        }
+        DiffText::BranchTarget(addr) => {
+            label_text = format!("{addr:x}");
+            highlight_kind = HighlightKind::Address(addr);
+        }
+        DiffText::Symbol(sym) => {
+            let name = sym.demangled_name.as_ref().unwrap_or(&sym.name);
+            label_text = name.clone();
+            base_color = appearance.emphasized_text_color;
+            highlight_kind = HighlightKind::Symbol(name.clone());
+        }
+        DiffText::Spacing(n) => {
+            ui.add_space(n as f32 * space_width);
+            return;
+        }
+        DiffText::Eol => {
+            label_text = "\n".to_string();
+        }
+    }
+
+    let len = label_text.len();
+    let highlight = ins_view_state.highlight == highlight_kind;
+    let response = Label::new(LayoutJob::single_section(
+        label_text,
+        appearance.code_text_format(base_color, highlight),
+    ))
+    .sense(Sense::click())
+    .ui(ui);
+    response.context_menu(|ui| ins_context_menu(ui, ins_diff.ins.as_ref().unwrap()));
+    if response.clicked() {
+        if highlight {
+            ins_view_state.highlight = HighlightKind::None;
+        } else {
+            ins_view_state.highlight = highlight_kind;
+        }
+    }
+    if len < pad_to {
+        ui.add_space((pad_to - len) as f32 * space_width);
+    }
+}
+
 fn asm_row_ui(
     ui: &mut egui::Ui,
     ins_diff: &ObjInsDiff,
@@ -381,91 +244,12 @@ fn asm_row_ui(
     if ins_diff.kind != ObjInsDiffKind::None {
         ui.painter().rect_filled(ui.available_rect_before_wrap(), 0.0, ui.visuals().faint_bg_color);
     }
-    let mut job = LayoutJob::default();
-    let Some(ins) = &ins_diff.ins else {
-        ui.label("");
-        return;
-    };
-
-    let base_color = match ins_diff.kind {
-        ObjInsDiffKind::None | ObjInsDiffKind::OpMismatch | ObjInsDiffKind::ArgMismatch => {
-            appearance.text_color
-        }
-        ObjInsDiffKind::Replace => appearance.replace_color,
-        ObjInsDiffKind::Delete => appearance.delete_color,
-        ObjInsDiffKind::Insert => appearance.insert_color,
-    };
-    let mut pad = 6;
-    if let Some(line) = ins.line {
-        let line_str = format!("{line} ");
-        write_text(
-            &line_str,
-            appearance.deemphasized_text_color,
-            &mut job,
-            appearance.code_font.clone(),
-        );
-        pad = 12 - line_str.len();
-    }
-    let base_addr = symbol.address as u32;
-    let addr_highlight = matches!(
-        &ins_view_state.highlight,
-        HighlightKind::Address(v) if *v == (ins.address - base_addr)
-    );
-    let addr_string = format!("{:x}", ins.address - symbol.address as u32);
-    pad -= addr_string.len();
-    job.append(&addr_string, 0.0, TextFormat {
-        font_id: appearance.code_font.clone(),
-        color: if addr_highlight { appearance.emphasized_text_color } else { base_color },
-        background: if addr_highlight {
-            appearance.deemphasized_text_color
-        } else {
-            Color32::TRANSPARENT
-        },
-        ..Default::default()
-    });
-    let response = Label::new(job).sense(Sense::click()).selectable(false).ui(ui);
-    response.context_menu(|ui| ins_context_menu(ui, ins));
-    if response.clicked() {
-        if addr_highlight {
-            ins_view_state.highlight = HighlightKind::None;
-        } else {
-            ins_view_state.highlight = HighlightKind::Address(ins.address - base_addr);
-        }
-    }
-
-    let mut job = LayoutJob::default();
     let space_width = ui.fonts(|f| f.glyph_width(&appearance.code_font, ' '));
-    let spacing = space_width * pad as f32;
-    job.append(": ", 0.0, TextFormat {
-        font_id: appearance.code_font.clone(),
-        color: base_color,
-        ..Default::default()
-    });
-    if let Some(branch) = &ins_diff.branch_from {
-        job.append("~> ", spacing, TextFormat {
-            font_id: appearance.code_font.clone(),
-            color: appearance.diff_colors[branch.branch_idx % appearance.diff_colors.len()],
-            ..Default::default()
-        });
-    } else {
-        job.append("   ", spacing, TextFormat {
-            font_id: appearance.code_font.clone(),
-            color: base_color,
-            ..Default::default()
-        });
-    }
-    Label::new(job).selectable(false).ui(ui);
-    write_ins(ins, &ins_diff.kind, &ins_diff.arg_diff, base_addr, ui, appearance, ins_view_state);
-    if let Some(branch) = &ins_diff.branch_to {
-        let mut job = LayoutJob::default();
-        write_text(
-            " ~>",
-            appearance.diff_colors[branch.branch_idx % appearance.diff_colors.len()],
-            &mut job,
-            appearance.code_font.clone(),
-        );
-        Label::new(job).selectable(false).ui(ui);
-    }
+    display_diff(ins_diff, symbol.address as u32, |text| {
+        diff_text_ui(ui, text, ins_diff, appearance, ins_view_state, space_width);
+        Ok(())
+    })
+    .unwrap();
 }
 
 fn asm_col_ui(
@@ -480,7 +264,6 @@ fn asm_col_ui(
     });
     if let Some(ins) = &ins_diff.ins {
         response.on_hover_ui_at_pointer(|ui| ins_hover_ui(ui, ins, appearance));
-        // .context_menu(|ui| ins_context_menu(ui, ins));
     }
 }
 

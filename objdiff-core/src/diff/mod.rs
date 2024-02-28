@@ -1,5 +1,6 @@
 pub mod code;
 pub mod data;
+pub mod display;
 pub mod editops;
 
 use anyhow::Result;
@@ -22,6 +23,7 @@ pub enum DiffAlg {
     Lcs,
 }
 
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct DiffObjConfig {
     pub code_alg: DiffAlg,
     pub data_alg: DiffAlg,

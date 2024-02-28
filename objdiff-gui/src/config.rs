@@ -1,84 +1,10 @@
-use std::{
-    fs::File,
-    io::Read,
-    path::{Component, Path, PathBuf},
-};
+use std::path::{Component, Path};
 
 use anyhow::{ensure, Result};
-use filetime::FileTime;
-use globset::{Glob, GlobSet, GlobSetBuilder};
+use globset::Glob;
+use objdiff_core::config::{try_project_config, ProjectObject, DEFAULT_WATCH_PATTERNS};
 
-use crate::{
-    app::{AppConfig, ProjectConfigInfo},
-    views::config::DEFAULT_WATCH_PATTERNS,
-};
-
-#[inline]
-fn bool_true() -> bool { true }
-
-#[derive(Default, Clone, serde::Deserialize)]
-pub struct ProjectConfig {
-    #[serde(default)]
-    pub min_version: Option<String>,
-    #[serde(default)]
-    pub custom_make: Option<String>,
-    #[serde(default)]
-    pub target_dir: Option<PathBuf>,
-    #[serde(default)]
-    pub base_dir: Option<PathBuf>,
-    #[serde(default = "bool_true")]
-    pub build_base: bool,
-    #[serde(default)]
-    pub build_target: bool,
-    #[serde(default)]
-    pub watch_patterns: Option<Vec<Glob>>,
-    #[serde(default, alias = "units")]
-    pub objects: Vec<ProjectObject>,
-}
-
-#[derive(Default, Clone, serde::Deserialize)]
-pub struct ProjectObject {
-    #[serde(default)]
-    pub name: Option<String>,
-    #[serde(default)]
-    pub path: Option<PathBuf>,
-    #[serde(default)]
-    pub target_path: Option<PathBuf>,
-    #[serde(default)]
-    pub base_path: Option<PathBuf>,
-    #[serde(default)]
-    pub reverse_fn_order: Option<bool>,
-    #[serde(default)]
-    pub complete: Option<bool>,
-    #[serde(default)]
-    pub scratch: Option<ScratchConfig>,
-}
-
-#[derive(Default, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-pub struct ScratchConfig {
-    #[serde(default)]
-    pub platform: Option<String>,
-    #[serde(default)]
-    pub compiler: Option<String>,
-    #[serde(default)]
-    pub c_flags: Option<String>,
-    #[serde(default)]
-    pub ctx_path: Option<PathBuf>,
-    #[serde(default)]
-    pub build_ctx: bool,
-}
-
-impl ProjectObject {
-    pub fn name(&self) -> &str {
-        if let Some(name) = &self.name {
-            name
-        } else if let Some(path) = &self.path {
-            path.to_str().unwrap_or("[invalid path]")
-        } else {
-            "[unknown]"
-        }
-    }
-}
+use crate::app::AppConfig;
 
 #[derive(Clone)]
 pub enum ProjectObjectNode {
@@ -109,8 +35,8 @@ fn find_dir<'a>(
 fn build_nodes(
     objects: &[ProjectObject],
     project_dir: &Path,
-    target_obj_dir: &Option<PathBuf>,
-    base_obj_dir: &Option<PathBuf>,
+    target_obj_dir: Option<&Path>,
+    base_obj_dir: Option<&Path>,
 ) -> Vec<ProjectObjectNode> {
     let mut nodes = vec![];
     for object in objects {
@@ -131,27 +57,12 @@ fn build_nodes(
             }
         }
         let mut object = Box::new(object.clone());
-        if let (Some(target_obj_dir), Some(path), None) =
-            (target_obj_dir, &object.path, &object.target_path)
-        {
-            object.target_path = Some(target_obj_dir.join(path));
-        } else if let Some(path) = &object.target_path {
-            object.target_path = Some(project_dir.join(path));
-        }
-        if let (Some(base_obj_dir), Some(path), None) =
-            (base_obj_dir, &object.path, &object.base_path)
-        {
-            object.base_path = Some(base_obj_dir.join(path));
-        } else if let Some(path) = &object.base_path {
-            object.base_path = Some(project_dir.join(path));
-        }
+        object.resolve_paths(project_dir, target_obj_dir, base_obj_dir);
         let filename = path.file_name().unwrap().to_str().unwrap().to_string();
         out_nodes.push(ProjectObjectNode::File(filename, object));
     }
     nodes
 }
-
-pub const CONFIG_FILENAMES: [&str; 3] = ["objdiff.yml", "objdiff.yaml", "objdiff.json"];
 
 pub fn load_project_config(config: &mut AppConfig) -> Result<()> {
     let Some(project_dir) = &config.project_dir else {
@@ -178,47 +89,13 @@ pub fn load_project_config(config: &mut AppConfig) -> Result<()> {
         });
         config.watcher_change = true;
         config.objects = project_config.objects;
-        config.object_nodes =
-            build_nodes(&config.objects, project_dir, &config.target_obj_dir, &config.base_obj_dir);
+        config.object_nodes = build_nodes(
+            &config.objects,
+            project_dir,
+            config.target_obj_dir.as_deref(),
+            config.base_obj_dir.as_deref(),
+        );
         config.project_config_info = Some(info);
     }
     Ok(())
-}
-
-fn try_project_config(dir: &Path) -> Option<(Result<ProjectConfig>, ProjectConfigInfo)> {
-    for filename in CONFIG_FILENAMES.iter() {
-        let config_path = dir.join(filename);
-        let Ok(mut file) = File::open(&config_path) else {
-            continue;
-        };
-        let metadata = file.metadata();
-        if let Ok(metadata) = metadata {
-            if !metadata.is_file() {
-                continue;
-            }
-            let ts = FileTime::from_last_modification_time(&metadata);
-            let config = match filename.contains("json") {
-                true => read_json_config(&mut file),
-                false => read_yml_config(&mut file),
-            };
-            return Some((config, ProjectConfigInfo { path: config_path, timestamp: ts }));
-        }
-    }
-    None
-}
-
-fn read_yml_config<R: Read>(reader: &mut R) -> Result<ProjectConfig> {
-    Ok(serde_yaml::from_reader(reader)?)
-}
-
-fn read_json_config<R: Read>(reader: &mut R) -> Result<ProjectConfig> {
-    Ok(serde_json::from_reader(reader)?)
-}
-
-pub fn build_globset(vec: &[Glob]) -> std::result::Result<GlobSet, globset::Error> {
-    let mut builder = GlobSetBuilder::new();
-    for glob in vec {
-        builder.add(glob.clone());
-    }
-    builder.build()
 }

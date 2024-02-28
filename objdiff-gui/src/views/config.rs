@@ -14,12 +14,15 @@ use egui::{
     SelectableLabel, TextFormat, Widget, WidgetText,
 };
 use globset::Glob;
-use objdiff_core::diff::DiffAlg;
+use objdiff_core::{
+    config::{ProjectObject, DEFAULT_WATCH_PATTERNS},
+    diff::DiffAlg,
+};
 use self_update::cargo_crate_version;
 
 use crate::{
     app::{AppConfig, AppConfigRef, ObjectConfig},
-    config::{ProjectObject, ProjectObjectNode},
+    config::ProjectObjectNode,
     jobs::{
         check_update::{start_check_update, CheckUpdateResult},
         update::start_update,
@@ -130,11 +133,6 @@ impl ConfigViewState {
         }
     }
 }
-
-pub const DEFAULT_WATCH_PATTERNS: &[&str] = &[
-    "*.c", "*.cp", "*.cpp", "*.cxx", "*.h", "*.hp", "*.hpp", "*.hxx", "*.s", "*.S", "*.asm",
-    "*.inc", "*.py", "*.yml", "*.txt", "*.json",
-];
 
 #[cfg(all(windows, feature = "wsl"))]
 fn process_utf16(bytes: &[u8]) -> Result<String, FromUtf16Error> {

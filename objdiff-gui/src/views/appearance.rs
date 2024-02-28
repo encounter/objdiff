@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use egui::{text::LayoutJob, Color32, FontFamily, FontId, TextStyle, Widget};
+use egui::{text::LayoutJob, Color32, FontFamily, FontId, TextFormat, TextStyle, Widget};
 use time::UtcOffset;
 
 use crate::fonts::load_font_if_needed;
@@ -183,6 +183,15 @@ impl Appearance {
                 // Revert to default
                 self.code_font = DEFAULT_CODE_FONT;
             }
+        }
+    }
+
+    pub fn code_text_format(&self, base_color: Color32, highlight: bool) -> TextFormat {
+        TextFormat {
+            font_id: self.code_font.clone(),
+            color: if highlight { self.emphasized_text_color } else { base_color },
+            background: if highlight { self.deemphasized_text_color } else { Color32::TRANSPARENT },
+            ..Default::default()
         }
     }
 }

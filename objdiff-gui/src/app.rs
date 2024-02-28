@@ -12,12 +12,17 @@ use std::{
 use filetime::FileTime;
 use globset::{Glob, GlobSet};
 use notify::{RecursiveMode, Watcher};
-use objdiff_core::diff::DiffAlg;
+use objdiff_core::{
+    config::{
+        build_globset, ProjectConfigInfo, ProjectObject, ScratchConfig, DEFAULT_WATCH_PATTERNS,
+    },
+    diff::DiffAlg,
+};
 use time::UtcOffset;
 
 use crate::{
     app_config::{deserialize_config, AppConfigVersion},
-    config::{build_globset, load_project_config, ProjectObject, ProjectObjectNode, ScratchConfig},
+    config::{load_project_config, ProjectObjectNode},
     jobs::{
         objdiff::{start_build, ObjDiffConfig},
         Job, JobQueue, JobResult, JobStatus,
@@ -26,7 +31,6 @@ use crate::{
         appearance::{appearance_window, Appearance},
         config::{
             config_ui, diff_options_window, project_window, ConfigViewState, CONFIG_DISABLED_TEXT,
-            DEFAULT_WATCH_PATTERNS,
         },
         data_diff::data_diff_ui,
         debug::debug_window,
@@ -61,12 +65,6 @@ pub struct ObjectConfig {
     pub reverse_fn_order: Option<bool>,
     pub complete: Option<bool>,
     pub scratch: Option<ScratchConfig>,
-}
-
-#[derive(Clone, Eq, PartialEq)]
-pub struct ProjectConfigInfo {
-    pub path: PathBuf,
-    pub timestamp: FileTime,
 }
 
 #[inline]

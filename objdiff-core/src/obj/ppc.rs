@@ -78,13 +78,17 @@ pub fn process_code(
                 ObjRelocKind::PpcAddr16Hi
                 | ObjRelocKind::PpcAddr16Ha
                 | ObjRelocKind::PpcAddr16Lo => {
-                    let arg = args.iter_mut().rfind(|a| is_rel_abs_arg(a)).ok_or_else(|| {
-                        anyhow::Error::msg("Failed to locate rel/abs arg for reloc")
-                    })?;
-                    *arg = if is_offset_arg(arg) {
-                        ObjInsArg::RelocWithBase
-                    } else {
-                        ObjInsArg::Reloc
+                    match args.iter_mut().rfind(|a| is_rel_abs_arg(a)) {
+                        Some(arg) => {
+                            *arg = if is_offset_arg(arg) {
+                                ObjInsArg::RelocWithBase
+                            } else {
+                                ObjInsArg::Reloc
+                            };
+                        }
+                        None => {
+                            log::warn!("Failed to locate rel/abs arg for reloc");
+                        }
                     };
                 }
                 _ => {}

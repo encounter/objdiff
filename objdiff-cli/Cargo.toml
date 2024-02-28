@@ -1,0 +1,29 @@
+[package]
+name = "objdiff-cli"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.70"
+authors = ["Luke Street <luke@street.dev>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/encounter/objdiff"
+readme = "../README.md"
+description = """
+A local diffing tool for decompilation projects.
+"""
+publish = false
+build = "build.rs"
+
+[dependencies]
+crossterm = "0.27.0"
+anyhow = "1.0.80"
+argp = "0.3.0"
+enable-ansi-support = "0.2.1"
+log = "0.4.20"
+objdiff-core = { path = "../objdiff-core", features = ["all"] }
+supports-color = "3.0.0"
+tracing = "0.1.40"
+tracing-attributes = "0.1.27"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1.0.111"
+rayon = "1.8.1"

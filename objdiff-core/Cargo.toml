@@ -12,14 +12,15 @@ A local diffing tool for decompilation projects.
 """
 
 [features]
-all = ["dwarf", "mips", "ppc"]
+all = ["config", "dwarf", "mips", "ppc"]
 any-arch = [] # Implicit, used to check if any arch is enabled
+config = []
 dwarf = ["gimli"]
 mips = ["any-arch", "rabbitizer"]
 ppc = ["any-arch", "cwdemangle", "ppc750cl"]
 
 [dependencies]
-anyhow = "1.0.79"
+anyhow = "1.0.80"
 byteorder = "1.5.0"
 cwdemangle = { version = "0.1.6", optional = true }
 filetime = "0.2.23"
@@ -34,3 +35,9 @@ rabbitizer = { version = "1.8.1", optional = true }
 serde = { version = "1", features = ["derive"] }
 similar = "2.4.0"
 twox-hash = "1.6.3"
+
+# config
+globset = { version = "0.4.14", features = ["serde1"] }
+semver = "1.0.21"
+serde_json = "1.0.111"
+serde_yaml = "0.9.30"

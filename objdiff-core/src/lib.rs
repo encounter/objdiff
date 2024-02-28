@@ -1,3 +1,5 @@
+#[cfg(feature = "config")]
+pub mod config;
 pub mod diff;
 pub mod obj;
 pub mod util;

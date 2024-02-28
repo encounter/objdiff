@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "objdiff-cli",
     "objdiff-core",
     "objdiff-gui",
 ]
