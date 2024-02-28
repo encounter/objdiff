@@ -106,10 +106,6 @@ pub struct AppConfig {
     #[serde(default)]
     pub recent_projects: Vec<PathBuf>,
     #[serde(default)]
-    pub code_alg: DiffAlg,
-    #[serde(default)]
-    pub data_alg: DiffAlg,
-    #[serde(default)]
     pub relax_reloc_diffs: bool,
 
     #[serde(skip)]
@@ -148,8 +144,6 @@ impl Default for AppConfig {
             auto_update_check: true,
             watch_patterns: DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect(),
             recent_projects: vec![],
-            code_alg: Default::default(),
-            data_alg: Default::default(),
             relax_reloc_diffs: false,
             objects: vec![],
             object_nodes: vec![],

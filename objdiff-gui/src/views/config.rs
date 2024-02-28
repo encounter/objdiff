@@ -14,10 +14,7 @@ use egui::{
     SelectableLabel, TextFormat, Widget, WidgetText,
 };
 use globset::Glob;
-use objdiff_core::{
-    config::{ProjectObject, DEFAULT_WATCH_PATTERNS},
-    diff::DiffAlg,
-};
+use objdiff_core::config::{ProjectObject, DEFAULT_WATCH_PATTERNS};
 use self_update::cargo_crate_version;
 
 use crate::{
@@ -852,59 +849,4 @@ pub fn diff_options_window(
     egui::Window::new("Diff Options").open(show).show(ctx, |ui| {
         diff_options_ui(ui, &mut config_guard, appearance);
     });
-}
-
-fn diff_options_ui(ui: &mut egui::Ui, config: &mut AppConfig, appearance: &Appearance) {
-    let mut job = LayoutJob::default();
-    job.append(
-        "Current default: ",
-        0.0,
-        TextFormat::simple(appearance.ui_font.clone(), appearance.text_color),
-    );
-    job.append(
-        diff_alg_to_string(DiffAlg::default()),
-        0.0,
-        TextFormat::simple(appearance.ui_font.clone(), appearance.emphasized_text_color),
-    );
-    ui.label(job);
-    let mut job = LayoutJob::default();
-    job.append(
-        "Previous default: ",
-        0.0,
-        TextFormat::simple(appearance.ui_font.clone(), appearance.text_color),
-    );
-    job.append(
-        "Levenshtein",
-        0.0,
-        TextFormat::simple(appearance.ui_font.clone(), appearance.emphasized_text_color),
-    );
-    ui.label(job);
-    ui.label("Please provide feedback!");
-    if diff_alg_ui(ui, "Code diff algorithm", &mut config.code_alg) {
-        config.queue_reload = true;
-    }
-    if diff_alg_ui(ui, "Data diff algorithm", &mut config.data_alg) {
-        config.queue_reload = true;
-    }
-}
-
-fn diff_alg_ui(ui: &mut egui::Ui, label: impl Into<WidgetText>, alg: &mut DiffAlg) -> bool {
-    let response = egui::ComboBox::from_label(label)
-        .selected_text(diff_alg_to_string(*alg))
-        .show_ui(ui, |ui| {
-            ui.selectable_value(alg, DiffAlg::Patience, "Patience").changed()
-                | ui.selectable_value(alg, DiffAlg::Levenshtein, "Levenshtein").changed()
-                | ui.selectable_value(alg, DiffAlg::Myers, "Myers").changed()
-                | ui.selectable_value(alg, DiffAlg::Lcs, "LCS").changed()
-        });
-    response.inner.unwrap_or(false)
-}
-
-const fn diff_alg_to_string(alg: DiffAlg) -> &'static str {
-    match alg {
-        DiffAlg::Patience => "Patience",
-        DiffAlg::Levenshtein => "Levenshtein",
-        DiffAlg::Lcs => "LCS",
-        DiffAlg::Myers => "Myers",
-    }
 }

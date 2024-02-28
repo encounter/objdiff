@@ -33,8 +33,7 @@ object = { version = "0.32.2", features = ["read_core", "std", "elf"], default-f
 ppc750cl = { git = "https://github.com/encounter/ppc750cl", rev = "4a2bbbc6f84dcb76255ab6f3595a8d4a0ce96618", optional = true }
 rabbitizer = { version = "1.8.1", optional = true }
 serde = { version = "1", features = ["derive"] }
-similar = "2.4.0"
-twox-hash = "1.6.3"
+similar = { version = "2.4.0", default-features = false }
 
 # config
 globset = { version = "0.4.14", features = ["serde1"] }

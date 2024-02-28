@@ -8,10 +8,7 @@ use anyhow::Result;
 use similar::{capture_diff_slices_deadline, Algorithm};
 
 use crate::{
-    diff::{
-        editops::{editops_find, LevEditType},
-        DiffAlg, DiffObjConfig, ProcessCodeResult,
-    },
+    diff::{DiffObjConfig, ProcessCodeResult},
     obj,
     obj::{
         ObjArchitecture, ObjInfo, ObjInsArg, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo,
@@ -101,45 +98,7 @@ pub fn diff_code(
 
     let mut left_diff = Vec::<ObjInsDiff>::new();
     let mut right_diff = Vec::<ObjInsDiff>::new();
-    match config.code_alg {
-        DiffAlg::Levenshtein => {
-            diff_instructions_lev(
-                &mut left_diff,
-                &mut right_diff,
-                left_symbol,
-                right_symbol,
-                &left_out,
-                &right_out,
-            )?;
-        }
-        DiffAlg::Lcs => {
-            diff_instructions_similar(
-                Algorithm::Lcs,
-                &mut left_diff,
-                &mut right_diff,
-                &left_out,
-                &right_out,
-            )?;
-        }
-        DiffAlg::Myers => {
-            diff_instructions_similar(
-                Algorithm::Myers,
-                &mut left_diff,
-                &mut right_diff,
-                &left_out,
-                &right_out,
-            )?;
-        }
-        DiffAlg::Patience => {
-            diff_instructions_similar(
-                Algorithm::Patience,
-                &mut left_diff,
-                &mut right_diff,
-                &left_out,
-                &right_out,
-            )?;
-        }
-    }
+    diff_instructions(&mut left_diff, &mut right_diff, &left_out, &right_out)?;
 
     resolve_branches(&mut left_diff);
     resolve_branches(&mut right_diff);
@@ -168,15 +127,19 @@ pub fn diff_code(
     Ok(())
 }
 
-fn diff_instructions_similar(
-    alg: Algorithm,
+fn diff_instructions(
     left_diff: &mut Vec<ObjInsDiff>,
     right_diff: &mut Vec<ObjInsDiff>,
     left_code: &ProcessCodeResult,
     right_code: &ProcessCodeResult,
 ) -> Result<()> {
     let deadline = Instant::now() + Duration::from_secs(5);
-    let ops = capture_diff_slices_deadline(alg, &left_code.ops, &right_code.ops, Some(deadline));
+    let ops = capture_diff_slices_deadline(
+        Algorithm::Patience,
+        &left_code.ops,
+        &right_code.ops,
+        Some(deadline),
+    );
     if ops.is_empty() {
         left_diff.extend(
             left_code
@@ -212,75 +175,6 @@ fn diff_instructions_similar(
         if right_range.len() < len {
             right_diff.extend((right_range.len()..len).map(|_| ObjInsDiff::default()));
         }
-    }
-
-    Ok(())
-}
-
-fn diff_instructions_lev(
-    left_diff: &mut Vec<ObjInsDiff>,
-    right_diff: &mut Vec<ObjInsDiff>,
-    left_symbol: &ObjSymbol,
-    right_symbol: &ObjSymbol,
-    left_code: &ProcessCodeResult,
-    right_code: &ProcessCodeResult,
-) -> Result<()> {
-    let edit_ops = editops_find(&left_code.ops, &right_code.ops);
-
-    let mut op_iter = edit_ops.iter();
-    let mut left_iter = left_code.insts.iter();
-    let mut right_iter = right_code.insts.iter();
-    let mut cur_op = op_iter.next();
-    let mut cur_left = left_iter.next();
-    let mut cur_right = right_iter.next();
-    while let Some(op) = cur_op {
-        let left_addr = op.first_start as u32 * 4;
-        let right_addr = op.second_start as u32 * 4;
-        while let (Some(left), Some(right)) = (cur_left, cur_right) {
-            if (left.address - left_symbol.address as u32) < left_addr {
-                left_diff.push(ObjInsDiff { ins: Some(left.clone()), ..ObjInsDiff::default() });
-                right_diff.push(ObjInsDiff { ins: Some(right.clone()), ..ObjInsDiff::default() });
-            } else {
-                break;
-            }
-            cur_left = left_iter.next();
-            cur_right = right_iter.next();
-        }
-        if let (Some(left), Some(right)) = (cur_left, cur_right) {
-            debug_assert_eq!(left.address - left_symbol.address as u32, left_addr);
-            debug_assert_eq!(right.address - right_symbol.address as u32, right_addr);
-            match op.op_type {
-                LevEditType::Replace => {
-                    left_diff.push(ObjInsDiff { ins: Some(left.clone()), ..ObjInsDiff::default() });
-                    right_diff
-                        .push(ObjInsDiff { ins: Some(right.clone()), ..ObjInsDiff::default() });
-                    cur_left = left_iter.next();
-                    cur_right = right_iter.next();
-                }
-                LevEditType::Insert => {
-                    left_diff.push(ObjInsDiff::default());
-                    right_diff
-                        .push(ObjInsDiff { ins: Some(right.clone()), ..ObjInsDiff::default() });
-                    cur_right = right_iter.next();
-                }
-                LevEditType::Delete => {
-                    left_diff.push(ObjInsDiff { ins: Some(left.clone()), ..ObjInsDiff::default() });
-                    right_diff.push(ObjInsDiff::default());
-                    cur_left = left_iter.next();
-                }
-            }
-        } else {
-            break;
-        }
-        cur_op = op_iter.next();
-    }
-
-    // Finalize
-    while cur_left.is_some() || cur_right.is_some() {
-        left_diff.push(ObjInsDiff { ins: cur_left.cloned(), ..ObjInsDiff::default() });
-        right_diff.push(ObjInsDiff { ins: cur_right.cloned(), ..ObjInsDiff::default() });
-        cur_left = left_iter.next();
-        cur_right = right_iter.next();
     }
 
     Ok(())

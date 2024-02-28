@@ -1,10 +1,8 @@
 pub mod code;
 pub mod data;
 pub mod display;
-pub mod editops;
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
 
 use crate::{
     diff::{
@@ -14,19 +12,8 @@ use crate::{
     obj::{ObjInfo, ObjIns, ObjSectionKind},
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub enum DiffAlg {
-    #[default]
-    Patience,
-    Levenshtein,
-    Myers,
-    Lcs,
-}
-
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct DiffObjConfig {
-    pub code_alg: DiffAlg,
-    pub data_alg: DiffAlg,
     pub relax_reloc_diffs: bool,
 }
 
@@ -80,7 +67,7 @@ pub fn diff_objs(
                 .and_then(|obj| obj.sections.iter_mut().find(|s| s.name == left_section.name))
             {
                 if left_section.kind == ObjSectionKind::Data {
-                    diff_data(config.data_alg, left_section, right_section)?;
+                    diff_data(left_section, right_section)?;
                 } else if left_section.kind == ObjSectionKind::Bss {
                     diff_bss_symbols(&mut left_section.symbols, &mut right_section.symbols)?;
                 }

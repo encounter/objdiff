@@ -108,7 +108,7 @@ pub fn run(args: Args) -> Result<()> {
                 )
             })
             .collect::<Result<Vec<Option<ReportUnit>>>>()?;
-        report.units = units.into_iter().flatten().collect::<Vec<ReportUnit>>();
+        report.units = units.into_iter().flatten().collect();
     }
     for unit in &report.units {
         report.fuzzy_match_percent += unit.match_percent * unit.total_size as f32;
@@ -198,10 +198,14 @@ fn report_object(
                     continue;
                 }
             }
-            let match_percent = symbol.match_percent.unwrap_or(if object.complete == Some(true) {
-                100.0
-            } else {
-                0.0
+            let match_percent = symbol.match_percent.unwrap_or_else(|| {
+                // Support cases where we don't have a target object,
+                // assume complete means 100% match
+                if object.complete == Some(true) {
+                    100.0
+                } else {
+                    0.0
+                }
             });
             unit.match_percent += match_percent * symbol.size as f32;
             unit.total_size += symbol.size;

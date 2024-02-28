@@ -57,8 +57,6 @@ pub struct ObjDiffConfig {
     pub build_base: bool,
     pub build_target: bool,
     pub selected_obj: Option<ObjectConfig>,
-    pub code_alg: DiffAlg,
-    pub data_alg: DiffAlg,
     pub relax_reloc_diffs: bool,
 }
 
@@ -69,8 +67,6 @@ impl ObjDiffConfig {
             build_base: config.build_base,
             build_target: config.build_target,
             selected_obj: config.selected_obj.clone(),
-            code_alg: config.code_alg,
-            data_alg: config.data_alg,
             relax_reloc_diffs: config.relax_reloc_diffs,
         }
     }
@@ -253,11 +249,7 @@ fn run_build(
     };
 
     update_status(context, "Performing diff".to_string(), 4, total, &cancel)?;
-    let diff_config = DiffObjConfig {
-        code_alg: config.code_alg,
-        data_alg: config.data_alg,
-        relax_reloc_diffs: config.relax_reloc_diffs,
-    };
+    let diff_config = DiffObjConfig { relax_reloc_diffs: config.relax_reloc_diffs };
     diff_objs(&diff_config, first_obj.as_mut(), second_obj.as_mut())?;
 
     update_status(context, "Complete".to_string(), total, total, &cancel)?;
