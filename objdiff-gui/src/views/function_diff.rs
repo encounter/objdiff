@@ -247,7 +247,7 @@ fn asm_row_ui(
     let space_width = ui.fonts(|f| f.glyph_width(&appearance.code_font, ' '));
     display_diff(ins_diff, symbol.address as u32, |text| {
         diff_text_ui(ui, text, ins_diff, appearance, ins_view_state, space_width);
-        Ok(())
+        Ok::<_, ()>(())
     })
     .unwrap();
 }

@@ -1,7 +1,5 @@
 use std::cmp::Ordering;
 
-use anyhow::{bail, Result};
-
 use crate::obj::{
     ObjInsArg, ObjInsArgDiff, ObjInsArgValue, ObjInsDiff, ObjReloc, ObjRelocKind, ObjSymbol,
 };
@@ -30,11 +28,11 @@ pub enum DiffText<'a> {
     Eol,
 }
 
-pub fn display_diff(
+pub fn display_diff<E>(
     ins_diff: &ObjInsDiff,
     base_addr: u32,
-    mut cb: impl FnMut(DiffText) -> Result<()>,
-) -> Result<()> {
+    mut cb: impl FnMut(DiffText) -> Result<(), E>,
+) -> Result<(), E> {
     let Some(ins) = &ins_diff.ins else {
         cb(DiffText::Eol)?;
         return Ok(());
@@ -94,7 +92,10 @@ pub fn display_diff(
     Ok(())
 }
 
-fn display_reloc_name(reloc: &ObjReloc, mut cb: impl FnMut(DiffText) -> Result<()>) -> Result<()> {
+fn display_reloc_name<E>(
+    reloc: &ObjReloc,
+    mut cb: impl FnMut(DiffText) -> Result<(), E>,
+) -> Result<(), E> {
     cb(DiffText::Symbol(&reloc.target))?;
     match reloc.target.addend.cmp(&0i64) {
         Ordering::Greater => cb(DiffText::Basic(&format!("+{:#X}", reloc.target.addend))),
@@ -103,7 +104,10 @@ fn display_reloc_name(reloc: &ObjReloc, mut cb: impl FnMut(DiffText) -> Result<(
     }
 }
 
-fn display_reloc(reloc: &ObjReloc, mut cb: impl FnMut(DiffText) -> Result<()>) -> Result<()> {
+fn display_reloc<E>(
+    reloc: &ObjReloc,
+    mut cb: impl FnMut(DiffText) -> Result<(), E>,
+) -> Result<(), E> {
     match reloc.kind {
         #[cfg(feature = "ppc")]
         ObjRelocKind::PpcAddr16Lo => {
@@ -165,7 +169,7 @@ fn display_reloc(reloc: &ObjReloc, mut cb: impl FnMut(DiffText) -> Result<()>) -
         }
         #[cfg(feature = "mips")]
         ObjRelocKind::MipsGpRel32 => {
-            bail!("unimplemented: mips gp_rel32");
+            todo!("unimplemented: mips gp_rel32");
         }
         ObjRelocKind::Absolute => {
             cb(DiffText::Basic("[INVALID]"))?;

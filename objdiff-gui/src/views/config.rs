@@ -11,7 +11,7 @@ use anyhow::{Context, Result};
 use const_format::formatcp;
 use egui::{
     output::OpenUrl, text::LayoutJob, CollapsingHeader, FontFamily, FontId, RichText,
-    SelectableLabel, TextFormat, Widget, WidgetText,
+    SelectableLabel, TextFormat, Widget,
 };
 use globset::Glob;
 use objdiff_core::config::{ProjectObject, DEFAULT_WATCH_PATTERNS};
@@ -836,17 +836,5 @@ fn split_obj_config_ui(
                 state.watch_pattern_text.clear();
             }
         }
-    });
-}
-
-pub fn diff_options_window(
-    ctx: &egui::Context,
-    config: &AppConfigRef,
-    show: &mut bool,
-    appearance: &Appearance,
-) {
-    let mut config_guard = config.write().unwrap();
-    egui::Window::new("Diff Options").open(show).show(ctx, |ui| {
-        diff_options_ui(ui, &mut config_guard, appearance);
     });
 }

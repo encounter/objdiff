@@ -9,7 +9,8 @@ use crossterm::{
     cursor::{Hide, MoveRight, MoveTo, Show},
     event,
     event::{
-        DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, MouseEventKind,
+        DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, MouseButton,
+        MouseEventKind,
     },
     style::{Color, PrintStyledContent, Stylize},
     terminal::{
@@ -22,7 +23,7 @@ use objdiff_core::{
     diff,
     diff::display::{display_diff, DiffText},
     obj,
-    obj::{ObjInfo, ObjInsDiffKind, ObjSection, ObjSectionKind, ObjSymbol},
+    obj::{ObjInfo, ObjInsArgValue, ObjInsDiffKind, ObjSection, ObjSectionKind, ObjSymbol},
 };
 
 use crate::util::term::crossterm_panic_handler;
@@ -69,17 +70,22 @@ pub fn run(args: Args) -> Result<()> {
         EnableMouseCapture,
     )?;
 
+    let mut clear = true;
     let mut redraw = true;
     let mut skip = 0;
+    let mut click_xy = None;
+    let mut highlight = HighlightKind::None;
+    let (mut sx, mut sy) = terminal_size()?;
     loop {
         let y_offset = 2;
-        let (sx, sy) = terminal_size()?;
         let per_page = sy as usize - y_offset;
         if redraw {
             let mut w = stdout().lock();
+            if clear {
+                crossterm::queue!(w, Clear(ClearType::All))?;
+            }
             crossterm::queue!(
                 w,
-                Clear(ClearType::All),
                 MoveTo(0, 0),
                 PrintStyledContent(args.symbol.clone().with(Color::White)),
                 MoveTo(0, 1),
@@ -103,14 +109,51 @@ pub fn run(args: Args) -> Result<()> {
             if skip > max_len - per_page {
                 skip = max_len - per_page;
             }
+            let mut new_highlight = None;
             if let Some((_, symbol)) = left_sym {
-                print_sym(&mut w, symbol, 0, y_offset as u16, sx / 2 - 1, sy, skip)?;
+                let h = print_sym(
+                    &mut w,
+                    symbol,
+                    0,
+                    y_offset as u16,
+                    sx / 2 - 1,
+                    sy,
+                    skip,
+                    &mut highlight,
+                    click_xy,
+                )?;
+                if let Some(h) = h {
+                    new_highlight = Some(h);
+                }
             }
             if let Some((_, symbol)) = right_sym {
-                print_sym(&mut w, symbol, sx / 2, y_offset as u16, sx, sy, skip)?;
+                let h = print_sym(
+                    &mut w,
+                    symbol,
+                    sx / 2,
+                    y_offset as u16,
+                    sx,
+                    sy,
+                    skip,
+                    &mut highlight,
+                    click_xy,
+                )?;
+                if let Some(h) = h {
+                    new_highlight = Some(h);
+                }
             }
             w.flush()?;
-            redraw = false;
+            if let Some(new_highlight) = new_highlight {
+                highlight = new_highlight;
+                redraw = true;
+                click_xy = None;
+                clear = false;
+                continue; // Redraw now
+            } else {
+                redraw = false;
+                click_xy = None;
+                clear = true;
+            }
         }
 
         match event::read()? {
@@ -167,9 +210,17 @@ pub fn run(args: Args) -> Result<()> {
                     skip = skip.saturating_sub(3);
                     redraw = true;
                 }
+                MouseEventKind::Down(MouseButton::Left) => {
+                    click_xy = Some((event.column, event.row));
+                    redraw = true;
+                }
                 _ => {}
             },
-            Event::Resize(_, _) => redraw = true,
+            Event::Resize(x, y) => {
+                sx = x;
+                sy = y;
+                redraw = true;
+            }
             _ => {}
         }
     }
@@ -194,6 +245,7 @@ fn find_function<'a>(obj: &'a ObjInfo, name: &str) -> Option<(&'a ObjSection, &'
     None
 }
 
+#[allow(clippy::too_many_arguments)]
 fn print_sym<W>(
     w: &mut W,
     symbol: &ObjSymbol,
@@ -202,11 +254,14 @@ fn print_sym<W>(
     max_sx: u16,
     max_sy: u16,
     skip: usize,
-) -> Result<()>
+    highlight: &mut HighlightKind,
+    click_xy: Option<(u16, u16)>,
+) -> Result<Option<HighlightKind>>
 where
     W: Write,
 {
     let base_addr = symbol.address as u32;
+    let mut new_highlight = None;
     for ins_diff in symbol.instructions.iter().skip(skip) {
         let mut sx = sx;
         if ins_diff.kind != ObjInsDiffKind::None && sx > 2 {
@@ -220,7 +275,7 @@ where
         } else {
             crossterm::queue!(w, MoveTo(sx, sy))?;
         }
-        display_diff(ins_diff, base_addr, |text| {
+        display_diff(ins_diff, base_addr, |text| -> Result<()> {
             let mut label_text;
             let mut base_color = match ins_diff.kind {
                 ObjInsDiffKind::None | ObjInsDiffKind::OpMismatch | ObjInsDiffKind::ArgMismatch => {
@@ -231,6 +286,7 @@ where
                 ObjInsDiffKind::Insert => Color::DarkGreen,
             };
             let mut pad_to = 0;
+            let mut highlight_kind = HighlightKind::None;
             match text {
                 DiffText::Basic(text) => {
                     label_text = text.to_string();
@@ -247,27 +303,32 @@ where
                 DiffText::Address(addr) => {
                     label_text = format!("{:x}:", addr);
                     pad_to = 5;
+                    highlight_kind = HighlightKind::Address(addr);
                 }
-                DiffText::Opcode(mnemonic, _op) => {
+                DiffText::Opcode(mnemonic, op) => {
                     label_text = mnemonic.to_string();
                     if ins_diff.kind == ObjInsDiffKind::OpMismatch {
                         base_color = Color::Blue;
                     }
                     pad_to = 8;
+                    highlight_kind = HighlightKind::Opcode(op);
                 }
                 DiffText::Argument(arg, diff) => {
                     label_text = arg.to_string();
                     if let Some(diff) = diff {
                         base_color = COLOR_ROTATION[diff.idx % COLOR_ROTATION.len()]
                     }
+                    highlight_kind = HighlightKind::Arg(arg.clone());
                 }
                 DiffText::BranchTarget(addr) => {
                     label_text = format!("{addr:x}");
+                    highlight_kind = HighlightKind::Address(addr);
                 }
                 DiffText::Symbol(sym) => {
                     let name = sym.demangled_name.as_ref().unwrap_or(&sym.name);
                     label_text = name.clone();
                     base_color = Color::White;
+                    highlight_kind = HighlightKind::Symbol(name.clone());
                 }
                 DiffText::Spacing(n) => {
                     crossterm::queue!(w, MoveRight(n as u16))?;
@@ -283,8 +344,22 @@ where
             if sx >= max_sx {
                 return Ok(());
             }
+            let highlighted = highlight == &highlight_kind;
+            if let Some((cx, cy)) = click_xy {
+                if cx >= sx && cx < sx + len as u16 && cy == sy {
+                    if highlighted {
+                        new_highlight = Some(HighlightKind::None);
+                    } else {
+                        new_highlight = Some(highlight_kind);
+                    }
+                }
+            }
             label_text.truncate(max_sx as usize - sx as usize);
-            crossterm::queue!(w, PrintStyledContent(label_text.with(base_color)))?;
+            let mut content = label_text.with(base_color);
+            if highlighted {
+                content = content.on_dark_grey();
+            }
+            crossterm::queue!(w, PrintStyledContent(content))?;
             sx += len as u16;
             if pad_to > len {
                 let pad = (pad_to - len) as u16;
@@ -297,7 +372,7 @@ where
             break;
         }
     }
-    Ok(())
+    Ok(new_highlight)
 }
 
 pub const COLOR_ROTATION: [Color; 8] = [
@@ -318,5 +393,28 @@ pub fn match_percent_color(match_percent: f32) -> Color {
         Color::Blue
     } else {
         Color::Red
+    }
+}
+
+#[derive(Default)]
+pub enum HighlightKind {
+    #[default]
+    None,
+    Opcode(u8),
+    Arg(ObjInsArgValue),
+    Symbol(String),
+    Address(u32),
+}
+
+impl PartialEq for HighlightKind {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (HighlightKind::None, HighlightKind::None) => false,
+            (HighlightKind::Opcode(a), HighlightKind::Opcode(b)) => a == b,
+            (HighlightKind::Arg(a), HighlightKind::Arg(b)) => a.loose_eq(b),
+            (HighlightKind::Symbol(a), HighlightKind::Symbol(b)) => a == b,
+            (HighlightKind::Address(a), HighlightKind::Address(b)) => a == b,
+            _ => false,
+        }
     }
 }

@@ -178,7 +178,7 @@ fn report_object(
         .as_ref()
         .map(|p| obj::elf::read(p).with_context(|| format!("Failed to open {}", p.display())))
         .transpose()?;
-    let config = diff::DiffObjConfig { relax_reloc_diffs: true, ..Default::default() };
+    let config = diff::DiffObjConfig { relax_reloc_diffs: true };
     diff::diff_objs(&config, target.as_mut(), base.as_mut())?;
     let mut unit = ReportUnit { name: object.name().to_string(), ..Default::default() };
     let obj = target.as_ref().or(base.as_ref()).unwrap();

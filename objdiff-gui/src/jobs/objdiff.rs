@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::{anyhow, Context, Error, Result};
 use objdiff_core::{
-    diff::{diff_objs, DiffAlg, DiffObjConfig},
+    diff::{diff_objs, DiffObjConfig},
     obj::{elf, ObjInfo},
 };
 use time::OffsetDateTime;

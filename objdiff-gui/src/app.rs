@@ -12,11 +12,8 @@ use std::{
 use filetime::FileTime;
 use globset::{Glob, GlobSet};
 use notify::{RecursiveMode, Watcher};
-use objdiff_core::{
-    config::{
-        build_globset, ProjectConfigInfo, ProjectObject, ScratchConfig, DEFAULT_WATCH_PATTERNS,
-    },
-    diff::DiffAlg,
+use objdiff_core::config::{
+    build_globset, ProjectConfigInfo, ProjectObject, ScratchConfig, DEFAULT_WATCH_PATTERNS,
 };
 use time::UtcOffset;
 
@@ -29,9 +26,7 @@ use crate::{
     },
     views::{
         appearance::{appearance_window, Appearance},
-        config::{
-            config_ui, diff_options_window, project_window, ConfigViewState, CONFIG_DISABLED_TEXT,
-        },
+        config::{config_ui, project_window, ConfigViewState, CONFIG_DISABLED_TEXT},
         data_diff::data_diff_ui,
         debug::debug_window,
         demangle::{demangle_window, DemangleViewState},
@@ -529,7 +524,6 @@ impl eframe::App for App {
         project_window(ctx, config, show_project_config, config_state, appearance);
         appearance_window(ctx, show_appearance_config, appearance);
         demangle_window(ctx, show_demangle, demangle_state, appearance);
-        diff_options_window(ctx, config, show_diff_options, appearance);
         debug_window(ctx, show_debug, frame_history, appearance);
 
         self.post_update(ctx);
