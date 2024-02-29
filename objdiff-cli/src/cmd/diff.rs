@@ -53,8 +53,8 @@ pub struct Args {
 pub fn run(args: Args) -> Result<()> {
     let (target_path, base_path, project_config) =
         match (&args.target, &args.base, &args.project, &args.unit) {
-            (Some(t), Some(b), _, _) => (Some(t.clone()), Some(b.clone()), None),
-            (_, _, p, u) => {
+            (Some(t), Some(b), None, None) => (Some(t.clone()), Some(b.clone()), None),
+            (None, None, p, u) => {
                 let project = match p {
                     Some(project) => project.clone(),
                     _ => std::env::current_dir().context("Failed to get the current directory")?,
@@ -114,6 +114,7 @@ pub fn run(args: Args) -> Result<()> {
                 let base_path = object.base_path.clone();
                 (target_path, base_path, Some(project_config))
             }
+            _ => bail!("Either target and base or project and unit must be specified"),
         };
     let mut state = FunctionDiffUi {
         clear: true,
