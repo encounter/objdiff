@@ -2977,6 +2977,7 @@ dependencies = [
  "serde",
  "serde_json",
  "supports-color",
+ "time",
  "tracing",
  "tracing-attributes",
  "tracing-subscriber",

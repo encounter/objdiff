@@ -1,15 +1,16 @@
-use std::{borrow::Cow, collections::BTreeMap, fs, io::Cursor, path::Path};
+use std::{collections::BTreeMap, fs, io::Cursor, path::Path};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use byteorder::{BigEndian, ReadBytesExt};
 use filetime::FileTime;
 use flagset::Flags;
 use object::{
-    elf, Architecture, Endianness, File, Object, ObjectSection, ObjectSymbol, RelocationKind,
-    RelocationTarget, SectionIndex, SectionKind, Symbol, SymbolKind, SymbolScope, SymbolSection,
+    elf, Architecture, File, Object, ObjectSection, ObjectSymbol, RelocationKind, RelocationTarget,
+    SectionIndex, SectionKind, Symbol, SymbolKind, SymbolScope, SymbolSection,
 };
 
 use crate::obj::{
+    split_meta::{SplitMeta, SPLITMETA_SECTION},
     ObjArchitecture, ObjInfo, ObjReloc, ObjRelocKind, ObjSection, ObjSectionKind, ObjSymbol,
     ObjSymbolFlagSet, ObjSymbolFlags,
 };
@@ -23,7 +24,12 @@ fn to_obj_section_kind(kind: SectionKind) -> Option<ObjSectionKind> {
     }
 }
 
-fn to_obj_symbol(obj_file: &File<'_>, symbol: &Symbol<'_, '_>, addend: i64) -> Result<ObjSymbol> {
+fn to_obj_symbol(
+    obj_file: &File<'_>,
+    symbol: &Symbol<'_, '_>,
+    addend: i64,
+    split_meta: Option<&SplitMeta>,
+) -> Result<ObjSymbol> {
     let mut name = symbol.name().context("Failed to process symbol name")?;
     if name.is_empty() {
         log::warn!("Found empty sym: {symbol:?}");
@@ -57,6 +63,10 @@ fn to_obj_symbol(obj_file: &File<'_>, symbol: &Symbol<'_, '_>, addend: i64) -> R
     if obj_file.architecture() == Architecture::PowerPc {
         demangled_name = cwdemangle::demangle(name, &Default::default());
     }
+    // Find the virtual address for the symbol if available
+    let virtual_address = split_meta
+        .and_then(|m| m.virtual_addresses.as_ref())
+        .and_then(|v| v.get(symbol.index().0).cloned());
     Ok(ObjSymbol {
         name: name.to_string(),
         demangled_name,
@@ -66,13 +76,14 @@ fn to_obj_symbol(obj_file: &File<'_>, symbol: &Symbol<'_, '_>, addend: i64) -> R
         size_known: symbol.size() != 0,
         flags,
         addend,
+        virtual_address,
         diff_symbol: None,
         instructions: vec![],
         match_percent: None,
     })
 }
 
-fn filter_sections(obj_file: &File<'_>) -> Result<Vec<ObjSection>> {
+fn filter_sections(obj_file: &File<'_>, split_meta: Option<&SplitMeta>) -> Result<Vec<ObjSection>> {
     let mut result = Vec::<ObjSection>::new();
     for section in obj_file.sections() {
         if section.size() == 0 {
@@ -83,6 +94,17 @@ fn filter_sections(obj_file: &File<'_>) -> Result<Vec<ObjSection>> {
         };
         let name = section.name().context("Failed to process section name")?;
         let data = section.uncompressed_data().context("Failed to read section data")?;
+
+        // Find the virtual address for the section symbol if available
+        let section_symbol = obj_file.symbols().find(|s| {
+            s.kind() == SymbolKind::Section && s.section_index() == Some(section.index())
+        });
+        let virtual_address = section_symbol.and_then(|s| {
+            split_meta
+                .and_then(|m| m.virtual_addresses.as_ref())
+                .and_then(|v| v.get(s.index().0).cloned())
+        });
+
         result.push(ObjSection {
             name: name.to_string(),
             kind,
@@ -92,6 +114,7 @@ fn filter_sections(obj_file: &File<'_>) -> Result<Vec<ObjSection>> {
             index: section.index().0,
             symbols: Vec::new(),
             relocations: Vec::new(),
+            virtual_address,
             data_diff: vec![],
             match_percent: 0.0,
         });
@@ -100,7 +123,11 @@ fn filter_sections(obj_file: &File<'_>) -> Result<Vec<ObjSection>> {
     Ok(result)
 }
 
-fn symbols_by_section(obj_file: &File<'_>, section: &ObjSection) -> Result<Vec<ObjSymbol>> {
+fn symbols_by_section(
+    obj_file: &File<'_>,
+    section: &ObjSection,
+    split_meta: Option<&SplitMeta>,
+) -> Result<Vec<ObjSymbol>> {
     let mut result = Vec::<ObjSymbol>::new();
     for symbol in obj_file.symbols() {
         if symbol.kind() == SymbolKind::Section {
@@ -115,7 +142,7 @@ fn symbols_by_section(obj_file: &File<'_>, section: &ObjSection) -> Result<Vec<O
                         continue;
                     }
                 }
-                result.push(to_obj_symbol(obj_file, &symbol, 0)?);
+                result.push(to_obj_symbol(obj_file, &symbol, 0, split_meta)?);
             }
         }
     }
@@ -133,11 +160,11 @@ fn symbols_by_section(obj_file: &File<'_>, section: &ObjSection) -> Result<Vec<O
     Ok(result)
 }
 
-fn common_symbols(obj_file: &File<'_>) -> Result<Vec<ObjSymbol>> {
+fn common_symbols(obj_file: &File<'_>, split_meta: Option<&SplitMeta>) -> Result<Vec<ObjSymbol>> {
     obj_file
         .symbols()
         .filter(Symbol::is_common)
-        .map(|symbol| to_obj_symbol(obj_file, &symbol, 0))
+        .map(|symbol| to_obj_symbol(obj_file, &symbol, 0, split_meta))
         .collect::<Result<Vec<ObjSymbol>>>()
 }
 
@@ -145,6 +172,7 @@ fn find_section_symbol(
     obj_file: &File<'_>,
     target: &Symbol<'_, '_>,
     address: u64,
+    split_meta: Option<&SplitMeta>,
 ) -> Result<ObjSymbol> {
     let section_index =
         target.section_index().ok_or_else(|| anyhow::Error::msg("Unknown section index"))?;
@@ -164,7 +192,7 @@ fn find_section_symbol(
             }
             continue;
         }
-        return to_obj_symbol(obj_file, &symbol, 0);
+        return to_obj_symbol(obj_file, &symbol, 0, split_meta);
     }
     let (name, offset) = closest_symbol
         .and_then(|s| s.name().map(|n| (n, s.address())).ok())
@@ -180,6 +208,7 @@ fn find_section_symbol(
         size_known: false,
         flags: Default::default(),
         addend: offset_addr as i64,
+        virtual_address: None,
         diff_symbol: None,
         instructions: vec![],
         match_percent: None,
@@ -190,6 +219,7 @@ fn relocations_by_section(
     arch: ObjArchitecture,
     obj_file: &File<'_>,
     section: &ObjSection,
+    split_meta: Option<&SplitMeta>,
 ) -> Result<Vec<ObjReloc>> {
     let obj_section = obj_file.section_by_index(SectionIndex(section.index))?;
     let mut relocations = Vec::<ObjReloc>::new();
@@ -259,11 +289,11 @@ fn relocations_by_section(
         // println!("Reloc: {reloc:?}, symbol: {symbol:?}, addend: {addend:#X}");
         let target = match symbol.kind() {
             SymbolKind::Text | SymbolKind::Data | SymbolKind::Label | SymbolKind::Unknown => {
-                to_obj_symbol(obj_file, &symbol, addend)
+                to_obj_symbol(obj_file, &symbol, addend, split_meta)
             }
             SymbolKind::Section => {
                 ensure!(addend >= 0, "Negative addend in reloc: {addend}");
-                find_section_symbol(obj_file, &symbol, addend as u64)
+                find_section_symbol(obj_file, &symbol, addend as u64, split_meta)
             }
             kind => Err(anyhow!("Unhandled relocation symbol type {kind:?}")),
         }?;
@@ -298,6 +328,7 @@ fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u64, u64>>> {
     // DWARF 2+
     #[cfg(feature = "dwarf")]
     {
+        use std::borrow::Cow;
         let dwarf_cow = gimli::Dwarf::load(|id| {
             Ok::<_, gimli::Error>(
                 obj_file
@@ -307,8 +338,8 @@ fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u64, u64>>> {
             )
         })?;
         let endian = match obj_file.endianness() {
-            Endianness::Little => gimli::RunTimeEndian::Little,
-            Endianness::Big => gimli::RunTimeEndian::Big,
+            object::Endianness::Little => gimli::RunTimeEndian::Little,
+            object::Endianness::Big => gimli::RunTimeEndian::Big,
         };
         let dwarf = dwarf_cow.borrow(|section| gimli::EndianSlice::new(section, endian));
         let mut iter = dwarf.units();
@@ -344,17 +375,35 @@ pub fn read(obj_path: &Path) -> Result<ObjInfo> {
         Architecture::Mips => ObjArchitecture::Mips,
         _ => bail!("Unsupported architecture: {:?}", obj_file.architecture()),
     };
+    let split_meta = split_meta(&obj_file)?;
     let mut result = ObjInfo {
         architecture,
         path: obj_path.to_owned(),
         timestamp,
-        sections: filter_sections(&obj_file)?,
-        common: common_symbols(&obj_file)?,
+        sections: filter_sections(&obj_file, split_meta.as_ref())?,
+        common: common_symbols(&obj_file, split_meta.as_ref())?,
         line_info: line_info(&obj_file)?,
+        split_meta: None,
     };
     for section in &mut result.sections {
-        section.symbols = symbols_by_section(&obj_file, section)?;
-        section.relocations = relocations_by_section(architecture, &obj_file, section)?;
+        section.symbols = symbols_by_section(&obj_file, section, split_meta.as_ref())?;
+        section.relocations =
+            relocations_by_section(architecture, &obj_file, section, split_meta.as_ref())?;
     }
+    result.split_meta = split_meta;
     Ok(result)
+}
+
+fn split_meta(obj_file: &File<'_>) -> Result<Option<SplitMeta>> {
+    Ok(if let Some(section) = obj_file.section_by_name(SPLITMETA_SECTION) {
+        if section.size() != 0 {
+            let data = section.uncompressed_data()?;
+            let mut reader = data.as_ref();
+            Some(SplitMeta::from_reader(&mut reader, obj_file.endianness(), obj_file.is_64())?)
+        } else {
+            None
+        }
+    } else {
+        None
+    })
 }

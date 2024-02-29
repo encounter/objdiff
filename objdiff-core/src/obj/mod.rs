@@ -3,11 +3,13 @@ pub mod elf;
 pub mod mips;
 #[cfg(feature = "ppc")]
 pub mod ppc;
+pub mod split_meta;
 
 use std::{collections::BTreeMap, fmt, path::PathBuf};
 
 use filetime::FileTime;
 use flagset::{flags, FlagSet};
+use split_meta::SplitMeta;
 
 use crate::util::ReallySigned;
 
@@ -39,6 +41,7 @@ pub struct ObjSection {
     pub index: usize,
     pub symbols: Vec<ObjSymbol>,
     pub relocations: Vec<ObjReloc>,
+    pub virtual_address: Option<u64>,
 
     // Diff
     pub data_diff: Vec<ObjDataDiff>,
@@ -139,7 +142,7 @@ pub struct ObjIns {
     pub args: Vec<ObjInsArg>,
     pub reloc: Option<ObjReloc>,
     pub branch_dest: Option<u32>,
-    /// Line info
+    /// Line number
     pub line: Option<u64>,
     /// Original (unsimplified) instruction
     pub orig: Option<String>,
@@ -185,6 +188,8 @@ pub struct ObjSymbol {
     pub size_known: bool,
     pub flags: ObjSymbolFlagSet,
     pub addend: i64,
+    /// Original virtual address (from .splitmeta section)
+    pub virtual_address: Option<u64>,
 
     // Diff
     pub diff_symbol: Option<String>,
@@ -206,8 +211,12 @@ pub struct ObjInfo {
     pub path: PathBuf,
     pub timestamp: FileTime,
     pub sections: Vec<ObjSection>,
+    /// Common BSS symbols
     pub common: Vec<ObjSymbol>,
+    /// Line number info (.line or .debug_line section)
     pub line_info: Option<BTreeMap<u64, u64>>,
+    /// Split object metadata (.splitmeta section)
+    pub split_meta: Option<SplitMeta>,
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]

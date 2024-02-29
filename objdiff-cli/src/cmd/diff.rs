@@ -20,10 +20,11 @@ use crossterm::{
 };
 use event::KeyModifiers;
 use objdiff_core::{
+    config::ProjectConfig,
     diff,
-    diff::display::{display_diff, DiffText},
+    diff::display::{display_diff, DiffText, HighlightKind},
     obj,
-    obj::{ObjInfo, ObjInsArgValue, ObjInsDiffKind, ObjSection, ObjSectionKind, ObjSymbol},
+    obj::{ObjInfo, ObjInsDiffKind, ObjSectionKind, ObjSymbol},
 };
 
 use crate::util::term::crossterm_panic_handler;
@@ -32,33 +33,71 @@ use crate::util::term::crossterm_panic_handler;
 /// Diff two object files.
 #[argp(subcommand, name = "diff")]
 pub struct Args {
-    #[argp(positional)]
+    #[argp(option, short = '1')]
     /// Target object file
-    target: PathBuf,
-    #[argp(positional)]
+    target: Option<PathBuf>,
+    #[argp(option, short = '2')]
     /// Base object file
-    base: PathBuf,
+    base: Option<PathBuf>,
+    #[argp(option, short = 'p')]
+    /// Project directory
+    project: Option<PathBuf>,
+    #[argp(option, short = 'u')]
+    /// Unit name within project
+    unit: Option<String>,
     #[argp(option, short = 's')]
     /// Function symbol to diff
     symbol: String,
 }
 
 pub fn run(args: Args) -> Result<()> {
-    let mut target = obj::elf::read(&args.target)
-        .with_context(|| format!("Loading {}", args.target.display()))?;
-    let mut base =
-        obj::elf::read(&args.base).with_context(|| format!("Loading {}", args.base.display()))?;
-    let config = diff::DiffObjConfig::default();
-    diff::diff_objs(&config, Some(&mut target), Some(&mut base))?;
-
-    let left_sym = find_function(&target, &args.symbol);
-    let right_sym = find_function(&base, &args.symbol);
-    let max_len = match (left_sym, right_sym) {
-        (Some((_, l)), Some((_, r))) => l.instructions.len().max(r.instructions.len()),
-        (Some((_, l)), None) => l.instructions.len(),
-        (None, Some((_, r))) => r.instructions.len(),
-        (None, None) => bail!("Symbol not found: {}", args.symbol),
+    let (target_path, base_path, project_config) =
+        match (&args.target, &args.base, &args.project, &args.unit) {
+            (Some(t), Some(b), _, _) => (Some(t.clone()), Some(b.clone()), None),
+            (_, _, Some(p), Some(u)) => {
+                let Some((project_config, project_config_info)) =
+                    objdiff_core::config::try_project_config(p)
+                else {
+                    bail!("Project config not found in {}", p.display())
+                };
+                let mut project_config = project_config.with_context(|| {
+                    format!("Reading project config {}", project_config_info.path.display())
+                })?;
+                let Some(object) = project_config.objects.iter_mut().find(|obj| obj.name() == u)
+                else {
+                    bail!("Unit not found: {}", u)
+                };
+                object.resolve_paths(
+                    p,
+                    project_config.target_dir.as_deref(),
+                    project_config.base_dir.as_deref(),
+                );
+                let target_path = object.target_path.clone();
+                let base_path = object.base_path.clone();
+                (target_path, base_path, Some(project_config))
+            }
+            _ => bail!("Either target and base or project and unit must be specified"),
+        };
+    let mut state = FunctionDiffUi {
+        clear: true,
+        redraw: true,
+        size: (0, 0),
+        click_xy: None,
+        left_highlight: HighlightKind::None,
+        right_highlight: HighlightKind::None,
+        skip: 0,
+        y_offset: 2,
+        per_page: 0,
+        max_len: 0,
+        symbol_name: args.symbol.clone(),
+        target_path,
+        base_path,
+        project_config,
+        left_sym: None,
+        right_sym: None,
+        reload_time: time::OffsetDateTime::now_local()?,
     };
+    state.reload()?;
 
     crossterm_panic_handler();
     enable_raw_mode()?;
@@ -69,175 +108,26 @@ pub fn run(args: Args) -> Result<()> {
         Hide,
         EnableMouseCapture,
     )?;
+    state.size = terminal_size()?;
 
-    let mut clear = true;
-    let mut redraw = true;
-    let mut skip = 0;
-    let mut click_xy = None;
-    let mut highlight = HighlightKind::None;
-    let (mut sx, mut sy) = terminal_size()?;
     loop {
-        let y_offset = 2;
-        let per_page = sy as usize - y_offset;
-        if redraw {
-            let mut w = stdout().lock();
-            if clear {
-                crossterm::queue!(w, Clear(ClearType::All))?;
-            }
-            crossterm::queue!(
-                w,
-                MoveTo(0, 0),
-                PrintStyledContent(args.symbol.clone().with(Color::White)),
-                MoveTo(0, 1),
-                PrintStyledContent(" ".repeat(sx as usize).underlined()),
-                MoveTo(0, 1),
-                PrintStyledContent("TARGET ".underlined()),
-                MoveTo(sx / 2, 0),
-                PrintStyledContent("Last built: 18:24:20".with(Color::White)),
-                MoveTo(sx / 2, 1),
-                PrintStyledContent("BASE ".underlined()),
-            )?;
-            if let Some(percent) = right_sym.and_then(|(_, s)| s.match_percent) {
-                crossterm::queue!(
-                    w,
-                    PrintStyledContent(
-                        format!("{:.2}%", percent).with(match_percent_color(percent)).underlined()
-                    )
-                )?;
-            }
-
-            if skip > max_len - per_page {
-                skip = max_len - per_page;
-            }
-            let mut new_highlight = None;
-            if let Some((_, symbol)) = left_sym {
-                let h = print_sym(
-                    &mut w,
-                    symbol,
-                    0,
-                    y_offset as u16,
-                    sx / 2 - 1,
-                    sy,
-                    skip,
-                    &mut highlight,
-                    click_xy,
-                )?;
-                if let Some(h) = h {
-                    new_highlight = Some(h);
+        let reload = loop {
+            if state.redraw {
+                state.draw()?;
+                if state.redraw {
+                    continue;
                 }
             }
-            if let Some((_, symbol)) = right_sym {
-                let h = print_sym(
-                    &mut w,
-                    symbol,
-                    sx / 2,
-                    y_offset as u16,
-                    sx,
-                    sy,
-                    skip,
-                    &mut highlight,
-                    click_xy,
-                )?;
-                if let Some(h) = h {
-                    new_highlight = Some(h);
-                }
+            match state.handle_event(event::read()?) {
+                FunctionDiffResult::Break => break false,
+                FunctionDiffResult::Continue => {}
+                FunctionDiffResult::Reload => break true,
             }
-            w.flush()?;
-            if let Some(new_highlight) = new_highlight {
-                highlight = new_highlight;
-                redraw = true;
-                click_xy = None;
-                clear = false;
-                continue; // Redraw now
-            } else {
-                redraw = false;
-                click_xy = None;
-                clear = true;
-            }
-        }
-
-        match event::read()? {
-            Event::Key(event)
-                if matches!(event.kind, KeyEventKind::Press | KeyEventKind::Repeat) =>
-            {
-                match event.code {
-                    // Quit
-                    KeyCode::Esc | KeyCode::Char('q') => break,
-                    // Page up
-                    KeyCode::PageUp => {
-                        skip = skip.saturating_sub(per_page);
-                        redraw = true;
-                    }
-                    // Page up (shift + space)
-                    KeyCode::Char(' ') if event.modifiers.contains(KeyModifiers::SHIFT) => {
-                        skip = skip.saturating_sub(per_page);
-                        redraw = true;
-                    }
-                    // Page down
-                    KeyCode::Char(' ') | KeyCode::PageDown => {
-                        skip += per_page;
-                        redraw = true;
-                    }
-                    KeyCode::Char('f') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        skip += per_page;
-                        redraw = true;
-                    }
-                    KeyCode::Char('b') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        skip = skip.saturating_sub(per_page);
-                        redraw = true;
-                    }
-                    KeyCode::Char('d') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        skip += per_page / 2;
-                        redraw = true;
-                    }
-                    KeyCode::Char('u') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        skip = skip.saturating_sub(per_page / 2);
-                        redraw = true;
-                    }
-                    // Scroll down
-                    KeyCode::Down | KeyCode::Char('j') => {
-                        skip += 1;
-                        redraw = true;
-                    }
-                    // Scroll up
-                    KeyCode::Up | KeyCode::Char('k') => {
-                        skip = skip.saturating_sub(1);
-                        redraw = true;
-                    }
-                    // Scroll to start
-                    KeyCode::Char('g') => {
-                        skip = 0;
-                        redraw = true;
-                    }
-                    // Scroll to end
-                    KeyCode::Char('G') => {
-                        skip = max_len;
-                        redraw = true;
-                    }
-                    _ => {}
-                }
-            }
-            Event::Mouse(event) => match event.kind {
-                MouseEventKind::ScrollDown => {
-                    skip += 3;
-                    redraw = true;
-                }
-                MouseEventKind::ScrollUp => {
-                    skip = skip.saturating_sub(3);
-                    redraw = true;
-                }
-                MouseEventKind::Down(MouseButton::Left) => {
-                    click_xy = Some((event.column, event.row));
-                    redraw = true;
-                }
-                _ => {}
-            },
-            Event::Resize(x, y) => {
-                sx = x;
-                sy = y;
-                redraw = true;
-            }
-            _ => {}
+        };
+        if reload {
+            state.reload()?;
+        } else {
+            break;
         }
     }
 
@@ -247,148 +137,384 @@ pub fn run(args: Args) -> Result<()> {
     Ok(())
 }
 
-fn find_function<'a>(obj: &'a ObjInfo, name: &str) -> Option<(&'a ObjSection, &'a ObjSymbol)> {
+fn find_function(obj: &ObjInfo, name: &str) -> Option<ObjSymbol> {
     for section in &obj.sections {
         if section.kind != ObjSectionKind::Code {
             continue;
         }
         for symbol in &section.symbols {
             if symbol.name == name {
-                return Some((section, symbol));
+                return Some(symbol.clone());
             }
         }
     }
     None
 }
 
-#[allow(clippy::too_many_arguments)]
-fn print_sym<W>(
-    w: &mut W,
-    symbol: &ObjSymbol,
-    sx: u16,
-    mut sy: u16,
-    max_sx: u16,
-    max_sy: u16,
-    skip: usize,
-    highlight: &mut HighlightKind,
+#[allow(dead_code)]
+struct FunctionDiffUi {
+    clear: bool,
+    redraw: bool,
+    size: (u16, u16),
     click_xy: Option<(u16, u16)>,
-) -> Result<Option<HighlightKind>>
-where
-    W: Write,
-{
-    let base_addr = symbol.address as u32;
-    let mut new_highlight = None;
-    for ins_diff in symbol.instructions.iter().skip(skip) {
-        let mut sx = sx;
-        if ins_diff.kind != ObjInsDiffKind::None && sx > 2 {
-            crossterm::queue!(w, MoveTo(sx - 2, sy))?;
-            let s = match ins_diff.kind {
-                ObjInsDiffKind::Delete => "< ",
-                ObjInsDiffKind::Insert => "> ",
-                _ => "| ",
-            };
-            crossterm::queue!(w, PrintStyledContent(s.with(Color::DarkGrey)))?;
+    left_highlight: HighlightKind,
+    right_highlight: HighlightKind,
+    skip: usize,
+    y_offset: usize,
+    per_page: usize,
+    max_len: usize,
+    symbol_name: String,
+    target_path: Option<PathBuf>,
+    base_path: Option<PathBuf>,
+    project_config: Option<ProjectConfig>,
+    left_sym: Option<ObjSymbol>,
+    right_sym: Option<ObjSymbol>,
+    reload_time: time::OffsetDateTime,
+}
+
+enum FunctionDiffResult {
+    Break,
+    Continue,
+    Reload,
+}
+
+impl FunctionDiffUi {
+    fn draw(&mut self) -> Result<()> {
+        let mut w = stdout().lock();
+        if self.clear {
+            crossterm::queue!(w, Clear(ClearType::All))?;
+        }
+        let format = time::format_description::parse("[hour]:[minute]:[second]").unwrap();
+        let reload_time = self.reload_time.format(&format).unwrap();
+        crossterm::queue!(
+            w,
+            MoveTo(0, 0),
+            PrintStyledContent(self.symbol_name.clone().with(Color::White)),
+            MoveTo(0, 1),
+            PrintStyledContent(" ".repeat(self.size.0 as usize).underlined()),
+            MoveTo(0, 1),
+            PrintStyledContent("TARGET ".underlined()),
+            MoveTo(self.size.0 / 2, 0),
+            PrintStyledContent(format!("Last reload: {}", reload_time).with(Color::White)),
+            MoveTo(self.size.0 / 2, 1),
+            PrintStyledContent("BASE ".underlined()),
+        )?;
+        if let Some(percent) = self.right_sym.as_ref().and_then(|s| s.match_percent) {
+            crossterm::queue!(
+                w,
+                PrintStyledContent(
+                    format!("{:.2}%", percent).with(match_percent_color(percent)).underlined()
+                )
+            )?;
+        }
+
+        self.per_page = self.size.1 as usize - self.y_offset;
+        let max_skip = self.max_len.saturating_sub(self.per_page);
+        if self.skip > max_skip {
+            self.skip = max_skip;
+        }
+        let mut left_highlight = None;
+        if let Some(symbol) = &self.left_sym {
+            let h = self.print_sym(
+                &mut w,
+                symbol,
+                (0, self.y_offset as u16),
+                (self.size.0 / 2 - 1, self.size.1),
+                &self.left_highlight,
+            )?;
+            if let Some(h) = h {
+                left_highlight = Some(h);
+            }
+        }
+        let mut right_highlight = None;
+        if let Some(symbol) = &self.right_sym {
+            let h = self.print_sym(
+                &mut w,
+                symbol,
+                (self.size.0 / 2, self.y_offset as u16),
+                self.size,
+                &self.right_highlight,
+            )?;
+            if let Some(h) = h {
+                right_highlight = Some(h);
+            }
+        }
+        w.flush()?;
+        if let Some(new_highlight) = left_highlight {
+            if new_highlight == self.left_highlight {
+                if self.left_highlight != self.right_highlight {
+                    self.right_highlight = self.left_highlight.clone();
+                } else {
+                    self.left_highlight = HighlightKind::None;
+                    self.right_highlight = HighlightKind::None;
+                }
+            } else {
+                self.left_highlight = new_highlight;
+            }
+            self.redraw = true;
+            self.click_xy = None;
+            self.clear = false;
+        } else if let Some(new_highlight) = right_highlight {
+            if new_highlight == self.right_highlight {
+                if self.left_highlight != self.right_highlight {
+                    self.left_highlight = self.right_highlight.clone();
+                } else {
+                    self.left_highlight = HighlightKind::None;
+                    self.right_highlight = HighlightKind::None;
+                }
+            } else {
+                self.right_highlight = new_highlight;
+            }
+            self.redraw = true;
+            self.click_xy = None;
+            self.clear = false;
         } else {
-            crossterm::queue!(w, MoveTo(sx, sy))?;
+            self.redraw = false;
+            self.click_xy = None;
+            self.clear = true;
         }
-        display_diff(ins_diff, base_addr, |text| -> Result<()> {
-            let mut label_text;
-            let mut base_color = match ins_diff.kind {
-                ObjInsDiffKind::None | ObjInsDiffKind::OpMismatch | ObjInsDiffKind::ArgMismatch => {
-                    Color::Grey
-                }
-                ObjInsDiffKind::Replace => Color::DarkCyan,
-                ObjInsDiffKind::Delete => Color::DarkRed,
-                ObjInsDiffKind::Insert => Color::DarkGreen,
-            };
-            let mut pad_to = 0;
-            let mut highlight_kind = HighlightKind::None;
-            match text {
-                DiffText::Basic(text) => {
-                    label_text = text.to_string();
-                }
-                DiffText::BasicColor(s, idx) => {
-                    label_text = s.to_string();
-                    base_color = COLOR_ROTATION[idx % COLOR_ROTATION.len()];
-                }
-                DiffText::Line(num) => {
-                    label_text = format!("{num} ");
-                    base_color = Color::DarkGrey;
-                    pad_to = 5;
-                }
-                DiffText::Address(addr) => {
-                    label_text = format!("{:x}:", addr);
-                    pad_to = 5;
-                    highlight_kind = HighlightKind::Address(addr);
-                }
-                DiffText::Opcode(mnemonic, op) => {
-                    label_text = mnemonic.to_string();
-                    if ins_diff.kind == ObjInsDiffKind::OpMismatch {
-                        base_color = Color::Blue;
-                    }
-                    pad_to = 8;
-                    highlight_kind = HighlightKind::Opcode(op);
-                }
-                DiffText::Argument(arg, diff) => {
-                    label_text = arg.to_string();
-                    if let Some(diff) = diff {
-                        base_color = COLOR_ROTATION[diff.idx % COLOR_ROTATION.len()]
-                    }
-                    highlight_kind = HighlightKind::Arg(arg.clone());
-                }
-                DiffText::BranchTarget(addr) => {
-                    label_text = format!("{addr:x}");
-                    highlight_kind = HighlightKind::Address(addr);
-                }
-                DiffText::Symbol(sym) => {
-                    let name = sym.demangled_name.as_ref().unwrap_or(&sym.name);
-                    label_text = name.clone();
-                    base_color = Color::White;
-                    highlight_kind = HighlightKind::Symbol(name.clone());
-                }
-                DiffText::Spacing(n) => {
-                    crossterm::queue!(w, MoveRight(n as u16))?;
-                    sx += n as u16;
-                    return Ok(());
-                }
-                DiffText::Eol => {
-                    sy += 1;
-                    return Ok(());
-                }
-            }
-            let len = label_text.len();
-            if sx >= max_sx {
-                return Ok(());
-            }
-            let highlighted = highlight == &highlight_kind;
-            if let Some((cx, cy)) = click_xy {
-                if cx >= sx && cx < sx + len as u16 && cy == sy {
-                    if highlighted {
-                        new_highlight = Some(HighlightKind::None);
-                    } else {
-                        new_highlight = Some(highlight_kind);
-                    }
-                }
-            }
-            label_text.truncate(max_sx as usize - sx as usize);
-            let mut content = label_text.with(base_color);
-            if highlighted {
-                content = content.on_dark_grey();
-            }
-            crossterm::queue!(w, PrintStyledContent(content))?;
-            sx += len as u16;
-            if pad_to > len {
-                let pad = (pad_to - len) as u16;
-                crossterm::queue!(w, MoveRight(pad))?;
-                sx += pad;
-            }
-            Ok(())
-        })?;
-        if sy >= max_sy {
-            break;
-        }
+        Ok(())
     }
-    Ok(new_highlight)
+
+    fn handle_event(&mut self, event: Event) -> FunctionDiffResult {
+        match event {
+            Event::Key(event)
+                if matches!(event.kind, KeyEventKind::Press | KeyEventKind::Repeat) =>
+            {
+                match event.code {
+                    // Quit
+                    KeyCode::Esc | KeyCode::Char('q') => return FunctionDiffResult::Break,
+                    // Page up
+                    KeyCode::PageUp => {
+                        self.skip = self.skip.saturating_sub(self.per_page);
+                        self.redraw = true;
+                    }
+                    // Page up (shift + space)
+                    KeyCode::Char(' ') if event.modifiers.contains(KeyModifiers::SHIFT) => {
+                        self.skip = self.skip.saturating_sub(self.per_page);
+                        self.redraw = true;
+                    }
+                    // Page down
+                    KeyCode::Char(' ') | KeyCode::PageDown => {
+                        self.skip += self.per_page;
+                        self.redraw = true;
+                    }
+                    // Page down (ctrl + f)
+                    KeyCode::Char('f') if event.modifiers.contains(KeyModifiers::CONTROL) => {
+                        self.skip += self.per_page;
+                        self.redraw = true;
+                    }
+                    // Page up (ctrl + b)
+                    KeyCode::Char('b') if event.modifiers.contains(KeyModifiers::CONTROL) => {
+                        self.skip = self.skip.saturating_sub(self.per_page);
+                        self.redraw = true;
+                    }
+                    // Half page down (ctrl + d)
+                    KeyCode::Char('d') if event.modifiers.contains(KeyModifiers::CONTROL) => {
+                        self.skip += self.per_page / 2;
+                        self.redraw = true;
+                    }
+                    // Half page up (ctrl + u)
+                    KeyCode::Char('u') if event.modifiers.contains(KeyModifiers::CONTROL) => {
+                        self.skip = self.skip.saturating_sub(self.per_page / 2);
+                        self.redraw = true;
+                    }
+                    // Scroll down
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        self.skip += 1;
+                        self.redraw = true;
+                    }
+                    // Scroll up
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        self.skip = self.skip.saturating_sub(1);
+                        self.redraw = true;
+                    }
+                    // Scroll to start
+                    KeyCode::Char('g') => {
+                        self.skip = 0;
+                        self.redraw = true;
+                    }
+                    // Scroll to end
+                    KeyCode::Char('G') => {
+                        self.skip = self.max_len;
+                        self.redraw = true;
+                    }
+                    // Reload
+                    KeyCode::Char('r') => {
+                        self.redraw = true;
+                        return FunctionDiffResult::Reload;
+                    }
+                    _ => {}
+                }
+            }
+            Event::Mouse(event) => match event.kind {
+                MouseEventKind::ScrollDown => {
+                    self.skip += 3;
+                    self.redraw = true;
+                }
+                MouseEventKind::ScrollUp => {
+                    self.skip = self.skip.saturating_sub(3);
+                    self.redraw = true;
+                }
+                MouseEventKind::Down(MouseButton::Left) => {
+                    self.click_xy = Some((event.column, event.row));
+                    self.redraw = true;
+                }
+                _ => {}
+            },
+            Event::Resize(x, y) => {
+                self.size = (x, y);
+                self.redraw = true;
+            }
+            _ => {}
+        }
+        FunctionDiffResult::Continue
+    }
+
+    fn print_sym<W>(
+        &self,
+        w: &mut W,
+        symbol: &ObjSymbol,
+        origin: (u16, u16),
+        max: (u16, u16),
+        highlight: &HighlightKind,
+    ) -> Result<Option<HighlightKind>>
+    where
+        W: Write,
+    {
+        let base_addr = symbol.address as u32;
+        let mut new_highlight = None;
+        let mut sy = origin.1;
+        for ins_diff in symbol.instructions.iter().skip(self.skip) {
+            let mut sx = origin.0;
+            if ins_diff.kind != ObjInsDiffKind::None && sx > 2 {
+                crossterm::queue!(w, MoveTo(sx - 2, sy))?;
+                let s = match ins_diff.kind {
+                    ObjInsDiffKind::Delete => "< ",
+                    ObjInsDiffKind::Insert => "> ",
+                    _ => "| ",
+                };
+                crossterm::queue!(w, PrintStyledContent(s.with(Color::DarkGrey)))?;
+            } else {
+                crossterm::queue!(w, MoveTo(sx, sy))?;
+            }
+            display_diff(ins_diff, base_addr, |text| -> Result<()> {
+                let mut label_text;
+                let mut base_color = match ins_diff.kind {
+                    ObjInsDiffKind::None
+                    | ObjInsDiffKind::OpMismatch
+                    | ObjInsDiffKind::ArgMismatch => Color::Grey,
+                    ObjInsDiffKind::Replace => Color::DarkCyan,
+                    ObjInsDiffKind::Delete => Color::DarkRed,
+                    ObjInsDiffKind::Insert => Color::DarkGreen,
+                };
+                let mut pad_to = 0;
+                match text {
+                    DiffText::Basic(text) => {
+                        label_text = text.to_string();
+                    }
+                    DiffText::BasicColor(s, idx) => {
+                        label_text = s.to_string();
+                        base_color = COLOR_ROTATION[idx % COLOR_ROTATION.len()];
+                    }
+                    DiffText::Line(num) => {
+                        label_text = format!("{num} ");
+                        base_color = Color::DarkGrey;
+                        pad_to = 5;
+                    }
+                    DiffText::Address(addr) => {
+                        label_text = format!("{:x}:", addr);
+                        pad_to = 5;
+                    }
+                    DiffText::Opcode(mnemonic, _op) => {
+                        label_text = mnemonic.to_string();
+                        if ins_diff.kind == ObjInsDiffKind::OpMismatch {
+                            base_color = Color::Blue;
+                        }
+                        pad_to = 8;
+                    }
+                    DiffText::Argument(arg, diff) => {
+                        label_text = arg.to_string();
+                        if let Some(diff) = diff {
+                            base_color = COLOR_ROTATION[diff.idx % COLOR_ROTATION.len()]
+                        }
+                    }
+                    DiffText::BranchTarget(addr) => {
+                        label_text = format!("{addr:x}");
+                    }
+                    DiffText::Symbol(sym) => {
+                        let name = sym.demangled_name.as_ref().unwrap_or(&sym.name);
+                        label_text = name.clone();
+                        base_color = Color::White;
+                    }
+                    DiffText::Spacing(n) => {
+                        crossterm::queue!(w, MoveRight(n as u16))?;
+                        sx += n as u16;
+                        return Ok(());
+                    }
+                    DiffText::Eol => {
+                        sy += 1;
+                        return Ok(());
+                    }
+                }
+                let len = label_text.len();
+                if sx >= max.0 {
+                    return Ok(());
+                }
+                let highlighted = *highlight == text;
+                if let Some((cx, cy)) = self.click_xy {
+                    if cx >= sx && cx < sx + len as u16 && cy == sy {
+                        new_highlight = Some(text.into());
+                    }
+                }
+                label_text.truncate(max.0 as usize - sx as usize);
+                let mut content = label_text.with(base_color);
+                if highlighted {
+                    content = content.on_dark_grey();
+                }
+                crossterm::queue!(w, PrintStyledContent(content))?;
+                sx += len as u16;
+                if pad_to > len {
+                    let pad = (pad_to - len) as u16;
+                    crossterm::queue!(w, MoveRight(pad))?;
+                    sx += pad;
+                }
+                Ok(())
+            })?;
+            if sy >= max.1 {
+                break;
+            }
+        }
+        Ok(new_highlight)
+    }
+
+    fn reload(&mut self) -> Result<()> {
+        let mut target = self
+            .target_path
+            .as_deref()
+            .map(|p| obj::elf::read(p).with_context(|| format!("Loading {}", p.display())))
+            .transpose()?;
+        let mut base = self
+            .base_path
+            .as_deref()
+            .map(|p| obj::elf::read(p).with_context(|| format!("Loading {}", p.display())))
+            .transpose()?;
+        let config = diff::DiffObjConfig::default();
+        diff::diff_objs(&config, target.as_mut(), base.as_mut())?;
+
+        let left_sym = target.as_ref().and_then(|o| find_function(o, &self.symbol_name));
+        let right_sym = base.as_ref().and_then(|o| find_function(o, &self.symbol_name));
+        self.max_len = match (&left_sym, &right_sym) {
+            (Some(l), Some(r)) => l.instructions.len().max(r.instructions.len()),
+            (Some(l), None) => l.instructions.len(),
+            (None, Some(r)) => r.instructions.len(),
+            (None, None) => bail!("Symbol not found: {}", self.symbol_name),
+        };
+        self.left_sym = left_sym;
+        self.right_sym = right_sym;
+        self.reload_time = time::OffsetDateTime::now_local()?;
+        Ok(())
+    }
 }
 
 pub const COLOR_ROTATION: [Color; 8] = [
@@ -409,28 +535,5 @@ pub fn match_percent_color(match_percent: f32) -> Color {
         Color::Blue
     } else {
         Color::Red
-    }
-}
-
-#[derive(Default)]
-pub enum HighlightKind {
-    #[default]
-    None,
-    Opcode(u8),
-    Arg(ObjInsArgValue),
-    Symbol(String),
-    Address(u32),
-}
-
-impl PartialEq for HighlightKind {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (HighlightKind::None, HighlightKind::None) => false,
-            (HighlightKind::Opcode(a), HighlightKind::Opcode(b)) => a == b,
-            (HighlightKind::Arg(a), HighlightKind::Arg(b)) => a.loose_eq(b),
-            (HighlightKind::Symbol(a), HighlightKind::Symbol(b)) => a == b,
-            (HighlightKind::Address(a), HighlightKind::Address(b)) => a == b,
-            _ => false,
-        }
     }
 }

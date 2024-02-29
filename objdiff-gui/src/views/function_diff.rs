@@ -3,7 +3,7 @@ use std::default::Default;
 use egui::{text::LayoutJob, Align, Label, Layout, Sense, Vec2, Widget};
 use egui_extras::{Column, TableBuilder, TableRow};
 use objdiff_core::{
-    diff::display::{display_diff, DiffText},
+    diff::display::{display_diff, DiffText, HighlightKind},
     obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjInsDiff, ObjInsDiffKind, ObjSymbol},
 };
 use time::format_description;
@@ -12,29 +12,6 @@ use crate::views::{
     appearance::Appearance,
     symbol_diff::{match_color_for_symbol, DiffViewState, SymbolReference, View},
 };
-
-#[derive(Default)]
-pub enum HighlightKind {
-    #[default]
-    None,
-    Opcode(u8),
-    Arg(ObjInsArgValue),
-    Symbol(String),
-    Address(u32),
-}
-
-impl PartialEq for HighlightKind {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (HighlightKind::None, HighlightKind::None) => false,
-            (HighlightKind::Opcode(a), HighlightKind::Opcode(b)) => a == b,
-            (HighlightKind::Arg(a), HighlightKind::Arg(b)) => a.loose_eq(b),
-            (HighlightKind::Symbol(a), HighlightKind::Symbol(b)) => a == b,
-            (HighlightKind::Address(a), HighlightKind::Address(b)) => a == b,
-            _ => false,
-        }
-    }
-}
 
 #[derive(Default)]
 pub struct FunctionViewState {
@@ -159,7 +136,6 @@ fn diff_text_ui(
         ObjInsDiffKind::Insert => appearance.insert_color,
     };
     let mut pad_to = 0;
-    let mut highlight_kind = HighlightKind::None;
     match text {
         DiffText::Basic(text) => {
             label_text = text.to_string();
@@ -176,32 +152,27 @@ fn diff_text_ui(
         DiffText::Address(addr) => {
             label_text = format!("{:x}:", addr);
             pad_to = 5;
-            highlight_kind = HighlightKind::Address(addr);
         }
-        DiffText::Opcode(mnemonic, op) => {
+        DiffText::Opcode(mnemonic, _op) => {
             label_text = mnemonic.to_string();
             if ins_diff.kind == ObjInsDiffKind::OpMismatch {
                 base_color = appearance.replace_color;
             }
             pad_to = 8;
-            highlight_kind = HighlightKind::Opcode(op);
         }
         DiffText::Argument(arg, diff) => {
             label_text = arg.to_string();
             if let Some(diff) = diff {
                 base_color = appearance.diff_colors[diff.idx % appearance.diff_colors.len()]
             }
-            highlight_kind = HighlightKind::Arg(arg.clone());
         }
         DiffText::BranchTarget(addr) => {
             label_text = format!("{addr:x}");
-            highlight_kind = HighlightKind::Address(addr);
         }
         DiffText::Symbol(sym) => {
             let name = sym.demangled_name.as_ref().unwrap_or(&sym.name);
             label_text = name.clone();
             base_color = appearance.emphasized_text_color;
-            highlight_kind = HighlightKind::Symbol(name.clone());
         }
         DiffText::Spacing(n) => {
             ui.add_space(n as f32 * space_width);
@@ -213,7 +184,7 @@ fn diff_text_ui(
     }
 
     let len = label_text.len();
-    let highlight = ins_view_state.highlight == highlight_kind;
+    let highlight = ins_view_state.highlight == text;
     let response = Label::new(LayoutJob::single_section(
         label_text,
         appearance.code_text_format(base_color, highlight),
@@ -225,7 +196,7 @@ fn diff_text_ui(
         if highlight {
             ins_view_state.highlight = HighlightKind::None;
         } else {
-            ins_view_state.highlight = highlight_kind;
+            ins_view_state.highlight = text.into();
         }
     }
     if len < pad_to {

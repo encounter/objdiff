@@ -28,6 +28,16 @@ pub enum DiffText<'a> {
     Eol,
 }
 
+#[derive(Default, Clone, PartialEq, Eq)]
+pub enum HighlightKind {
+    #[default]
+    None,
+    Opcode(u8),
+    Arg(ObjInsArgValue),
+    Symbol(String),
+    Address(u32),
+}
+
 pub fn display_diff<E>(
     ins_diff: &ObjInsDiff,
     base_addr: u32,
@@ -176,4 +186,32 @@ fn display_reloc<E>(
         }
     }
     Ok(())
+}
+
+impl PartialEq<DiffText<'_>> for HighlightKind {
+    fn eq(&self, other: &DiffText) -> bool {
+        match (self, other) {
+            (HighlightKind::Opcode(a), DiffText::Opcode(_, b)) => a == b,
+            (HighlightKind::Arg(a), DiffText::Argument(b, _)) => a.loose_eq(b),
+            (HighlightKind::Symbol(a), DiffText::Symbol(b)) => a == &b.name,
+            (HighlightKind::Address(a), DiffText::Address(b) | DiffText::BranchTarget(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<HighlightKind> for DiffText<'_> {
+    fn eq(&self, other: &HighlightKind) -> bool { other.eq(self) }
+}
+
+impl From<DiffText<'_>> for HighlightKind {
+    fn from(value: DiffText<'_>) -> Self {
+        match value {
+            DiffText::Opcode(_, op) => HighlightKind::Opcode(op),
+            DiffText::Argument(arg, _) => HighlightKind::Arg(arg.clone()),
+            DiffText::Symbol(sym) => HighlightKind::Symbol(sym.name.to_string()),
+            DiffText::Address(addr) | DiffText::BranchTarget(addr) => HighlightKind::Address(addr),
+            _ => HighlightKind::None,
+        }
+    }
 }

@@ -143,6 +143,12 @@ fn symbol_context_menu_ui(ui: &mut Ui, symbol: &ObjSymbol) {
             ui.output_mut(|output| output.copied_text = symbol.name.clone());
             ui.close_menu();
         }
+        if let Some(address) = symbol.virtual_address {
+            if ui.button(format!("Copy \"{:#x}\" (virtual address)", address)).clicked() {
+                ui.output_mut(|output| output.copied_text = format!("{:#x}", address));
+                ui.close_menu();
+            }
+        }
     });
 }
 
@@ -159,6 +165,12 @@ fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol, appearance: &Appearance) {
             ui.colored_label(
                 appearance.highlight_color,
                 format!("Size: {:x} (assumed)", symbol.size),
+            );
+        }
+        if let Some(address) = symbol.virtual_address {
+            ui.colored_label(
+                appearance.highlight_color,
+                format!("Virtual address: {:#x}", address),
             );
         }
     });
