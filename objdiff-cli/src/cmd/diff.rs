@@ -94,6 +94,9 @@ pub fn run(args: Args) -> Result<()> {
                             {
                                 idx = Some(i);
                                 count += 1;
+                                if count > 1 {
+                                    break;
+                                }
                             }
                         }
                         match (count, idx) {
