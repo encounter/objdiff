@@ -95,6 +95,7 @@ struct ReportFunction {
     #[serde(skip_serializing_if = "Option::is_none")]
     demangled_name: Option<String>,
     #[serde(
+        default,
         skip_serializing_if = "Option::is_none",
         serialize_with = "serialize_hex",
         deserialize_with = "deserialize_hex"
