@@ -45,7 +45,7 @@ pub struct Args {
     #[argp(option, short = 'u')]
     /// Unit name within project
     unit: Option<String>,
-    #[argp(option, short = 's')]
+    #[argp(positional)]
     /// Function symbol to diff
     symbol: String,
 }
