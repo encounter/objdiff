@@ -178,6 +178,22 @@ pub fn run(args: Args) -> Result<()> {
                         skip += per_page;
                         redraw = true;
                     }
+                    KeyCode::Char('f') if event.modifiers.contains(KeyModifiers::CONTROL) => {
+                        skip += per_page;
+                        redraw = true;
+                    }
+                    KeyCode::Char('b') if event.modifiers.contains(KeyModifiers::CONTROL) => {
+                        skip = skip.saturating_sub(per_page);
+                        redraw = true;
+                    }
+                    KeyCode::Char('d') if event.modifiers.contains(KeyModifiers::CONTROL) => {
+                        skip += per_page / 2;
+                        redraw = true;
+                    }
+                    KeyCode::Char('u') if event.modifiers.contains(KeyModifiers::CONTROL) => {
+                        skip = skip.saturating_sub(per_page / 2);
+                        redraw = true;
+                    }
                     // Scroll down
                     KeyCode::Down | KeyCode::Char('j') => {
                         skip += 1;
