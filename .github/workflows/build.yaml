@@ -10,7 +10,6 @@ on:
 
 env:
   BUILD_PROFILE: release-lto
-  CARGO_BIN_NAME: objdiff-gui
   CARGO_TARGET_DIR: target
 
 jobs:
@@ -125,16 +124,18 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - name: Cargo build
-        run: cargo build --profile ${{ env.BUILD_PROFILE }} --target ${{ matrix.target }} --bin ${{ env.CARGO_BIN_NAME }} --features ${{ matrix.features }}
+        run: >
+          cargo build --profile ${{ env.BUILD_PROFILE }} --target ${{ matrix.target }} 
+          --bin objdiff-cli --bin objdiff-gui --features ${{ matrix.features }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
           path: |
-            ${{ env.CARGO_TARGET_DIR }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}
-            ${{ env.CARGO_TARGET_DIR }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}.exe
-            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}
-            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}.exe
+            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/objdiff-cli
+            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/objdiff-cli.exe
+            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/objdiff-gui
+            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/objdiff-gui.exe
           if-no-files-found: error
 
   release:
@@ -151,8 +152,11 @@ jobs:
         working-directory: artifacts
         run: |
           mkdir ../out
-          for i in */*/$BUILD_PROFILE/$CARGO_BIN_NAME*; do
-            mv "$i" "../out/$(sed -E "s/([^/]+)\/[^/]+\/$BUILD_PROFILE\/$CARGO_BIN_NAME/objdiff-\1/" <<< "$i")"
+          for i in */*/$BUILD_PROFILE/objdiff-cli*; do
+            mv "$i" "../out/$(sed -E "s/([^/]+)\/[^/]+\/$BUILD_PROFILE\/objdiff-cli/objdiff-cli-\1/" <<< "$i")"
+          done
+          for i in */*/$BUILD_PROFILE/objdiff-gui*; do
+            mv "$i" "../out/$(sed -E "s/([^/]+)\/[^/]+\/$BUILD_PROFILE\/objdiff-gui/objdiff-\1/" <<< "$i")"
           done
           ls -R ../out
       - name: Release
