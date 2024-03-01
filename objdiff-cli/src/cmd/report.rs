@@ -474,7 +474,7 @@ fn read_report(path: &Path) -> Result<Report> {
 fn serialize_hex<S>(x: &Option<u64>, s: S) -> Result<S::Ok, S::Error>
 where S: serde::Serializer {
     if let Some(x) = x {
-        s.serialize_str(&format!("{:#x}", x))
+        s.serialize_str(&format!("{:#X}", x))
     } else {
         s.serialize_none()
     }
