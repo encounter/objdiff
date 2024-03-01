@@ -1,21 +1,15 @@
-use std::{
-    io::{stdout, Write},
-    path::PathBuf,
-};
+use std::{io::stdout, path::PathBuf};
 
 use anyhow::{bail, Context, Result};
 use argp::FromArgs;
 use crossterm::{
-    cursor::{Hide, MoveRight, MoveTo, Show},
     event,
     event::{
         DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind, MouseButton,
         MouseEventKind,
     },
-    style::{Color, PrintStyledContent, Stylize},
     terminal::{
-        disable_raw_mode, enable_raw_mode, size as terminal_size, Clear, ClearType,
-        EnterAlternateScreen, LeaveAlternateScreen, SetTitle,
+        disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen, SetTitle,
     },
 };
 use event::KeyModifiers;
@@ -25,6 +19,10 @@ use objdiff_core::{
     diff::display::{display_diff, DiffText, HighlightKind},
     obj,
     obj::{ObjInfo, ObjInsDiffKind, ObjSectionKind, ObjSymbol},
+};
+use ratatui::{
+    prelude::*,
+    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
 };
 
 use crate::util::term::crossterm_panic_handler;
@@ -120,25 +118,26 @@ pub fn run(args: Args) -> Result<()> {
             }
             _ => bail!("Either target and base or project and unit must be specified"),
         };
-    let mut state = FunctionDiffUi {
-        clear: true,
+    let time_format = time::format_description::parse_borrowed::<2>("[hour]:[minute]:[second]")
+        .context("Failed to parse time format")?;
+    let mut state = Box::new(FunctionDiffUi {
         redraw: true,
-        size: (0, 0),
         click_xy: None,
         left_highlight: HighlightKind::None,
         right_highlight: HighlightKind::None,
-        skip: 0,
-        y_offset: 2,
+        scroll: 0,
         per_page: 0,
-        max_len: 0,
+        num_rows: 0,
         symbol_name: args.symbol.clone(),
         target_path,
         base_path,
         project_config,
         left_sym: None,
         right_sym: None,
-        reload_time: time::OffsetDateTime::now_local()?,
-    };
+        reload_time: None,
+        time_format,
+        scroll_state: Default::default(),
+    });
     state.reload()?;
 
     crossterm_panic_handler();
@@ -146,36 +145,33 @@ pub fn run(args: Args) -> Result<()> {
     crossterm::queue!(
         stdout(),
         EnterAlternateScreen,
-        SetTitle(format!("{} - objdiff", args.symbol)),
-        Hide,
         EnableMouseCapture,
+        SetTitle(format!("{} - objdiff", args.symbol)),
     )?;
-    state.size = terminal_size()?;
+    let backend = CrosstermBackend::new(stdout());
+    let mut terminal = Terminal::new(backend)?;
 
-    loop {
-        let reload = loop {
+    'outer: loop {
+        loop {
             if state.redraw {
-                state.draw()?;
+                terminal.draw(|f| state.draw(f))?;
                 if state.redraw {
                     continue;
                 }
             }
             match state.handle_event(event::read()?) {
-                FunctionDiffResult::Break => break false,
+                FunctionDiffResult::Break => break 'outer,
                 FunctionDiffResult::Continue => {}
-                FunctionDiffResult::Reload => break true,
+                FunctionDiffResult::Reload => break,
             }
-        };
-        if reload {
-            state.reload()?;
-        } else {
-            break;
         }
+        state.reload()?;
     }
 
     // Reset terminal
-    crossterm::execute!(stdout(), LeaveAlternateScreen, Show, DisableMouseCapture)?;
     disable_raw_mode()?;
+    crossterm::execute!(stdout(), LeaveAlternateScreen, DisableMouseCapture)?;
+    terminal.show_cursor()?;
     Ok(())
 }
 
@@ -195,23 +191,22 @@ fn find_function(obj: &ObjInfo, name: &str) -> Option<ObjSymbol> {
 
 #[allow(dead_code)]
 struct FunctionDiffUi {
-    clear: bool,
     redraw: bool,
-    size: (u16, u16),
     click_xy: Option<(u16, u16)>,
     left_highlight: HighlightKind,
     right_highlight: HighlightKind,
-    skip: usize,
-    y_offset: usize,
+    scroll: usize,
     per_page: usize,
-    max_len: usize,
+    num_rows: usize,
     symbol_name: String,
     target_path: Option<PathBuf>,
     base_path: Option<PathBuf>,
     project_config: Option<ProjectConfig>,
     left_sym: Option<ObjSymbol>,
     right_sym: Option<ObjSymbol>,
-    reload_time: time::OffsetDateTime,
+    reload_time: Option<time::OffsetDateTime>,
+    time_format: Vec<time::format_description::FormatItem<'static>>,
+    scroll_state: ScrollbarState,
 }
 
 enum FunctionDiffResult {
@@ -221,67 +216,94 @@ enum FunctionDiffResult {
 }
 
 impl FunctionDiffUi {
-    fn draw(&mut self) -> Result<()> {
-        let mut w = stdout().lock();
-        if self.clear {
-            crossterm::queue!(w, Clear(ClearType::All))?;
-        }
-        let format = time::format_description::parse("[hour]:[minute]:[second]").unwrap();
-        let reload_time = self.reload_time.format(&format).unwrap();
-        crossterm::queue!(
-            w,
-            MoveTo(0, 0),
-            PrintStyledContent(self.symbol_name.clone().with(Color::White)),
-            MoveTo(0, 1),
-            PrintStyledContent(" ".repeat(self.size.0 as usize).underlined()),
-            MoveTo(0, 1),
-            PrintStyledContent("TARGET ".underlined()),
-            MoveTo(self.size.0 / 2, 0),
-            PrintStyledContent(format!("Last reload: {}", reload_time).with(Color::White)),
-            MoveTo(self.size.0 / 2, 1),
-            PrintStyledContent("BASE ".underlined()),
-        )?;
-        if let Some(percent) = self.right_sym.as_ref().and_then(|s| s.match_percent) {
-            crossterm::queue!(
-                w,
-                PrintStyledContent(
-                    format!("{:.2}%", percent).with(match_percent_color(percent)).underlined()
-                )
-            )?;
-        }
+    fn draw(&mut self, f: &mut Frame) {
+        let chunks = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).split(f.size());
+        let header_chunks = Layout::horizontal([
+            Constraint::Fill(1),
+            Constraint::Length(3),
+            Constraint::Fill(1),
+            Constraint::Length(2),
+        ])
+        .split(chunks[0]);
+        let content_chunks = Layout::horizontal([
+            Constraint::Fill(1),
+            Constraint::Length(3),
+            Constraint::Fill(1),
+            Constraint::Length(2),
+        ])
+        .split(chunks[1]);
 
-        self.per_page = self.size.1 as usize - self.y_offset;
-        let max_skip = self.max_len.saturating_sub(self.per_page);
-        if self.skip > max_skip {
-            self.skip = max_skip;
+        self.per_page = chunks[1].height.saturating_sub(1) as usize;
+        let max_scroll = self.num_rows.saturating_sub(self.per_page);
+        if self.scroll > max_scroll {
+            self.scroll = max_scroll;
         }
+        self.scroll_state = self.scroll_state.content_length(max_scroll).position(self.scroll);
+
+        let mut line_l = Line::default();
+        line_l
+            .spans
+            .push(Span::styled(self.symbol_name.clone(), Style::new().fg(Color::White).bold()));
+        f.render_widget(line_l, header_chunks[0]);
+
+        let mut line_r = Line::default();
+        if let Some(percent) = self.right_sym.as_ref().and_then(|s| s.match_percent) {
+            line_r.spans.push(Span::styled(
+                format!("{:.2}% ", percent),
+                Style::new().fg(match_percent_color(percent)),
+            ));
+        }
+        let reload_time = self
+            .reload_time
+            .as_ref()
+            .and_then(|t| t.format(&self.time_format).ok())
+            .unwrap_or_else(|| "N/A".to_string());
+        line_r.spans.push(Span::styled(
+            format!("Last reload: {}", reload_time),
+            Style::new().fg(Color::White),
+        ));
+        f.render_widget(line_r, header_chunks[2]);
+
+        let create_block =
+            |title: &'static str| Block::new().borders(Borders::TOP).gray().title(title.bold());
+
         let mut left_highlight = None;
         if let Some(symbol) = &self.left_sym {
-            let h = self.print_sym(
-                &mut w,
-                symbol,
-                (0, self.y_offset as u16),
-                (self.size.0 / 2 - 1, self.size.1),
-                &self.left_highlight,
-            )?;
+            // Render left column
+            let mut text = Text::default();
+            let rect = margin_top(content_chunks[0], 1);
+            let h = self.print_sym(&mut text, symbol, rect, &self.left_highlight);
+            f.render_widget(Paragraph::new(text).block(create_block("TARGET")), content_chunks[0]);
             if let Some(h) = h {
                 left_highlight = Some(h);
             }
         }
+
         let mut right_highlight = None;
         if let Some(symbol) = &self.right_sym {
-            let h = self.print_sym(
-                &mut w,
-                symbol,
-                (self.size.0 / 2, self.y_offset as u16),
-                self.size,
-                &self.right_highlight,
-            )?;
+            // Render margin
+            let mut text = Text::default();
+            let rect = margin_top(content_chunks[1], 1).inner(&Margin::new(1, 0));
+            self.print_margin(&mut text, symbol, rect);
+            f.render_widget(text, rect);
+
+            // Render right column
+            let mut text = Text::default();
+            let rect = margin_top(content_chunks[2], 1);
+            let h = self.print_sym(&mut text, symbol, rect, &self.right_highlight);
+            f.render_widget(Paragraph::new(text).block(create_block("CURRENT")), content_chunks[2]);
             if let Some(h) = h {
                 right_highlight = Some(h);
             }
         }
-        w.flush()?;
+
+        // Render scrollbar
+        f.render_stateful_widget(
+            Scrollbar::new(ScrollbarOrientation::VerticalRight).begin_symbol(None).end_symbol(None),
+            margin_top(chunks[1], 1),
+            &mut self.scroll_state,
+        );
+
         if let Some(new_highlight) = left_highlight {
             if new_highlight == self.left_highlight {
                 if self.left_highlight != self.right_highlight {
@@ -295,7 +317,6 @@ impl FunctionDiffUi {
             }
             self.redraw = true;
             self.click_xy = None;
-            self.clear = false;
         } else if let Some(new_highlight) = right_highlight {
             if new_highlight == self.right_highlight {
                 if self.left_highlight != self.right_highlight {
@@ -309,13 +330,10 @@ impl FunctionDiffUi {
             }
             self.redraw = true;
             self.click_xy = None;
-            self.clear = false;
         } else {
             self.redraw = false;
             self.click_xy = None;
-            self.clear = true;
         }
-        Ok(())
     }
 
     fn handle_event(&mut self, event: Event) -> FunctionDiffResult {
@@ -328,57 +346,57 @@ impl FunctionDiffUi {
                     KeyCode::Esc | KeyCode::Char('q') => return FunctionDiffResult::Break,
                     // Page up
                     KeyCode::PageUp => {
-                        self.skip = self.skip.saturating_sub(self.per_page);
+                        self.scroll = self.scroll.saturating_sub(self.per_page);
                         self.redraw = true;
                     }
                     // Page up (shift + space)
                     KeyCode::Char(' ') if event.modifiers.contains(KeyModifiers::SHIFT) => {
-                        self.skip = self.skip.saturating_sub(self.per_page);
+                        self.scroll = self.scroll.saturating_sub(self.per_page);
                         self.redraw = true;
                     }
                     // Page down
                     KeyCode::Char(' ') | KeyCode::PageDown => {
-                        self.skip += self.per_page;
+                        self.scroll += self.per_page;
                         self.redraw = true;
                     }
                     // Page down (ctrl + f)
                     KeyCode::Char('f') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.skip += self.per_page;
+                        self.scroll += self.per_page;
                         self.redraw = true;
                     }
                     // Page up (ctrl + b)
                     KeyCode::Char('b') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.skip = self.skip.saturating_sub(self.per_page);
+                        self.scroll = self.scroll.saturating_sub(self.per_page);
                         self.redraw = true;
                     }
                     // Half page down (ctrl + d)
                     KeyCode::Char('d') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.skip += self.per_page / 2;
+                        self.scroll += self.per_page / 2;
                         self.redraw = true;
                     }
                     // Half page up (ctrl + u)
                     KeyCode::Char('u') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.skip = self.skip.saturating_sub(self.per_page / 2);
+                        self.scroll = self.scroll.saturating_sub(self.per_page / 2);
                         self.redraw = true;
                     }
                     // Scroll down
                     KeyCode::Down | KeyCode::Char('j') => {
-                        self.skip += 1;
+                        self.scroll += 1;
                         self.redraw = true;
                     }
                     // Scroll up
                     KeyCode::Up | KeyCode::Char('k') => {
-                        self.skip = self.skip.saturating_sub(1);
+                        self.scroll = self.scroll.saturating_sub(1);
                         self.redraw = true;
                     }
                     // Scroll to start
                     KeyCode::Char('g') => {
-                        self.skip = 0;
+                        self.scroll = 0;
                         self.redraw = true;
                     }
                     // Scroll to end
                     KeyCode::Char('G') => {
-                        self.skip = self.max_len;
+                        self.scroll = self.num_rows;
                         self.redraw = true;
                     }
                     // Reload
@@ -391,11 +409,11 @@ impl FunctionDiffUi {
             }
             Event::Mouse(event) => match event.kind {
                 MouseEventKind::ScrollDown => {
-                    self.skip += 3;
+                    self.scroll += 3;
                     self.redraw = true;
                 }
                 MouseEventKind::ScrollUp => {
-                    self.skip = self.skip.saturating_sub(3);
+                    self.scroll = self.scroll.saturating_sub(3);
                     self.redraw = true;
                 }
                 MouseEventKind::Down(MouseButton::Left) => {
@@ -404,8 +422,7 @@ impl FunctionDiffUi {
                 }
                 _ => {}
             },
-            Event::Resize(x, y) => {
-                self.size = (x, y);
+            Event::Resize(_, _) => {
                 self.redraw = true;
             }
             _ => {}
@@ -413,42 +430,30 @@ impl FunctionDiffUi {
         FunctionDiffResult::Continue
     }
 
-    fn print_sym<W>(
+    fn print_sym(
         &self,
-        w: &mut W,
+        out: &mut Text,
         symbol: &ObjSymbol,
-        origin: (u16, u16),
-        max: (u16, u16),
+        rect: Rect,
         highlight: &HighlightKind,
-    ) -> Result<Option<HighlightKind>>
-    where
-        W: Write,
-    {
+    ) -> Option<HighlightKind> {
         let base_addr = symbol.address as u32;
         let mut new_highlight = None;
-        let mut sy = origin.1;
-        for ins_diff in symbol.instructions.iter().skip(self.skip) {
-            let mut sx = origin.0;
-            if ins_diff.kind != ObjInsDiffKind::None && sx > 2 {
-                crossterm::queue!(w, MoveTo(sx - 2, sy))?;
-                let s = match ins_diff.kind {
-                    ObjInsDiffKind::Delete => "< ",
-                    ObjInsDiffKind::Insert => "> ",
-                    _ => "| ",
-                };
-                crossterm::queue!(w, PrintStyledContent(s.with(Color::DarkGrey)))?;
-            } else {
-                crossterm::queue!(w, MoveTo(sx, sy))?;
-            }
+        for (y, ins_diff) in
+            symbol.instructions.iter().skip(self.scroll).take(rect.height as usize).enumerate()
+        {
+            let mut sx = rect.x;
+            let sy = rect.y + y as u16;
+            let mut line = Line::default();
             display_diff(ins_diff, base_addr, |text| -> Result<()> {
-                let mut label_text;
+                let label_text;
                 let mut base_color = match ins_diff.kind {
                     ObjInsDiffKind::None
                     | ObjInsDiffKind::OpMismatch
-                    | ObjInsDiffKind::ArgMismatch => Color::Grey,
-                    ObjInsDiffKind::Replace => Color::DarkCyan,
-                    ObjInsDiffKind::Delete => Color::DarkRed,
-                    ObjInsDiffKind::Insert => Color::DarkGreen,
+                    | ObjInsDiffKind::ArgMismatch => Color::Gray,
+                    ObjInsDiffKind::Replace => Color::Cyan,
+                    ObjInsDiffKind::Delete => Color::Red,
+                    ObjInsDiffKind::Insert => Color::Green,
                 };
                 let mut pad_to = 0;
                 match text {
@@ -461,7 +466,7 @@ impl FunctionDiffUi {
                     }
                     DiffText::Line(num) => {
                         label_text = format!("{num} ");
-                        base_color = Color::DarkGrey;
+                        base_color = Color::DarkGray;
                         pad_to = 5;
                     }
                     DiffText::Address(addr) => {
@@ -490,44 +495,52 @@ impl FunctionDiffUi {
                         base_color = Color::White;
                     }
                     DiffText::Spacing(n) => {
-                        crossterm::queue!(w, MoveRight(n as u16))?;
+                        line.spans.push(Span::raw(" ".repeat(n)));
                         sx += n as u16;
                         return Ok(());
                     }
                     DiffText::Eol => {
-                        sy += 1;
                         return Ok(());
                     }
                 }
                 let len = label_text.len();
-                if sx >= max.0 {
-                    return Ok(());
-                }
                 let highlighted = *highlight == text;
                 if let Some((cx, cy)) = self.click_xy {
                     if cx >= sx && cx < sx + len as u16 && cy == sy {
                         new_highlight = Some(text.into());
                     }
                 }
-                label_text.truncate(max.0 as usize - sx as usize);
-                let mut content = label_text.with(base_color);
+                let mut style = Style::new().fg(base_color);
                 if highlighted {
-                    content = content.on_dark_grey();
+                    style = style.bg(Color::DarkGray);
                 }
-                crossterm::queue!(w, PrintStyledContent(content))?;
+                line.spans.push(Span::styled(label_text, style));
                 sx += len as u16;
                 if pad_to > len {
                     let pad = (pad_to - len) as u16;
-                    crossterm::queue!(w, MoveRight(pad))?;
+                    line.spans.push(Span::raw(" ".repeat(pad as usize)));
                     sx += pad;
                 }
                 Ok(())
-            })?;
-            if sy >= max.1 {
-                break;
+            })
+            .unwrap();
+            out.lines.push(line);
+        }
+        new_highlight
+    }
+
+    fn print_margin(&self, out: &mut Text, symbol: &ObjSymbol, rect: Rect) {
+        for ins_diff in symbol.instructions.iter().skip(self.scroll).take(rect.height as usize) {
+            if ins_diff.kind != ObjInsDiffKind::None {
+                out.lines.push(Line::raw(match ins_diff.kind {
+                    ObjInsDiffKind::Delete => "<",
+                    ObjInsDiffKind::Insert => ">",
+                    _ => "|",
+                }));
+            } else {
+                out.lines.push(Line::raw(" "));
             }
         }
-        Ok(new_highlight)
     }
 
     fn reload(&mut self) -> Result<()> {
@@ -546,7 +559,7 @@ impl FunctionDiffUi {
 
         let left_sym = target.as_ref().and_then(|o| find_function(o, &self.symbol_name));
         let right_sym = base.as_ref().and_then(|o| find_function(o, &self.symbol_name));
-        self.max_len = match (&left_sym, &right_sym) {
+        self.num_rows = match (&left_sym, &right_sym) {
             (Some(l), Some(r)) => l.instructions.len().max(r.instructions.len()),
             (Some(l), None) => l.instructions.len(),
             (None, Some(r)) => r.instructions.len(),
@@ -554,18 +567,17 @@ impl FunctionDiffUi {
         };
         self.left_sym = left_sym;
         self.right_sym = right_sym;
-        self.reload_time = time::OffsetDateTime::now_local()?;
+        self.reload_time = time::OffsetDateTime::now_local().ok();
         Ok(())
     }
 }
 
-pub const COLOR_ROTATION: [Color; 8] = [
+pub const COLOR_ROTATION: [Color; 7] = [
     Color::Magenta,
     Color::Cyan,
     Color::Green,
     Color::Red,
     Color::Yellow,
-    Color::DarkMagenta,
     Color::Blue,
     Color::Green,
 ];
@@ -574,8 +586,15 @@ pub fn match_percent_color(match_percent: f32) -> Color {
     if match_percent == 100.0 {
         Color::Green
     } else if match_percent >= 50.0 {
-        Color::Blue
+        Color::LightBlue
     } else {
-        Color::Red
+        Color::LightRed
     }
+}
+
+#[inline]
+fn margin_top(mut rect: Rect, n: u16) -> Rect {
+    rect.y = rect.y.saturating_add(n);
+    rect.height = rect.height.saturating_sub(n);
+    rect
 }
