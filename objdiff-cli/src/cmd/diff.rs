@@ -20,7 +20,7 @@ use crossterm::{
 };
 use event::KeyModifiers;
 use objdiff_core::{
-    config::ProjectConfig,
+    config::{ProjectConfig, ProjectObject},
     diff,
     diff::display::{display_diff, DiffText, HighlightKind},
     obj,
@@ -45,7 +45,7 @@ pub struct Args {
     #[argp(option, short = 'u')]
     /// Unit name within project
     unit: Option<String>,
-    #[argp(option, short = 's')]
+    #[argp(positional)]
     /// Function symbol to diff
     symbol: String,
 }
@@ -53,25 +53,67 @@ pub struct Args {
 pub fn run(args: Args) -> Result<()> {
     let (target_path, base_path, project_config) =
         match (&args.target, &args.base, &args.project, &args.unit) {
-            (Some(t), Some(b), _, _) => (Some(t.clone()), Some(b.clone()), None),
-            (_, _, Some(p), Some(u)) => {
+            (Some(t), Some(b), None, None) => (Some(t.clone()), Some(b.clone()), None),
+            (None, None, p, u) => {
+                let project = match p {
+                    Some(project) => project.clone(),
+                    _ => std::env::current_dir().context("Failed to get the current directory")?,
+                };
                 let Some((project_config, project_config_info)) =
-                    objdiff_core::config::try_project_config(p)
+                    objdiff_core::config::try_project_config(&project)
                 else {
-                    bail!("Project config not found in {}", p.display())
+                    bail!("Project config not found in {}", &project.display())
                 };
                 let mut project_config = project_config.with_context(|| {
                     format!("Reading project config {}", project_config_info.path.display())
                 })?;
-                let Some(object) = project_config.objects.iter_mut().find(|obj| obj.name() == u)
-                else {
-                    bail!("Unit not found: {}", u)
+                let object = {
+                    let resolve_paths = |o: &mut ProjectObject| {
+                        o.resolve_paths(
+                            &project,
+                            project_config.target_dir.as_deref(),
+                            project_config.base_dir.as_deref(),
+                        )
+                    };
+                    if let Some(u) = u {
+                        let Some(object) =
+                            project_config.objects.iter_mut().find(|obj| obj.name() == u)
+                        else {
+                            bail!("Unit not found: {}", u)
+                        };
+                        resolve_paths(object);
+                        object
+                    } else {
+                        let mut idx = None;
+                        let mut count = 0usize;
+                        for (i, obj) in project_config.objects.iter_mut().enumerate() {
+                            resolve_paths(obj);
+
+                            if obj
+                                .target_path
+                                .as_deref()
+                                .map(|o| obj::elf::has_function(o, &args.symbol))
+                                .transpose()?
+                                .unwrap_or_default()
+                            {
+                                idx = Some(i);
+                                count += 1;
+                                if count > 1 {
+                                    break;
+                                }
+                            }
+                        }
+                        match (count, idx) {
+                            (0, None) => bail!("Symbol not found: {}", &args.symbol),
+                            (1, Some(i)) => &mut project_config.objects[i],
+                            (2.., Some(_)) => bail!(
+                                "Multiple instances of {} were found, try specifying a unit",
+                                &args.symbol
+                            ),
+                            _ => unreachable!(),
+                        }
+                    }
                 };
-                object.resolve_paths(
-                    p,
-                    project_config.target_dir.as_deref(),
-                    project_config.base_dir.as_deref(),
-                );
                 let target_path = object.target_path.clone();
                 let base_path = object.base_path.clone();
                 (target_path, base_path, Some(project_config))
