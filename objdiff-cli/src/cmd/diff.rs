@@ -125,7 +125,10 @@ pub fn run(args: Args) -> Result<()> {
         click_xy: None,
         left_highlight: HighlightKind::None,
         right_highlight: HighlightKind::None,
-        scroll: 0,
+        scroll_x: 0,
+        scroll_state_x: ScrollbarState::default(),
+        scroll_y: 0,
+        scroll_state_y: ScrollbarState::default(),
         per_page: 0,
         num_rows: 0,
         symbol_name: args.symbol.clone(),
@@ -136,7 +139,6 @@ pub fn run(args: Args) -> Result<()> {
         right_sym: None,
         reload_time: None,
         time_format,
-        scroll_state: Default::default(),
     });
     state.reload()?;
 
@@ -195,7 +197,10 @@ struct FunctionDiffUi {
     click_xy: Option<(u16, u16)>,
     left_highlight: HighlightKind,
     right_highlight: HighlightKind,
-    scroll: usize,
+    scroll_x: usize,
+    scroll_state_x: ScrollbarState,
+    scroll_y: usize,
+    scroll_state_y: ScrollbarState,
     per_page: usize,
     num_rows: usize,
     symbol_name: String,
@@ -206,7 +211,6 @@ struct FunctionDiffUi {
     right_sym: Option<ObjSymbol>,
     reload_time: Option<time::OffsetDateTime>,
     time_format: Vec<time::format_description::FormatItem<'static>>,
-    scroll_state: ScrollbarState,
 }
 
 enum FunctionDiffResult {
@@ -233,12 +237,13 @@ impl FunctionDiffUi {
         ])
         .split(chunks[1]);
 
-        self.per_page = chunks[1].height.saturating_sub(1) as usize;
-        let max_scroll = self.num_rows.saturating_sub(self.per_page);
-        if self.scroll > max_scroll {
-            self.scroll = max_scroll;
+        self.per_page = chunks[1].height.saturating_sub(2) as usize;
+        let max_scroll_y = self.num_rows.saturating_sub(self.per_page);
+        if self.scroll_y > max_scroll_y {
+            self.scroll_y = max_scroll_y;
         }
-        self.scroll_state = self.scroll_state.content_length(max_scroll).position(self.scroll);
+        self.scroll_state_y =
+            self.scroll_state_y.content_length(max_scroll_y).position(self.scroll_y);
 
         let mut line_l = Line::default();
         line_l
@@ -268,12 +273,19 @@ impl FunctionDiffUi {
             |title: &'static str| Block::new().borders(Borders::TOP).gray().title(title.bold());
 
         let mut left_highlight = None;
+        let mut max_width = 0;
         if let Some(symbol) = &self.left_sym {
             // Render left column
             let mut text = Text::default();
-            let rect = margin_top(content_chunks[0], 1);
+            let rect = content_chunks[0].inner(&Margin::new(0, 1));
             let h = self.print_sym(&mut text, symbol, rect, &self.left_highlight);
-            f.render_widget(Paragraph::new(text).block(create_block("TARGET")), content_chunks[0]);
+            max_width = max_width.max(text.width());
+            f.render_widget(
+                Paragraph::new(text)
+                    .block(create_block("TARGET"))
+                    .scroll((0, self.scroll_x as u16)),
+                content_chunks[0],
+            );
             if let Some(h) = h {
                 left_highlight = Some(h);
             }
@@ -283,25 +295,49 @@ impl FunctionDiffUi {
         if let Some(symbol) = &self.right_sym {
             // Render margin
             let mut text = Text::default();
-            let rect = margin_top(content_chunks[1], 1).inner(&Margin::new(1, 0));
+            let rect = content_chunks[1].inner(&Margin::new(1, 1));
             self.print_margin(&mut text, symbol, rect);
             f.render_widget(text, rect);
 
             // Render right column
             let mut text = Text::default();
-            let rect = margin_top(content_chunks[2], 1);
+            let rect = content_chunks[2].inner(&Margin::new(0, 1));
             let h = self.print_sym(&mut text, symbol, rect, &self.right_highlight);
-            f.render_widget(Paragraph::new(text).block(create_block("CURRENT")), content_chunks[2]);
+            max_width = max_width.max(text.width());
+            f.render_widget(
+                Paragraph::new(text)
+                    .block(create_block("CURRENT"))
+                    .scroll((0, self.scroll_x as u16)),
+                content_chunks[2],
+            );
             if let Some(h) = h {
                 right_highlight = Some(h);
             }
         }
 
-        // Render scrollbar
+        let max_scroll_x =
+            max_width.saturating_sub(content_chunks[0].width.min(content_chunks[2].width) as usize);
+        if self.scroll_x > max_scroll_x {
+            self.scroll_x = max_scroll_x;
+        }
+        self.scroll_state_x =
+            self.scroll_state_x.content_length(max_scroll_x).position(self.scroll_x);
+
+        // Render scrollbars
         f.render_stateful_widget(
             Scrollbar::new(ScrollbarOrientation::VerticalRight).begin_symbol(None).end_symbol(None),
-            margin_top(chunks[1], 1),
-            &mut self.scroll_state,
+            chunks[1].inner(&Margin::new(0, 1)),
+            &mut self.scroll_state_y,
+        );
+        f.render_stateful_widget(
+            Scrollbar::new(ScrollbarOrientation::HorizontalBottom).thumb_symbol("■"),
+            content_chunks[0],
+            &mut self.scroll_state_x,
+        );
+        f.render_stateful_widget(
+            Scrollbar::new(ScrollbarOrientation::HorizontalBottom).thumb_symbol("■"),
+            content_chunks[2],
+            &mut self.scroll_state_x,
         );
 
         if let Some(new_highlight) = left_highlight {
@@ -346,57 +382,57 @@ impl FunctionDiffUi {
                     KeyCode::Esc | KeyCode::Char('q') => return FunctionDiffResult::Break,
                     // Page up
                     KeyCode::PageUp => {
-                        self.scroll = self.scroll.saturating_sub(self.per_page);
+                        self.scroll_y = self.scroll_y.saturating_sub(self.per_page);
                         self.redraw = true;
                     }
                     // Page up (shift + space)
                     KeyCode::Char(' ') if event.modifiers.contains(KeyModifiers::SHIFT) => {
-                        self.scroll = self.scroll.saturating_sub(self.per_page);
+                        self.scroll_y = self.scroll_y.saturating_sub(self.per_page);
                         self.redraw = true;
                     }
                     // Page down
                     KeyCode::Char(' ') | KeyCode::PageDown => {
-                        self.scroll += self.per_page;
+                        self.scroll_y += self.per_page;
                         self.redraw = true;
                     }
                     // Page down (ctrl + f)
                     KeyCode::Char('f') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.scroll += self.per_page;
+                        self.scroll_y += self.per_page;
                         self.redraw = true;
                     }
                     // Page up (ctrl + b)
                     KeyCode::Char('b') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.scroll = self.scroll.saturating_sub(self.per_page);
+                        self.scroll_y = self.scroll_y.saturating_sub(self.per_page);
                         self.redraw = true;
                     }
                     // Half page down (ctrl + d)
                     KeyCode::Char('d') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.scroll += self.per_page / 2;
+                        self.scroll_y += self.per_page / 2;
                         self.redraw = true;
                     }
                     // Half page up (ctrl + u)
                     KeyCode::Char('u') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.scroll = self.scroll.saturating_sub(self.per_page / 2);
+                        self.scroll_y = self.scroll_y.saturating_sub(self.per_page / 2);
                         self.redraw = true;
                     }
                     // Scroll down
                     KeyCode::Down | KeyCode::Char('j') => {
-                        self.scroll += 1;
+                        self.scroll_y += 1;
                         self.redraw = true;
                     }
                     // Scroll up
                     KeyCode::Up | KeyCode::Char('k') => {
-                        self.scroll = self.scroll.saturating_sub(1);
+                        self.scroll_y = self.scroll_y.saturating_sub(1);
                         self.redraw = true;
                     }
                     // Scroll to start
                     KeyCode::Char('g') => {
-                        self.scroll = 0;
+                        self.scroll_y = 0;
                         self.redraw = true;
                     }
                     // Scroll to end
                     KeyCode::Char('G') => {
-                        self.scroll = self.num_rows;
+                        self.scroll_y = self.num_rows;
                         self.redraw = true;
                     }
                     // Reload
@@ -404,16 +440,34 @@ impl FunctionDiffUi {
                         self.redraw = true;
                         return FunctionDiffResult::Reload;
                     }
+                    // Scroll right
+                    KeyCode::Right | KeyCode::Char('l') => {
+                        self.scroll_x += 1;
+                        self.redraw = true;
+                    }
+                    // Scroll left
+                    KeyCode::Left | KeyCode::Char('h') => {
+                        self.scroll_x = self.scroll_x.saturating_sub(1);
+                        self.redraw = true;
+                    }
                     _ => {}
                 }
             }
             Event::Mouse(event) => match event.kind {
                 MouseEventKind::ScrollDown => {
-                    self.scroll += 3;
+                    self.scroll_y += 3;
                     self.redraw = true;
                 }
                 MouseEventKind::ScrollUp => {
-                    self.scroll = self.scroll.saturating_sub(3);
+                    self.scroll_y = self.scroll_y.saturating_sub(3);
+                    self.redraw = true;
+                }
+                MouseEventKind::ScrollRight => {
+                    self.scroll_x += 3;
+                    self.redraw = true;
+                }
+                MouseEventKind::ScrollLeft => {
+                    self.scroll_x = self.scroll_x.saturating_sub(3);
                     self.redraw = true;
                 }
                 MouseEventKind::Down(MouseButton::Left) => {
@@ -440,7 +494,7 @@ impl FunctionDiffUi {
         let base_addr = symbol.address as u32;
         let mut new_highlight = None;
         for (y, ins_diff) in
-            symbol.instructions.iter().skip(self.scroll).take(rect.height as usize).enumerate()
+            symbol.instructions.iter().skip(self.scroll_y).take(rect.height as usize).enumerate()
         {
             let mut sx = rect.x;
             let sy = rect.y + y as u16;
@@ -530,7 +584,7 @@ impl FunctionDiffUi {
     }
 
     fn print_margin(&self, out: &mut Text, symbol: &ObjSymbol, rect: Rect) {
-        for ins_diff in symbol.instructions.iter().skip(self.scroll).take(rect.height as usize) {
+        for ins_diff in symbol.instructions.iter().skip(self.scroll_y).take(rect.height as usize) {
             if ins_diff.kind != ObjInsDiffKind::None {
                 out.lines.push(Line::raw(match ins_diff.kind {
                     ObjInsDiffKind::Delete => "<",
@@ -590,11 +644,4 @@ pub fn match_percent_color(match_percent: f32) -> Color {
     } else {
         Color::LightRed
     }
-}
-
-#[inline]
-fn margin_top(mut rect: Rect, n: u16) -> Rect {
-    rect.y = rect.y.saturating_add(n);
-    rect.height = rect.height.saturating_sub(n);
-    rect
 }
