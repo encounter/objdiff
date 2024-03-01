@@ -103,7 +103,7 @@ fn main() {
 
     let format =
         tracing_subscriber::fmt::format().with_ansi(use_colors).with_target(false).without_time();
-    let builder = tracing_subscriber::fmt().event_format(format);
+    let builder = tracing_subscriber::fmt().event_format(format).with_writer(std::io::stderr);
     if let Some(level) = args.log_level {
         builder
             .with_max_level(match level {
