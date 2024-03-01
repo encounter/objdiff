@@ -1,4 +1,4 @@
-use std::{io::stdout, path::PathBuf};
+use std::{fs, io::stdout, path::PathBuf, str::FromStr};
 
 use anyhow::{bail, Context, Result};
 use argp::FromArgs;
@@ -74,12 +74,33 @@ pub fn run(args: Args) -> Result<()> {
                         )
                     };
                     if let Some(u) = u {
-                        let Some(object) =
-                            project_config.objects.iter_mut().find(|obj| obj.name() == u)
-                        else {
+                        let unit_path =
+                            PathBuf::from_str(u).ok().and_then(|p| fs::canonicalize(p).ok());
+
+                        let Some(object) = project_config.objects.iter_mut().find_map(|obj| {
+                            resolve_paths(obj);
+
+                            if obj.name.as_deref() == Some(u) {
+                                return Some(obj);
+                            }
+
+                            let Some(up) = unit_path.as_deref() else {
+                                return None;
+                            };
+
+                            if [&obj.base_path, &obj.target_path]
+                                .into_iter()
+                                .filter_map(|p| p.as_ref().and_then(|p| p.canonicalize().ok()))
+                                .any(|p| p == up)
+                            {
+                                return Some(obj);
+                            }
+
+                            return None;
+                        }) else {
                             bail!("Unit not found: {}", u)
                         };
-                        resolve_paths(object);
+
                         object
                     } else {
                         let mut idx = None;
@@ -92,7 +113,7 @@ pub fn run(args: Args) -> Result<()> {
                                 .as_deref()
                                 .map(|o| obj::elf::has_function(o, &args.symbol))
                                 .transpose()?
-                                .unwrap_or_default()
+                                .unwrap_or(false)
                             {
                                 idx = Some(i);
                                 count += 1;
