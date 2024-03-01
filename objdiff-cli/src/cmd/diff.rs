@@ -78,15 +78,16 @@ pub fn run(args: Args) -> Result<()> {
                             PathBuf::from_str(u).ok().and_then(|p| fs::canonicalize(p).ok());
 
                         let Some(object) = project_config.objects.iter_mut().find_map(|obj| {
-                            resolve_paths(obj);
-
                             if obj.name.as_deref() == Some(u) {
+                                resolve_paths(obj);
                                 return Some(obj);
                             }
 
                             let Some(up) = unit_path.as_deref() else {
                                 return None;
                             };
+
+                            resolve_paths(obj);
 
                             if [&obj.base_path, &obj.target_path]
                                 .into_iter()
