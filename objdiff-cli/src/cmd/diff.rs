@@ -96,7 +96,7 @@ pub fn run(args: Args) -> Result<()> {
                                 return Some(obj);
                             }
 
-                            return None;
+                            None
                         }) else {
                             bail!("Unit not found: {}", u)
                         };
