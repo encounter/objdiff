@@ -88,9 +88,13 @@ pub fn run(args: Args) -> Result<()> {
                         let mut count = 0usize;
                         for (i, obj) in project_config.objects.iter_mut().enumerate() {
                             resolve_paths(obj);
-                            if load_obj(&obj.target_path)?
-                                .and_then(|o| find_function(&o, &args.symbol))
-                                .is_some()
+
+                            if obj
+                                .target_path
+                                .as_deref()
+                                .map(|o| obj::elf::has_function(o, &args.symbol))
+                                .transpose()?
+                                .unwrap_or_default()
                             {
                                 idx = Some(i);
                                 count += 1;
@@ -173,12 +177,6 @@ pub fn run(args: Args) -> Result<()> {
     crossterm::execute!(stdout(), LeaveAlternateScreen, Show, DisableMouseCapture)?;
     disable_raw_mode()?;
     Ok(())
-}
-
-fn load_obj(path: &Option<PathBuf>) -> Result<Option<ObjInfo>> {
-    path.as_deref()
-        .map(|p| obj::elf::read(p).with_context(|| format!("Loading {}", p.display())))
-        .transpose()
 }
 
 fn find_function(obj: &ObjInfo, name: &str) -> Option<ObjSymbol> {
@@ -533,8 +531,16 @@ impl FunctionDiffUi {
     }
 
     fn reload(&mut self) -> Result<()> {
-        let mut target = load_obj(&self.target_path)?;
-        let mut base = load_obj(&self.base_path)?;
+        let mut target = self
+            .target_path
+            .as_deref()
+            .map(|p| obj::elf::read(p).with_context(|| format!("Loading {}", p.display())))
+            .transpose()?;
+        let mut base = self
+            .base_path
+            .as_deref()
+            .map(|p| obj::elf::read(p).with_context(|| format!("Loading {}", p.display())))
+            .transpose()?;
         let config = diff::DiffObjConfig::default();
         diff::diff_objs(&config, target.as_mut(), base.as_mut())?;
 

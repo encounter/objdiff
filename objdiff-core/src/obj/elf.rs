@@ -394,6 +394,17 @@ pub fn read(obj_path: &Path) -> Result<ObjInfo> {
     Ok(result)
 }
 
+pub fn has_function(obj_path: &Path, symbol_name: &str) -> Result<bool> {
+    let data = {
+        let file = fs::File::open(obj_path)?;
+        unsafe { memmap2::Mmap::map(&file) }?
+    };
+    Ok(File::parse(&*data)?
+        .symbol_by_name(symbol_name)
+        .filter(|o| o.kind() == SymbolKind::Text)
+        .is_some())
+}
+
 fn split_meta(obj_file: &File<'_>) -> Result<Option<SplitMeta>> {
     Ok(if let Some(section) = obj_file.section_by_name(SPLITMETA_SECTION) {
         if section.size() != 0 {
