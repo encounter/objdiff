@@ -43,6 +43,9 @@ pub struct Args {
     #[argp(option, short = 'u')]
     /// Unit name within project
     unit: Option<String>,
+    #[argp(switch, short = 'x')]
+    /// Relax relocation diffs
+    relax_reloc_diffs: bool,
     #[argp(positional)]
     /// Function symbol to diff
     symbol: String,
@@ -144,6 +147,7 @@ pub fn run(args: Args) -> Result<()> {
         .context("Failed to parse time format")?;
     let mut state = Box::new(FunctionDiffUi {
         redraw: true,
+        relax_reloc_diffs: args.relax_reloc_diffs,
         click_xy: None,
         left_highlight: HighlightKind::None,
         right_highlight: HighlightKind::None,
@@ -216,6 +220,7 @@ fn find_function(obj: &ObjInfo, name: &str) -> Option<ObjSymbol> {
 #[allow(dead_code)]
 struct FunctionDiffUi {
     redraw: bool,
+    relax_reloc_diffs: bool,
     click_xy: Option<(u16, u16)>,
     left_highlight: HighlightKind,
     right_highlight: HighlightKind,
@@ -472,6 +477,12 @@ impl FunctionDiffUi {
                         self.scroll_x = self.scroll_x.saturating_sub(1);
                         self.redraw = true;
                     }
+                    // Toggle relax relocation diffs
+                    KeyCode::Char('x') => {
+                        self.relax_reloc_diffs = !self.relax_reloc_diffs;
+                        self.redraw = true;
+                        return FunctionDiffResult::Reload;
+                    }
                     _ => {}
                 }
             }
@@ -630,7 +641,7 @@ impl FunctionDiffUi {
             .as_deref()
             .map(|p| obj::elf::read(p).with_context(|| format!("Loading {}", p.display())))
             .transpose()?;
-        let config = diff::DiffObjConfig::default();
+        let config = diff::DiffObjConfig { relax_reloc_diffs: self.relax_reloc_diffs };
         diff::diff_objs(&config, target.as_mut(), base.as_mut())?;
 
         let left_sym = target.as_ref().and_then(|o| find_function(o, &self.symbol_name));
