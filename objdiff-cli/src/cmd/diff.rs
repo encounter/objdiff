@@ -403,39 +403,28 @@ impl FunctionDiffUi {
                     // Quit
                     KeyCode::Esc | KeyCode::Char('q') => return FunctionDiffResult::Break,
                     // Page up
-                    KeyCode::PageUp => {
-                        self.scroll_y = self.scroll_y.saturating_sub(self.per_page);
-                        self.redraw = true;
-                    }
+                    KeyCode::PageUp => self.page_up(false),
                     // Page up (shift + space)
                     KeyCode::Char(' ') if event.modifiers.contains(KeyModifiers::SHIFT) => {
-                        self.scroll_y = self.scroll_y.saturating_sub(self.per_page);
-                        self.redraw = true;
+                        self.page_up(false)
                     }
                     // Page down
-                    KeyCode::Char(' ') | KeyCode::PageDown => {
-                        self.scroll_y += self.per_page;
-                        self.redraw = true;
-                    }
+                    KeyCode::Char(' ') | KeyCode::PageDown => self.page_down(false),
                     // Page down (ctrl + f)
                     KeyCode::Char('f') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.scroll_y += self.per_page;
-                        self.redraw = true;
+                        self.page_down(false)
                     }
                     // Page up (ctrl + b)
                     KeyCode::Char('b') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.scroll_y = self.scroll_y.saturating_sub(self.per_page);
-                        self.redraw = true;
+                        self.page_up(false)
                     }
                     // Half page down (ctrl + d)
                     KeyCode::Char('d') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.scroll_y += self.per_page / 2;
-                        self.redraw = true;
+                        self.page_down(true)
                     }
                     // Half page up (ctrl + u)
                     KeyCode::Char('u') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.scroll_y = self.scroll_y.saturating_sub(self.per_page / 2);
-                        self.redraw = true;
+                        self.page_up(true)
                     }
                     // Scroll down
                     KeyCode::Down | KeyCode::Char('j') => {
@@ -504,6 +493,16 @@ impl FunctionDiffUi {
             _ => {}
         }
         FunctionDiffResult::Continue
+    }
+
+    fn page_up(&mut self, half: bool) {
+        self.scroll_y = self.scroll_y.saturating_sub(self.per_page / if half { 2 } else { 1 });
+        self.redraw = true;
+    }
+
+    fn page_down(&mut self, half: bool) {
+        self.scroll_y += self.per_page / if half { 2 } else { 1 };
+        self.redraw = true;
     }
 
     fn print_sym(
