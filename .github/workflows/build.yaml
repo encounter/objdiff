@@ -131,7 +131,7 @@ jobs:
           RUSTC_WRAPPER: "sccache"
         run: >
           cargo build --profile ${{ env.BUILD_PROFILE }} --target ${{ matrix.target }} 
-          --bin objdiff-cli --bin objdiff-gui --features ${{ matrix.features }}
+          --bin objdiff-cli --bin objdiff --features ${{ matrix.features }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -139,8 +139,8 @@ jobs:
           path: |
             ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/objdiff-cli
             ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/objdiff-cli.exe
-            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/objdiff-gui
-            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/objdiff-gui.exe
+            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/objdiff
+            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/objdiff.exe
           if-no-files-found: error
 
   release:
