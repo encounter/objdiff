@@ -47,7 +47,6 @@ pub struct ViewState {
     pub show_appearance_config: bool,
     pub show_demangle: bool,
     pub show_project_config: bool,
-    pub show_diff_options: bool,
     pub show_debug: bool,
 }
 
@@ -409,7 +408,6 @@ impl eframe::App for App {
             show_appearance_config,
             show_demangle,
             show_project_config,
-            show_diff_options,
             show_debug,
         } = view_state;
 
@@ -463,10 +461,6 @@ impl eframe::App for App {
                     }
                 });
                 ui.menu_button("Diff Options", |ui| {
-                    if ui.button("Algorithm…").clicked() {
-                        *show_diff_options = !*show_diff_options;
-                        ui.close_menu();
-                    }
                     let mut config = config.write().unwrap();
                     let response = ui
                         .checkbox(&mut config.rebuild_on_changes, "Rebuild on changes")
