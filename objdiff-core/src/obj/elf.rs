@@ -328,13 +328,12 @@ fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u64, u64>>> {
     // DWARF 2+
     #[cfg(feature = "dwarf")]
     {
-        use std::borrow::Cow;
         let dwarf_cow = gimli::Dwarf::load(|id| {
             Ok::<_, gimli::Error>(
                 obj_file
                     .section_by_name(id.name())
                     .and_then(|section| section.uncompressed_data().ok())
-                    .unwrap_or(Cow::Borrowed(&[][..])),
+                    .unwrap_or(std::borrow::Cow::Borrowed(&[][..])),
             )
         })?;
         let endian = match obj_file.endianness() {
@@ -407,13 +406,7 @@ pub fn has_function(obj_path: &Path, symbol_name: &str) -> Result<bool> {
 
 fn split_meta(obj_file: &File<'_>) -> Result<Option<SplitMeta>> {
     Ok(if let Some(section) = obj_file.section_by_name(SPLITMETA_SECTION) {
-        if section.size() != 0 {
-            let data = section.uncompressed_data()?;
-            let mut reader = data.as_ref();
-            Some(SplitMeta::from_reader(&mut reader, obj_file.endianness(), obj_file.is_64())?)
-        } else {
-            None
-        }
+        Some(SplitMeta::from_section(section, obj_file.endianness(), obj_file.is_64())?)
     } else {
         None
     })

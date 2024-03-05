@@ -188,7 +188,7 @@ pub struct ObjSymbol {
     pub size_known: bool,
     pub flags: ObjSymbolFlagSet,
     pub addend: i64,
-    /// Original virtual address (from .splitmeta section)
+    /// Original virtual address (from .note.split section)
     pub virtual_address: Option<u64>,
 
     // Diff
@@ -215,7 +215,7 @@ pub struct ObjInfo {
     pub common: Vec<ObjSymbol>,
     /// Line number info (.line or .debug_line section)
     pub line_info: Option<BTreeMap<u64, u64>>,
-    /// Split object metadata (.splitmeta section)
+    /// Split object metadata (.note.split section)
     pub split_meta: Option<SplitMeta>,
 }
 
