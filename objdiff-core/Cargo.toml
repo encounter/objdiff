@@ -20,23 +20,23 @@ mips = ["any-arch", "rabbitizer"]
 ppc = ["any-arch", "cwdemangle", "ppc750cl"]
 
 [dependencies]
-anyhow = "1.0.80"
+anyhow = "1.0.81"
 byteorder = "1.5.0"
-cwdemangle = { version = "0.1.6", optional = true }
+cwdemangle = { version = "1.0.0", optional = true }
 filetime = "0.2.23"
-flagset = "0.4.4"
+flagset = "0.4.5"
 gimli = { version = "0.28.1", default-features = false, features = ["read-all"], optional = true }
-log = "0.4.20"
-memmap2 = "0.9.3"
+log = "0.4.21"
+memmap2 = "0.9.4"
 num-traits = "0.2.18"
-object = { version = "0.32.2", features = ["read_core", "std", "elf"], default-features = false }
+object = { version = "0.34.0", features = ["read_core", "std", "elf"], default-features = false }
 ppc750cl = { git = "https://github.com/encounter/ppc750cl", rev = "4a2bbbc6f84dcb76255ab6f3595a8d4a0ce96618", optional = true }
-rabbitizer = { version = "1.8.1", optional = true }
+rabbitizer = { version = "1.9.2", optional = true }
 serde = { version = "1", features = ["derive"] }
 similar = { version = "2.4.0", default-features = false }
 
 # config
 globset = { version = "0.4.14", features = ["serde1"] }
-semver = "1.0.21"
-serde_json = "1.0.111"
-serde_yaml = "0.9.30"
+semver = "1.0.22"
+serde_json = "1.0.114"
+serde_yaml = "0.9.32"

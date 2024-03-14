@@ -14,18 +14,18 @@ publish = false
 build = "build.rs"
 
 [dependencies]
-anyhow = "1.0.80"
+anyhow = "1.0.81"
 argp = "0.3.0"
 crossterm = "0.27.0"
 enable-ansi-support = "0.2.1"
-log = "0.4.20"
+log = "0.4.21"
 objdiff-core = { path = "../objdiff-core", features = ["all"] }
 ratatui = "0.26.1"
-rayon = "1.8.1"
+rayon = "1.9.0"
 serde = { version = "1", features = ["derive"] }
-serde_json = "1.0.111"
+serde_json = "1.0.114"
 supports-color = "3.0.0"
-time = { version = "0.3.31", features = ["formatting", "local-offset"] }
+time = { version = "0.3.34", features = ["formatting", "local-offset"] }
 tracing = "0.1.40"
 tracing-attributes = "0.1.27"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

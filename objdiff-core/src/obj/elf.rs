@@ -5,8 +5,8 @@ use byteorder::{BigEndian, ReadBytesExt};
 use filetime::FileTime;
 use flagset::Flags;
 use object::{
-    elf, Architecture, File, Object, ObjectSection, ObjectSymbol, RelocationKind, RelocationTarget,
-    SectionIndex, SectionKind, Symbol, SymbolKind, SymbolScope, SymbolSection,
+    elf, Architecture, File, Object, ObjectSection, ObjectSymbol, RelocationFlags,
+    RelocationTarget, SectionIndex, SectionKind, Symbol, SymbolKind, SymbolScope, SymbolSection,
 };
 
 use crate::obj::{
@@ -230,21 +230,22 @@ fn relocations_by_section(
                 .context("Failed to locate relocation target symbol")?,
             _ => bail!("Unhandled relocation target: {:?}", reloc.target()),
         };
-        let kind = match reloc.kind() {
-            RelocationKind::Absolute => ObjRelocKind::Absolute,
-            RelocationKind::Elf(kind) => match arch {
+        let kind = match reloc.flags() {
+            RelocationFlags::Elf { r_type } => match arch {
                 #[cfg(feature = "ppc")]
-                ObjArchitecture::PowerPc => match kind {
+                ObjArchitecture::PowerPc => match r_type {
+                    elf::R_PPC_ADDR32 | elf::R_PPC_UADDR32 => ObjRelocKind::Absolute,
                     elf::R_PPC_ADDR16_LO => ObjRelocKind::PpcAddr16Lo,
                     elf::R_PPC_ADDR16_HI => ObjRelocKind::PpcAddr16Hi,
                     elf::R_PPC_ADDR16_HA => ObjRelocKind::PpcAddr16Ha,
                     elf::R_PPC_REL24 => ObjRelocKind::PpcRel24,
                     elf::R_PPC_REL14 => ObjRelocKind::PpcRel14,
                     elf::R_PPC_EMB_SDA21 => ObjRelocKind::PpcEmbSda21,
-                    _ => bail!("Unhandled PPC relocation type: {kind}"),
+                    _ => bail!("Unhandled PPC relocation type: {r_type}"),
                 },
                 #[cfg(feature = "mips")]
-                ObjArchitecture::Mips => match kind {
+                ObjArchitecture::Mips => match r_type {
+                    elf::R_MIPS_32 => ObjRelocKind::Absolute,
                     elf::R_MIPS_26 => ObjRelocKind::Mips26,
                     elf::R_MIPS_HI16 => ObjRelocKind::MipsHi16,
                     elf::R_MIPS_LO16 => ObjRelocKind::MipsLo16,
@@ -252,10 +253,10 @@ fn relocations_by_section(
                     elf::R_MIPS_CALL16 => ObjRelocKind::MipsCall16,
                     elf::R_MIPS_GPREL16 => ObjRelocKind::MipsGpRel16,
                     elf::R_MIPS_GPREL32 => ObjRelocKind::MipsGpRel32,
-                    _ => bail!("Unhandled MIPS relocation type: {kind}"),
+                    _ => bail!("Unhandled MIPS relocation type: {r_type}"),
                 },
             },
-            _ => bail!("Unhandled relocation type: {:?}", reloc.kind()),
+            flags => bail!("Unhandled relocation flags: {:?}", flags),
         };
         let target_section = match symbol.section() {
             SymbolSection::Common => Some(".comm".to_string()),
