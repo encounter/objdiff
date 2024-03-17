@@ -290,7 +290,7 @@ impl App {
                             title: "Error".to_string(),
                             progress_percent: 0.0,
                             progress_items: None,
-                            status: "".to_string(),
+                            status: String::new(),
                             error: Some(err),
                         }));
                     }

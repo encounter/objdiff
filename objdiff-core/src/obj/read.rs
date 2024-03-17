@@ -5,15 +5,16 @@ use byteorder::{BigEndian, ReadBytesExt};
 use filetime::FileTime;
 use flagset::Flags;
 use object::{
-    elf, pe, Architecture, BinaryFormat, Endian, File, Object, ObjectSection, ObjectSymbol,
-    RelocationFlags, RelocationTarget, SectionIndex, SectionKind, Symbol, SymbolKind, SymbolScope,
-    SymbolSection,
+    BinaryFormat, File, Object, ObjectSection, ObjectSymbol, RelocationTarget, SectionIndex,
+    SectionKind, Symbol, SymbolKind, SymbolScope, SymbolSection,
 };
 
-use crate::obj::{
-    split_meta::{SplitMeta, SPLITMETA_SECTION},
-    ObjArchitecture, ObjInfo, ObjReloc, ObjRelocKind, ObjSection, ObjSectionKind, ObjSymbol,
-    ObjSymbolFlagSet, ObjSymbolFlags,
+use crate::{
+    arch::{new_arch, ObjArch},
+    obj::{
+        split_meta::{SplitMeta, SPLITMETA_SECTION},
+        ObjInfo, ObjReloc, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlagSet, ObjSymbolFlags,
+    },
 };
 
 fn to_obj_section_kind(kind: SectionKind) -> Option<ObjSectionKind> {
@@ -26,6 +27,7 @@ fn to_obj_section_kind(kind: SectionKind) -> Option<ObjSectionKind> {
 }
 
 fn to_obj_symbol(
+    arch: &dyn ObjArch,
     obj_file: &File<'_>,
     symbol: &Symbol<'_, '_>,
     addend: i64,
@@ -59,15 +61,7 @@ fn to_obj_symbol(
     } else {
         symbol.address()
     };
-    let mut demangled_name = None;
-    #[cfg(feature = "ppc")]
-    if obj_file.architecture() == Architecture::PowerPc {
-        demangled_name = cwdemangle::demangle(name, &Default::default());
-    }
-    #[cfg(feature = "x86")]
-    if matches!(obj_file.format(), BinaryFormat::Coff | BinaryFormat::Pe) && name.starts_with('?') {
-        demangled_name = msvc_demangler::demangle(name, msvc_demangler::DemangleFlags::llvm()).ok();
-    }
+    let demangled_name = arch.demangle(name);
     // Find the virtual address for the symbol if available
     let virtual_address = split_meta
         .and_then(|m| m.virtual_addresses.as_ref())
@@ -129,6 +123,7 @@ fn filter_sections(obj_file: &File<'_>, split_meta: Option<&SplitMeta>) -> Resul
 }
 
 fn symbols_by_section(
+    arch: &dyn ObjArch,
     obj_file: &File<'_>,
     section: &ObjSection,
     split_meta: Option<&SplitMeta>,
@@ -147,7 +142,7 @@ fn symbols_by_section(
                         continue;
                     }
                 }
-                result.push(to_obj_symbol(obj_file, &symbol, 0, split_meta)?);
+                result.push(to_obj_symbol(arch, obj_file, &symbol, 0, split_meta)?);
             }
         }
     }
@@ -165,15 +160,20 @@ fn symbols_by_section(
     Ok(result)
 }
 
-fn common_symbols(obj_file: &File<'_>, split_meta: Option<&SplitMeta>) -> Result<Vec<ObjSymbol>> {
+fn common_symbols(
+    arch: &dyn ObjArch,
+    obj_file: &File<'_>,
+    split_meta: Option<&SplitMeta>,
+) -> Result<Vec<ObjSymbol>> {
     obj_file
         .symbols()
         .filter(Symbol::is_common)
-        .map(|symbol| to_obj_symbol(obj_file, &symbol, 0, split_meta))
+        .map(|symbol| to_obj_symbol(arch, obj_file, &symbol, 0, split_meta))
         .collect::<Result<Vec<ObjSymbol>>>()
 }
 
 fn find_section_symbol(
+    arch: &dyn ObjArch,
     obj_file: &File<'_>,
     target: &Symbol<'_, '_>,
     address: u64,
@@ -197,7 +197,7 @@ fn find_section_symbol(
             }
             continue;
         }
-        return to_obj_symbol(obj_file, &symbol, 0, split_meta);
+        return to_obj_symbol(arch, obj_file, &symbol, 0, split_meta);
     }
     let (name, offset) = closest_symbol
         .and_then(|s| s.name().map(|n| (n, s.address())).ok())
@@ -221,7 +221,7 @@ fn find_section_symbol(
 }
 
 fn relocations_by_section(
-    arch: ObjArchitecture,
+    arch: &dyn ObjArch,
     obj_file: &File<'_>,
     section: &ObjSection,
     split_meta: Option<&SplitMeta>,
@@ -231,6 +231,10 @@ fn relocations_by_section(
     for (address, reloc) in obj_section.relocations() {
         let symbol = match reloc.target() {
             RelocationTarget::Symbol(idx) => {
+                if idx.0 == u32::MAX as usize {
+                    // ???
+                    continue;
+                }
                 let Ok(symbol) = obj_file.symbol_by_index(idx) else {
                     log::warn!(
                         "Failed to locate relocation {:#x} target symbol {}",
@@ -243,60 +247,7 @@ fn relocations_by_section(
             }
             _ => bail!("Unhandled relocation target: {:?}", reloc.target()),
         };
-        let kind = match reloc.flags() {
-            RelocationFlags::Elf { r_type } => match arch {
-                #[cfg(feature = "ppc")]
-                ObjArchitecture::PowerPc => match r_type {
-                    elf::R_PPC_ADDR32 | elf::R_PPC_UADDR32 => ObjRelocKind::Absolute,
-                    elf::R_PPC_ADDR16_LO => ObjRelocKind::PpcAddr16Lo,
-                    elf::R_PPC_ADDR16_HI => ObjRelocKind::PpcAddr16Hi,
-                    elf::R_PPC_ADDR16_HA => ObjRelocKind::PpcAddr16Ha,
-                    elf::R_PPC_REL24 => ObjRelocKind::PpcRel24,
-                    elf::R_PPC_REL14 => ObjRelocKind::PpcRel14,
-                    elf::R_PPC_EMB_SDA21 => ObjRelocKind::PpcEmbSda21,
-                    _ => bail!("Unhandled ELF PPC relocation type: {r_type}"),
-                },
-                #[cfg(feature = "mips")]
-                ObjArchitecture::Mips => match r_type {
-                    elf::R_MIPS_32 => ObjRelocKind::Absolute,
-                    elf::R_MIPS_26 => ObjRelocKind::Mips26,
-                    elf::R_MIPS_HI16 => ObjRelocKind::MipsHi16,
-                    elf::R_MIPS_LO16 => ObjRelocKind::MipsLo16,
-                    elf::R_MIPS_GOT16 => ObjRelocKind::MipsGot16,
-                    elf::R_MIPS_CALL16 => ObjRelocKind::MipsCall16,
-                    elf::R_MIPS_GPREL16 => ObjRelocKind::MipsGpRel16,
-                    elf::R_MIPS_GPREL32 => ObjRelocKind::MipsGpRel32,
-                    _ => bail!("Unhandled ELF MIPS relocation type: {r_type}"),
-                },
-                #[cfg(feature = "x86")]
-                ObjArchitecture::X86_32 => match r_type {
-                    elf::R_386_32 => ObjRelocKind::Absolute,
-                    elf::R_386_PC32 => ObjRelocKind::X86PcRel32,
-                    _ => bail!("Unhandled ELF x86_32 relocation type: {r_type}"),
-                },
-                #[cfg(feature = "x86")]
-                ObjArchitecture::X86_64 => match r_type {
-                    elf::R_X86_64_32 => ObjRelocKind::Absolute,
-                    elf::R_X86_64_PC32 => ObjRelocKind::X86PcRel32,
-                    _ => bail!("Unhandled ELF x86_64 relocation type: {r_type}"),
-                },
-            },
-            RelocationFlags::Coff { typ } => match arch {
-                #[cfg(feature = "ppc")]
-                ObjArchitecture::PowerPc => bail!("Unhandled PE/COFF PPC relocation type: {typ}"),
-                #[cfg(feature = "mips")]
-                ObjArchitecture::Mips => bail!("Unhandled PE/COFF MIPS relocation type: {typ}"),
-                #[cfg(feature = "x86")]
-                ObjArchitecture::X86_32 => match typ {
-                    pe::IMAGE_REL_I386_DIR32 => ObjRelocKind::Absolute,
-                    pe::IMAGE_REL_I386_REL32 => ObjRelocKind::X86PcRel32,
-                    _ => bail!("Unhandled PE/COFF x86 relocation type: {typ}"),
-                },
-                #[cfg(feature = "x86")]
-                ObjArchitecture::X86_64 => bail!("Unhandled PE/COFF x86_64 relocation type: {typ}"),
-            },
-            flags => bail!("Unhandled relocation flags: {:?}", flags),
-        };
+        let flags = reloc.flags(); // TODO validate reloc here?
         let target_section = match symbol.section() {
             SymbolSection::Common => Some(".comm".to_string()),
             SymbolSection::Section(idx) => {
@@ -305,40 +256,22 @@ fn relocations_by_section(
             _ => None,
         };
         let addend = if reloc.has_implicit_addend() {
-            let data = section.data[address as usize..address as usize + 4].try_into()?;
-            let addend = obj_file.endianness().read_u32_bytes(data);
-            match kind {
-                ObjRelocKind::Absolute => addend as i64,
-                #[cfg(feature = "mips")]
-                ObjRelocKind::MipsHi16 => ((addend & 0x0000FFFF) << 16) as i32 as i64,
-                #[cfg(feature = "mips")]
-                ObjRelocKind::MipsLo16
-                | ObjRelocKind::MipsGot16
-                | ObjRelocKind::MipsCall16
-                | ObjRelocKind::MipsGpRel16 => (addend & 0x0000FFFF) as i16 as i64,
-                #[cfg(feature = "mips")]
-                ObjRelocKind::MipsGpRel32 => addend as i32 as i64,
-                #[cfg(feature = "mips")]
-                ObjRelocKind::Mips26 => ((addend & 0x03FFFFFF) << 2) as i64,
-                #[cfg(feature = "x86")]
-                ObjRelocKind::X86PcRel32 => addend as i32 as i64,
-                _ => bail!("Unsupported implicit relocation {kind:?}"),
-            }
+            arch.implcit_addend(section, address, &reloc)?
         } else {
             reloc.addend()
         };
         // println!("Reloc: {reloc:?}, symbol: {symbol:?}, addend: {addend:#X}");
         let target = match symbol.kind() {
             SymbolKind::Text | SymbolKind::Data | SymbolKind::Label | SymbolKind::Unknown => {
-                to_obj_symbol(obj_file, &symbol, addend, split_meta)
+                to_obj_symbol(arch, obj_file, &symbol, addend, split_meta)
             }
             SymbolKind::Section => {
                 ensure!(addend >= 0, "Negative addend in reloc: {addend}");
-                find_section_symbol(obj_file, &symbol, addend as u64, split_meta)
+                find_section_symbol(arch, obj_file, &symbol, addend as u64, split_meta)
             }
             kind => Err(anyhow!("Unhandled relocation symbol type {kind:?}")),
         }?;
-        relocations.push(ObjReloc { kind, address, target, target_section });
+        relocations.push(ObjReloc { flags, address, target, target_section });
     }
     Ok(relocations)
 }
@@ -408,34 +341,25 @@ pub fn read(obj_path: &Path) -> Result<ObjInfo> {
         (unsafe { memmap2::Mmap::map(&file) }?, timestamp)
     };
     let obj_file = File::parse(&*data)?;
-    let architecture = match obj_file.architecture() {
-        #[cfg(feature = "ppc")]
-        Architecture::PowerPc => ObjArchitecture::PowerPc,
-        #[cfg(feature = "mips")]
-        Architecture::Mips => ObjArchitecture::Mips,
-        #[cfg(feature = "x86")]
-        Architecture::I386 => ObjArchitecture::X86_32,
-        #[cfg(feature = "x86")]
-        Architecture::X86_64 => ObjArchitecture::X86_64,
-        _ => bail!("Unsupported architecture: {:?}", obj_file.architecture()),
-    };
+    let arch = new_arch(&obj_file)?;
     let split_meta = split_meta(&obj_file)?;
-    let mut result = ObjInfo {
-        architecture,
+    let mut sections = filter_sections(&obj_file, split_meta.as_ref())?;
+    for section in &mut sections {
+        section.symbols =
+            symbols_by_section(arch.as_ref(), &obj_file, section, split_meta.as_ref())?;
+        section.relocations =
+            relocations_by_section(arch.as_ref(), &obj_file, section, split_meta.as_ref())?;
+    }
+    let common = common_symbols(arch.as_ref(), &obj_file, split_meta.as_ref())?;
+    Ok(ObjInfo {
+        arch,
         path: obj_path.to_owned(),
         timestamp,
-        sections: filter_sections(&obj_file, split_meta.as_ref())?,
-        common: common_symbols(&obj_file, split_meta.as_ref())?,
+        sections,
+        common,
         line_info: line_info(&obj_file)?,
-        split_meta: None,
-    };
-    for section in &mut result.sections {
-        section.symbols = symbols_by_section(&obj_file, section, split_meta.as_ref())?;
-        section.relocations =
-            relocations_by_section(architecture, &obj_file, section, split_meta.as_ref())?;
-    }
-    result.split_meta = split_meta;
-    Ok(result)
+        split_meta,
+    })
 }
 
 pub fn has_function(obj_path: &Path, symbol_name: &str) -> Result<bool> {

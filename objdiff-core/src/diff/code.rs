@@ -8,17 +8,17 @@ use anyhow::Result;
 use similar::{capture_diff_slices_deadline, Algorithm};
 
 use crate::{
+    arch::ObjArch,
     diff::{DiffObjConfig, ProcessCodeResult},
-    obj,
     obj::{
-        ObjArchitecture, ObjInfo, ObjInsArg, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo,
-        ObjInsDiff, ObjInsDiffKind, ObjReloc, ObjSymbol, ObjSymbolFlags,
+        ObjInfo, ObjInsArg, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo, ObjInsDiff,
+        ObjInsDiffKind, ObjReloc, ObjSymbol, ObjSymbolFlags,
     },
 };
 
 pub fn no_diff_code(
+    arch: &dyn ObjArch,
     config: &DiffObjConfig,
-    arch: ObjArchitecture,
     data: &[u8],
     symbol: &mut ObjSymbol,
     relocs: &[ObjReloc],
@@ -26,29 +26,7 @@ pub fn no_diff_code(
 ) -> Result<()> {
     let code =
         &data[symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
-    let out: ProcessCodeResult = match arch {
-        #[cfg(feature = "ppc")]
-        ObjArchitecture::PowerPc => {
-            obj::ppc::process_code(config, code, symbol.address, relocs, line_info)?
-        }
-        #[cfg(feature = "mips")]
-        ObjArchitecture::Mips => obj::mips::process_code(
-            config,
-            code,
-            symbol.address,
-            symbol.address + symbol.size,
-            relocs,
-            line_info,
-        )?,
-        #[cfg(feature = "x86")]
-        ObjArchitecture::X86_32 => {
-            obj::x86::process_code(config, code, 32, symbol.address, relocs, line_info)?
-        }
-        #[cfg(feature = "x86")]
-        ObjArchitecture::X86_64 => {
-            obj::x86::process_code(config, code, 64, symbol.address, relocs, line_info)?
-        }
-    };
+    let out = arch.process_code(config, code, symbol.address, relocs, line_info)?;
 
     let mut diff = Vec::<ObjInsDiff>::new();
     for i in out.insts {
@@ -61,8 +39,8 @@ pub fn no_diff_code(
 
 #[allow(clippy::too_many_arguments)]
 pub fn diff_code(
+    arch: &dyn ObjArch,
     config: &DiffObjConfig,
-    arch: ObjArchitecture,
     left_data: &[u8],
     right_data: &[u8],
     left_symbol: &mut ObjSymbol,
@@ -76,82 +54,10 @@ pub fn diff_code(
         ..(left_symbol.section_address + left_symbol.size) as usize];
     let right_code = &right_data[right_symbol.section_address as usize
         ..(right_symbol.section_address + right_symbol.size) as usize];
-    let (left_out, right_out) = match arch {
-        #[cfg(feature = "ppc")]
-        ObjArchitecture::PowerPc => (
-            obj::ppc::process_code(
-                config,
-                left_code,
-                left_symbol.address,
-                left_relocs,
-                left_line_info,
-            )?,
-            obj::ppc::process_code(
-                config,
-                right_code,
-                right_symbol.address,
-                right_relocs,
-                right_line_info,
-            )?,
-        ),
-        #[cfg(feature = "mips")]
-        ObjArchitecture::Mips => (
-            obj::mips::process_code(
-                config,
-                left_code,
-                left_symbol.address,
-                left_symbol.address + left_symbol.size,
-                left_relocs,
-                left_line_info,
-            )?,
-            obj::mips::process_code(
-                config,
-                right_code,
-                right_symbol.address,
-                left_symbol.address + left_symbol.size,
-                right_relocs,
-                right_line_info,
-            )?,
-        ),
-        #[cfg(feature = "x86")]
-        ObjArchitecture::X86_32 => (
-            obj::x86::process_code(
-                config,
-                left_code,
-                32,
-                left_symbol.address,
-                left_relocs,
-                left_line_info,
-            )?,
-            obj::x86::process_code(
-                config,
-                right_code,
-                32,
-                right_symbol.address,
-                right_relocs,
-                right_line_info,
-            )?,
-        ),
-        #[cfg(feature = "x86")]
-        ObjArchitecture::X86_64 => (
-            obj::x86::process_code(
-                config,
-                left_code,
-                64,
-                left_symbol.address,
-                left_relocs,
-                left_line_info,
-            )?,
-            obj::x86::process_code(
-                config,
-                right_code,
-                64,
-                right_symbol.address,
-                right_relocs,
-                right_line_info,
-            )?,
-        ),
-    };
+    let left_out =
+        arch.process_code(config, left_code, left_symbol.address, left_relocs, left_line_info)?;
+    let right_out =
+        arch.process_code(config, right_code, right_symbol.address, right_relocs, right_line_info)?;
 
     let mut left_diff = Vec::<ObjInsDiff>::new();
     let mut right_diff = Vec::<ObjInsDiff>::new();
@@ -281,7 +187,7 @@ fn reloc_eq(
     let (Some(left), Some(right)) = (left_reloc, right_reloc) else {
         return false;
     };
-    if left.kind != right.kind {
+    if left.flags != right.flags {
         return false;
     }
     if config.relax_reloc_diffs {

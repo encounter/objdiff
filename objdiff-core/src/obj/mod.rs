@@ -1,19 +1,14 @@
-#[cfg(feature = "mips")]
-pub mod mips;
-#[cfg(feature = "ppc")]
-pub mod ppc;
 pub mod read;
 pub mod split_meta;
-#[cfg(feature = "x86")]
-pub mod x86;
 
 use std::{collections::BTreeMap, fmt, path::PathBuf};
 
 use filetime::FileTime;
 use flagset::{flags, FlagSet};
+use object::RelocationFlags;
 use split_meta::SplitMeta;
 
-use crate::util::ReallySigned;
+use crate::{arch::ObjArch, util::ReallySigned};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub enum ObjSectionKind {
@@ -196,21 +191,8 @@ pub struct ObjSymbol {
     pub match_percent: Option<f32>,
 }
 
-#[derive(Debug, Copy, Clone)]
-pub enum ObjArchitecture {
-    #[cfg(feature = "ppc")]
-    PowerPc,
-    #[cfg(feature = "mips")]
-    Mips,
-    #[cfg(feature = "x86")]
-    X86_32,
-    #[cfg(feature = "x86")]
-    X86_64,
-}
-
-#[derive(Debug, Clone)]
 pub struct ObjInfo {
-    pub architecture: ObjArchitecture,
+    pub arch: Box<dyn ObjArch>,
     pub path: PathBuf,
     pub timestamp: FileTime,
     pub sections: Vec<ObjSection>,
@@ -222,50 +204,9 @@ pub struct ObjInfo {
     pub split_meta: Option<SplitMeta>,
 }
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-pub enum ObjRelocKind {
-    Absolute,
-    #[cfg(feature = "ppc")]
-    PpcAddr16Hi,
-    #[cfg(feature = "ppc")]
-    PpcAddr16Ha,
-    #[cfg(feature = "ppc")]
-    PpcAddr16Lo,
-    // #[cfg(feature = "ppc")]
-    // PpcAddr32,
-    // #[cfg(feature = "ppc")]
-    // PpcRel32,
-    // #[cfg(feature = "ppc")]
-    // PpcAddr24,
-    #[cfg(feature = "ppc")]
-    PpcRel24,
-    // #[cfg(feature = "ppc")]
-    // PpcAddr14,
-    #[cfg(feature = "ppc")]
-    PpcRel14,
-    #[cfg(feature = "ppc")]
-    PpcEmbSda21,
-    #[cfg(feature = "mips")]
-    Mips26,
-    #[cfg(feature = "mips")]
-    MipsHi16,
-    #[cfg(feature = "mips")]
-    MipsLo16,
-    #[cfg(feature = "mips")]
-    MipsGot16,
-    #[cfg(feature = "mips")]
-    MipsCall16,
-    #[cfg(feature = "mips")]
-    MipsGpRel16,
-    #[cfg(feature = "mips")]
-    MipsGpRel32,
-    #[cfg(feature = "x86")]
-    X86PcRel32,
-}
-
 #[derive(Debug, Clone)]
 pub struct ObjReloc {
-    pub kind: ObjRelocKind,
+    pub flags: RelocationFlags,
     pub address: u64,
     pub target: ObjSymbol,
     pub target_section: Option<String>,

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{borrow::Cow, collections::BTreeMap};
 
 use anyhow::{anyhow, bail, ensure, Result};
 use iced_x86::{
@@ -6,138 +6,178 @@ use iced_x86::{
     GasFormatter, Instruction, IntelFormatter, MasmFormatter, NasmFormatter, NumberKind, OpKind,
     PrefixKind, Register, SymbolResult,
 };
+use object::{pe, Endian, Endianness, File, Object, Relocation, RelocationFlags};
 
 use crate::{
-    diff::{DiffObjConfig, ProcessCodeResult},
-    obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjRelocKind},
+    arch::ObjArch,
+    diff::{DiffObjConfig, ProcessCodeResult, X86Formatter},
+    obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
 };
 
-#[derive(Debug, Copy, Clone, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-pub enum X86Formatter {
-    #[default]
-    Intel,
-    Gas,
-    Nasm,
-    Masm,
+pub struct ObjArchX86 {
+    bits: u32,
+    endianness: Endianness,
 }
 
-pub fn process_code(
-    config: &DiffObjConfig,
-    data: &[u8],
-    bitness: u32,
-    start_address: u64,
-    relocs: &[ObjReloc],
-    line_info: &Option<BTreeMap<u64, u64>>,
-) -> Result<ProcessCodeResult> {
-    let mut result = ProcessCodeResult { ops: Vec::new(), insts: Vec::new() };
-    let mut decoder = Decoder::with_ip(bitness, data, start_address, DecoderOptions::NONE);
-    let mut formatter: Box<dyn Formatter> = match config.x86_formatter {
-        X86Formatter::Intel => Box::new(IntelFormatter::new()),
-        X86Formatter::Gas => Box::new(GasFormatter::new()),
-        X86Formatter::Nasm => Box::new(NasmFormatter::new()),
-        X86Formatter::Masm => Box::new(MasmFormatter::new()),
-    };
-    formatter.options_mut().set_space_after_operand_separator(config.space_between_args);
+impl ObjArchX86 {
+    pub fn new(object: &File) -> Result<Self> {
+        Ok(Self { bits: if object.is_64() { 64 } else { 32 }, endianness: object.endianness() })
+    }
+}
 
-    let mut output = InstructionFormatterOutput {
-        formatted: String::new(),
-        ins: ObjIns {
-            address: 0,
-            size: 0,
-            op: 0,
-            mnemonic: "".to_string(),
-            args: vec![],
-            reloc: None,
-            branch_dest: None,
-            line: None,
-            orig: None,
-        },
-        error: None,
-        ins_operands: vec![],
-    };
-    let mut instruction = Instruction::default();
-    while decoder.can_decode() {
-        decoder.decode_out(&mut instruction);
-
-        let address = instruction.ip();
-        let op = instruction.mnemonic() as u16;
-        let reloc = relocs
-            .iter()
-            .find(|r| r.address >= address && r.address < address + instruction.len() as u64);
-        output.ins = ObjIns {
-            address,
-            size: instruction.len() as u8,
-            op,
-            mnemonic: "".to_string(),
-            args: vec![],
-            reloc: reloc.cloned(),
-            branch_dest: None,
-            line: line_info.as_ref().and_then(|m| m.get(&address).cloned()),
-            orig: None,
+impl ObjArch for ObjArchX86 {
+    fn process_code(
+        &self,
+        config: &DiffObjConfig,
+        data: &[u8],
+        start_address: u64,
+        relocs: &[ObjReloc],
+        line_info: &Option<BTreeMap<u64, u64>>,
+    ) -> Result<ProcessCodeResult> {
+        let mut result = ProcessCodeResult { ops: Vec::new(), insts: Vec::new() };
+        let mut decoder = Decoder::with_ip(self.bits, data, start_address, DecoderOptions::NONE);
+        let mut formatter: Box<dyn Formatter> = match config.x86_formatter {
+            X86Formatter::Intel => Box::new(IntelFormatter::new()),
+            X86Formatter::Gas => Box::new(GasFormatter::new()),
+            X86Formatter::Nasm => Box::new(NasmFormatter::new()),
+            X86Formatter::Masm => Box::new(MasmFormatter::new()),
         };
-        // Run the formatter, which will populate output.ins
-        formatter.format(&instruction, &mut output);
-        if let Some(error) = output.error.take() {
-            return Err(error);
-        }
-        ensure!(output.ins_operands.len() == output.ins.args.len());
-        output.ins.orig = Some(output.formatted.clone());
+        formatter.options_mut().set_space_after_operand_separator(config.space_between_args);
 
-        // print!("{:016X} ", instruction.ip());
-        // let start_index = (instruction.ip() - address) as usize;
-        // let instr_bytes = &data[start_index..start_index + instruction.len()];
-        // for b in instr_bytes.iter() {
-        //     print!("{:02X}", b);
-        // }
-        // if instr_bytes.len() < 32 {
-        //     for _ in 0..32 - instr_bytes.len() {
-        //         print!("  ");
-        //     }
-        // }
-        // println!(" {}", output.formatted);
-        //
-        // if let Some(reloc) = reloc {
-        //     println!("\tReloc: {:?}", reloc);
-        // }
-        //
-        // for i in 0..instruction.op_count() {
-        //     let kind = instruction.op_kind(i);
-        //     print!("{:?} ", kind);
-        // }
-        // println!();
+        let mut output = InstructionFormatterOutput {
+            formatted: String::new(),
+            ins: ObjIns {
+                address: 0,
+                size: 0,
+                op: 0,
+                mnemonic: String::new(),
+                args: vec![],
+                reloc: None,
+                branch_dest: None,
+                line: None,
+                orig: None,
+            },
+            error: None,
+            ins_operands: vec![],
+        };
+        let mut instruction = Instruction::default();
+        while decoder.can_decode() {
+            decoder.decode_out(&mut instruction);
 
-        // Make sure we've put the relocation somewhere in the instruction
-        if reloc.is_some() && !output.ins.args.iter().any(|a| matches!(a, ObjInsArg::Reloc)) {
-            let mut found = replace_arg(
-                OpKind::Memory,
-                ObjInsArg::Reloc,
-                &mut output.ins.args,
-                &instruction,
-                &output.ins_operands,
-            )?;
-            if !found {
-                found = replace_arg(
-                    OpKind::Immediate32,
+            let address = instruction.ip();
+            let op = instruction.mnemonic() as u16;
+            let reloc = relocs
+                .iter()
+                .find(|r| r.address >= address && r.address < address + instruction.len() as u64);
+            output.ins = ObjIns {
+                address,
+                size: instruction.len() as u8,
+                op,
+                mnemonic: String::new(),
+                args: vec![],
+                reloc: reloc.cloned(),
+                branch_dest: None,
+                line: line_info.as_ref().and_then(|m| m.get(&address).cloned()),
+                orig: None,
+            };
+            // Run the formatter, which will populate output.ins
+            formatter.format(&instruction, &mut output);
+            if let Some(error) = output.error.take() {
+                return Err(error);
+            }
+            ensure!(output.ins_operands.len() == output.ins.args.len());
+            output.ins.orig = Some(output.formatted.clone());
+
+            // print!("{:016X} ", instruction.ip());
+            // let start_index = (instruction.ip() - address) as usize;
+            // let instr_bytes = &data[start_index..start_index + instruction.len()];
+            // for b in instr_bytes.iter() {
+            //     print!("{:02X}", b);
+            // }
+            // if instr_bytes.len() < 32 {
+            //     for _ in 0..32 - instr_bytes.len() {
+            //         print!("  ");
+            //     }
+            // }
+            // println!(" {}", output.formatted);
+            //
+            // if let Some(reloc) = reloc {
+            //     println!("\tReloc: {:?}", reloc);
+            // }
+            //
+            // for i in 0..instruction.op_count() {
+            //     let kind = instruction.op_kind(i);
+            //     print!("{:?} ", kind);
+            // }
+            // println!();
+
+            // Make sure we've put the relocation somewhere in the instruction
+            if reloc.is_some() && !output.ins.args.iter().any(|a| matches!(a, ObjInsArg::Reloc)) {
+                let mut found = replace_arg(
+                    OpKind::Memory,
                     ObjInsArg::Reloc,
                     &mut output.ins.args,
                     &instruction,
                     &output.ins_operands,
                 )?;
+                if !found {
+                    found = replace_arg(
+                        OpKind::Immediate32,
+                        ObjInsArg::Reloc,
+                        &mut output.ins.args,
+                        &instruction,
+                        &output.ins_operands,
+                    )?;
+                }
+                ensure!(found, "x86: Failed to find operand for Absolute relocation");
             }
-            ensure!(found, "x86: Failed to find operand for Absolute relocation");
-        }
-        if reloc.is_some() && !output.ins.args.iter().any(|a| matches!(a, ObjInsArg::Reloc)) {
-            bail!("Failed to find relocation in instruction");
-        }
+            if reloc.is_some() && !output.ins.args.iter().any(|a| matches!(a, ObjInsArg::Reloc)) {
+                bail!("Failed to find relocation in instruction");
+            }
 
-        result.ops.push(op);
-        result.insts.push(output.ins.clone());
+            result.ops.push(op);
+            result.insts.push(output.ins.clone());
 
-        // Clear for next iteration
-        output.formatted.clear();
-        output.ins_operands.clear();
+            // Clear for next iteration
+            output.formatted.clear();
+            output.ins_operands.clear();
+        }
+        Ok(result)
     }
-    Ok(result)
+
+    fn implcit_addend(
+        &self,
+        section: &ObjSection,
+        address: u64,
+        reloc: &Relocation,
+    ) -> Result<i64> {
+        match reloc.flags() {
+            RelocationFlags::Coff { typ: pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32 } => {
+                let data = section.data[address as usize..address as usize + 4].try_into()?;
+                Ok(self.endianness.read_i32_bytes(data) as i64)
+            }
+            flags => bail!("Unsupported x86 implicit relocation {flags:?}"),
+        }
+    }
+
+    fn demangle(&self, name: &str) -> Option<String> {
+        if name.starts_with('?') {
+            msvc_demangler::demangle(name, msvc_demangler::DemangleFlags::llvm()).ok()
+        } else {
+            None
+        }
+    }
+
+    fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str> {
+        match flags {
+            RelocationFlags::Coff { typ } => match typ {
+                pe::IMAGE_REL_I386_DIR32 => Cow::Borrowed("IMAGE_REL_I386_DIR32"),
+                pe::IMAGE_REL_I386_REL32 => Cow::Borrowed("IMAGE_REL_I386_REL32"),
+                _ => Cow::Owned(format!("<Coff {typ:?}>")),
+            },
+            flags => Cow::Owned(format!("<{flags:?}>")),
+        }
+    }
 }
 
 fn replace_arg(
@@ -242,13 +282,15 @@ impl FormatterOutput for InstructionFormatterOutput {
         match kind {
             FormatterTextKind::LabelAddress => {
                 if let Some(reloc) = self.ins.reloc.as_ref() {
-                    if reloc.kind == ObjRelocKind::Absolute {
+                    if matches!(reloc.flags, RelocationFlags::Coff {
+                        typ: pe::IMAGE_REL_I386_DIR32
+                    }) {
                         self.ins.args.push(ObjInsArg::Reloc);
                         return;
                     } else if self.error.is_none() {
                         self.error = Some(anyhow!(
-                            "x86: Unsupported LabelAddress relocation kind {:?}",
-                            reloc.kind
+                            "x86: Unsupported LabelAddress relocation flags {:?}",
+                            reloc.flags
                         ));
                     }
                 }
@@ -258,13 +300,15 @@ impl FormatterOutput for InstructionFormatterOutput {
             }
             FormatterTextKind::FunctionAddress => {
                 if let Some(reloc) = self.ins.reloc.as_ref() {
-                    if reloc.kind == ObjRelocKind::X86PcRel32 {
+                    if matches!(reloc.flags, RelocationFlags::Coff {
+                        typ: pe::IMAGE_REL_I386_REL32
+                    }) {
                         self.ins.args.push(ObjInsArg::Reloc);
                         return;
                     } else if self.error.is_none() {
                         self.error = Some(anyhow!(
-                            "x86: Unsupported FunctionAddress relocation kind {:?}",
-                            reloc.kind
+                            "x86: Unsupported FunctionAddress relocation flags {:?}",
+                            reloc.flags
                         ));
                     }
                 }

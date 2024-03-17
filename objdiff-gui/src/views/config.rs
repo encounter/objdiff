@@ -16,9 +16,9 @@ use egui::{
 use globset::Glob;
 use objdiff_core::{
     config::{ProjectObject, DEFAULT_WATCH_PATTERNS},
-    obj::x86::X86Formatter,
 };
 use self_update::cargo_crate_version;
+use objdiff_core::diff::X86Formatter;
 
 use crate::{
     app::{AppConfig, AppConfigRef, ObjectConfig},

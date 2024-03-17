@@ -3,6 +3,7 @@ use std::default::Default;
 use egui::{text::LayoutJob, Align, Label, Layout, Sense, Vec2, Widget};
 use egui_extras::{Column, TableBuilder, TableRow};
 use objdiff_core::{
+    arch::ObjArch,
     diff::display::{display_diff, DiffText, HighlightKind},
     obj::{
         ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjInsDiff, ObjInsDiffKind, ObjSection,
@@ -21,7 +22,13 @@ pub struct FunctionViewState {
     pub highlight: HighlightKind,
 }
 
-fn ins_hover_ui(ui: &mut egui::Ui, section: &ObjSection, ins: &ObjIns, appearance: &Appearance) {
+fn ins_hover_ui(
+    ui: &mut egui::Ui,
+    arch: &dyn ObjArch,
+    section: &ObjSection,
+    ins: &ObjIns,
+    appearance: &Appearance,
+) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap = Some(false);
@@ -51,7 +58,7 @@ fn ins_hover_ui(ui: &mut egui::Ui, section: &ObjSection, ins: &ObjIns, appearanc
         }
 
         if let Some(reloc) = &ins.reloc {
-            ui.label(format!("Relocation type: {:?}", reloc.kind));
+            ui.label(format!("Relocation type: {}", arch.display_reloc(reloc.flags)));
             ui.colored_label(appearance.highlight_color, format!("Name: {}", reloc.target.name));
             if let Some(section) = &reloc.target_section {
                 ui.colored_label(appearance.highlight_color, format!("Section: {section}"));
@@ -122,10 +129,14 @@ fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
 fn find_symbol<'a>(
     obj: &'a ObjInfo,
     selected_symbol: &SymbolReference,
-) -> Option<(&'a ObjSection, &'a ObjSymbol)> {
+) -> Option<(&'a dyn ObjArch, &'a ObjSection, &'a ObjSymbol)> {
     obj.sections.iter().find_map(|section| {
         section.symbols.iter().find_map(|symbol| {
-            (symbol.name == selected_symbol.symbol_name).then_some((section, symbol))
+            (symbol.name == selected_symbol.symbol_name).then_some((
+                obj.arch.as_ref(),
+                section,
+                symbol,
+            ))
         })
     })
 }
@@ -238,6 +249,7 @@ fn asm_row_ui(
 fn asm_col_ui(
     row: &mut TableRow<'_, '_>,
     ins_diff: &ObjInsDiff,
+    arch: &dyn ObjArch,
     section: &ObjSection,
     symbol: &ObjSymbol,
     appearance: &Appearance,
@@ -247,7 +259,7 @@ fn asm_col_ui(
         asm_row_ui(ui, ins_diff, symbol, appearance, ins_view_state);
     });
     if let Some(ins) = &ins_diff.ins {
-        response.on_hover_ui_at_pointer(|ui| ins_hover_ui(ui, section, ins, appearance));
+        response.on_hover_ui_at_pointer(|ui| ins_hover_ui(ui, arch, section, ins, appearance));
     }
 }
 
@@ -267,14 +279,15 @@ fn asm_table_ui(
 ) -> Option<()> {
     let left_symbol = left_obj.and_then(|obj| find_symbol(obj, selected_symbol));
     let right_symbol = right_obj.and_then(|obj| find_symbol(obj, selected_symbol));
-    let instructions_len = left_symbol.or(right_symbol).map(|(_, s)| s.instructions.len())?;
+    let instructions_len = left_symbol.or(right_symbol).map(|(_, _, s)| s.instructions.len())?;
     table.body(|body| {
         body.rows(appearance.code_font.size, instructions_len, |mut row| {
             let row_index = row.index();
-            if let Some((section, symbol)) = left_symbol {
+            if let Some((arch, section, symbol)) = left_symbol {
                 asm_col_ui(
                     &mut row,
                     &symbol.instructions[row_index],
+                    arch,
                     section,
                     symbol,
                     appearance,
@@ -283,10 +296,11 @@ fn asm_table_ui(
             } else {
                 empty_col_ui(&mut row);
             }
-            if let Some((section, symbol)) = right_symbol {
+            if let Some((arch, section, symbol)) = right_symbol {
                 asm_col_ui(
                     &mut row,
                     &symbol.instructions[row_index],
+                    arch,
                     section,
                     symbol,
                     appearance,
@@ -399,7 +413,7 @@ pub fn function_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance
                             .second_obj
                             .as_ref()
                             .and_then(|obj| find_symbol(obj, selected_symbol))
-                            .and_then(|(_, symbol)| symbol.match_percent)
+                            .and_then(|(_, _, symbol)| symbol.match_percent)
                         {
                             ui.colored_label(
                                 match_color_for_symbol(match_percent, appearance),

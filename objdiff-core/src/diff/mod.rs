@@ -9,8 +9,17 @@ use crate::{
         code::{diff_code, find_section_and_symbol, no_diff_code},
         data::{diff_bss_symbols, diff_data, no_diff_data},
     },
-    obj::{x86::X86Formatter, ObjInfo, ObjIns, ObjSectionKind},
+    obj::{ObjInfo, ObjIns, ObjSectionKind},
 };
+
+#[derive(Debug, Copy, Clone, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+pub enum X86Formatter {
+    #[default]
+    Intel,
+    Gas,
+    Nasm,
+    Masm,
+}
 
 #[derive(Debug, Clone, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
@@ -44,8 +53,8 @@ pub fn diff_objs(
                         left_symbol.diff_symbol = Some(right_symbol.name.clone());
                         right_symbol.diff_symbol = Some(left_symbol.name.clone());
                         diff_code(
+                            left.arch.as_ref(),
                             config,
-                            left.architecture,
                             &left_section.data,
                             &right_section.data,
                             left_symbol,
@@ -57,8 +66,8 @@ pub fn diff_objs(
                         )?;
                     } else {
                         no_diff_code(
+                            left.arch.as_ref(),
                             config,
-                            left.architecture,
                             &left_section.data,
                             left_symbol,
                             &left_section.relocations,
@@ -86,8 +95,8 @@ pub fn diff_objs(
                 for right_symbol in &mut right_section.symbols {
                     if right_symbol.instructions.is_empty() {
                         no_diff_code(
+                            right.arch.as_ref(),
                             config,
-                            right.architecture,
                             &right_section.data,
                             right_symbol,
                             &right_section.relocations,
