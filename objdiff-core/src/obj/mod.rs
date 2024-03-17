@@ -1,9 +1,11 @@
-pub mod elf;
 #[cfg(feature = "mips")]
 pub mod mips;
 #[cfg(feature = "ppc")]
 pub mod ppc;
+pub mod read;
 pub mod split_meta;
+#[cfg(feature = "x86")]
+pub mod x86;
 
 use std::{collections::BTreeMap, fmt, path::PathBuf};
 
@@ -50,8 +52,8 @@ pub struct ObjSection {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ObjInsArgValue {
-    Signed(i16),
-    Unsigned(u16),
+    Signed(i64),
+    Unsigned(u64),
     Opaque(String),
 }
 
@@ -61,7 +63,7 @@ impl ObjInsArgValue {
             (ObjInsArgValue::Signed(a), ObjInsArgValue::Signed(b)) => a == b,
             (ObjInsArgValue::Unsigned(a), ObjInsArgValue::Unsigned(b)) => a == b,
             (ObjInsArgValue::Signed(a), ObjInsArgValue::Unsigned(b))
-            | (ObjInsArgValue::Unsigned(b), ObjInsArgValue::Signed(a)) => *a as u16 == *b,
+            | (ObjInsArgValue::Unsigned(b), ObjInsArgValue::Signed(a)) => *a as u64 == *b,
             (ObjInsArgValue::Opaque(a), ObjInsArgValue::Opaque(b)) => a == b,
             _ => false,
         }
@@ -80,21 +82,18 @@ impl fmt::Display for ObjInsArgValue {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ObjInsArg {
+    PlainText(String),
     Arg(ObjInsArgValue),
-    ArgWithBase(ObjInsArgValue),
     Reloc,
-    RelocWithBase,
-    BranchOffset(i32),
+    BranchDest(u64),
 }
 
 impl ObjInsArg {
     pub fn loose_eq(&self, other: &ObjInsArg) -> bool {
         match (self, other) {
             (ObjInsArg::Arg(a), ObjInsArg::Arg(b)) => a.loose_eq(b),
-            (ObjInsArg::ArgWithBase(a), ObjInsArg::ArgWithBase(b)) => a.loose_eq(b),
             (ObjInsArg::Reloc, ObjInsArg::Reloc) => true,
-            (ObjInsArg::RelocWithBase, ObjInsArg::RelocWithBase) => true,
-            (ObjInsArg::BranchOffset(a), ObjInsArg::BranchOffset(b)) => a == b,
+            (ObjInsArg::BranchDest(a), ObjInsArg::BranchDest(b)) => a == b,
             _ => false,
         }
     }
@@ -135,13 +134,13 @@ pub enum ObjInsDiffKind {
 
 #[derive(Debug, Clone)]
 pub struct ObjIns {
-    pub address: u32,
-    pub code: u32,
-    pub op: u8,
+    pub address: u64,
+    pub size: u8,
+    pub op: u16,
     pub mnemonic: String,
     pub args: Vec<ObjInsArg>,
     pub reloc: Option<ObjReloc>,
-    pub branch_dest: Option<u32>,
+    pub branch_dest: Option<u64>,
     /// Line number
     pub line: Option<u64>,
     /// Original (unsimplified) instruction
@@ -203,6 +202,10 @@ pub enum ObjArchitecture {
     PowerPc,
     #[cfg(feature = "mips")]
     Mips,
+    #[cfg(feature = "x86")]
+    X86_32,
+    #[cfg(feature = "x86")]
+    X86_64,
 }
 
 #[derive(Debug, Clone)]
@@ -256,6 +259,8 @@ pub enum ObjRelocKind {
     MipsGpRel16,
     #[cfg(feature = "mips")]
     MipsGpRel32,
+    #[cfg(feature = "x86")]
+    X86PcRel32,
 }
 
 #[derive(Debug, Clone)]

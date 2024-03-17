@@ -17,6 +17,7 @@ use crate::{
 };
 
 pub fn no_diff_code(
+    config: &DiffObjConfig,
     arch: ObjArchitecture,
     data: &[u8],
     symbol: &mut ObjSymbol,
@@ -28,16 +29,25 @@ pub fn no_diff_code(
     let out: ProcessCodeResult = match arch {
         #[cfg(feature = "ppc")]
         ObjArchitecture::PowerPc => {
-            obj::ppc::process_code(code, symbol.address, relocs, line_info)?
+            obj::ppc::process_code(config, code, symbol.address, relocs, line_info)?
         }
         #[cfg(feature = "mips")]
         ObjArchitecture::Mips => obj::mips::process_code(
+            config,
             code,
             symbol.address,
             symbol.address + symbol.size,
             relocs,
             line_info,
         )?,
+        #[cfg(feature = "x86")]
+        ObjArchitecture::X86_32 => {
+            obj::x86::process_code(config, code, 32, symbol.address, relocs, line_info)?
+        }
+        #[cfg(feature = "x86")]
+        ObjArchitecture::X86_64 => {
+            obj::x86::process_code(config, code, 64, symbol.address, relocs, line_info)?
+        }
     };
 
     let mut diff = Vec::<ObjInsDiff>::new();
@@ -69,8 +79,15 @@ pub fn diff_code(
     let (left_out, right_out) = match arch {
         #[cfg(feature = "ppc")]
         ObjArchitecture::PowerPc => (
-            obj::ppc::process_code(left_code, left_symbol.address, left_relocs, left_line_info)?,
             obj::ppc::process_code(
+                config,
+                left_code,
+                left_symbol.address,
+                left_relocs,
+                left_line_info,
+            )?,
+            obj::ppc::process_code(
+                config,
                 right_code,
                 right_symbol.address,
                 right_relocs,
@@ -80,6 +97,7 @@ pub fn diff_code(
         #[cfg(feature = "mips")]
         ObjArchitecture::Mips => (
             obj::mips::process_code(
+                config,
                 left_code,
                 left_symbol.address,
                 left_symbol.address + left_symbol.size,
@@ -87,9 +105,48 @@ pub fn diff_code(
                 left_line_info,
             )?,
             obj::mips::process_code(
+                config,
                 right_code,
                 right_symbol.address,
                 left_symbol.address + left_symbol.size,
+                right_relocs,
+                right_line_info,
+            )?,
+        ),
+        #[cfg(feature = "x86")]
+        ObjArchitecture::X86_32 => (
+            obj::x86::process_code(
+                config,
+                left_code,
+                32,
+                left_symbol.address,
+                left_relocs,
+                left_line_info,
+            )?,
+            obj::x86::process_code(
+                config,
+                right_code,
+                32,
+                right_symbol.address,
+                right_relocs,
+                right_line_info,
+            )?,
+        ),
+        #[cfg(feature = "x86")]
+        ObjArchitecture::X86_64 => (
+            obj::x86::process_code(
+                config,
+                left_code,
+                64,
+                left_symbol.address,
+                left_relocs,
+                left_line_info,
+            )?,
+            obj::x86::process_code(
+                config,
+                right_code,
+                64,
+                right_symbol.address,
                 right_relocs,
                 right_line_info,
             )?,
@@ -183,7 +240,7 @@ fn diff_instructions(
 fn resolve_branches(vec: &mut [ObjInsDiff]) {
     let mut branch_idx = 0usize;
     // Map addresses to indices
-    let mut addr_map = BTreeMap::<u32, usize>::new();
+    let mut addr_map = BTreeMap::<u64, usize>::new();
     for (i, ins_diff) in vec.iter().enumerate() {
         if let Some(ins) = &ins_diff.ins {
             addr_map.insert(ins.address, i);
@@ -193,15 +250,7 @@ fn resolve_branches(vec: &mut [ObjInsDiff]) {
     let mut branches = BTreeMap::<usize, ObjInsBranchFrom>::new();
     for (i, ins_diff) in vec.iter_mut().enumerate() {
         if let Some(ins) = &ins_diff.ins {
-            // if ins.ins.is_blr() || ins.reloc.is_some() {
-            //     continue;
-            // }
-            if let Some(ins_idx) = ins
-                .args
-                .iter()
-                .find_map(|a| if let ObjInsArg::BranchOffset(offs) = a { Some(offs) } else { None })
-                .and_then(|offs| addr_map.get(&((ins.address as i32 + offs) as u32)))
-            {
+            if let Some(ins_idx) = ins.branch_dest.and_then(|a| addr_map.get(&a)) {
                 if let Some(branch) = branches.get_mut(ins_idx) {
                     ins_diff.branch_to =
                         Some(ObjInsBranchTo { ins_idx: *ins_idx, branch_idx: branch.branch_idx });
@@ -262,8 +311,12 @@ fn arg_eq(
     right_diff: &ObjInsDiff,
 ) -> bool {
     return match left {
-        ObjInsArg::Arg(l) | ObjInsArg::ArgWithBase(l) => match right {
-            ObjInsArg::Arg(r) | ObjInsArg::ArgWithBase(r) => l == r,
+        ObjInsArg::PlainText(l) => match right {
+            ObjInsArg::PlainText(r) => l == r,
+            _ => false,
+        },
+        ObjInsArg::Arg(l) => match right {
+            ObjInsArg::Arg(r) => l == r,
             _ => false,
         },
         ObjInsArg::Reloc => {
@@ -274,15 +327,7 @@ fn arg_eq(
                     right_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
                 )
         }
-        ObjInsArg::RelocWithBase => {
-            matches!(right, ObjInsArg::RelocWithBase)
-                && reloc_eq(
-                    config,
-                    left_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
-                    right_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
-                )
-        }
-        ObjInsArg::BranchOffset(_) => {
+        ObjInsArg::BranchDest(_) => {
             // Compare dest instruction idx after diffing
             left_diff.branch_to.as_ref().map(|b| b.ins_idx)
                 == right_diff.branch_to.as_ref().map(|b| b.ins_idx)
@@ -314,7 +359,15 @@ fn compare_ins(
 ) -> Result<InsDiffResult> {
     let mut result = InsDiffResult::default();
     if let (Some(left_ins), Some(right_ins)) = (&left.ins, &right.ins) {
-        if left_ins.args.len() != right_ins.args.len() || left_ins.op != right_ins.op {
+        if left_ins.args.len() != right_ins.args.len()
+            || left_ins.op != right_ins.op
+            // Check if any PlainText segments differ (punctuation and spacing)
+            // This indicates a more significant difference than a simple arg mismatch
+            || !left_ins.args.iter().zip(&right_ins.args).all(|(a, b)| match (a, b) {
+                (ObjInsArg::PlainText(l), ObjInsArg::PlainText(r)) => l == r,
+                _ => true,
+            })
+        {
             // Totally different op
             result.kind = ObjInsDiffKind::Replace;
             state.diff_count += 1;
@@ -335,9 +388,10 @@ fn compare_ins(
                     state.diff_count += 1;
                 }
                 let a_str = match a {
-                    ObjInsArg::Arg(arg) | ObjInsArg::ArgWithBase(arg) => arg.to_string(),
-                    ObjInsArg::Reloc | ObjInsArg::RelocWithBase => String::new(),
-                    ObjInsArg::BranchOffset(arg) => format!("{arg}"),
+                    ObjInsArg::PlainText(arg) => arg.clone(),
+                    ObjInsArg::Arg(arg) => arg.to_string(),
+                    ObjInsArg::Reloc => String::new(),
+                    ObjInsArg::BranchDest(arg) => format!("{arg}"),
                 };
                 let a_diff = if let Some(idx) = state.left_args_idx.get(&a_str) {
                     ObjInsArgDiff { idx: *idx }
@@ -348,9 +402,10 @@ fn compare_ins(
                     ObjInsArgDiff { idx }
                 };
                 let b_str = match b {
-                    ObjInsArg::Arg(arg) | ObjInsArg::ArgWithBase(arg) => arg.to_string(),
-                    ObjInsArg::Reloc | ObjInsArg::RelocWithBase => String::new(),
-                    ObjInsArg::BranchOffset(arg) => format!("{arg}"),
+                    ObjInsArg::PlainText(arg) => arg.clone(),
+                    ObjInsArg::Arg(arg) => arg.to_string(),
+                    ObjInsArg::Reloc => String::new(),
+                    ObjInsArg::BranchDest(arg) => format!("{arg}"),
                 };
                 let b_diff = if let Some(idx) = state.right_args_idx.get(&b_str) {
                     ObjInsArgDiff { idx: *idx }

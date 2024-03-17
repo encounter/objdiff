@@ -4,7 +4,10 @@ use egui::{text::LayoutJob, Align, Label, Layout, Sense, Vec2, Widget};
 use egui_extras::{Column, TableBuilder, TableRow};
 use objdiff_core::{
     diff::display::{display_diff, DiffText, HighlightKind},
-    obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjInsDiff, ObjInsDiffKind, ObjSymbol},
+    obj::{
+        ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjInsDiff, ObjInsDiffKind, ObjSection,
+        ObjSymbol,
+    },
 };
 use time::format_description;
 
@@ -18,19 +21,23 @@ pub struct FunctionViewState {
     pub highlight: HighlightKind,
 }
 
-fn ins_hover_ui(ui: &mut egui::Ui, ins: &ObjIns, appearance: &Appearance) {
+fn ins_hover_ui(ui: &mut egui::Ui, section: &ObjSection, ins: &ObjIns, appearance: &Appearance) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap = Some(false);
 
-        ui.label(format!("{:02X?}", ins.code.to_be_bytes()));
+        let offset = ins.address - section.address;
+        ui.label(format!(
+            "{:02X?}",
+            &section.data[offset as usize..(offset + ins.size as u64) as usize]
+        ));
 
         if let Some(orig) = &ins.orig {
             ui.label(format!("Original: {}", orig));
         }
 
         for arg in &ins.args {
-            if let ObjInsArg::Arg(arg) | ObjInsArg::ArgWithBase(arg) = arg {
+            if let ObjInsArg::Arg(arg) = arg {
                 match arg {
                     ObjInsArgValue::Signed(v) => {
                         ui.label(format!("{arg} == {v}"));
@@ -71,7 +78,7 @@ fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
         // if ui.button("Copy hex").clicked() {}
 
         for arg in &ins.args {
-            if let ObjInsArg::Arg(arg) | ObjInsArg::ArgWithBase(arg) = arg {
+            if let ObjInsArg::Arg(arg) = arg {
                 match arg {
                     ObjInsArgValue::Signed(v) => {
                         if ui.button(format!("Copy \"{arg}\"")).clicked() {
@@ -112,9 +119,14 @@ fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
     });
 }
 
-fn find_symbol<'a>(obj: &'a ObjInfo, selected_symbol: &SymbolReference) -> Option<&'a ObjSymbol> {
+fn find_symbol<'a>(
+    obj: &'a ObjInfo,
+    selected_symbol: &SymbolReference,
+) -> Option<(&'a ObjSection, &'a ObjSymbol)> {
     obj.sections.iter().find_map(|section| {
-        section.symbols.iter().find(|symbol| symbol.name == selected_symbol.symbol_name)
+        section.symbols.iter().find_map(|symbol| {
+            (symbol.name == selected_symbol.symbol_name).then_some((section, symbol))
+        })
     })
 }
 
@@ -166,7 +178,7 @@ fn diff_text_ui(
                 base_color = appearance.diff_colors[diff.idx % appearance.diff_colors.len()]
             }
         }
-        DiffText::BranchTarget(addr) => {
+        DiffText::BranchDest(addr) => {
             label_text = format!("{addr:x}");
         }
         DiffText::Symbol(sym) => {
@@ -216,7 +228,7 @@ fn asm_row_ui(
         ui.painter().rect_filled(ui.available_rect_before_wrap(), 0.0, ui.visuals().faint_bg_color);
     }
     let space_width = ui.fonts(|f| f.glyph_width(&appearance.code_font, ' '));
-    display_diff(ins_diff, symbol.address as u32, |text| {
+    display_diff(ins_diff, symbol.address, |text| {
         diff_text_ui(ui, text, ins_diff, appearance, ins_view_state, space_width);
         Ok::<_, ()>(())
     })
@@ -226,6 +238,7 @@ fn asm_row_ui(
 fn asm_col_ui(
     row: &mut TableRow<'_, '_>,
     ins_diff: &ObjInsDiff,
+    section: &ObjSection,
     symbol: &ObjSymbol,
     appearance: &Appearance,
     ins_view_state: &mut FunctionViewState,
@@ -234,7 +247,7 @@ fn asm_col_ui(
         asm_row_ui(ui, ins_diff, symbol, appearance, ins_view_state);
     });
     if let Some(ins) = &ins_diff.ins {
-        response.on_hover_ui_at_pointer(|ui| ins_hover_ui(ui, ins, appearance));
+        response.on_hover_ui_at_pointer(|ui| ins_hover_ui(ui, section, ins, appearance));
     }
 }
 
@@ -254,14 +267,15 @@ fn asm_table_ui(
 ) -> Option<()> {
     let left_symbol = left_obj.and_then(|obj| find_symbol(obj, selected_symbol));
     let right_symbol = right_obj.and_then(|obj| find_symbol(obj, selected_symbol));
-    let instructions_len = left_symbol.or(right_symbol).map(|s| s.instructions.len())?;
+    let instructions_len = left_symbol.or(right_symbol).map(|(_, s)| s.instructions.len())?;
     table.body(|body| {
         body.rows(appearance.code_font.size, instructions_len, |mut row| {
             let row_index = row.index();
-            if let Some(symbol) = left_symbol {
+            if let Some((section, symbol)) = left_symbol {
                 asm_col_ui(
                     &mut row,
                     &symbol.instructions[row_index],
+                    section,
                     symbol,
                     appearance,
                     ins_view_state,
@@ -269,10 +283,11 @@ fn asm_table_ui(
             } else {
                 empty_col_ui(&mut row);
             }
-            if let Some(symbol) = right_symbol {
+            if let Some((section, symbol)) = right_symbol {
                 asm_col_ui(
                     &mut row,
                     &symbol.instructions[row_index],
+                    section,
                     symbol,
                     appearance,
                     ins_view_state,
@@ -384,7 +399,7 @@ pub fn function_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance
                             .second_obj
                             .as_ref()
                             .and_then(|obj| find_symbol(obj, selected_symbol))
-                            .and_then(|symbol| symbol.match_percent)
+                            .and_then(|(_, symbol)| symbol.match_percent)
                         {
                             ui.colored_label(
                                 match_color_for_symbol(match_percent, appearance),

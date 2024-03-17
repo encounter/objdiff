@@ -14,7 +14,10 @@ use egui::{
     SelectableLabel, TextFormat, Widget,
 };
 use globset::Glob;
-use objdiff_core::config::{ProjectObject, DEFAULT_WATCH_PATTERNS};
+use objdiff_core::{
+    config::{ProjectObject, DEFAULT_WATCH_PATTERNS},
+    obj::x86::X86Formatter,
+};
 use self_update::cargo_crate_version;
 
 use crate::{
@@ -837,4 +840,37 @@ fn split_obj_config_ui(
             }
         }
     });
+}
+
+pub fn diff_config_window(
+    ctx: &egui::Context,
+    config: &AppConfigRef,
+    show: &mut bool,
+    appearance: &Appearance,
+) {
+    let mut config_guard = config.write().unwrap();
+    egui::Window::new("Diff Config").open(show).show(ctx, |ui| {
+        diff_config_ui(ui, &mut config_guard, appearance);
+    });
+}
+
+fn diff_config_ui(ui: &mut egui::Ui, config: &mut AppConfig, _appearance: &Appearance) {
+    egui::ComboBox::new("x86_formatter", "X86 Format")
+        .selected_text(format!("{:?}", config.diff_obj_config.x86_formatter))
+        .show_ui(ui, |ui| {
+            for &formatter in
+                &[X86Formatter::Intel, X86Formatter::Gas, X86Formatter::Nasm, X86Formatter::Masm]
+            {
+                if ui
+                    .selectable_label(
+                        config.diff_obj_config.x86_formatter == formatter,
+                        format!("{:?}", formatter),
+                    )
+                    .clicked()
+                {
+                    config.diff_obj_config.x86_formatter = formatter;
+                    config.queue_reload = true;
+                }
+            }
+        });
 }

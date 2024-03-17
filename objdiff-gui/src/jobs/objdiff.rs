@@ -8,7 +8,7 @@ use std::{
 use anyhow::{anyhow, Context, Error, Result};
 use objdiff_core::{
     diff::{diff_objs, DiffObjConfig},
-    obj::{elf, ObjInfo},
+    obj::{read, ObjInfo},
 };
 use time::OffsetDateTime;
 
@@ -57,7 +57,7 @@ pub struct ObjDiffConfig {
     pub build_base: bool,
     pub build_target: bool,
     pub selected_obj: Option<ObjectConfig>,
-    pub relax_reloc_diffs: bool,
+    pub diff_obj_config: DiffObjConfig,
 }
 
 impl ObjDiffConfig {
@@ -67,7 +67,7 @@ impl ObjDiffConfig {
             build_base: config.build_base,
             build_target: config.build_target,
             selected_obj: config.selected_obj.clone(),
-            relax_reloc_diffs: config.relax_reloc_diffs,
+            diff_obj_config: config.diff_obj_config.clone(),
         }
     }
 }
@@ -224,7 +224,7 @@ fn run_build(
                     total,
                     &cancel,
                 )?;
-                Some(elf::read(target_path).with_context(|| {
+                Some(read::read(target_path).with_context(|| {
                     format!("Failed to read object '{}'", target_path.display())
                 })?)
             }
@@ -241,7 +241,7 @@ fn run_build(
                 &cancel,
             )?;
             Some(
-                elf::read(base_path)
+                read::read(base_path)
                     .with_context(|| format!("Failed to read object '{}'", base_path.display()))?,
             )
         }
@@ -249,8 +249,7 @@ fn run_build(
     };
 
     update_status(context, "Performing diff".to_string(), 4, total, &cancel)?;
-    let diff_config = DiffObjConfig { relax_reloc_diffs: config.relax_reloc_diffs };
-    diff_objs(&diff_config, first_obj.as_mut(), second_obj.as_mut())?;
+    diff_objs(&config.diff_obj_config, first_obj.as_mut(), second_obj.as_mut())?;
 
     update_status(context, "Complete".to_string(), total, total, &cancel)?;
     Ok(Box::new(ObjDiffResult { first_status, second_status, first_obj, second_obj, time }))

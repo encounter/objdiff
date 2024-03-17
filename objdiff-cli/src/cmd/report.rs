@@ -219,14 +219,14 @@ fn report_object(
     let mut target = object
         .target_path
         .as_ref()
-        .map(|p| obj::elf::read(p).with_context(|| format!("Failed to open {}", p.display())))
+        .map(|p| obj::read::read(p).with_context(|| format!("Failed to open {}", p.display())))
         .transpose()?;
     let mut base = object
         .base_path
         .as_ref()
-        .map(|p| obj::elf::read(p).with_context(|| format!("Failed to open {}", p.display())))
+        .map(|p| obj::read::read(p).with_context(|| format!("Failed to open {}", p.display())))
         .transpose()?;
-    let config = diff::DiffObjConfig { relax_reloc_diffs: true };
+    let config = diff::DiffObjConfig { relax_reloc_diffs: true, ..Default::default() };
     diff::diff_objs(&config, target.as_mut(), base.as_mut())?;
     let mut unit = ReportUnit {
         name: object.name().to_string(),

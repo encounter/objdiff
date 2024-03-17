@@ -1,39 +1,34 @@
 use std::collections::BTreeMap;
 
-use anyhow::Result;
-use ppc750cl::{disasm_iter, Argument, SimplifiedIns};
+use anyhow::{bail, Result};
+use ppc750cl::{disasm_iter, Argument, SimplifiedIns, GPR};
 
 use crate::{
-    diff::ProcessCodeResult,
+    diff::{DiffObjConfig, ProcessCodeResult},
     obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjRelocKind},
 };
 
-// Relative relocation, can be Simm or BranchOffset
-fn is_relative_arg(arg: &ObjInsArg) -> bool {
-    matches!(arg, ObjInsArg::Arg(ObjInsArgValue::Signed(_)) | ObjInsArg::BranchOffset(_))
+// Relative relocation, can be Simm, Offset or BranchDest
+fn is_relative_arg(arg: &Argument) -> bool {
+    matches!(arg, Argument::Simm(_) | Argument::Offset(_) | Argument::BranchDest(_))
 }
 
 // Relative or absolute relocation, can be Uimm, Simm or Offset
-fn is_rel_abs_arg(arg: &ObjInsArg) -> bool {
-    matches!(
-        arg,
-        ObjInsArg::Arg(ObjInsArgValue::Signed(_) | ObjInsArgValue::Unsigned(_))
-            | ObjInsArg::ArgWithBase(ObjInsArgValue::Signed(_))
-    )
+fn is_rel_abs_arg(arg: &Argument) -> bool {
+    matches!(arg, Argument::Uimm(_) | Argument::Simm(_) | Argument::Offset(_))
 }
 
-fn is_offset_arg(arg: &ObjInsArg) -> bool {
-    matches!(arg, ObjInsArg::ArgWithBase(ObjInsArgValue::Signed(_)))
-}
+fn is_offset_arg(arg: &Argument) -> bool { matches!(arg, Argument::Offset(_)) }
 
 pub fn process_code(
+    config: &DiffObjConfig,
     data: &[u8],
     address: u64,
     relocs: &[ObjReloc],
     line_info: &Option<BTreeMap<u64, u64>>,
 ) -> Result<ProcessCodeResult> {
     let ins_count = data.len() / 4;
-    let mut ops = Vec::<u8>::with_capacity(ins_count);
+    let mut ops = Vec::<u16>::with_capacity(ins_count);
     let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
     for mut ins in disasm_iter(data, address as u32) {
         let reloc = relocs.iter().find(|r| (r.address as u32 & !3) == ins.addr);
@@ -50,65 +45,120 @@ pub fn process_code(
             };
         }
         let simplified = ins.clone().simplified();
-        let mut args: Vec<ObjInsArg> = simplified
-            .args
-            .iter()
-            .map(|a| match a {
-                Argument::Simm(simm) => ObjInsArg::Arg(ObjInsArgValue::Signed(simm.0)),
-                Argument::Uimm(uimm) => ObjInsArg::Arg(ObjInsArgValue::Unsigned(uimm.0)),
-                Argument::Offset(offset) => {
-                    ObjInsArg::ArgWithBase(ObjInsArgValue::Signed(offset.0))
-                }
-                Argument::BranchDest(dest) => ObjInsArg::BranchOffset(dest.0),
-                _ => ObjInsArg::Arg(ObjInsArgValue::Opaque(a.to_string())),
-            })
-            .collect();
+
+        let mut reloc_arg = None;
         if let Some(reloc) = reloc {
             match reloc.kind {
                 ObjRelocKind::PpcEmbSda21 => {
-                    args = vec![args[0].clone(), ObjInsArg::Reloc];
+                    reloc_arg = Some(1);
                 }
                 ObjRelocKind::PpcRel24 | ObjRelocKind::PpcRel14 => {
-                    let arg = args
-                        .iter_mut()
-                        .rfind(|a| is_relative_arg(a))
-                        .ok_or_else(|| anyhow::Error::msg("Failed to locate rel arg for reloc"))?;
-                    *arg = ObjInsArg::Reloc;
+                    reloc_arg = simplified.args.iter().rposition(is_relative_arg);
                 }
                 ObjRelocKind::PpcAddr16Hi
                 | ObjRelocKind::PpcAddr16Ha
                 | ObjRelocKind::PpcAddr16Lo => {
-                    match args.iter_mut().rfind(|a| is_rel_abs_arg(a)) {
-                        Some(arg) => {
-                            *arg = if is_offset_arg(arg) {
-                                ObjInsArg::RelocWithBase
-                            } else {
-                                ObjInsArg::Reloc
-                            };
-                        }
-                        None => {
-                            log::warn!("Failed to locate rel/abs arg for reloc");
-                        }
-                    };
+                    reloc_arg = simplified.args.iter().rposition(is_rel_abs_arg);
                 }
                 _ => {}
             }
         }
-        ops.push(simplified.ins.op as u8);
+
+        let mut args = vec![];
+        let mut branch_dest = None;
+        let mut writing_offset = false;
+        for (idx, arg) in simplified.args.iter().enumerate() {
+            if idx > 0 && !writing_offset {
+                if config.space_between_args {
+                    args.push(ObjInsArg::PlainText(", ".to_string()));
+                } else {
+                    args.push(ObjInsArg::PlainText(",".to_string()));
+                }
+            }
+
+            if reloc_arg == Some(idx) {
+                let reloc = reloc.unwrap();
+                push_reloc(&mut args, reloc)?;
+                // For @sda21, we can omit the register argument
+                if reloc.kind == ObjRelocKind::PpcEmbSda21
+                    // Sanity check: the next argument should be r0
+                    && matches!(simplified.args.get(idx + 1), Some(Argument::GPR(GPR(0))))
+                {
+                    break;
+                }
+            } else {
+                match arg {
+                    Argument::Simm(simm) => {
+                        args.push(ObjInsArg::Arg(ObjInsArgValue::Signed(simm.0 as i64)));
+                    }
+                    Argument::Uimm(uimm) => {
+                        args.push(ObjInsArg::Arg(ObjInsArgValue::Unsigned(uimm.0 as u64)));
+                    }
+                    Argument::Offset(offset) => {
+                        args.push(ObjInsArg::Arg(ObjInsArgValue::Signed(offset.0 as i64)));
+                    }
+                    Argument::BranchDest(dest) => {
+                        let dest = ins.addr.wrapping_add_signed(dest.0) as u64;
+                        args.push(ObjInsArg::BranchDest(dest));
+                        branch_dest = Some(dest);
+                    }
+                    _ => {
+                        args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(arg.to_string())));
+                    }
+                };
+            }
+
+            if writing_offset {
+                args.push(ObjInsArg::PlainText(")".to_string()));
+                writing_offset = false;
+            }
+            if is_offset_arg(arg) {
+                args.push(ObjInsArg::PlainText("(".to_string()));
+                writing_offset = true;
+            }
+        }
+
+        ops.push(simplified.ins.op as u16);
         let line = line_info
             .as_ref()
             .and_then(|map| map.range(..=simplified.ins.addr as u64).last().map(|(_, &b)| b));
         insts.push(ObjIns {
-            address: simplified.ins.addr,
-            code: simplified.ins.code,
+            address: simplified.ins.addr as u64,
+            size: 4,
             mnemonic: format!("{}{}", simplified.mnemonic, simplified.suffix),
             args,
             reloc: reloc.cloned(),
-            op: ins.op as u8,
-            branch_dest: None,
+            op: ins.op as u16,
+            branch_dest,
             line,
             orig: Some(format!("{}", SimplifiedIns::basic_form(ins))),
         });
     }
     Ok(ProcessCodeResult { ops, insts })
+}
+
+fn push_reloc(args: &mut Vec<ObjInsArg>, reloc: &ObjReloc) -> Result<()> {
+    match reloc.kind {
+        ObjRelocKind::PpcAddr16Lo => {
+            args.push(ObjInsArg::Reloc);
+            args.push(ObjInsArg::PlainText("@l".to_string()));
+        }
+        ObjRelocKind::PpcAddr16Hi => {
+            args.push(ObjInsArg::Reloc);
+            args.push(ObjInsArg::PlainText("@h".to_string()));
+        }
+        ObjRelocKind::PpcAddr16Ha => {
+            args.push(ObjInsArg::Reloc);
+            args.push(ObjInsArg::PlainText("@ha".to_string()));
+        }
+        ObjRelocKind::PpcEmbSda21 => {
+            args.push(ObjInsArg::Reloc);
+            args.push(ObjInsArg::PlainText("@sda21".to_string()));
+        }
+        ObjRelocKind::PpcRel24 | ObjRelocKind::PpcRel14 => {
+            args.push(ObjInsArg::Reloc);
+        }
+        kind => bail!("Unsupported PPC relocation kind: {:?}", kind),
+    };
+    Ok(())
 }

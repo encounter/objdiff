@@ -115,7 +115,7 @@ pub fn run(args: Args) -> Result<()> {
                             if obj
                                 .target_path
                                 .as_deref()
-                                .map(|o| obj::elf::has_function(o, &args.symbol))
+                                .map(|o| obj::read::has_function(o, &args.symbol))
                                 .transpose()?
                                 .unwrap_or(false)
                             {
@@ -523,7 +523,7 @@ impl FunctionDiffUi {
         rect: Rect,
         highlight: &HighlightKind,
     ) -> Option<HighlightKind> {
-        let base_addr = symbol.address as u32;
+        let base_addr = symbol.address;
         let mut new_highlight = None;
         for (y, ins_diff) in
             symbol.instructions.iter().skip(self.scroll_y).take(rect.height as usize).enumerate()
@@ -572,7 +572,7 @@ impl FunctionDiffUi {
                             base_color = COLOR_ROTATION[diff.idx % COLOR_ROTATION.len()]
                         }
                     }
-                    DiffText::BranchTarget(addr) => {
+                    DiffText::BranchDest(addr) => {
                         label_text = format!("{addr:x}");
                     }
                     DiffText::Symbol(sym) => {
@@ -633,14 +633,18 @@ impl FunctionDiffUi {
         let mut target = self
             .target_path
             .as_deref()
-            .map(|p| obj::elf::read(p).with_context(|| format!("Loading {}", p.display())))
+            .map(|p| obj::read::read(p).with_context(|| format!("Loading {}", p.display())))
             .transpose()?;
         let mut base = self
             .base_path
             .as_deref()
-            .map(|p| obj::elf::read(p).with_context(|| format!("Loading {}", p.display())))
+            .map(|p| obj::read::read(p).with_context(|| format!("Loading {}", p.display())))
             .transpose()?;
-        let config = diff::DiffObjConfig { relax_reloc_diffs: self.relax_reloc_diffs };
+        let config = diff::DiffObjConfig {
+            relax_reloc_diffs: self.relax_reloc_diffs,
+            space_between_args: true,          // TODO
+            x86_formatter: Default::default(), // TODO
+        };
         diff::diff_objs(&config, target.as_mut(), base.as_mut())?;
 
         let left_sym = target.as_ref().and_then(|o| find_function(o, &self.symbol_name));

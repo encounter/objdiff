@@ -9,16 +9,19 @@ use crate::{
         code::{diff_code, find_section_and_symbol, no_diff_code},
         data::{diff_bss_symbols, diff_data, no_diff_data},
     },
-    obj::{ObjInfo, ObjIns, ObjSectionKind},
+    obj::{x86::X86Formatter, ObjInfo, ObjIns, ObjSectionKind},
 };
 
-#[derive(Debug, Clone, Default, Eq, PartialEq)]
+#[derive(Debug, Clone, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[serde(default)]
 pub struct DiffObjConfig {
     pub relax_reloc_diffs: bool,
+    pub space_between_args: bool,
+    pub x86_formatter: X86Formatter,
 }
 
 pub struct ProcessCodeResult {
-    pub ops: Vec<u8>,
+    pub ops: Vec<u16>,
     pub insts: Vec<ObjIns>,
 }
 
@@ -54,6 +57,7 @@ pub fn diff_objs(
                         )?;
                     } else {
                         no_diff_code(
+                            config,
                             left.architecture,
                             &left_section.data,
                             left_symbol,
@@ -82,6 +86,7 @@ pub fn diff_objs(
                 for right_symbol in &mut right_section.symbols {
                     if right_symbol.instructions.is_empty() {
                         no_diff_code(
+                            config,
                             right.architecture,
                             &right_section.data,
                             right_symbol,
