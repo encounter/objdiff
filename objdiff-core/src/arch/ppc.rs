@@ -1,5 +1,4 @@
-use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::{borrow::Cow, collections::BTreeMap};
 
 use anyhow::{bail, Result};
 use object::{elf, File, Relocation, RelocationFlags};
@@ -160,7 +159,6 @@ impl ObjArch for ObjArchPpc {
     fn demangle(&self, name: &str) -> Option<String> {
         cwdemangle::demangle(name, &Default::default())
     }
-
 
     fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str> {
         match flags {

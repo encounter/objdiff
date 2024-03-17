@@ -1,5 +1,4 @@
-use std::borrow::Cow;
-use std::collections::BTreeMap;
+use std::{borrow::Cow, collections::BTreeMap};
 
 use anyhow::{bail, Result};
 use object::{Architecture, Object, Relocation, RelocationFlags};
