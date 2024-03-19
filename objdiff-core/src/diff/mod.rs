@@ -2,6 +2,8 @@ mod code;
 mod data;
 pub mod display;
 
+use std::collections::HashSet;
+
 use anyhow::Result;
 
 use crate::{
@@ -9,7 +11,7 @@ use crate::{
         code::{diff_code, no_diff_code},
         data::{diff_bss_symbol, diff_data, no_diff_bss_symbol},
     },
-    obj::{ObjInfo, ObjIns, ObjSection, ObjSectionKind, ObjSymbol},
+    obj::{ObjInfo, ObjIns, ObjSectionKind, SymbolRef},
 };
 
 #[derive(Debug, Copy, Clone, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -313,19 +315,6 @@ pub fn diff_objs(
     })
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct SymbolRef {
-    pub section_idx: usize,
-    pub symbol_idx: usize,
-}
-
-#[inline]
-pub fn get_symbol(obj: &ObjInfo, ref_: SymbolRef) -> (&ObjSection, &ObjSymbol) {
-    let section = &obj.sections[ref_.section_idx];
-    let symbol = &section.symbols[ref_.symbol_idx];
-    (section, symbol)
-}
-
 #[derive(Copy, Clone, Eq, PartialEq)]
 struct SymbolMatch {
     left: Option<SymbolRef>,
@@ -348,7 +337,7 @@ fn matching_symbols(
     prev: Option<&ObjInfo>,
 ) -> Result<Vec<SymbolMatch>> {
     let mut matches = Vec::new();
-    let mut right_used = Vec::new();
+    let mut right_used = HashSet::new();
     if let Some(left) = left {
         for (section_idx, section) in left.sections.iter().enumerate() {
             for (symbol_idx, symbol) in section.symbols.iter().enumerate() {
@@ -360,7 +349,7 @@ fn matching_symbols(
                 };
                 matches.push(symbol_match);
                 if let Some(right) = symbol_match.right {
-                    right_used.push(right);
+                    right_used.insert(right);
                 }
             }
         }
@@ -369,7 +358,7 @@ fn matching_symbols(
         for (section_idx, section) in right.sections.iter().enumerate() {
             for (symbol_idx, symbol) in section.symbols.iter().enumerate() {
                 let symbol_ref = SymbolRef { section_idx, symbol_idx };
-                if right_used.binary_search(&symbol_ref).is_ok() {
+                if right_used.contains(&symbol_ref) {
                     continue;
                 }
                 matches.push(SymbolMatch {

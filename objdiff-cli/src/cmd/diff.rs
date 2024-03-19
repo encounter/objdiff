@@ -18,10 +18,10 @@ use objdiff_core::{
     diff,
     diff::{
         display::{display_diff, DiffText, HighlightKind},
-        DiffObjsResult, ObjDiff, ObjInsDiffKind, ObjSymbolDiff, SymbolRef,
+        DiffObjsResult, ObjDiff, ObjInsDiffKind, ObjSymbolDiff,
     },
     obj,
-    obj::{ObjInfo, ObjSectionKind, ObjSymbol},
+    obj::{ObjInfo, ObjSectionKind, ObjSymbol, SymbolRef},
 };
 use ratatui::{
     prelude::*,
@@ -221,20 +221,14 @@ pub fn run(args: Args) -> Result<()> {
     Ok(())
 }
 
+#[inline]
 fn get_symbol(obj: Option<&ObjInfo>, sym: Option<SymbolRef>) -> Option<&ObjSymbol> {
-    if let (Some(obj), Some(sym)) = (obj, sym) {
-        obj.sections.get(sym.section_idx).and_then(|s| s.symbols.get(sym.symbol_idx))
-    } else {
-        None
-    }
+    Some(obj?.section_symbol(sym?).1)
 }
 
-fn get_diff_symbol(obj: Option<&ObjDiff>, sym: Option<SymbolRef>) -> Option<&ObjSymbolDiff> {
-    if let (Some(obj), Some(sym)) = (obj, sym) {
-        Some(obj.symbol_diff(sym))
-    } else {
-        None
-    }
+#[inline]
+fn get_symbol_diff(obj: Option<&ObjDiff>, sym: Option<SymbolRef>) -> Option<&ObjSymbolDiff> {
+    Some(obj?.symbol_diff(sym?))
 }
 
 fn find_function(obj: &ObjInfo, name: &str) -> Option<SymbolRef> {
@@ -336,7 +330,7 @@ impl FunctionDiffUi {
         f.render_widget(line_l, header_chunks[0]);
 
         let mut line_r = Line::default();
-        if let Some(percent) = get_diff_symbol(self.diff_result.right.as_ref(), self.right_sym)
+        if let Some(percent) = get_symbol_diff(self.diff_result.right.as_ref(), self.right_sym)
             .and_then(|s| s.match_percent)
         {
             line_r.spans.push(Span::styled(
@@ -360,7 +354,7 @@ impl FunctionDiffUi {
         let mut max_width = 0;
         if let (Some(symbol), Some(symbol_diff)) = (
             get_symbol(self.left_obj.as_ref(), self.left_sym),
-            get_diff_symbol(self.diff_result.left.as_ref(), self.left_sym),
+            get_symbol_diff(self.diff_result.left.as_ref(), self.left_sym),
         ) {
             let mut text = Text::default();
             let rect = content_chunks[0].inner(&Margin::new(0, 1));
@@ -382,7 +376,7 @@ impl FunctionDiffUi {
         let mut margin_text = None;
         if let (Some(symbol), Some(symbol_diff)) = (
             get_symbol(self.right_obj.as_ref(), self.right_sym),
-            get_diff_symbol(self.diff_result.right.as_ref(), self.right_sym),
+            get_symbol_diff(self.diff_result.right.as_ref(), self.right_sym),
         ) {
             let mut text = Text::default();
             let rect = content_chunks[2].inner(&Margin::new(0, 1));
@@ -410,7 +404,7 @@ impl FunctionDiffUi {
         if self.three_way {
             if let (Some(symbol), Some(symbol_diff)) = (
                 get_symbol(self.prev_obj.as_ref(), self.prev_sym),
-                get_diff_symbol(self.diff_result.prev.as_ref(), self.prev_sym),
+                get_symbol_diff(self.diff_result.prev.as_ref(), self.prev_sym),
             ) {
                 let mut text = Text::default();
                 let rect = content_chunks[4].inner(&Margin::new(0, 1));
@@ -838,8 +832,8 @@ impl FunctionDiffUi {
         let right_sym = base.as_ref().and_then(|o| find_function(o, &self.symbol_name));
         let prev_sym = prev.as_ref().and_then(|o| find_function(o, &self.symbol_name));
         self.num_rows = match (
-            get_diff_symbol(result.left.as_ref(), left_sym),
-            get_diff_symbol(result.right.as_ref(), right_sym),
+            get_symbol_diff(result.left.as_ref(), left_sym),
+            get_symbol_diff(result.right.as_ref(), right_sym),
         ) {
             (Some(l), Some(r)) => l.instructions.len().max(r.instructions.len()),
             (Some(l), None) => l.instructions.len(),

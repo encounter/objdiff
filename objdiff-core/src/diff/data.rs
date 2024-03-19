@@ -7,9 +7,10 @@ use anyhow::Result;
 use similar::{capture_diff_slices_deadline, Algorithm};
 
 use crate::{
-    diff::{get_symbol, ObjDataDiff, ObjDataDiffKind, ObjSectionDiff, ObjSymbolDiff, SymbolRef},
+    diff::{ ObjDataDiff, ObjDataDiffKind, ObjSectionDiff, ObjSymbolDiff},
     obj::{ObjInfo, ObjSection},
 };
+use crate::obj::SymbolRef;
 
 pub fn diff_bss_symbol(
     left_obj: &ObjInfo,
@@ -17,8 +18,8 @@ pub fn diff_bss_symbol(
     left_symbol_ref: SymbolRef,
     right_symbol_ref: SymbolRef,
 ) -> Result<(ObjSymbolDiff, ObjSymbolDiff)> {
-    let (_, left_symbol) = get_symbol(left_obj, left_symbol_ref);
-    let (_, right_symbol) = get_symbol(right_obj, right_symbol_ref);
+    let (_, left_symbol) = left_obj.section_symbol(left_symbol_ref);
+    let (_, right_symbol) = right_obj.section_symbol(right_symbol_ref);
     let percent = if left_symbol.size == right_symbol.size { 100.0 } else { 50.0 };
     Ok((
         ObjSymbolDiff {

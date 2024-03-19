@@ -6,9 +6,9 @@ use objdiff_core::{
     arch::ObjArch,
     diff::{
         display::{display_diff, DiffText, HighlightKind},
-        get_symbol, ObjDiff, ObjInsDiff, ObjInsDiffKind, SymbolRef,
+        ObjDiff, ObjInsDiff, ObjInsDiffKind,
     },
-    obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjSection, ObjSymbol},
+    obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjSection, ObjSymbol, SymbolRef},
 };
 use time::format_description;
 
@@ -249,9 +249,8 @@ fn asm_col_ui(
     appearance: &Appearance,
     ins_view_state: &mut FunctionViewState,
 ) {
-    let (section, symbol) = get_symbol(&obj.0, symbol_ref);
-    let ins_diff = &obj.1.sections[symbol_ref.section_idx].symbols[symbol_ref.symbol_idx]
-        .instructions[row.index()];
+    let (section, symbol) = obj.0.section_symbol(symbol_ref);
+    let ins_diff = &obj.1.symbol_diff(symbol_ref).instructions[row.index()];
     let (_, response) = row.col(|ui| {
         asm_row_ui(ui, ins_diff, symbol, appearance, ins_view_state);
     });
@@ -279,20 +278,18 @@ fn asm_table_ui(
     let left_symbol = left_obj.and_then(|(obj, _)| find_symbol(obj, selected_symbol));
     let right_symbol = right_obj.and_then(|(obj, _)| find_symbol(obj, selected_symbol));
     let instructions_len = match (left_symbol, right_symbol) {
-        (Some(left_symbol_ref), Some(_)) => left_obj.unwrap().1.sections
-            [left_symbol_ref.section_idx]
-            .symbols[left_symbol_ref.symbol_idx]
-            .instructions
-            .len(),
-        (Some(left_symbol_ref), None) => left_obj.unwrap().1.sections[left_symbol_ref.section_idx]
-            .symbols[left_symbol_ref.symbol_idx]
-            .instructions
-            .len(),
-        (None, Some(right_symbol_ref)) => right_obj.unwrap().1.sections
-            [right_symbol_ref.section_idx]
-            .symbols[right_symbol_ref.symbol_idx]
-            .instructions
-            .len(),
+        (Some(left_symbol_ref), Some(right_symbol_ref)) => {
+            let left_len = left_obj.unwrap().1.symbol_diff(left_symbol_ref).instructions.len();
+            let right_len = right_obj.unwrap().1.symbol_diff(right_symbol_ref).instructions.len();
+            debug_assert_eq!(left_len, right_len);
+            left_len
+        }
+        (Some(left_symbol_ref), None) => {
+            left_obj.unwrap().1.symbol_diff(left_symbol_ref).instructions.len()
+        }
+        (None, Some(right_symbol_ref)) => {
+            right_obj.unwrap().1.symbol_diff(right_symbol_ref).instructions.len()
+        }
         (None, None) => return None,
     };
     table.body(|body| {

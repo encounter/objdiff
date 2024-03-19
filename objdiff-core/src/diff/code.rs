@@ -10,10 +10,10 @@ use similar::{capture_diff_slices_deadline, Algorithm};
 use crate::{
     arch::ProcessCodeResult,
     diff::{
-        get_symbol, DiffObjConfig, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo, ObjInsDiff,
-        ObjInsDiffKind, ObjSymbolDiff, SymbolRef,
+        DiffObjConfig, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo, ObjInsDiff, ObjInsDiffKind,
+        ObjSymbolDiff,
     },
-    obj::{ObjInfo, ObjInsArg, ObjReloc, ObjSymbol, ObjSymbolFlags},
+    obj::{ObjInfo, ObjInsArg, ObjReloc, ObjSymbol, ObjSymbolFlags, SymbolRef},
 };
 
 pub fn no_diff_code(
@@ -21,8 +21,7 @@ pub fn no_diff_code(
     symbol_ref: SymbolRef,
     config: &DiffObjConfig,
 ) -> Result<ObjSymbolDiff> {
-    let section = &obj.sections[symbol_ref.section_idx];
-    let symbol = &section.symbols[symbol_ref.symbol_idx];
+    let (section, symbol) = obj.section_symbol(symbol_ref);
     let code = &section.data
         [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
     let out = obj.arch.process_code(
@@ -48,8 +47,8 @@ pub fn diff_code(
     right_symbol_ref: SymbolRef,
     config: &DiffObjConfig,
 ) -> Result<(ObjSymbolDiff, ObjSymbolDiff)> {
-    let (left_section, left_symbol) = get_symbol(left_obj, left_symbol_ref);
-    let (right_section, right_symbol) = get_symbol(right_obj, right_symbol_ref);
+    let (left_section, left_symbol) = left_obj.section_symbol(left_symbol_ref);
+    let (right_section, right_symbol) = right_obj.section_symbol(right_symbol_ref);
     let left_code = &left_section.data[left_symbol.section_address as usize
         ..(left_symbol.section_address + left_symbol.size) as usize];
     let right_code = &right_section.data[right_symbol.section_address as usize
