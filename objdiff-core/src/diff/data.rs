@@ -7,10 +7,9 @@ use anyhow::Result;
 use similar::{capture_diff_slices_deadline, Algorithm};
 
 use crate::{
-    diff::{ ObjDataDiff, ObjDataDiffKind, ObjSectionDiff, ObjSymbolDiff},
-    obj::{ObjInfo, ObjSection},
+    diff::{ObjDataDiff, ObjDataDiffKind, ObjSectionDiff, ObjSymbolDiff},
+    obj::{ObjInfo, ObjSection, SymbolRef},
 };
-use crate::obj::SymbolRef;
 
 pub fn diff_bss_symbol(
     left_obj: &ObjInfo,
