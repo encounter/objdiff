@@ -5,8 +5,8 @@ use object::{elf, Endian, Endianness, File, Object, Relocation, RelocationFlags}
 use rabbitizer::{config, Abi, InstrCategory, Instruction, OperandType};
 
 use crate::{
-    arch::ObjArch,
-    diff::{DiffObjConfig, ProcessCodeResult},
+    arch::{ObjArch, ProcessCodeResult},
+    diff::DiffObjConfig,
     obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
 };
 

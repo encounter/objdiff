@@ -4,13 +4,13 @@ use anyhow::{anyhow, bail, ensure, Result};
 use iced_x86::{
     Decoder, DecoderOptions, DecoratorKind, Formatter, FormatterOutput, FormatterTextKind,
     GasFormatter, Instruction, IntelFormatter, MasmFormatter, NasmFormatter, NumberKind, OpKind,
-    PrefixKind, Register, SymbolResult,
+    PrefixKind, Register,
 };
 use object::{pe, Endian, Endianness, File, Object, Relocation, RelocationFlags};
 
 use crate::{
-    arch::ObjArch,
-    diff::{DiffObjConfig, ProcessCodeResult, X86Formatter},
+    arch::{ObjArch, ProcessCodeResult},
+    diff::{DiffObjConfig, X86Formatter},
     obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
 };
 
@@ -87,29 +87,6 @@ impl ObjArch for ObjArchX86 {
             }
             ensure!(output.ins_operands.len() == output.ins.args.len());
             output.ins.orig = Some(output.formatted.clone());
-
-            // print!("{:016X} ", instruction.ip());
-            // let start_index = (instruction.ip() - address) as usize;
-            // let instr_bytes = &data[start_index..start_index + instruction.len()];
-            // for b in instr_bytes.iter() {
-            //     print!("{:02X}", b);
-            // }
-            // if instr_bytes.len() < 32 {
-            //     for _ in 0..32 - instr_bytes.len() {
-            //         print!("  ");
-            //     }
-            // }
-            // println!(" {}", output.formatted);
-            //
-            // if let Some(reloc) = reloc {
-            //     println!("\tReloc: {:?}", reloc);
-            // }
-            //
-            // for i in 0..instruction.op_count() {
-            //     let kind = instruction.op_kind(i);
-            //     print!("{:?} ", kind);
-            // }
-            // println!();
 
             // Make sure we've put the relocation somewhere in the instruction
             if reloc.is_some() && !output.ins.args.iter().any(|a| matches!(a, ObjInsArg::Reloc)) {
@@ -229,7 +206,6 @@ impl InstructionFormatterOutput {
 
 impl FormatterOutput for InstructionFormatterOutput {
     fn write(&mut self, text: &str, kind: FormatterTextKind) {
-        // log::debug!("write {} {:?}", text, kind);
         self.formatted.push_str(text);
         // Skip whitespace after the mnemonic
         if self.ins.args.is_empty() && kind == FormatterTextKind::Text {
@@ -252,14 +228,12 @@ impl FormatterOutput for InstructionFormatterOutput {
     }
 
     fn write_prefix(&mut self, _instruction: &Instruction, text: &str, _prefix: PrefixKind) {
-        // log::debug!("write_prefix {} {:?}", text, prefix);
         self.formatted.push_str(text);
         self.ins_operands.push(None);
         self.ins.args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(text.to_string())));
     }
 
     fn write_mnemonic(&mut self, _instruction: &Instruction, text: &str) {
-        // log::debug!("write_mnemonic {}", text);
         self.formatted.push_str(text);
         self.ins.mnemonic = text.to_string();
     }
@@ -274,7 +248,6 @@ impl FormatterOutput for InstructionFormatterOutput {
         number_kind: NumberKind,
         kind: FormatterTextKind,
     ) {
-        // log::debug!("write_number {} {:?} {} {} {:?} {:?}", operand, instruction_operand, text, value, number_kind, kind);
         self.formatted.push_str(text);
         self.ins_operands.push(instruction_operand);
 
@@ -343,7 +316,6 @@ impl FormatterOutput for InstructionFormatterOutput {
         text: &str,
         _decorator: DecoratorKind,
     ) {
-        // log::debug!("write_decorator {} {:?} {} {:?}", operand, instruction_operand, text, decorator);
         self.formatted.push_str(text);
         self.ins_operands.push(instruction_operand);
         self.ins.args.push(ObjInsArg::PlainText(text.to_string()));
@@ -357,22 +329,8 @@ impl FormatterOutput for InstructionFormatterOutput {
         text: &str,
         _register: Register,
     ) {
-        // log::debug!("write_register {} {:?} {} {:?}", operand, instruction_operand, text, register);
         self.formatted.push_str(text);
         self.ins_operands.push(instruction_operand);
         self.ins.args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(text.to_string())));
-    }
-
-    fn write_symbol(
-        &mut self,
-        _instruction: &Instruction,
-        _operand: u32,
-        _instruction_operand: Option<u32>,
-        _address: u64,
-        _symbol: &SymbolResult<'_>,
-    ) {
-        if self.error.is_none() {
-            self.error = Some(anyhow!("x86: Unsupported write_symbol"));
-        }
     }
 }

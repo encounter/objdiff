@@ -2,19 +2,22 @@ use std::{cmp::min, default::Default, mem::take};
 
 use egui::{text::LayoutJob, Align, Label, Layout, Sense, Vec2, Widget};
 use egui_extras::{Column, TableBuilder};
-use objdiff_core::obj::{ObjDataDiff, ObjDataDiffKind, ObjInfo, ObjSection};
+use objdiff_core::{
+    diff::{ObjDataDiff, ObjDataDiffKind, ObjDiff},
+    obj::ObjInfo,
+};
 use time::format_description;
 
 use crate::views::{
     appearance::Appearance,
-    symbol_diff::{DiffViewState, SymbolReference, View},
+    symbol_diff::{DiffViewState, SymbolRefByName, View},
     write_text,
 };
 
 const BYTES_PER_ROW: usize = 16;
 
-fn find_section<'a>(obj: &'a ObjInfo, selected_symbol: &SymbolReference) -> Option<&'a ObjSection> {
-    obj.sections.iter().find(|section| section.name == selected_symbol.section_name)
+fn find_section(obj: &ObjInfo, selected_symbol: &SymbolRefByName) -> Option<usize> {
+    obj.sections.iter().position(|section| section.name == selected_symbol.section_name)
 }
 
 fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], appearance: &Appearance) {
@@ -130,16 +133,21 @@ fn split_diffs(diffs: &[ObjDataDiff]) -> Vec<Vec<ObjDataDiff>> {
 
 fn data_table_ui(
     table: TableBuilder<'_>,
-    left_obj: Option<&ObjInfo>,
-    right_obj: Option<&ObjInfo>,
-    selected_symbol: &SymbolReference,
+    left_obj: Option<&(ObjInfo, ObjDiff)>,
+    right_obj: Option<&(ObjInfo, ObjDiff)>,
+    selected_symbol: &SymbolRefByName,
     config: &Appearance,
 ) -> Option<()> {
-    let left_section = left_obj.and_then(|obj| find_section(obj, selected_symbol));
-    let right_section = right_obj.and_then(|obj| find_section(obj, selected_symbol));
+    let left_section = left_obj.and_then(|(obj, diff)| {
+        find_section(obj, selected_symbol).map(|i| (&obj.sections[i], &diff.sections[i]))
+    });
+    let right_section = right_obj.and_then(|(obj, diff)| {
+        find_section(obj, selected_symbol).map(|i| (&obj.sections[i], &diff.sections[i]))
+    });
 
     let total_bytes = left_section
         .or(right_section)?
+        .1
         .data_diff
         .iter()
         .fold(0usize, |accum, item| accum + item.len);
@@ -148,8 +156,8 @@ fn data_table_ui(
     }
     let total_rows = (total_bytes - 1) / BYTES_PER_ROW + 1;
 
-    let left_diffs = left_section.map(|section| split_diffs(&section.data_diff));
-    let right_diffs = right_section.map(|section| split_diffs(&section.data_diff));
+    let left_diffs = left_section.map(|(_, section)| split_diffs(&section.data_diff));
+    let right_diffs = right_section.map(|(_, section)| split_diffs(&section.data_diff));
 
     table.body(|body| {
         body.rows(config.code_font.size, total_rows, |mut row| {

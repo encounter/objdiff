@@ -39,10 +39,6 @@ pub struct ObjSection {
     pub symbols: Vec<ObjSymbol>,
     pub relocations: Vec<ObjReloc>,
     pub virtual_address: Option<u64>,
-
-    // Diff
-    pub data_diff: Vec<ObjDataDiff>,
-    pub match_percent: f32,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -94,39 +90,6 @@ impl ObjInsArg {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct ObjInsArgDiff {
-    /// Incrementing index for coloring
-    pub idx: usize,
-}
-
-#[derive(Debug, Clone)]
-pub struct ObjInsBranchFrom {
-    /// Source instruction indices
-    pub ins_idx: Vec<usize>,
-    /// Incrementing index for coloring
-    pub branch_idx: usize,
-}
-
-#[derive(Debug, Clone)]
-pub struct ObjInsBranchTo {
-    /// Target instruction index
-    pub ins_idx: usize,
-    /// Incrementing index for coloring
-    pub branch_idx: usize,
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
-pub enum ObjInsDiffKind {
-    #[default]
-    None,
-    OpMismatch,
-    ArgMismatch,
-    Replace,
-    Delete,
-    Insert,
-}
-
 #[derive(Debug, Clone)]
 pub struct ObjIns {
     pub address: u64,
@@ -142,36 +105,6 @@ pub struct ObjIns {
     pub orig: Option<String>,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct ObjInsDiff {
-    pub ins: Option<ObjIns>,
-    /// Diff kind
-    pub kind: ObjInsDiffKind,
-    /// Branches from instruction
-    pub branch_from: Option<ObjInsBranchFrom>,
-    /// Branches to instruction
-    pub branch_to: Option<ObjInsBranchTo>,
-    /// Arg diffs
-    pub arg_diff: Vec<Option<ObjInsArgDiff>>,
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
-pub enum ObjDataDiffKind {
-    #[default]
-    None,
-    Replace,
-    Delete,
-    Insert,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct ObjDataDiff {
-    pub data: Vec<u8>,
-    pub kind: ObjDataDiffKind,
-    pub len: usize,
-    pub symbol: String,
-}
-
 #[derive(Debug, Clone)]
 pub struct ObjSymbol {
     pub name: String,
@@ -184,11 +117,6 @@ pub struct ObjSymbol {
     pub addend: i64,
     /// Original virtual address (from .note.split section)
     pub virtual_address: Option<u64>,
-
-    // Diff
-    pub diff_symbol: Option<String>,
-    pub instructions: Vec<ObjInsDiff>,
-    pub match_percent: Option<f32>,
 }
 
 pub struct ObjInfo {

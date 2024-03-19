@@ -1,15 +1,15 @@
-pub mod code;
-pub mod data;
+mod code;
+mod data;
 pub mod display;
 
 use anyhow::Result;
 
 use crate::{
     diff::{
-        code::{diff_code, find_section_and_symbol, no_diff_code},
-        data::{diff_bss_symbols, diff_data, no_diff_data},
+        code::{diff_code, no_diff_code},
+        data::{diff_bss_symbol, diff_data, no_diff_bss_symbol},
     },
-    obj::{ObjInfo, ObjIns, ObjSectionKind},
+    obj::{ObjInfo, ObjIns, ObjSection, ObjSectionKind, ObjSymbol},
 };
 
 #[derive(Debug, Copy, Clone, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -29,90 +29,414 @@ pub struct DiffObjConfig {
     pub x86_formatter: X86Formatter,
 }
 
-pub struct ProcessCodeResult {
-    pub ops: Vec<u16>,
-    pub insts: Vec<ObjIns>,
+#[derive(Debug, Clone)]
+pub struct ObjSectionDiff {
+    pub symbols: Vec<ObjSymbolDiff>,
+    pub data_diff: Vec<ObjDataDiff>,
+    pub match_percent: Option<f32>,
+}
+
+impl ObjSectionDiff {
+    fn merge(&mut self, other: ObjSectionDiff) {
+        // symbols ignored
+        self.data_diff = other.data_diff;
+        self.match_percent = other.match_percent;
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ObjSymbolDiff {
+    pub diff_symbol: Option<SymbolRef>,
+    pub instructions: Vec<ObjInsDiff>,
+    pub match_percent: Option<f32>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ObjInsDiff {
+    pub ins: Option<ObjIns>,
+    /// Diff kind
+    pub kind: ObjInsDiffKind,
+    /// Branches from instruction
+    pub branch_from: Option<ObjInsBranchFrom>,
+    /// Branches to instruction
+    pub branch_to: Option<ObjInsBranchTo>,
+    /// Arg diffs
+    pub arg_diff: Vec<Option<ObjInsArgDiff>>,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
+pub enum ObjInsDiffKind {
+    #[default]
+    None,
+    OpMismatch,
+    ArgMismatch,
+    Replace,
+    Delete,
+    Insert,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ObjDataDiff {
+    pub data: Vec<u8>,
+    pub kind: ObjDataDiffKind,
+    pub len: usize,
+    pub symbol: String,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
+pub enum ObjDataDiffKind {
+    #[default]
+    None,
+    Replace,
+    Delete,
+    Insert,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct ObjInsArgDiff {
+    /// Incrementing index for coloring
+    pub idx: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct ObjInsBranchFrom {
+    /// Source instruction indices
+    pub ins_idx: Vec<usize>,
+    /// Incrementing index for coloring
+    pub branch_idx: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct ObjInsBranchTo {
+    /// Target instruction index
+    pub ins_idx: usize,
+    /// Incrementing index for coloring
+    pub branch_idx: usize,
+}
+
+#[derive(Default)]
+pub struct ObjDiff {
+    pub sections: Vec<ObjSectionDiff>,
+    pub common: Vec<ObjSymbolDiff>,
+}
+
+impl ObjDiff {
+    pub fn new_from_obj(obj: &ObjInfo) -> Self {
+        let mut result = Self {
+            sections: Vec::with_capacity(obj.sections.len()),
+            common: Vec::with_capacity(obj.common.len()),
+        };
+        for section in &obj.sections {
+            let mut symbols = Vec::with_capacity(section.symbols.len());
+            for _ in &section.symbols {
+                symbols.push(ObjSymbolDiff {
+                    diff_symbol: None,
+                    instructions: vec![],
+                    match_percent: None,
+                });
+            }
+            result.sections.push(ObjSectionDiff {
+                symbols,
+                data_diff: vec![ObjDataDiff {
+                    data: section.data.clone(),
+                    kind: ObjDataDiffKind::None,
+                    len: section.data.len(),
+                    symbol: section.name.clone(),
+                }],
+                match_percent: None,
+            });
+        }
+        for _ in &obj.common {
+            result.common.push(ObjSymbolDiff {
+                diff_symbol: None,
+                instructions: vec![],
+                match_percent: None,
+            });
+        }
+        result
+    }
+
+    #[inline]
+    pub fn section_diff(&self, section_idx: usize) -> &ObjSectionDiff {
+        &self.sections[section_idx]
+    }
+
+    #[inline]
+    pub fn section_diff_mut(&mut self, section_idx: usize) -> &mut ObjSectionDiff {
+        &mut self.sections[section_idx]
+    }
+
+    #[inline]
+    pub fn symbol_diff(&self, symbol_ref: SymbolRef) -> &ObjSymbolDiff {
+        &self.section_diff(symbol_ref.section_idx).symbols[symbol_ref.symbol_idx]
+    }
+
+    #[inline]
+    pub fn symbol_diff_mut(&mut self, symbol_ref: SymbolRef) -> &mut ObjSymbolDiff {
+        &mut self.section_diff_mut(symbol_ref.section_idx).symbols[symbol_ref.symbol_idx]
+    }
+}
+
+#[derive(Default)]
+pub struct DiffObjsResult {
+    pub left: Option<ObjDiff>,
+    pub right: Option<ObjDiff>,
+    pub prev: Option<ObjDiff>,
 }
 
 pub fn diff_objs(
     config: &DiffObjConfig,
-    mut left: Option<&mut ObjInfo>,
-    mut right: Option<&mut ObjInfo>,
-) -> Result<()> {
-    if let Some(left) = left.as_mut() {
-        for left_section in &mut left.sections {
-            if left_section.kind == ObjSectionKind::Code {
-                for left_symbol in &mut left_section.symbols {
-                    if let Some((right, (right_section_idx, right_symbol_idx))) =
-                        right.as_mut().and_then(|obj| {
-                            find_section_and_symbol(obj, &left_symbol.name).map(|s| (obj, s))
-                        })
-                    {
-                        let right_section = &mut right.sections[right_section_idx];
-                        let right_symbol = &mut right_section.symbols[right_symbol_idx];
-                        left_symbol.diff_symbol = Some(right_symbol.name.clone());
-                        right_symbol.diff_symbol = Some(left_symbol.name.clone());
-                        diff_code(
-                            left.arch.as_ref(),
+    left: Option<&ObjInfo>,
+    right: Option<&ObjInfo>,
+    prev: Option<&ObjInfo>,
+) -> Result<DiffObjsResult> {
+    let symbol_matches = matching_symbols(left, right, prev)?;
+    let section_matches = matching_sections(left, right)?;
+    let mut left = left.map(|p| (p, ObjDiff::new_from_obj(p)));
+    let mut right = right.map(|p| (p, ObjDiff::new_from_obj(p)));
+    let mut prev = prev.map(|p| (p, ObjDiff::new_from_obj(p)));
+
+    for symbol_match in symbol_matches {
+        match symbol_match {
+            SymbolMatch {
+                left: Some(left_symbol_ref),
+                right: Some(right_symbol_ref),
+                prev: prev_symbol_ref,
+                section_kind,
+            } => {
+                let (left_obj, left_out) = left.as_mut().unwrap();
+                let (right_obj, right_out) = right.as_mut().unwrap();
+                match section_kind {
+                    ObjSectionKind::Code => {
+                        let (left_diff, right_diff) = diff_code(
+                            left_obj,
+                            right_obj,
+                            left_symbol_ref,
+                            right_symbol_ref,
                             config,
-                            &left_section.data,
-                            &right_section.data,
-                            left_symbol,
-                            right_symbol,
-                            &left_section.relocations,
-                            &right_section.relocations,
-                            &left.line_info,
-                            &right.line_info,
                         )?;
-                    } else {
-                        no_diff_code(
-                            left.arch.as_ref(),
-                            config,
-                            &left_section.data,
-                            left_symbol,
-                            &left_section.relocations,
-                            &left.line_info,
+                        *left_out.symbol_diff_mut(left_symbol_ref) = left_diff;
+                        *right_out.symbol_diff_mut(right_symbol_ref) = right_diff;
+
+                        if let Some(prev_symbol_ref) = prev_symbol_ref {
+                            let (prev_obj, prev_out) = prev.as_mut().unwrap();
+                            let (_, prev_diff) = diff_code(
+                                right_obj,
+                                prev_obj,
+                                right_symbol_ref,
+                                prev_symbol_ref,
+                                config,
+                            )?;
+                            *prev_out.symbol_diff_mut(prev_symbol_ref) = prev_diff;
+                        }
+                    }
+                    ObjSectionKind::Data => {
+                        // TODO diff data symbol
+                    }
+                    ObjSectionKind::Bss => {
+                        let (left_diff, right_diff) = diff_bss_symbol(
+                            left_obj,
+                            right_obj,
+                            left_symbol_ref,
+                            right_symbol_ref,
                         )?;
+                        *left_out.symbol_diff_mut(left_symbol_ref) = left_diff;
+                        *right_out.symbol_diff_mut(right_symbol_ref) = right_diff;
                     }
                 }
-            } else if let Some(right_section) = right
-                .as_mut()
-                .and_then(|obj| obj.sections.iter_mut().find(|s| s.name == left_section.name))
-            {
-                if left_section.kind == ObjSectionKind::Data {
-                    diff_data(left_section, right_section)?;
-                } else if left_section.kind == ObjSectionKind::Bss {
-                    diff_bss_symbols(&mut left_section.symbols, &mut right_section.symbols)?;
+            }
+            SymbolMatch { left: Some(left_symbol_ref), right: None, prev: _, section_kind } => {
+                let (left_obj, left_out) = left.as_mut().unwrap();
+                match section_kind {
+                    ObjSectionKind::Code => {
+                        *left_out.symbol_diff_mut(left_symbol_ref) =
+                            no_diff_code(left_obj, left_symbol_ref, config)?;
+                    }
+                    ObjSectionKind::Data => {}
+                    ObjSectionKind::Bss => {
+                        *left_out.symbol_diff_mut(left_symbol_ref) =
+                            no_diff_bss_symbol(left_obj, left_symbol_ref);
+                    }
                 }
-            } else if left_section.kind == ObjSectionKind::Data {
-                no_diff_data(left_section);
+            }
+            SymbolMatch { left: None, right: Some(right_symbol_ref), prev: _, section_kind } => {
+                let (right_obj, right_out) = right.as_mut().unwrap();
+                match section_kind {
+                    ObjSectionKind::Code => {
+                        *right_out.symbol_diff_mut(right_symbol_ref) =
+                            no_diff_code(right_obj, right_symbol_ref, config)?;
+                    }
+                    ObjSectionKind::Data => {}
+                    ObjSectionKind::Bss => {
+                        *right_out.symbol_diff_mut(right_symbol_ref) =
+                            no_diff_bss_symbol(right_obj, right_symbol_ref);
+                    }
+                }
+            }
+            SymbolMatch { left: None, right: None, .. } => {
+                // Should not happen
             }
         }
     }
-    if let Some(right) = right.as_mut() {
-        for right_section in right.sections.iter_mut() {
-            if right_section.kind == ObjSectionKind::Code {
-                for right_symbol in &mut right_section.symbols {
-                    if right_symbol.instructions.is_empty() {
-                        no_diff_code(
-                            right.arch.as_ref(),
-                            config,
-                            &right_section.data,
-                            right_symbol,
-                            &right_section.relocations,
-                            &right.line_info,
-                        )?;
-                    }
+
+    for section_match in section_matches {
+        if let SectionMatch {
+            left: Some(left_section_idx),
+            right: Some(right_section_idx),
+            section_kind,
+        } = section_match
+        {
+            let (left_obj, left_out) = left.as_mut().unwrap();
+            let (right_obj, right_out) = right.as_mut().unwrap();
+            let left_section = &left_obj.sections[left_section_idx];
+            let right_section = &right_obj.sections[right_section_idx];
+            match section_kind {
+                ObjSectionKind::Code => {
+                    // TODO?
                 }
-            } else if right_section.kind == ObjSectionKind::Data
-                && right_section.data_diff.is_empty()
-            {
-                no_diff_data(right_section);
+                ObjSectionKind::Data => {
+                    let (left_diff, right_diff) = diff_data(left_section, right_section)?;
+                    left_out.section_diff_mut(left_section_idx).merge(left_diff);
+                    right_out.section_diff_mut(right_section_idx).merge(right_diff);
+                }
+                ObjSectionKind::Bss => {
+                    // TODO
+                }
             }
         }
     }
-    if let (Some(left), Some(right)) = (left, right) {
-        diff_bss_symbols(&mut left.common, &mut right.common)?;
+
+    Ok(DiffObjsResult {
+        left: left.map(|(_, o)| o),
+        right: right.map(|(_, o)| o),
+        prev: prev.map(|(_, o)| o),
+    })
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SymbolRef {
+    pub section_idx: usize,
+    pub symbol_idx: usize,
+}
+
+#[inline]
+pub fn get_symbol(obj: &ObjInfo, ref_: SymbolRef) -> (&ObjSection, &ObjSymbol) {
+    let section = &obj.sections[ref_.section_idx];
+    let symbol = &section.symbols[ref_.symbol_idx];
+    (section, symbol)
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+struct SymbolMatch {
+    left: Option<SymbolRef>,
+    right: Option<SymbolRef>,
+    prev: Option<SymbolRef>,
+    section_kind: ObjSectionKind,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+struct SectionMatch {
+    left: Option<usize>,
+    right: Option<usize>,
+    section_kind: ObjSectionKind,
+}
+
+/// Find matching symbols between each object.
+fn matching_symbols(
+    left: Option<&ObjInfo>,
+    right: Option<&ObjInfo>,
+    prev: Option<&ObjInfo>,
+) -> Result<Vec<SymbolMatch>> {
+    let mut matches = Vec::new();
+    let mut right_used = Vec::new();
+    if let Some(left) = left {
+        for (section_idx, section) in left.sections.iter().enumerate() {
+            for (symbol_idx, symbol) in section.symbols.iter().enumerate() {
+                let symbol_match = SymbolMatch {
+                    left: Some(SymbolRef { section_idx, symbol_idx }),
+                    right: find_symbol(right, &symbol.name, section.kind),
+                    prev: find_symbol(prev, &symbol.name, section.kind),
+                    section_kind: section.kind,
+                };
+                matches.push(symbol_match);
+                if let Some(right) = symbol_match.right {
+                    right_used.push(right);
+                }
+            }
+        }
     }
-    Ok(())
+    if let Some(right) = right {
+        for (section_idx, section) in right.sections.iter().enumerate() {
+            for (symbol_idx, symbol) in section.symbols.iter().enumerate() {
+                let symbol_ref = SymbolRef { section_idx, symbol_idx };
+                if right_used.binary_search(&symbol_ref).is_ok() {
+                    continue;
+                }
+                matches.push(SymbolMatch {
+                    left: None,
+                    right: Some(symbol_ref),
+                    prev: find_symbol(prev, &symbol.name, section.kind),
+                    section_kind: section.kind,
+                });
+            }
+        }
+    }
+    Ok(matches)
+}
+
+fn find_symbol(
+    obj: Option<&ObjInfo>,
+    name: &str,
+    section_kind: ObjSectionKind,
+) -> Option<SymbolRef> {
+    for (section_idx, section) in obj?.sections.iter().enumerate() {
+        if section.kind != section_kind {
+            continue;
+        }
+        let symbol_idx = match section.symbols.iter().position(|symbol| symbol.name == name) {
+            Some(symbol_idx) => symbol_idx,
+            None => continue,
+        };
+        return Some(SymbolRef { section_idx, symbol_idx });
+    }
+    None
+}
+
+/// Find matching sections between each object.
+fn matching_sections(left: Option<&ObjInfo>, right: Option<&ObjInfo>) -> Result<Vec<SectionMatch>> {
+    let mut matches = Vec::new();
+    if let Some(left) = left {
+        for (section_idx, section) in left.sections.iter().enumerate() {
+            matches.push(SectionMatch {
+                left: Some(section_idx),
+                right: find_section(right, &section.name, section.kind),
+                section_kind: section.kind,
+            });
+        }
+    }
+    if let Some(right) = right {
+        for (section_idx, section) in right.sections.iter().enumerate() {
+            if matches.iter().any(|m| m.right == Some(section_idx)) {
+                continue;
+            }
+            matches.push(SectionMatch {
+                left: None,
+                right: Some(section_idx),
+                section_kind: section.kind,
+            });
+        }
+    }
+    Ok(matches)
+}
+
+fn find_section(obj: Option<&ObjInfo>, name: &str, section_kind: ObjSectionKind) -> Option<usize> {
+    for (section_idx, section) in obj?.sections.iter().enumerate() {
+        if section.kind != section_kind {
+            continue;
+        }
+        if section.name == name {
+            return Some(section_idx);
+        }
+    }
+    None
 }

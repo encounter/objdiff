@@ -5,8 +5,8 @@ use object::{elf, File, Relocation, RelocationFlags};
 use ppc750cl::{disasm_iter, Argument, SimplifiedIns, GPR};
 
 use crate::{
-    arch::ObjArch,
-    diff::{DiffObjConfig, ProcessCodeResult},
+    arch::{ObjArch, ProcessCodeResult},
+    diff::DiffObjConfig,
     obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
 };
 

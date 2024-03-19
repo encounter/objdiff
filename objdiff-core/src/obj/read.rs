@@ -76,9 +76,6 @@ fn to_obj_symbol(
         flags,
         addend,
         virtual_address,
-        diff_symbol: None,
-        instructions: vec![],
-        match_percent: None,
     })
 }
 
@@ -114,8 +111,6 @@ fn filter_sections(obj_file: &File<'_>, split_meta: Option<&SplitMeta>) -> Resul
             symbols: Vec::new(),
             relocations: Vec::new(),
             virtual_address,
-            data_diff: vec![],
-            match_percent: 0.0,
         });
     }
     result.sort_by(|a, b| a.name.cmp(&b.name));
@@ -214,9 +209,6 @@ fn find_section_symbol(
         flags: Default::default(),
         addend: offset_addr as i64,
         virtual_address: None,
-        diff_symbol: None,
-        instructions: vec![],
-        match_percent: None,
     })
 }
 

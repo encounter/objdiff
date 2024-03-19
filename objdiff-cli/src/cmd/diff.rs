@@ -16,13 +16,16 @@ use event::KeyModifiers;
 use objdiff_core::{
     config::{ProjectConfig, ProjectObject},
     diff,
-    diff::display::{display_diff, DiffText, HighlightKind},
+    diff::{
+        display::{display_diff, DiffText, HighlightKind},
+        DiffObjsResult, ObjDiff, ObjInsDiffKind, ObjSymbolDiff, SymbolRef,
+    },
     obj,
-    obj::{ObjInfo, ObjInsDiffKind, ObjSectionKind, ObjSymbol},
+    obj::{ObjInfo, ObjSectionKind, ObjSymbol},
 };
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
+    widgets::{Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
 };
 
 use crate::util::term::crossterm_panic_handler;
@@ -146,9 +149,7 @@ pub fn run(args: Args) -> Result<()> {
     let time_format = time::format_description::parse_borrowed::<2>("[hour]:[minute]:[second]")
         .context("Failed to parse time format")?;
     let mut state = Box::new(FunctionDiffUi {
-        redraw: true,
         relax_reloc_diffs: args.relax_reloc_diffs,
-        click_xy: None,
         left_highlight: HighlightKind::None,
         right_highlight: HighlightKind::None,
         scroll_x: 0,
@@ -161,10 +162,17 @@ pub fn run(args: Args) -> Result<()> {
         target_path,
         base_path,
         project_config,
+        left_obj: None,
+        right_obj: None,
+        prev_obj: None,
+        diff_result: DiffObjsResult::default(),
         left_sym: None,
         right_sym: None,
+        prev_sym: None,
         reload_time: None,
         time_format,
+        open_options: false,
+        three_way: false,
     });
     state.reload()?;
 
@@ -180,17 +188,27 @@ pub fn run(args: Args) -> Result<()> {
     let mut terminal = Terminal::new(backend)?;
 
     'outer: loop {
+        let mut result = EventResult { redraw: true, ..Default::default() };
         loop {
-            if state.redraw {
-                terminal.draw(|f| state.draw(f))?;
-                if state.redraw {
-                    continue;
-                }
+            if result.redraw {
+                terminal.draw(|f| loop {
+                    result.redraw = false;
+                    state.draw(f, &mut result);
+                    if state.open_options {
+                        state.draw_options(f, &mut result);
+                    }
+                    result.click_xy = None;
+                    if !result.redraw {
+                        break;
+                    }
+                    // Clear buffer on redraw
+                    f.buffer_mut().reset();
+                })?;
             }
             match state.handle_event(event::read()?) {
-                FunctionDiffResult::Break => break 'outer,
-                FunctionDiffResult::Continue => {}
-                FunctionDiffResult::Reload => break,
+                EventControlFlow::Break => break 'outer,
+                EventControlFlow::Continue(r) => result = r,
+                EventControlFlow::Reload => break,
             }
         }
         state.reload()?;
@@ -203,14 +221,30 @@ pub fn run(args: Args) -> Result<()> {
     Ok(())
 }
 
-fn find_function(obj: &ObjInfo, name: &str) -> Option<ObjSymbol> {
-    for section in &obj.sections {
+fn get_symbol(obj: Option<&ObjInfo>, sym: Option<SymbolRef>) -> Option<&ObjSymbol> {
+    if let (Some(obj), Some(sym)) = (obj, sym) {
+        obj.sections.get(sym.section_idx).and_then(|s| s.symbols.get(sym.symbol_idx))
+    } else {
+        None
+    }
+}
+
+fn get_diff_symbol(obj: Option<&ObjDiff>, sym: Option<SymbolRef>) -> Option<&ObjSymbolDiff> {
+    if let (Some(obj), Some(sym)) = (obj, sym) {
+        Some(obj.symbol_diff(sym))
+    } else {
+        None
+    }
+}
+
+fn find_function(obj: &ObjInfo, name: &str) -> Option<SymbolRef> {
+    for (section_idx, section) in obj.sections.iter().enumerate() {
         if section.kind != ObjSectionKind::Code {
             continue;
         }
-        for symbol in &section.symbols {
+        for (symbol_idx, symbol) in section.symbols.iter().enumerate() {
             if symbol.name == name {
-                return Some(symbol.clone());
+                return Some(SymbolRef { section_idx, symbol_idx });
             }
         }
     }
@@ -219,9 +253,7 @@ fn find_function(obj: &ObjInfo, name: &str) -> Option<ObjSymbol> {
 
 #[allow(dead_code)]
 struct FunctionDiffUi {
-    redraw: bool,
     relax_reloc_diffs: bool,
-    click_xy: Option<(u16, u16)>,
     left_highlight: HighlightKind,
     right_highlight: HighlightKind,
     scroll_x: usize,
@@ -234,20 +266,33 @@ struct FunctionDiffUi {
     target_path: Option<PathBuf>,
     base_path: Option<PathBuf>,
     project_config: Option<ProjectConfig>,
-    left_sym: Option<ObjSymbol>,
-    right_sym: Option<ObjSymbol>,
+    left_obj: Option<ObjInfo>,
+    right_obj: Option<ObjInfo>,
+    prev_obj: Option<ObjInfo>,
+    diff_result: DiffObjsResult,
+    left_sym: Option<SymbolRef>,
+    right_sym: Option<SymbolRef>,
+    prev_sym: Option<SymbolRef>,
     reload_time: Option<time::OffsetDateTime>,
     time_format: Vec<time::format_description::FormatItem<'static>>,
+    open_options: bool,
+    three_way: bool,
 }
 
-enum FunctionDiffResult {
+#[derive(Default)]
+struct EventResult {
+    redraw: bool,
+    click_xy: Option<(u16, u16)>,
+}
+
+enum EventControlFlow {
     Break,
-    Continue,
+    Continue(EventResult),
     Reload,
 }
 
 impl FunctionDiffUi {
-    fn draw(&mut self, f: &mut Frame) {
+    fn draw(&mut self, f: &mut Frame, result: &mut EventResult) {
         let chunks = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).split(f.size());
         let header_chunks = Layout::horizontal([
             Constraint::Fill(1),
@@ -256,13 +301,25 @@ impl FunctionDiffUi {
             Constraint::Length(2),
         ])
         .split(chunks[0]);
-        let content_chunks = Layout::horizontal([
-            Constraint::Fill(1),
-            Constraint::Length(3),
-            Constraint::Fill(1),
-            Constraint::Length(2),
-        ])
-        .split(chunks[1]);
+        let content_chunks = if self.three_way {
+            Layout::horizontal([
+                Constraint::Fill(1),
+                Constraint::Length(3),
+                Constraint::Fill(1),
+                Constraint::Length(3),
+                Constraint::Fill(1),
+                Constraint::Length(2),
+            ])
+            .split(chunks[1])
+        } else {
+            Layout::horizontal([
+                Constraint::Fill(1),
+                Constraint::Length(3),
+                Constraint::Fill(1),
+                Constraint::Length(2),
+            ])
+            .split(chunks[1])
+        };
 
         self.per_page = chunks[1].height.saturating_sub(2) as usize;
         let max_scroll_y = self.num_rows.saturating_sub(self.per_page);
@@ -279,7 +336,9 @@ impl FunctionDiffUi {
         f.render_widget(line_l, header_chunks[0]);
 
         let mut line_r = Line::default();
-        if let Some(percent) = self.right_sym.as_ref().and_then(|s| s.match_percent) {
+        if let Some(percent) = get_diff_symbol(self.diff_result.right.as_ref(), self.right_sym)
+            .and_then(|s| s.match_percent)
+        {
             line_r.spans.push(Span::styled(
                 format!("{:.2}% ", percent),
                 Style::new().fg(match_percent_color(percent)),
@@ -296,49 +355,82 @@ impl FunctionDiffUi {
         ));
         f.render_widget(line_r, header_chunks[2]);
 
-        let create_block =
-            |title: &'static str| Block::new().borders(Borders::TOP).gray().title(title.bold());
-
+        let mut left_text = None;
         let mut left_highlight = None;
         let mut max_width = 0;
-        if let Some(symbol) = &self.left_sym {
-            // Render left column
+        if let (Some(symbol), Some(symbol_diff)) = (
+            get_symbol(self.left_obj.as_ref(), self.left_sym),
+            get_diff_symbol(self.diff_result.left.as_ref(), self.left_sym),
+        ) {
             let mut text = Text::default();
             let rect = content_chunks[0].inner(&Margin::new(0, 1));
-            let h = self.print_sym(&mut text, symbol, rect, &self.left_highlight);
-            max_width = max_width.max(text.width());
-            f.render_widget(
-                Paragraph::new(text)
-                    .block(create_block("TARGET"))
-                    .scroll((0, self.scroll_x as u16)),
-                content_chunks[0],
+            left_highlight = self.print_sym(
+                &mut text,
+                symbol,
+                symbol_diff,
+                rect,
+                &self.left_highlight,
+                result,
+                false,
             );
-            if let Some(h) = h {
-                left_highlight = Some(h);
-            }
+            max_width = max_width.max(text.width());
+            left_text = Some(text);
         }
 
+        let mut right_text = None;
         let mut right_highlight = None;
-        if let Some(symbol) = &self.right_sym {
+        let mut margin_text = None;
+        if let (Some(symbol), Some(symbol_diff)) = (
+            get_symbol(self.right_obj.as_ref(), self.right_sym),
+            get_diff_symbol(self.diff_result.right.as_ref(), self.right_sym),
+        ) {
+            let mut text = Text::default();
+            let rect = content_chunks[2].inner(&Margin::new(0, 1));
+            right_highlight = self.print_sym(
+                &mut text,
+                symbol,
+                symbol_diff,
+                rect,
+                &self.right_highlight,
+                result,
+                false,
+            );
+            max_width = max_width.max(text.width());
+            right_text = Some(text);
+
             // Render margin
             let mut text = Text::default();
             let rect = content_chunks[1].inner(&Margin::new(1, 1));
-            self.print_margin(&mut text, symbol, rect);
-            f.render_widget(text, rect);
+            self.print_margin(&mut text, symbol_diff, rect);
+            margin_text = Some(text);
+        }
 
-            // Render right column
-            let mut text = Text::default();
-            let rect = content_chunks[2].inner(&Margin::new(0, 1));
-            let h = self.print_sym(&mut text, symbol, rect, &self.right_highlight);
-            max_width = max_width.max(text.width());
-            f.render_widget(
-                Paragraph::new(text)
-                    .block(create_block("CURRENT"))
-                    .scroll((0, self.scroll_x as u16)),
-                content_chunks[2],
-            );
-            if let Some(h) = h {
-                right_highlight = Some(h);
+        let mut prev_text = None;
+        let mut prev_margin_text = None;
+        if self.three_way {
+            if let (Some(symbol), Some(symbol_diff)) = (
+                get_symbol(self.prev_obj.as_ref(), self.prev_sym),
+                get_diff_symbol(self.diff_result.prev.as_ref(), self.prev_sym),
+            ) {
+                let mut text = Text::default();
+                let rect = content_chunks[4].inner(&Margin::new(0, 1));
+                self.print_sym(
+                    &mut text,
+                    symbol,
+                    symbol_diff,
+                    rect,
+                    &self.right_highlight,
+                    result,
+                    true,
+                );
+                max_width = max_width.max(text.width());
+                prev_text = Some(text);
+
+                // Render margin
+                let mut text = Text::default();
+                let rect = content_chunks[3].inner(&Margin::new(1, 1));
+                self.print_margin(&mut text, symbol_diff, rect);
+                prev_margin_text = Some(text);
             }
         }
 
@@ -349,6 +441,42 @@ impl FunctionDiffUi {
         }
         self.scroll_state_x =
             self.scroll_state_x.content_length(max_scroll_x).position(self.scroll_x);
+
+        if let Some(text) = left_text {
+            // Render left column
+            f.render_widget(
+                Paragraph::new(text)
+                    .block(Block::new().borders(Borders::TOP).gray().title("TARGET".bold()))
+                    .scroll((0, self.scroll_x as u16)),
+                content_chunks[0],
+            );
+        }
+        if let Some(text) = margin_text {
+            f.render_widget(text, content_chunks[1].inner(&Margin::new(1, 1)));
+        }
+        if let Some(text) = right_text {
+            f.render_widget(
+                Paragraph::new(text)
+                    .block(Block::new().borders(Borders::TOP).gray().title("CURRENT".bold()))
+                    .scroll((0, self.scroll_x as u16)),
+                content_chunks[2],
+            );
+        }
+
+        if self.three_way {
+            if let Some(text) = prev_margin_text {
+                f.render_widget(text, content_chunks[3].inner(&Margin::new(1, 1)));
+            }
+            let block = Block::new().borders(Borders::TOP).gray().title("SAVED".bold());
+            if let Some(text) = prev_text {
+                f.render_widget(
+                    Paragraph::new(text).block(block.clone()).scroll((0, self.scroll_x as u16)),
+                    content_chunks[4],
+                );
+            } else {
+                f.render_widget(block, content_chunks[4]);
+            }
+        }
 
         // Render scrollbars
         f.render_stateful_widget(
@@ -366,6 +494,13 @@ impl FunctionDiffUi {
             content_chunks[2],
             &mut self.scroll_state_x,
         );
+        if self.three_way {
+            f.render_stateful_widget(
+                Scrollbar::new(ScrollbarOrientation::HorizontalBottom).thumb_symbol("■"),
+                content_chunks[4],
+                &mut self.scroll_state_x,
+            );
+        }
 
         if let Some(new_highlight) = left_highlight {
             if new_highlight == self.left_highlight {
@@ -378,8 +513,7 @@ impl FunctionDiffUi {
             } else {
                 self.left_highlight = new_highlight;
             }
-            self.redraw = true;
-            self.click_xy = None;
+            result.redraw = true;
         } else if let Some(new_highlight) = right_highlight {
             if new_highlight == self.right_highlight {
                 if self.left_highlight != self.right_highlight {
@@ -391,86 +525,128 @@ impl FunctionDiffUi {
             } else {
                 self.right_highlight = new_highlight;
             }
-            self.redraw = true;
-            self.click_xy = None;
-        } else {
-            self.redraw = false;
-            self.click_xy = None;
+            result.redraw = true;
         }
     }
 
-    fn handle_event(&mut self, event: Event) -> FunctionDiffResult {
+    fn draw_options(&mut self, f: &mut Frame, _result: &mut EventResult) {
+        let percent_x = 50;
+        let percent_y = 50;
+        let popup_rect = Layout::vertical([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(f.size())[1];
+        let popup_rect = Layout::horizontal([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_rect)[1];
+
+        let popup = Block::default()
+            .borders(Borders::ALL)
+            .title("Options")
+            .title_style(Style::default().fg(Color::White).bg(Color::Black));
+        f.render_widget(Clear, popup_rect);
+        f.render_widget(popup, popup_rect);
+    }
+
+    fn handle_event(&mut self, event: Event) -> EventControlFlow {
+        let mut result = EventResult::default();
         match event {
             Event::Key(event)
                 if matches!(event.kind, KeyEventKind::Press | KeyEventKind::Repeat) =>
             {
                 match event.code {
                     // Quit
-                    KeyCode::Esc | KeyCode::Char('q') => return FunctionDiffResult::Break,
+                    KeyCode::Esc | KeyCode::Char('q') => return EventControlFlow::Break,
                     // Page up
-                    KeyCode::PageUp => self.page_up(false),
+                    KeyCode::PageUp => {
+                        self.page_up(false);
+                        result.redraw = true;
+                    }
                     // Page up (shift + space)
                     KeyCode::Char(' ') if event.modifiers.contains(KeyModifiers::SHIFT) => {
-                        self.page_up(false)
+                        self.page_up(false);
+                        result.redraw = true;
                     }
                     // Page down
-                    KeyCode::Char(' ') | KeyCode::PageDown => self.page_down(false),
+                    KeyCode::Char(' ') | KeyCode::PageDown => {
+                        self.page_down(false);
+                        result.redraw = true;
+                    }
                     // Page down (ctrl + f)
                     KeyCode::Char('f') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.page_down(false)
+                        self.page_down(false);
+                        result.redraw = true;
                     }
                     // Page up (ctrl + b)
                     KeyCode::Char('b') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.page_up(false)
+                        self.page_up(false);
+                        result.redraw = true;
                     }
                     // Half page down (ctrl + d)
                     KeyCode::Char('d') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.page_down(true)
+                        self.page_down(true);
+                        result.redraw = true;
                     }
                     // Half page up (ctrl + u)
                     KeyCode::Char('u') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        self.page_up(true)
+                        self.page_up(true);
+                        result.redraw = true;
                     }
                     // Scroll down
                     KeyCode::Down | KeyCode::Char('j') => {
                         self.scroll_y += 1;
-                        self.redraw = true;
+                        result.redraw = true;
                     }
                     // Scroll up
                     KeyCode::Up | KeyCode::Char('k') => {
                         self.scroll_y = self.scroll_y.saturating_sub(1);
-                        self.redraw = true;
+                        result.redraw = true;
                     }
                     // Scroll to start
                     KeyCode::Char('g') => {
                         self.scroll_y = 0;
-                        self.redraw = true;
+                        result.redraw = true;
                     }
                     // Scroll to end
                     KeyCode::Char('G') => {
                         self.scroll_y = self.num_rows;
-                        self.redraw = true;
+                        result.redraw = true;
                     }
                     // Reload
                     KeyCode::Char('r') => {
-                        self.redraw = true;
-                        return FunctionDiffResult::Reload;
+                        result.redraw = true;
+                        return EventControlFlow::Reload;
                     }
                     // Scroll right
                     KeyCode::Right | KeyCode::Char('l') => {
                         self.scroll_x += 1;
-                        self.redraw = true;
+                        result.redraw = true;
                     }
                     // Scroll left
                     KeyCode::Left | KeyCode::Char('h') => {
                         self.scroll_x = self.scroll_x.saturating_sub(1);
-                        self.redraw = true;
+                        result.redraw = true;
                     }
                     // Toggle relax relocation diffs
                     KeyCode::Char('x') => {
                         self.relax_reloc_diffs = !self.relax_reloc_diffs;
-                        self.redraw = true;
-                        return FunctionDiffResult::Reload;
+                        result.redraw = true;
+                        return EventControlFlow::Reload;
+                    }
+                    // Toggle three-way diff
+                    KeyCode::Char('3') => {
+                        self.three_way = !self.three_way;
+                        result.redraw = true;
+                    }
+                    // Toggle options
+                    KeyCode::Char('o') => {
+                        self.open_options = !self.open_options;
+                        result.redraw = true;
                     }
                     _ => {}
                 }
@@ -478,56 +654,66 @@ impl FunctionDiffUi {
             Event::Mouse(event) => match event.kind {
                 MouseEventKind::ScrollDown => {
                     self.scroll_y += 3;
-                    self.redraw = true;
+                    result.redraw = true;
                 }
                 MouseEventKind::ScrollUp => {
                     self.scroll_y = self.scroll_y.saturating_sub(3);
-                    self.redraw = true;
+                    result.redraw = true;
                 }
                 MouseEventKind::ScrollRight => {
                     self.scroll_x += 3;
-                    self.redraw = true;
+                    result.redraw = true;
                 }
                 MouseEventKind::ScrollLeft => {
                     self.scroll_x = self.scroll_x.saturating_sub(3);
-                    self.redraw = true;
+                    result.redraw = true;
                 }
                 MouseEventKind::Down(MouseButton::Left) => {
-                    self.click_xy = Some((event.column, event.row));
-                    self.redraw = true;
+                    result.click_xy = Some((event.column, event.row));
+                    result.redraw = true;
                 }
                 _ => {}
             },
             Event::Resize(_, _) => {
-                self.redraw = true;
+                result.redraw = true;
             }
             _ => {}
         }
-        FunctionDiffResult::Continue
+        EventControlFlow::Continue(result)
     }
 
     fn page_up(&mut self, half: bool) {
         self.scroll_y = self.scroll_y.saturating_sub(self.per_page / if half { 2 } else { 1 });
-        self.redraw = true;
     }
 
     fn page_down(&mut self, half: bool) {
         self.scroll_y += self.per_page / if half { 2 } else { 1 };
-        self.redraw = true;
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn print_sym(
         &self,
-        out: &mut Text,
+        out: &mut Text<'static>,
         symbol: &ObjSymbol,
+        symbol_diff: &ObjSymbolDiff,
         rect: Rect,
         highlight: &HighlightKind,
+        result: &EventResult,
+        only_changed: bool,
     ) -> Option<HighlightKind> {
         let base_addr = symbol.address;
         let mut new_highlight = None;
-        for (y, ins_diff) in
-            symbol.instructions.iter().skip(self.scroll_y).take(rect.height as usize).enumerate()
+        for (y, ins_diff) in symbol_diff
+            .instructions
+            .iter()
+            .skip(self.scroll_y)
+            .take(rect.height as usize)
+            .enumerate()
         {
+            if only_changed && ins_diff.kind == ObjInsDiffKind::None {
+                out.lines.push(Line::default());
+                continue;
+            }
             let mut sx = rect.x;
             let sy = rect.y + y as u16;
             let mut line = Line::default();
@@ -591,7 +777,7 @@ impl FunctionDiffUi {
                 }
                 let len = label_text.len();
                 let highlighted = *highlight == text;
-                if let Some((cx, cy)) = self.click_xy {
+                if let Some((cx, cy)) = result.click_xy {
                     if cx >= sx && cx < sx + len as u16 && cy == sy {
                         new_highlight = Some(text.into());
                     }
@@ -615,7 +801,7 @@ impl FunctionDiffUi {
         new_highlight
     }
 
-    fn print_margin(&self, out: &mut Text, symbol: &ObjSymbol, rect: Rect) {
+    fn print_margin(&self, out: &mut Text, symbol: &ObjSymbolDiff, rect: Rect) {
         for ins_diff in symbol.instructions.iter().skip(self.scroll_y).take(rect.height as usize) {
             if ins_diff.kind != ObjInsDiffKind::None {
                 out.lines.push(Line::raw(match ins_diff.kind {
@@ -630,12 +816,13 @@ impl FunctionDiffUi {
     }
 
     fn reload(&mut self) -> Result<()> {
-        let mut target = self
+        let prev = self.right_obj.take();
+        let target = self
             .target_path
             .as_deref()
             .map(|p| obj::read::read(p).with_context(|| format!("Loading {}", p.display())))
             .transpose()?;
-        let mut base = self
+        let base = self
             .base_path
             .as_deref()
             .map(|p| obj::read::read(p).with_context(|| format!("Loading {}", p.display())))
@@ -645,18 +832,27 @@ impl FunctionDiffUi {
             space_between_args: true,          // TODO
             x86_formatter: Default::default(), // TODO
         };
-        diff::diff_objs(&config, target.as_mut(), base.as_mut())?;
+        let result = diff::diff_objs(&config, target.as_ref(), base.as_ref(), prev.as_ref())?;
 
         let left_sym = target.as_ref().and_then(|o| find_function(o, &self.symbol_name));
         let right_sym = base.as_ref().and_then(|o| find_function(o, &self.symbol_name));
-        self.num_rows = match (&left_sym, &right_sym) {
+        let prev_sym = prev.as_ref().and_then(|o| find_function(o, &self.symbol_name));
+        self.num_rows = match (
+            get_diff_symbol(result.left.as_ref(), left_sym),
+            get_diff_symbol(result.right.as_ref(), right_sym),
+        ) {
             (Some(l), Some(r)) => l.instructions.len().max(r.instructions.len()),
             (Some(l), None) => l.instructions.len(),
             (None, Some(r)) => r.instructions.len(),
             (None, None) => bail!("Symbol not found: {}", self.symbol_name),
         };
+        self.left_obj = target;
+        self.right_obj = base;
+        self.prev_obj = prev;
+        self.diff_result = result;
         self.left_sym = left_sym;
         self.right_sym = right_sym;
+        self.prev_sym = prev_sym;
         self.reload_time = time::OffsetDateTime::now_local().ok();
         Ok(())
     }

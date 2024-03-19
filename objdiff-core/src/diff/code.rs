@@ -8,56 +8,66 @@ use anyhow::Result;
 use similar::{capture_diff_slices_deadline, Algorithm};
 
 use crate::{
-    arch::ObjArch,
-    diff::{DiffObjConfig, ProcessCodeResult},
-    obj::{
-        ObjInfo, ObjInsArg, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo, ObjInsDiff,
-        ObjInsDiffKind, ObjReloc, ObjSymbol, ObjSymbolFlags,
+    arch::ProcessCodeResult,
+    diff::{
+        get_symbol, DiffObjConfig, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo, ObjInsDiff,
+        ObjInsDiffKind, ObjSymbolDiff, SymbolRef,
     },
+    obj::{ObjInfo, ObjInsArg, ObjReloc, ObjSymbol, ObjSymbolFlags},
 };
 
 pub fn no_diff_code(
-    arch: &dyn ObjArch,
+    obj: &ObjInfo,
+    symbol_ref: SymbolRef,
     config: &DiffObjConfig,
-    data: &[u8],
-    symbol: &mut ObjSymbol,
-    relocs: &[ObjReloc],
-    line_info: &Option<BTreeMap<u64, u64>>,
-) -> Result<()> {
-    let code =
-        &data[symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
-    let out = arch.process_code(config, code, symbol.address, relocs, line_info)?;
+) -> Result<ObjSymbolDiff> {
+    let section = &obj.sections[symbol_ref.section_idx];
+    let symbol = &section.symbols[symbol_ref.symbol_idx];
+    let code = &section.data
+        [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
+    let out = obj.arch.process_code(
+        config,
+        code,
+        symbol.address,
+        &section.relocations,
+        &obj.line_info,
+    )?;
 
     let mut diff = Vec::<ObjInsDiff>::new();
     for i in out.insts {
         diff.push(ObjInsDiff { ins: Some(i), kind: ObjInsDiffKind::None, ..Default::default() });
     }
     resolve_branches(&mut diff);
-    symbol.instructions = diff;
-    Ok(())
+    Ok(ObjSymbolDiff { diff_symbol: None, instructions: diff, match_percent: None })
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn diff_code(
-    arch: &dyn ObjArch,
+    left_obj: &ObjInfo,
+    right_obj: &ObjInfo,
+    left_symbol_ref: SymbolRef,
+    right_symbol_ref: SymbolRef,
     config: &DiffObjConfig,
-    left_data: &[u8],
-    right_data: &[u8],
-    left_symbol: &mut ObjSymbol,
-    right_symbol: &mut ObjSymbol,
-    left_relocs: &[ObjReloc],
-    right_relocs: &[ObjReloc],
-    left_line_info: &Option<BTreeMap<u64, u64>>,
-    right_line_info: &Option<BTreeMap<u64, u64>>,
-) -> Result<()> {
-    let left_code = &left_data[left_symbol.section_address as usize
+) -> Result<(ObjSymbolDiff, ObjSymbolDiff)> {
+    let (left_section, left_symbol) = get_symbol(left_obj, left_symbol_ref);
+    let (right_section, right_symbol) = get_symbol(right_obj, right_symbol_ref);
+    let left_code = &left_section.data[left_symbol.section_address as usize
         ..(left_symbol.section_address + left_symbol.size) as usize];
-    let right_code = &right_data[right_symbol.section_address as usize
+    let right_code = &right_section.data[right_symbol.section_address as usize
         ..(right_symbol.section_address + right_symbol.size) as usize];
-    let left_out =
-        arch.process_code(config, left_code, left_symbol.address, left_relocs, left_line_info)?;
-    let right_out =
-        arch.process_code(config, right_code, right_symbol.address, right_relocs, right_line_info)?;
+    let left_out = left_obj.arch.process_code(
+        config,
+        left_code,
+        left_symbol.address,
+        &left_section.relocations,
+        &left_obj.line_info,
+    )?;
+    let right_out = left_obj.arch.process_code(
+        config,
+        right_code,
+        right_symbol.address,
+        &right_section.relocations,
+        &right_obj.line_info,
+    )?;
 
     let mut left_diff = Vec::<ObjInsDiff>::new();
     let mut right_diff = Vec::<ObjInsDiff>::new();
@@ -81,13 +91,19 @@ pub fn diff_code(
     } else {
         ((total - diff_state.diff_count) as f32 / total as f32) * 100.0
     };
-    left_symbol.match_percent = Some(percent);
-    right_symbol.match_percent = Some(percent);
 
-    left_symbol.instructions = left_diff;
-    right_symbol.instructions = right_diff;
-
-    Ok(())
+    Ok((
+        ObjSymbolDiff {
+            diff_symbol: Some(right_symbol_ref),
+            instructions: left_diff,
+            match_percent: Some(percent),
+        },
+        ObjSymbolDiff {
+            diff_symbol: Some(left_symbol_ref),
+            instructions: right_diff,
+            match_percent: Some(percent),
+        },
+    ))
 }
 
 fn diff_instructions(
@@ -223,6 +239,9 @@ fn arg_eq(
         },
         ObjInsArg::Arg(l) => match right {
             ObjInsArg::Arg(r) => l == r,
+            // If relocations are relaxed, match if left is a constant and right is a reloc
+            // Useful for instances where the target object is created without relocations
+            ObjInsArg::Reloc => config.relax_reloc_diffs,
             _ => false,
         },
         ObjInsArg::Reloc => {
@@ -333,15 +352,4 @@ fn compare_ins(
         state.diff_count += 1;
     }
     Ok(result)
-}
-
-pub fn find_section_and_symbol(obj: &ObjInfo, name: &str) -> Option<(usize, usize)> {
-    for (section_idx, section) in obj.sections.iter().enumerate() {
-        let symbol_idx = match section.symbols.iter().position(|symbol| symbol.name == name) {
-            Some(symbol_idx) => symbol_idx,
-            None => continue,
-        };
-        return Some((section_idx, symbol_idx));
-    }
-    None
 }

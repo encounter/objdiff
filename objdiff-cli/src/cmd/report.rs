@@ -216,18 +216,18 @@ fn report_object(
         _ => {}
     }
     // println!("Checking {}", object.name());
-    let mut target = object
+    let target = object
         .target_path
         .as_ref()
         .map(|p| obj::read::read(p).with_context(|| format!("Failed to open {}", p.display())))
         .transpose()?;
-    let mut base = object
+    let base = object
         .base_path
         .as_ref()
         .map(|p| obj::read::read(p).with_context(|| format!("Failed to open {}", p.display())))
         .transpose()?;
     let config = diff::DiffObjConfig { relax_reloc_diffs: true, ..Default::default() };
-    diff::diff_objs(&config, target.as_mut(), base.as_mut())?;
+    let result = diff::diff_objs(&config, target.as_ref(), base.as_ref(), None)?;
     let mut unit = ReportUnit {
         name: object.name().to_string(),
         complete: object.complete,
@@ -239,11 +239,12 @@ fn report_object(
         ..Default::default()
     };
     let obj = target.as_ref().or(base.as_ref()).unwrap();
-    for section in &obj.sections {
+    let obj_diff = result.left.as_ref().or(result.right.as_ref()).unwrap();
+    for (section, section_diff) in obj.sections.iter().zip(&obj_diff.sections) {
         if section.kind != ObjSectionKind::Code {
             continue;
         }
-        for symbol in &section.symbols {
+        for (symbol, symbol_diff) in section.symbols.iter().zip(&section_diff.symbols) {
             if symbol.size == 0 {
                 continue;
             }
@@ -255,7 +256,7 @@ fn report_object(
                     continue;
                 }
             }
-            let match_percent = symbol.match_percent.unwrap_or_else(|| {
+            let match_percent = symbol_diff.match_percent.unwrap_or_else(|| {
                 // Support cases where we don't have a target object,
                 // assume complete means 100% match
                 if object.complete == Some(true) {

@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::{anyhow, Context, Error, Result};
 use objdiff_core::{
-    diff::{diff_objs, DiffObjConfig},
+    diff::{diff_objs, DiffObjConfig, ObjDiff},
     obj::{read, ObjInfo},
 };
 use time::OffsetDateTime;
@@ -75,8 +75,8 @@ impl ObjDiffConfig {
 pub struct ObjDiffResult {
     pub first_status: BuildStatus,
     pub second_status: BuildStatus,
-    pub first_obj: Option<ObjInfo>,
-    pub second_obj: Option<ObjInfo>,
+    pub first_obj: Option<(ObjInfo, ObjDiff)>,
+    pub second_obj: Option<(ObjInfo, ObjDiff)>,
     pub time: OffsetDateTime,
 }
 
@@ -214,7 +214,7 @@ fn run_build(
 
     let time = OffsetDateTime::now_utc();
 
-    let mut first_obj =
+    let first_obj =
         match &obj_config.target_path {
             Some(target_path) if first_status.success => {
                 update_status(
@@ -231,7 +231,7 @@ fn run_build(
             _ => None,
         };
 
-    let mut second_obj = match &obj_config.base_path {
+    let second_obj = match &obj_config.base_path {
         Some(base_path) if second_status.success => {
             update_status(
                 context,
@@ -249,10 +249,16 @@ fn run_build(
     };
 
     update_status(context, "Performing diff".to_string(), 4, total, &cancel)?;
-    diff_objs(&config.diff_obj_config, first_obj.as_mut(), second_obj.as_mut())?;
+    let result = diff_objs(&config.diff_obj_config, first_obj.as_ref(), second_obj.as_ref(), None)?;
 
     update_status(context, "Complete".to_string(), total, total, &cancel)?;
-    Ok(Box::new(ObjDiffResult { first_status, second_status, first_obj, second_obj, time }))
+    Ok(Box::new(ObjDiffResult {
+        first_status,
+        second_status,
+        first_obj: first_obj.and_then(|o| result.left.map(|d| (o, d))),
+        second_obj: second_obj.and_then(|o| result.right.map(|d| (o, d))),
+        time,
+    }))
 }
 
 pub fn start_build(ctx: &egui::Context, config: ObjDiffConfig) -> JobState {

@@ -1,6 +1,9 @@
 use std::cmp::Ordering;
 
-use crate::obj::{ObjInsArg, ObjInsArgDiff, ObjInsArgValue, ObjInsDiff, ObjReloc, ObjSymbol};
+use crate::{
+    diff::{ObjInsArgDiff, ObjInsDiff},
+    obj::{ObjInsArg, ObjInsArgValue, ObjReloc, ObjSymbol},
+};
 
 #[derive(Debug, Clone)]
 pub enum DiffText<'a> {

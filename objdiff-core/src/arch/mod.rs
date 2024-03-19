@@ -4,8 +4,8 @@ use anyhow::{bail, Result};
 use object::{Architecture, Object, Relocation, RelocationFlags};
 
 use crate::{
-    diff::{DiffObjConfig, ProcessCodeResult},
-    obj::{ObjReloc, ObjSection},
+    diff::DiffObjConfig,
+    obj::{ObjIns, ObjReloc, ObjSection},
 };
 
 #[cfg(feature = "mips")]
@@ -31,6 +31,11 @@ pub trait ObjArch: Send + Sync {
     fn demangle(&self, _name: &str) -> Option<String> { None }
 
     fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str>;
+}
+
+pub struct ProcessCodeResult {
+    pub ops: Vec<u16>,
+    pub insts: Vec<ObjIns>,
 }
 
 pub fn new_arch(object: &object::File) -> Result<Box<dyn ObjArch>> {

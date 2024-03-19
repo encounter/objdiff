@@ -4,17 +4,17 @@ use egui::{text::LayoutJob, Align, Label, Layout, Sense, Vec2, Widget};
 use egui_extras::{Column, TableBuilder, TableRow};
 use objdiff_core::{
     arch::ObjArch,
-    diff::display::{display_diff, DiffText, HighlightKind},
-    obj::{
-        ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjInsDiff, ObjInsDiffKind, ObjSection,
-        ObjSymbol,
+    diff::{
+        display::{display_diff, DiffText, HighlightKind},
+        get_symbol, ObjDiff, ObjInsDiff, ObjInsDiffKind, SymbolRef,
     },
+    obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjSection, ObjSymbol},
 };
 use time::format_description;
 
 use crate::views::{
     appearance::Appearance,
-    symbol_diff::{match_color_for_symbol, DiffViewState, SymbolReference, View},
+    symbol_diff::{match_color_for_symbol, DiffViewState, SymbolRefByName, View},
 };
 
 #[derive(Default)]
@@ -126,19 +126,15 @@ fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
     });
 }
 
-fn find_symbol<'a>(
-    obj: &'a ObjInfo,
-    selected_symbol: &SymbolReference,
-) -> Option<(&'a dyn ObjArch, &'a ObjSection, &'a ObjSymbol)> {
-    obj.sections.iter().find_map(|section| {
-        section.symbols.iter().find_map(|symbol| {
-            (symbol.name == selected_symbol.symbol_name).then_some((
-                obj.arch.as_ref(),
-                section,
-                symbol,
-            ))
-        })
-    })
+fn find_symbol(obj: &ObjInfo, selected_symbol: &SymbolRefByName) -> Option<SymbolRef> {
+    for (section_idx, section) in obj.sections.iter().enumerate() {
+        for (symbol_idx, symbol) in section.symbols.iter().enumerate() {
+            if symbol.name == selected_symbol.symbol_name {
+                return Some(SymbolRef { section_idx, symbol_idx });
+            }
+        }
+    }
+    None
 }
 
 fn diff_text_ui(
@@ -248,18 +244,21 @@ fn asm_row_ui(
 
 fn asm_col_ui(
     row: &mut TableRow<'_, '_>,
-    ins_diff: &ObjInsDiff,
-    arch: &dyn ObjArch,
-    section: &ObjSection,
-    symbol: &ObjSymbol,
+    obj: &(ObjInfo, ObjDiff),
+    symbol_ref: SymbolRef,
     appearance: &Appearance,
     ins_view_state: &mut FunctionViewState,
 ) {
+    let (section, symbol) = get_symbol(&obj.0, symbol_ref);
+    let ins_diff = &obj.1.sections[symbol_ref.section_idx].symbols[symbol_ref.symbol_idx]
+        .instructions[row.index()];
     let (_, response) = row.col(|ui| {
         asm_row_ui(ui, ins_diff, symbol, appearance, ins_view_state);
     });
     if let Some(ins) = &ins_diff.ins {
-        response.on_hover_ui_at_pointer(|ui| ins_hover_ui(ui, arch, section, ins, appearance));
+        response.on_hover_ui_at_pointer(|ui| {
+            ins_hover_ui(ui, obj.0.arch.as_ref(), section, ins, appearance)
+        });
     }
 }
 
@@ -271,41 +270,40 @@ fn empty_col_ui(row: &mut TableRow<'_, '_>) {
 
 fn asm_table_ui(
     table: TableBuilder<'_>,
-    left_obj: Option<&ObjInfo>,
-    right_obj: Option<&ObjInfo>,
-    selected_symbol: &SymbolReference,
+    left_obj: Option<&(ObjInfo, ObjDiff)>,
+    right_obj: Option<&(ObjInfo, ObjDiff)>,
+    selected_symbol: &SymbolRefByName,
     appearance: &Appearance,
     ins_view_state: &mut FunctionViewState,
 ) -> Option<()> {
-    let left_symbol = left_obj.and_then(|obj| find_symbol(obj, selected_symbol));
-    let right_symbol = right_obj.and_then(|obj| find_symbol(obj, selected_symbol));
-    let instructions_len = left_symbol.or(right_symbol).map(|(_, _, s)| s.instructions.len())?;
+    let left_symbol = left_obj.and_then(|(obj, _)| find_symbol(obj, selected_symbol));
+    let right_symbol = right_obj.and_then(|(obj, _)| find_symbol(obj, selected_symbol));
+    let instructions_len = match (left_symbol, right_symbol) {
+        (Some(left_symbol_ref), Some(_)) => left_obj.unwrap().1.sections
+            [left_symbol_ref.section_idx]
+            .symbols[left_symbol_ref.symbol_idx]
+            .instructions
+            .len(),
+        (Some(left_symbol_ref), None) => left_obj.unwrap().1.sections[left_symbol_ref.section_idx]
+            .symbols[left_symbol_ref.symbol_idx]
+            .instructions
+            .len(),
+        (None, Some(right_symbol_ref)) => right_obj.unwrap().1.sections
+            [right_symbol_ref.section_idx]
+            .symbols[right_symbol_ref.symbol_idx]
+            .instructions
+            .len(),
+        (None, None) => return None,
+    };
     table.body(|body| {
         body.rows(appearance.code_font.size, instructions_len, |mut row| {
-            let row_index = row.index();
-            if let Some((arch, section, symbol)) = left_symbol {
-                asm_col_ui(
-                    &mut row,
-                    &symbol.instructions[row_index],
-                    arch,
-                    section,
-                    symbol,
-                    appearance,
-                    ins_view_state,
-                );
+            if let (Some(left_obj), Some(left_symbol_ref)) = (left_obj, left_symbol) {
+                asm_col_ui(&mut row, left_obj, left_symbol_ref, appearance, ins_view_state);
             } else {
                 empty_col_ui(&mut row);
             }
-            if let Some((arch, section, symbol)) = right_symbol {
-                asm_col_ui(
-                    &mut row,
-                    &symbol.instructions[row_index],
-                    arch,
-                    section,
-                    symbol,
-                    appearance,
-                    ins_view_state,
-                );
+            if let (Some(right_obj), Some(right_symbol_ref)) = (right_obj, right_symbol) {
+                asm_col_ui(&mut row, right_obj, right_symbol_ref, appearance, ins_view_state);
             } else {
                 empty_col_ui(&mut row);
             }
@@ -412,8 +410,12 @@ pub fn function_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance
                         if let Some(match_percent) = result
                             .second_obj
                             .as_ref()
-                            .and_then(|obj| find_symbol(obj, selected_symbol))
-                            .and_then(|(_, _, symbol)| symbol.match_percent)
+                            .and_then(|(obj, diff)| {
+                                find_symbol(obj, selected_symbol).map(|sref| {
+                                    &diff.sections[sref.section_idx].symbols[sref.symbol_idx]
+                                })
+                            })
+                            .and_then(|symbol| symbol.match_percent)
                         {
                             ui.colored_label(
                                 match_color_for_symbol(match_percent, appearance),
