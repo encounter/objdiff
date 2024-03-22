@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::BTreeMap};
+use std::borrow::Cow;
 
 use anyhow::{anyhow, bail, ensure, Result};
 use iced_x86::{
@@ -11,7 +11,7 @@ use object::{pe, Endian, Endianness, File, Object, Relocation, RelocationFlags};
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
     diff::{DiffObjConfig, X86Formatter},
-    obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
+    obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjSection, SymbolRef},
 };
 
 pub struct ObjArchX86 {
@@ -28,14 +28,16 @@ impl ObjArchX86 {
 impl ObjArch for ObjArchX86 {
     fn process_code(
         &self,
+        obj: &ObjInfo,
+        symbol_ref: SymbolRef,
         config: &DiffObjConfig,
-        data: &[u8],
-        start_address: u64,
-        relocs: &[ObjReloc],
-        line_info: &Option<BTreeMap<u64, u64>>,
     ) -> Result<ProcessCodeResult> {
+        let (section, symbol) = obj.section_symbol(symbol_ref);
+        let code = &section.data
+            [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
+
         let mut result = ProcessCodeResult { ops: Vec::new(), insts: Vec::new() };
-        let mut decoder = Decoder::with_ip(self.bits, data, start_address, DecoderOptions::NONE);
+        let mut decoder = Decoder::with_ip(self.bits, code, symbol.address, DecoderOptions::NONE);
         let mut formatter: Box<dyn Formatter> = match config.x86_formatter {
             X86Formatter::Intel => Box::new(IntelFormatter::new()),
             X86Formatter::Gas => Box::new(GasFormatter::new()),
@@ -66,7 +68,8 @@ impl ObjArch for ObjArchX86 {
 
             let address = instruction.ip();
             let op = instruction.mnemonic() as u16;
-            let reloc = relocs
+            let reloc = section
+                .relocations
                 .iter()
                 .find(|r| r.address >= address && r.address < address + instruction.len() as u64);
             output.ins = ObjIns {
@@ -77,7 +80,7 @@ impl ObjArch for ObjArchX86 {
                 args: vec![],
                 reloc: reloc.cloned(),
                 branch_dest: None,
-                line: line_info.as_ref().and_then(|m| m.get(&address).cloned()),
+                line: obj.line_info.as_ref().and_then(|m| m.get(&address).cloned()),
                 orig: None,
             };
             // Run the formatter, which will populate output.ins
@@ -141,7 +144,9 @@ impl ObjArch for ObjArchX86 {
         if name.starts_with('?') {
             msvc_demangler::demangle(name, msvc_demangler::DemangleFlags::llvm()).ok()
         } else {
-            None
+            cpp_demangle::Symbol::new(name)
+                .ok()
+                .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
         }
     }
 
@@ -150,9 +155,9 @@ impl ObjArch for ObjArchX86 {
             RelocationFlags::Coff { typ } => match typ {
                 pe::IMAGE_REL_I386_DIR32 => Cow::Borrowed("IMAGE_REL_I386_DIR32"),
                 pe::IMAGE_REL_I386_REL32 => Cow::Borrowed("IMAGE_REL_I386_REL32"),
-                _ => Cow::Owned(format!("<Coff {typ:?}>")),
+                _ => Cow::Owned(format!("<{flags:?}>")),
             },
-            flags => Cow::Owned(format!("<{flags:?}>")),
+            _ => Cow::Owned(format!("<{flags:?}>")),
         }
     }
 }
@@ -214,10 +219,10 @@ impl FormatterOutput for InstructionFormatterOutput {
         self.ins_operands.push(None);
         match kind {
             FormatterTextKind::Text | FormatterTextKind::Punctuation => {
-                self.ins.args.push(ObjInsArg::PlainText(text.to_string()));
+                self.ins.args.push(ObjInsArg::PlainText(text.to_string().into()));
             }
             FormatterTextKind::Keyword | FormatterTextKind::Operator => {
-                self.ins.args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(text.to_string())));
+                self.ins.args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(text.to_string().into())));
             }
             _ => {
                 if self.error.is_none() {
@@ -230,7 +235,7 @@ impl FormatterOutput for InstructionFormatterOutput {
     fn write_prefix(&mut self, _instruction: &Instruction, text: &str, _prefix: PrefixKind) {
         self.formatted.push_str(text);
         self.ins_operands.push(None);
-        self.ins.args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(text.to_string())));
+        self.ins.args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(text.to_string().into())));
     }
 
     fn write_mnemonic(&mut self, _instruction: &Instruction, text: &str) {
@@ -318,7 +323,7 @@ impl FormatterOutput for InstructionFormatterOutput {
     ) {
         self.formatted.push_str(text);
         self.ins_operands.push(instruction_operand);
-        self.ins.args.push(ObjInsArg::PlainText(text.to_string()));
+        self.ins.args.push(ObjInsArg::PlainText(text.to_string().into()));
     }
 
     fn write_register(
@@ -331,6 +336,6 @@ impl FormatterOutput for InstructionFormatterOutput {
     ) {
         self.formatted.push_str(text);
         self.ins_operands.push(instruction_operand);
-        self.ins.args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(text.to_string())));
+        self.ins.args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(text.to_string().into())));
     }
 }

@@ -107,7 +107,7 @@ fn filter_sections(obj_file: &File<'_>, split_meta: Option<&SplitMeta>) -> Resul
             address: section.address(),
             size: section.size(),
             data: data.to_vec(),
-            index: section.index().0,
+            orig_index: section.index().0,
             symbols: Vec::new(),
             relocations: Vec::new(),
             virtual_address,
@@ -129,7 +129,7 @@ fn symbols_by_section(
             continue;
         }
         if let Some(index) = symbol.section().index() {
-            if index.0 == section.index {
+            if index.0 == section.orig_index {
                 if symbol.is_local() && section.kind == ObjSectionKind::Code {
                     // TODO strip local syms in diff?
                     let name = symbol.name().context("Failed to process symbol name")?;
@@ -218,7 +218,7 @@ fn relocations_by_section(
     section: &ObjSection,
     split_meta: Option<&SplitMeta>,
 ) -> Result<Vec<ObjReloc>> {
-    let obj_section = obj_file.section_by_index(SectionIndex(section.index))?;
+    let obj_section = obj_file.section_by_index(SectionIndex(section.orig_index))?;
     let mut relocations = Vec::<ObjReloc>::new();
     for (address, reloc) in obj_section.relocations() {
         let symbol = match reloc.target() {

@@ -1,7 +1,7 @@
 pub mod read;
 pub mod split_meta;
 
-use std::{collections::BTreeMap, fmt, path::PathBuf};
+use std::{borrow::Cow, collections::BTreeMap, fmt, path::PathBuf};
 
 use filetime::FileTime;
 use flagset::{flags, FlagSet};
@@ -35,7 +35,7 @@ pub struct ObjSection {
     pub address: u64,
     pub size: u64,
     pub data: Vec<u8>,
-    pub index: usize,
+    pub orig_index: usize,
     pub symbols: Vec<ObjSymbol>,
     pub relocations: Vec<ObjReloc>,
     pub virtual_address: Option<u64>,
@@ -45,7 +45,7 @@ pub struct ObjSection {
 pub enum ObjInsArgValue {
     Signed(i64),
     Unsigned(u64),
-    Opaque(String),
+    Opaque(Cow<'static, str>),
 }
 
 impl ObjInsArgValue {
@@ -73,7 +73,7 @@ impl fmt::Display for ObjInsArgValue {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ObjInsArg {
-    PlainText(String),
+    PlainText(Cow<'static, str>),
     Arg(ObjInsArgValue),
     Reloc,
     BranchDest(u64),

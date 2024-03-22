@@ -1,13 +1,13 @@
-use std::{borrow::Cow, collections::BTreeMap};
+use std::borrow::Cow;
 
 use anyhow::{bail, Result};
 use object::{elf, File, Relocation, RelocationFlags};
-use ppc750cl::{disasm_iter, Argument, SimplifiedIns, GPR};
+use ppc750cl::{Argument, GPR};
 
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
     diff::DiffObjConfig,
-    obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
+    obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection, SymbolRef},
 };
 
 // Relative relocation, can be Simm, Offset or BranchDest
@@ -31,30 +31,37 @@ impl ObjArchPpc {
 impl ObjArch for ObjArchPpc {
     fn process_code(
         &self,
+        obj: &ObjInfo,
+        symbol_ref: SymbolRef,
         config: &DiffObjConfig,
-        data: &[u8],
-        address: u64,
-        relocs: &[ObjReloc],
-        line_info: &Option<BTreeMap<u64, u64>>,
     ) -> Result<ProcessCodeResult> {
-        let ins_count = data.len() / 4;
+        let (section, symbol) = obj.section_symbol(symbol_ref);
+        let code = &section.data
+            [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
+
+        let ins_count = code.len() / 4;
         let mut ops = Vec::<u16>::with_capacity(ins_count);
         let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
-        for mut ins in disasm_iter(data, address as u32) {
-            let reloc = relocs.iter().find(|r| (r.address as u32 & !3) == ins.addr);
+        let mut cur_addr = symbol.address as u32;
+        for chunk in code.chunks_exact(4) {
+            let mut code = u32::from_be_bytes(chunk.try_into()?);
+            let reloc = section.relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
             if let Some(reloc) = reloc {
                 // Zero out relocations
-                ins.code = match reloc.flags {
-                    RelocationFlags::Elf { r_type: elf::R_PPC_EMB_SDA21 } => ins.code & !0x1FFFFF,
-                    RelocationFlags::Elf { r_type: elf::R_PPC_REL24 } => ins.code & !0x3FFFFFC,
-                    RelocationFlags::Elf { r_type: elf::R_PPC_REL14 } => ins.code & !0xFFFC,
+                code = match reloc.flags {
+                    RelocationFlags::Elf { r_type: elf::R_PPC_EMB_SDA21 } => code & !0x1FFFFF,
+                    RelocationFlags::Elf { r_type: elf::R_PPC_REL24 } => code & !0x3FFFFFC,
+                    RelocationFlags::Elf { r_type: elf::R_PPC_REL14 } => code & !0xFFFC,
                     RelocationFlags::Elf {
                         r_type: elf::R_PPC_ADDR16_HI | elf::R_PPC_ADDR16_HA | elf::R_PPC_ADDR16_LO,
-                    } => ins.code & !0xFFFF,
-                    _ => ins.code,
+                    } => code & !0xFFFF,
+                    _ => code,
                 };
             }
-            let simplified = ins.clone().simplified();
+
+            let ins = ppc750cl::Ins::new(code);
+            let orig = ins.basic().to_string();
+            let simplified = ins.simplified();
 
             let mut reloc_arg = None;
             if let Some(reloc) = reloc {
@@ -77,13 +84,9 @@ impl ObjArch for ObjArchPpc {
             let mut args = vec![];
             let mut branch_dest = None;
             let mut writing_offset = false;
-            for (idx, arg) in simplified.args.iter().enumerate() {
+            for (idx, arg) in simplified.args_iter().enumerate() {
                 if idx > 0 && !writing_offset {
-                    if config.space_between_args {
-                        args.push(ObjInsArg::PlainText(", ".to_string()));
-                    } else {
-                        args.push(ObjInsArg::PlainText(",".to_string()));
-                    }
+                    args.push(ObjInsArg::PlainText(config.separator().into()));
                 }
 
                 if reloc_arg == Some(idx) {
@@ -108,41 +111,45 @@ impl ObjArch for ObjArchPpc {
                             args.push(ObjInsArg::Arg(ObjInsArgValue::Signed(offset.0 as i64)));
                         }
                         Argument::BranchDest(dest) => {
-                            let dest = ins.addr.wrapping_add_signed(dest.0) as u64;
+                            let dest = cur_addr.wrapping_add_signed(dest.0) as u64;
                             args.push(ObjInsArg::BranchDest(dest));
                             branch_dest = Some(dest);
                         }
                         _ => {
-                            args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(arg.to_string())));
+                            args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
+                                arg.to_string().into(),
+                            )));
                         }
                     };
                 }
 
                 if writing_offset {
-                    args.push(ObjInsArg::PlainText(")".to_string()));
+                    args.push(ObjInsArg::PlainText(")".into()));
                     writing_offset = false;
                 }
                 if is_offset_arg(arg) {
-                    args.push(ObjInsArg::PlainText("(".to_string()));
+                    args.push(ObjInsArg::PlainText("(".into()));
                     writing_offset = true;
                 }
             }
 
-            ops.push(simplified.ins.op as u16);
-            let line = line_info
+            ops.push(ins.op as u16);
+            let line = obj
+                .line_info
                 .as_ref()
-                .and_then(|map| map.range(..=simplified.ins.addr as u64).last().map(|(_, &b)| b));
+                .and_then(|map| map.range(..=cur_addr as u64).last().map(|(_, &b)| b));
             insts.push(ObjIns {
-                address: simplified.ins.addr as u64,
+                address: cur_addr as u64,
                 size: 4,
-                mnemonic: format!("{}{}", simplified.mnemonic, simplified.suffix),
+                mnemonic: simplified.mnemonic.to_string(),
                 args,
                 reloc: reloc.cloned(),
                 op: ins.op as u16,
                 branch_dest,
                 line,
-                orig: Some(format!("{}", SimplifiedIns::basic_form(ins))),
+                orig: Some(orig),
             });
+            cur_addr += 4;
         }
         Ok(ProcessCodeResult { ops, insts })
     }
@@ -157,7 +164,7 @@ impl ObjArch for ObjArchPpc {
     }
 
     fn demangle(&self, name: &str) -> Option<String> {
-        cwdemangle::demangle(name, &Default::default())
+        cwdemangle::demangle(name, &cwdemangle::DemangleOptions::default())
     }
 
     fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str> {
@@ -171,9 +178,9 @@ impl ObjArch for ObjArchPpc {
                 elf::R_PPC_UADDR32 => Cow::Borrowed("R_PPC_UADDR32"),
                 elf::R_PPC_REL24 => Cow::Borrowed("R_PPC_REL24"),
                 elf::R_PPC_REL14 => Cow::Borrowed("R_PPC_REL14"),
-                _ => Cow::Owned(format!("<Elf {r_type:?}>")),
+                _ => Cow::Owned(format!("<{flags:?}>")),
             },
-            flags => Cow::Owned(format!("<{flags:?}>")),
+            _ => Cow::Owned(format!("<{flags:?}>")),
         }
     }
 }
@@ -183,19 +190,19 @@ fn push_reloc(args: &mut Vec<ObjInsArg>, reloc: &ObjReloc) -> Result<()> {
         RelocationFlags::Elf { r_type } => match r_type {
             elf::R_PPC_ADDR16_LO => {
                 args.push(ObjInsArg::Reloc);
-                args.push(ObjInsArg::PlainText("@l".to_string()));
+                args.push(ObjInsArg::PlainText("@l".into()));
             }
             elf::R_PPC_ADDR16_HI => {
                 args.push(ObjInsArg::Reloc);
-                args.push(ObjInsArg::PlainText("@h".to_string()));
+                args.push(ObjInsArg::PlainText("@h".into()));
             }
             elf::R_PPC_ADDR16_HA => {
                 args.push(ObjInsArg::Reloc);
-                args.push(ObjInsArg::PlainText("@ha".to_string()));
+                args.push(ObjInsArg::PlainText("@ha".into()));
             }
             elf::R_PPC_EMB_SDA21 => {
                 args.push(ObjInsArg::Reloc);
-                args.push(ObjInsArg::PlainText("@sda21".to_string()));
+                args.push(ObjInsArg::PlainText("@sda21".into()));
             }
             elf::R_PPC_ADDR32 | elf::R_PPC_UADDR32 | elf::R_PPC_REL24 | elf::R_PPC_REL14 => {
                 args.push(ObjInsArg::Reloc);

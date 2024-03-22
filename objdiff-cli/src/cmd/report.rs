@@ -14,6 +14,7 @@ use objdiff_core::{
     obj::{ObjSectionKind, ObjSymbolFlags},
 };
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
+use tracing::{info, warn};
 
 #[derive(FromArgs, PartialEq, Debug)]
 /// Commands for processing NVIDIA Shield TV alf files.
@@ -114,13 +115,13 @@ pub fn run(args: Args) -> Result<()> {
 
 fn generate(args: GenerateArgs) -> Result<()> {
     let project_dir = args.project.as_deref().unwrap_or_else(|| Path::new("."));
-    log::info!("Loading project {}", project_dir.display());
+    info!("Loading project {}", project_dir.display());
 
     let config = objdiff_core::config::try_project_config(project_dir);
     let Some((Ok(mut project), _)) = config else {
         bail!("No project configuration found");
     };
-    log::info!(
+    info!(
         "Generating report for {} units (using {} threads)",
         project.objects.len(),
         if args.deduplicate { 1 } else { rayon::current_num_threads() }
@@ -181,9 +182,9 @@ fn generate(args: GenerateArgs) -> Result<()> {
         report.matched_functions as f32 / report.total_functions as f32 * 100.0
     };
     let duration = start.elapsed();
-    log::info!("Report generated in {}.{:03}s", duration.as_secs(), duration.subsec_millis());
+    info!("Report generated in {}.{:03}s", duration.as_secs(), duration.subsec_millis());
     if let Some(output) = &args.output {
-        log::info!("Writing to {}", output.display());
+        info!("Writing to {}", output.display());
         let mut output = BufWriter::new(
             File::create(output)
                 .with_context(|| format!("Failed to create file {}", output.display()))?,
@@ -206,11 +207,11 @@ fn report_object(
     object.resolve_paths(project_dir, target_dir, base_dir);
     match (&object.target_path, &object.base_path) {
         (None, Some(_)) if object.complete != Some(true) => {
-            log::warn!("Skipping object without target: {}", object.name());
+            warn!("Skipping object without target: {}", object.name());
             return Ok(None);
         }
         (None, None) => {
-            log::warn!("Skipping object without target or base: {}", object.name());
+            warn!("Skipping object without target or base: {}", object.name());
             return Ok(None);
         }
         _ => {}
@@ -452,7 +453,7 @@ fn changes(args: ChangesArgs) -> Result<()> {
         }
     }
     if let Some(output) = &args.output {
-        log::info!("Writing to {}", output.display());
+        info!("Writing to {}", output.display());
         let mut output = BufWriter::new(
             File::create(output)
                 .with_context(|| format!("Failed to create file {}", output.display()))?,

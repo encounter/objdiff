@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::BTreeMap};
+use std::borrow::Cow;
 
 use anyhow::{bail, Result};
 use object::{elf, Endian, Endianness, File, Object, Relocation, RelocationFlags};
@@ -7,7 +7,7 @@ use rabbitizer::{config, Abi, InstrCategory, Instruction, OperandType};
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
     diff::DiffObjConfig,
-    obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
+    obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection, SymbolRef},
 };
 
 fn configure_rabbitizer() {
@@ -21,27 +21,31 @@ pub struct ObjArchMips {
 }
 
 impl ObjArchMips {
-    pub fn new(object: &File) -> Result<Self> { Ok(Self { endianness: object.endianness() }) }
+    pub fn new(object: &File) -> Result<Self> {
+        configure_rabbitizer();
+        Ok(Self { endianness: object.endianness() })
+    }
 }
 
 impl ObjArch for ObjArchMips {
     fn process_code(
         &self,
+        obj: &ObjInfo,
+        symbol_ref: SymbolRef,
         config: &DiffObjConfig,
-        data: &[u8],
-        start_address: u64,
-        relocs: &[ObjReloc],
-        line_info: &Option<BTreeMap<u64, u64>>,
     ) -> Result<ProcessCodeResult> {
-        configure_rabbitizer();
+        let (section, symbol) = obj.section_symbol(symbol_ref);
+        let code = &section.data
+            [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
 
-        let end_address = start_address + data.len() as u64;
-        let ins_count = data.len() / 4;
+        let start_address = symbol.address;
+        let end_address = symbol.address + symbol.size;
+        let ins_count = code.len() / 4;
         let mut ops = Vec::<u16>::with_capacity(ins_count);
         let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
         let mut cur_addr = start_address as u32;
-        for chunk in data.chunks_exact(4) {
-            let reloc = relocs.iter().find(|r| (r.address as u32 & !3) == cur_addr);
+        for chunk in code.chunks_exact(4) {
+            let reloc = section.relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
             let code = self.endianness.read_u32_bytes(chunk.try_into()?);
             let instruction = Instruction::new(code, cur_addr, InstrCategory::CPU);
 
@@ -61,11 +65,7 @@ impl ObjArch for ObjArchMips {
             let mut args = Vec::with_capacity(operands.len() + 1);
             for (idx, op) in operands.iter().enumerate() {
                 if idx > 0 {
-                    if config.space_between_args {
-                        args.push(ObjInsArg::PlainText(", ".to_string()));
-                    } else {
-                        args.push(ObjInsArg::PlainText(",".to_string()));
-                    }
+                    args.push(ObjInsArg::PlainText(config.separator().into()));
                 }
 
                 match op {
@@ -85,7 +85,7 @@ impl ObjArch for ObjArchMips {
                             }
                         } else {
                             args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                                op.disassemble(&instruction, None),
+                                op.disassemble(&instruction, None).into(),
                             )));
                         }
                     }
@@ -94,23 +94,24 @@ impl ObjArch for ObjArchMips {
                             push_reloc(&mut args, reloc)?;
                         } else {
                             args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                                OperandType::cpu_immediate.disassemble(&instruction, None),
+                                OperandType::cpu_immediate.disassemble(&instruction, None).into(),
                             )));
                         }
-                        args.push(ObjInsArg::PlainText("(".to_string()));
+                        args.push(ObjInsArg::PlainText("(".into()));
                         args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                            OperandType::cpu_rs.disassemble(&instruction, None),
+                            OperandType::cpu_rs.disassemble(&instruction, None).into(),
                         )));
-                        args.push(ObjInsArg::PlainText(")".to_string()));
+                        args.push(ObjInsArg::PlainText(")".into()));
                     }
                     _ => {
                         args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                            op.disassemble(&instruction, None),
+                            op.disassemble(&instruction, None).into(),
                         )));
                     }
                 }
             }
-            let line = line_info
+            let line = obj
+                .line_info
                 .as_ref()
                 .and_then(|map| map.range(..=cur_addr as u64).last().map(|(_, &b)| b));
             insts.push(ObjIns {
@@ -161,9 +162,9 @@ impl ObjArch for ObjArchMips {
                 elf::R_MIPS_GPREL16 => Cow::Borrowed("R_MIPS_GPREL16"),
                 elf::R_MIPS_32 => Cow::Borrowed("R_MIPS_32"),
                 elf::R_MIPS_26 => Cow::Borrowed("R_MIPS_26"),
-                _ => Cow::Owned(format!("<Elf {r_type:?}>")),
+                _ => Cow::Owned(format!("<{flags:?}>")),
             },
-            flags => Cow::Owned(format!("<{flags:?}>")),
+            _ => Cow::Owned(format!("<{flags:?}>")),
         }
     }
 }
@@ -172,29 +173,29 @@ fn push_reloc(args: &mut Vec<ObjInsArg>, reloc: &ObjReloc) -> Result<()> {
     match reloc.flags {
         RelocationFlags::Elf { r_type } => match r_type {
             elf::R_MIPS_HI16 => {
-                args.push(ObjInsArg::PlainText("%hi(".to_string()));
+                args.push(ObjInsArg::PlainText("%hi(".into()));
                 args.push(ObjInsArg::Reloc);
-                args.push(ObjInsArg::PlainText(")".to_string()));
+                args.push(ObjInsArg::PlainText(")".into()));
             }
             elf::R_MIPS_LO16 => {
-                args.push(ObjInsArg::PlainText("%lo(".to_string()));
+                args.push(ObjInsArg::PlainText("%lo(".into()));
                 args.push(ObjInsArg::Reloc);
-                args.push(ObjInsArg::PlainText(")".to_string()));
+                args.push(ObjInsArg::PlainText(")".into()));
             }
             elf::R_MIPS_GOT16 => {
-                args.push(ObjInsArg::PlainText("%got(".to_string()));
+                args.push(ObjInsArg::PlainText("%got(".into()));
                 args.push(ObjInsArg::Reloc);
-                args.push(ObjInsArg::PlainText(")".to_string()));
+                args.push(ObjInsArg::PlainText(")".into()));
             }
             elf::R_MIPS_CALL16 => {
-                args.push(ObjInsArg::PlainText("%call16(".to_string()));
+                args.push(ObjInsArg::PlainText("%call16(".into()));
                 args.push(ObjInsArg::Reloc);
-                args.push(ObjInsArg::PlainText(")".to_string()));
+                args.push(ObjInsArg::PlainText(")".into()));
             }
             elf::R_MIPS_GPREL16 => {
-                args.push(ObjInsArg::PlainText("%gp_rel(".to_string()));
+                args.push(ObjInsArg::PlainText("%gp_rel(".into()));
                 args.push(ObjInsArg::Reloc);
-                args.push(ObjInsArg::PlainText(")".to_string()));
+                args.push(ObjInsArg::PlainText(")".into()));
             }
             elf::R_MIPS_32 | elf::R_MIPS_26 => {
                 args.push(ObjInsArg::Reloc);

@@ -1,11 +1,11 @@
-use std::{borrow::Cow, collections::BTreeMap};
+use std::borrow::Cow;
 
 use anyhow::{bail, Result};
 use object::{Architecture, Object, Relocation, RelocationFlags};
 
 use crate::{
     diff::DiffObjConfig,
-    obj::{ObjIns, ObjReloc, ObjSection},
+    obj::{ObjInfo, ObjIns, ObjSection, SymbolRef},
 };
 
 #[cfg(feature = "mips")]
@@ -18,11 +18,9 @@ mod x86;
 pub trait ObjArch: Send + Sync {
     fn process_code(
         &self,
+        obj: &ObjInfo,
+        symbol_ref: SymbolRef,
         config: &DiffObjConfig,
-        data: &[u8],
-        address: u64,
-        relocs: &[ObjReloc],
-        line_info: &Option<BTreeMap<u64, u64>>,
     ) -> Result<ProcessCodeResult>;
 
     fn implcit_addend(&self, section: &ObjSection, address: u64, reloc: &Relocation)

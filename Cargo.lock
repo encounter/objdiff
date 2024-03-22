@@ -1055,6 +1055,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cpp_demangle"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7e8227005286ec39567949b33df9896bcadfa6051bccca2488129f108ca23119"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
 name = "cpufeatures"
 version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3013,7 +3022,6 @@ dependencies = [
  "argp",
  "crossterm",
  "enable-ansi-support",
- "log",
  "objdiff-core",
  "ratatui",
  "rayon",
@@ -3022,7 +3030,6 @@ dependencies = [
  "supports-color",
  "time",
  "tracing",
- "tracing-attributes",
  "tracing-subscriber",
 ]
 
@@ -3032,6 +3039,7 @@ version = "1.0.0"
 dependencies = [
  "anyhow",
  "byteorder",
+ "cpp_demangle",
  "cwdemangle",
  "filetime",
  "flagset",
@@ -3081,15 +3089,11 @@ dependencies = [
  "rfd",
  "ron",
  "self_update",
- "semver",
  "serde",
  "serde_json",
- "serde_yaml",
  "shell-escape",
  "tempfile",
- "thiserror",
  "time",
- "toml 0.8.11",
  "tracing-subscriber",
  "tracing-wasm",
  "vergen",
@@ -3363,12 +3367,8 @@ checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 
 [[package]]
 name = "ppc750cl"
-version = "0.2.0"
-source = "git+https://github.com/encounter/ppc750cl?rev=4a2bbbc6f84dcb76255ab6f3595a8d4a0ce96618#4a2bbbc6f84dcb76255ab6f3595a8d4a0ce96618"
-dependencies = [
- "num-traits",
- "serde",
-]
+version = "0.3.0"
+source = "git+https://github.com/encounter/ppc750cl?rev=d31bf75009e4efc102fc2b3b33fb7cd041859942#d31bf75009e4efc102fc2b3b33fb7cd041859942"
 
 [[package]]
 name = "ppv-lite86"
@@ -3971,15 +3971,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "serde_spanned"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb3622f419d1296904700073ea6cc23ad690adbd66f13ea683df73298736f0c1"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "serde_urlencoded"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4467,25 +4458,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "toml"
-version = "0.8.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af06656561d28735e9c1cd63dfd57132c8155426aa6af24f36a00a351f88c48e"
-dependencies = [
- "serde",
- "serde_spanned",
- "toml_datetime",
- "toml_edit 0.22.7",
-]
-
-[[package]]
 name = "toml_datetime"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3550f4e9685620ac18a50ed434eb3aec30db8ba93b0287467bca5826ea25baf1"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "toml_edit"
@@ -4495,7 +4471,7 @@ checksum = "1b5bb770da30e5cbfde35a2d7b9b8a2c4b8ef89548a7a6aeab5c9a576e3e7421"
 dependencies = [
  "indexmap",
  "toml_datetime",
- "winnow 0.5.40",
+ "winnow",
 ]
 
 [[package]]
@@ -4506,20 +4482,7 @@ checksum = "6a8534fd7f78b5405e860340ad6575217ce99f38d4d5c8f2442cb5ecb50090e1"
 dependencies = [
  "indexmap",
  "toml_datetime",
- "winnow 0.5.40",
-]
-
-[[package]]
-name = "toml_edit"
-version = "0.22.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18769cd1cec395d70860ceb4d932812a0b4d06b1a4bb336745a4d21b9496e992"
-dependencies = [
- "indexmap",
- "serde",
- "serde_spanned",
- "toml_datetime",
- "winnow 0.6.2",
+ "winnow",
 ]
 
 [[package]]
@@ -5461,15 +5424,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "winnow"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a4191c47f15cc3ec71fcb4913cb83d58def65dd3787610213c649283b5ce178"
-dependencies = [
- "memchr",
-]
-
-[[package]]
 name = "winreg"
 version = "0.50.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5485,7 +5439,7 @@ version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b68db261ef59e9e52806f688020631e987592bd83619edccda9c47d42cde4f6c"
 dependencies = [
- "toml 0.5.11",
+ "toml",
 ]
 
 [[package]]

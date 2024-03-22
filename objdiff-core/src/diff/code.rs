@@ -21,16 +21,7 @@ pub fn no_diff_code(
     symbol_ref: SymbolRef,
     config: &DiffObjConfig,
 ) -> Result<ObjSymbolDiff> {
-    let (section, symbol) = obj.section_symbol(symbol_ref);
-    let code = &section.data
-        [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
-    let out = obj.arch.process_code(
-        config,
-        code,
-        symbol.address,
-        &section.relocations,
-        &obj.line_info,
-    )?;
+    let out = obj.arch.process_code(obj, symbol_ref, config)?;
 
     let mut diff = Vec::<ObjInsDiff>::new();
     for i in out.insts {
@@ -47,26 +38,8 @@ pub fn diff_code(
     right_symbol_ref: SymbolRef,
     config: &DiffObjConfig,
 ) -> Result<(ObjSymbolDiff, ObjSymbolDiff)> {
-    let (left_section, left_symbol) = left_obj.section_symbol(left_symbol_ref);
-    let (right_section, right_symbol) = right_obj.section_symbol(right_symbol_ref);
-    let left_code = &left_section.data[left_symbol.section_address as usize
-        ..(left_symbol.section_address + left_symbol.size) as usize];
-    let right_code = &right_section.data[right_symbol.section_address as usize
-        ..(right_symbol.section_address + right_symbol.size) as usize];
-    let left_out = left_obj.arch.process_code(
-        config,
-        left_code,
-        left_symbol.address,
-        &left_section.relocations,
-        &left_obj.line_info,
-    )?;
-    let right_out = left_obj.arch.process_code(
-        config,
-        right_code,
-        right_symbol.address,
-        &right_section.relocations,
-        &right_obj.line_info,
-    )?;
+    let left_out = left_obj.arch.process_code(left_obj, left_symbol_ref, config)?;
+    let right_out = left_obj.arch.process_code(right_obj, right_symbol_ref, config)?;
 
     let mut left_diff = Vec::<ObjInsDiff>::new();
     let mut right_diff = Vec::<ObjInsDiff>::new();
@@ -312,7 +285,7 @@ fn compare_ins(
                     state.diff_count += 1;
                 }
                 let a_str = match a {
-                    ObjInsArg::PlainText(arg) => arg.clone(),
+                    ObjInsArg::PlainText(arg) => arg.to_string(),
                     ObjInsArg::Arg(arg) => arg.to_string(),
                     ObjInsArg::Reloc => String::new(),
                     ObjInsArg::BranchDest(arg) => format!("{arg}"),
@@ -326,7 +299,7 @@ fn compare_ins(
                     ObjInsArgDiff { idx }
                 };
                 let b_str = match b {
-                    ObjInsArg::PlainText(arg) => arg.clone(),
+                    ObjInsArg::PlainText(arg) => arg.to_string(),
                     ObjInsArg::Arg(arg) => arg.to_string(),
                     ObjInsArg::Reloc => String::new(),
                     ObjInsArg::BranchDest(arg) => format!("{arg}"),

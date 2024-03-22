@@ -31,6 +31,16 @@ pub struct DiffObjConfig {
     pub x86_formatter: X86Formatter,
 }
 
+impl DiffObjConfig {
+    pub fn separator(&self) -> &'static str {
+        if self.space_between_args {
+            ", "
+        } else {
+            ","
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ObjSectionDiff {
     pub symbols: Vec<ObjSymbolDiff>,

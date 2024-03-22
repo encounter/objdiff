@@ -287,7 +287,7 @@ fn symbol_list_ui(
 
             for (section, section_diff) in obj.0.sections.iter().zip(&obj.1.sections) {
                 CollapsingHeader::new(format!("{} ({:x})", section.name, section.size))
-                    .id_source(Id::new(section.name.clone()).with(section.index))
+                    .id_source(Id::new(section.name.clone()).with(section.orig_index))
                     .default_open(true)
                     .show(ui, |ui| {
                         if section.kind == ObjSectionKind::Code && state.reverse_fn_order {
