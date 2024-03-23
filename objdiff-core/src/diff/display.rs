@@ -74,7 +74,11 @@ pub fn display_diff<E>(
                 display_reloc_name(ins.reloc.as_ref().unwrap(), &mut cb)?;
             }
             ObjInsArg::BranchDest(dest) => {
-                cb(DiffText::BranchDest(*dest))?;
+                if let Some(dest) = dest.checked_sub(base_addr) {
+                    cb(DiffText::BranchDest(dest))?;
+                } else {
+                    cb(DiffText::Basic("<unknown>"))?;
+                }
             }
         }
     }

@@ -89,9 +89,7 @@ pub fn run(args: Args) -> Result<()> {
                                 return Some(obj);
                             }
 
-                            let Some(up) = unit_path.as_deref() else {
-                                return None;
-                            };
+                            let up = unit_path.as_deref()?;
 
                             resolve_paths(obj);
 

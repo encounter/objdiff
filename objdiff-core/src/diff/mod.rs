@@ -23,10 +23,14 @@ pub enum X86Formatter {
     Masm,
 }
 
+#[inline]
+const fn default_true() -> bool { true }
+
 #[derive(Debug, Clone, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct DiffObjConfig {
     pub relax_reloc_diffs: bool,
+    #[serde(default = "default_true")]
     pub space_between_args: bool,
     pub x86_formatter: X86Formatter,
 }

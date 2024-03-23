@@ -7,7 +7,7 @@ A local diffing tool for decompilation projects. Inspired by [decomp.me](https:/
 
 Features:
 - Compare entire object files: functions and data.
-- Built-in symbol demangling for C++.
+- Built-in symbol demangling for C++. (CodeWarrior, Itanium & MSVC)
 - Automatic rebuild on source file changes.
 - Project integration via [configuration file](#configuration).
 - Search and filter all of a project's objects and quickly switch.
@@ -15,7 +15,8 @@ Features:
 
 Supports:
 - PowerPC 750CL (GameCube & Wii)
-- MIPS (Nintendo 64)
+- MIPS (Nintendo 64 & PS2)
+- x86 (PE only at the moment)
 
 See [Usage](#usage) for more information.
 
