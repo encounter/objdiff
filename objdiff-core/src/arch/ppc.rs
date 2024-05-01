@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use anyhow::{bail, Result};
 use object::{elf, File, Relocation, RelocationFlags};
-use ppc750cl::{Argument, GPR, InsIter};
+use ppc750cl::{Argument, InsIter, GPR};
 
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
