@@ -138,12 +138,12 @@ fn symbol_context_menu_ui(ui: &mut Ui, symbol: &ObjSymbol) {
 
         if let Some(name) = &symbol.demangled_name {
             if ui.button(format!("Copy \"{name}\"")).clicked() {
-                ui.output_mut(|output| output.copied_text = name.clone());
+                ui.output_mut(|output| output.copied_text.clone_from(name));
                 ui.close_menu();
             }
         }
         if ui.button(format!("Copy \"{}\"", symbol.name)).clicked() {
-            ui.output_mut(|output| output.copied_text = symbol.name.clone());
+            ui.output_mut(|output| output.copied_text.clone_from(&symbol.name));
             ui.close_menu();
         }
         if let Some(address) = symbol.virtual_address {
@@ -334,7 +334,7 @@ fn build_log_ui(ui: &mut Ui, status: &BuildStatus, appearance: &Appearance) {
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         ui.horizontal(|ui| {
             if ui.button("Copy command").clicked() {
-                ui.output_mut(|output| output.copied_text = status.cmdline.clone());
+                ui.output_mut(|output| output.copied_text.clone_from(&status.cmdline));
             }
             if ui.button("Copy log").clicked() {
                 ui.output_mut(|output| {

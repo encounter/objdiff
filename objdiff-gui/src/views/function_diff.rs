@@ -114,12 +114,12 @@ fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
         if let Some(reloc) = &ins.reloc {
             if let Some(name) = &reloc.target.demangled_name {
                 if ui.button(format!("Copy \"{name}\"")).clicked() {
-                    ui.output_mut(|output| output.copied_text = name.clone());
+                    ui.output_mut(|output| output.copied_text.clone_from(name));
                     ui.close_menu();
                 }
             }
             if ui.button(format!("Copy \"{}\"", reloc.target.name)).clicked() {
-                ui.output_mut(|output| output.copied_text = reloc.target.name.clone());
+                ui.output_mut(|output| output.copied_text.clone_from(&reloc.target.name));
                 ui.close_menu();
             }
         }

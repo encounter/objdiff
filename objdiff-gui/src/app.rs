@@ -123,8 +123,6 @@ pub struct AppConfig {
     #[serde(skip)]
     pub queue_reload: bool,
     #[serde(skip)]
-    pub queue_scratch: bool,
-    #[serde(skip)]
     pub project_config_info: Option<ProjectConfigInfo>,
 }
 
@@ -152,7 +150,6 @@ impl Default for AppConfig {
             obj_change: false,
             queue_build: false,
             queue_reload: false,
-            queue_scratch: false,
             project_config_info: None,
         }
     }

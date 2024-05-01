@@ -294,7 +294,7 @@ fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u64, u64>>> {
     // DWARF 2+
     #[cfg(feature = "dwarf")]
     {
-        let dwarf_cow = gimli::Dwarf::load(|id| {
+        let dwarf_cow = gimli::DwarfSections::load(|id| {
             Ok::<_, gimli::Error>(
                 obj_file
                     .section_by_name(id.name())

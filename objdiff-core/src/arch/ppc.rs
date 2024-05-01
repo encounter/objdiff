@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use anyhow::{bail, Result};
 use object::{elf, File, Relocation, RelocationFlags};
-use ppc750cl::{Argument, GPR};
+use ppc750cl::{Argument, GPR, InsIter};
 
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
@@ -42,24 +42,21 @@ impl ObjArch for ObjArchPpc {
         let ins_count = code.len() / 4;
         let mut ops = Vec::<u16>::with_capacity(ins_count);
         let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
-        let mut cur_addr = symbol.address as u32;
-        for chunk in code.chunks_exact(4) {
-            let mut code = u32::from_be_bytes(chunk.try_into()?);
+        for (cur_addr, mut ins) in InsIter::new(code, symbol.address as u32) {
             let reloc = section.relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
             if let Some(reloc) = reloc {
                 // Zero out relocations
-                code = match reloc.flags {
-                    RelocationFlags::Elf { r_type: elf::R_PPC_EMB_SDA21 } => code & !0x1FFFFF,
-                    RelocationFlags::Elf { r_type: elf::R_PPC_REL24 } => code & !0x3FFFFFC,
-                    RelocationFlags::Elf { r_type: elf::R_PPC_REL14 } => code & !0xFFFC,
+                ins.code = match reloc.flags {
+                    RelocationFlags::Elf { r_type: elf::R_PPC_EMB_SDA21 } => ins.code & !0x1FFFFF,
+                    RelocationFlags::Elf { r_type: elf::R_PPC_REL24 } => ins.code & !0x3FFFFFC,
+                    RelocationFlags::Elf { r_type: elf::R_PPC_REL14 } => ins.code & !0xFFFC,
                     RelocationFlags::Elf {
                         r_type: elf::R_PPC_ADDR16_HI | elf::R_PPC_ADDR16_HA | elf::R_PPC_ADDR16_LO,
-                    } => code & !0xFFFF,
-                    _ => code,
+                    } => ins.code & !0xFFFF,
+                    _ => ins.code,
                 };
             }
 
-            let ins = ppc750cl::Ins::new(code);
             let orig = ins.basic().to_string();
             let simplified = ins.simplified();
 
@@ -149,7 +146,6 @@ impl ObjArch for ObjArchPpc {
                 line,
                 orig: Some(orig),
             });
-            cur_addr += 4;
         }
         Ok(ProcessCodeResult { ops, insts })
     }
