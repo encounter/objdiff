@@ -113,6 +113,13 @@ fn run_make_cmd(config: &BuildConfig, cwd: &Path, arg: &Path) -> Result<BuildSta
             Command::new(make)
         };
         if let Some(distro) = &config.selected_wsl_distro {
+            // Strip distro root prefix \\wsl.localhost\{distro}
+            let wsl_path_prefix = format!("\\\\wsl.localhost\\{}", distro);
+            let cwd = match cwd.strip_prefix(wsl_path_prefix) {
+                Ok(new_cwd) => format!("/{}", new_cwd.to_slash_lossy().as_ref()),
+                Err(_) => cwd.to_string_lossy().to_string(),
+            };
+
             command
                 .arg("--cd")
                 .arg(cwd)
