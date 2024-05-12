@@ -39,6 +39,7 @@ impl Default for BuildStatus {
 pub struct BuildConfig {
     pub project_dir: Option<PathBuf>,
     pub custom_make: Option<String>,
+    pub custom_args: Option<Vec<String>>,
     pub selected_wsl_distro: Option<String>,
 }
 
@@ -47,6 +48,7 @@ impl BuildConfig {
         Self {
             project_dir: config.project_dir.clone(),
             custom_make: config.custom_make.clone(),
+            custom_args: config.custom_args.clone(),
             selected_wsl_distro: config.selected_wsl_distro.clone(),
         }
     }
@@ -96,10 +98,11 @@ pub(crate) fn run_make(config: &BuildConfig, arg: &Path) -> BuildStatus {
 
 fn run_make_cmd(config: &BuildConfig, cwd: &Path, arg: &Path) -> Result<BuildStatus> {
     let make = config.custom_make.as_deref().unwrap_or("make");
+    let make_args = config.custom_args.as_deref().unwrap_or(&[]);
     #[cfg(not(windows))]
     let mut command = {
         let mut command = Command::new(make);
-        command.current_dir(cwd).arg(arg);
+        command.current_dir(cwd).args(make_args).arg(arg);
         command
     };
     #[cfg(windows)]
@@ -120,9 +123,10 @@ fn run_make_cmd(config: &BuildConfig, cwd: &Path, arg: &Path) -> Result<BuildSta
                 .arg(distro)
                 .arg("--")
                 .arg(make)
+                .args(make_args)
                 .arg(arg.to_slash_lossy().as_ref());
         } else {
-            command.current_dir(cwd).arg(arg.to_slash_lossy().as_ref());
+            command.current_dir(cwd).args(make_args).arg(arg.to_slash_lossy().as_ref());
         }
         command.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
         command
