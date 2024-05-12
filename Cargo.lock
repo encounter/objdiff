@@ -216,6 +216,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "armv5te"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7603974675228909093b94530f81c2ebaeafb7dc05968e48f422e453970dc80"
+
+[[package]]
 name = "arrayref"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3103,6 +3109,7 @@ name = "objdiff-core"
 version = "1.0.0"
 dependencies = [
  "anyhow",
+ "armv5te",
  "byteorder",
  "cpp_demangle",
  "cwdemangle",

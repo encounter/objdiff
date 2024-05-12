@@ -12,13 +12,14 @@ A local diffing tool for decompilation projects.
 """
 
 [features]
-all = ["config", "dwarf", "mips", "ppc", "x86"]
+all = ["config", "dwarf", "mips", "ppc", "x86", "arm"]
 any-arch = [] # Implicit, used to check if any arch is enabled
 config = ["globset", "semver", "serde_json", "serde_yaml"]
 dwarf = ["gimli"]
 mips = ["any-arch", "rabbitizer"]
 ppc = ["any-arch", "cwdemangle", "ppc750cl"]
 x86 = ["any-arch", "cpp_demangle", "iced-x86", "msvc-demangler"]
+arm = ["any-arch", "cpp_demangle", "armv5te"]
 
 [dependencies]
 anyhow = "1.0.82"
@@ -52,3 +53,6 @@ rabbitizer = { version = "1.10.0", optional = true }
 cpp_demangle = { version = "0.4.3", optional = true }
 iced-x86 = { version = "1.21.0", default-features = false, features = ["std", "decoder", "intel", "gas", "masm", "nasm", "exhaustive_enums"], optional = true }
 msvc-demangler = { version = "0.10.0", optional = true }
+
+# arm
+armv5te = { version = "0.1.0", optional = true }
