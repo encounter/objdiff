@@ -16,7 +16,7 @@ Features:
 Supports:
 - PowerPC 750CL (GameCube & Wii)
 - MIPS (Nintendo 64 & PS2)
-- x86 (PE only at the moment)
+- x86 (COFF only at the moment)
 
 See [Usage](#usage) for more information.
 
@@ -60,8 +60,8 @@ file as well. You can then add `objdiff.json` to your `.gitignore` to prevent it
 {
   "custom_make": "ninja",
   "custom_args": [
-    "-C",
-    "build"
+    "-d",
+    "keeprsp"
   ],
 
   // Only required if objects use "path" instead of "target_path" and "base_path".
@@ -96,7 +96,10 @@ file as well. You can then add `objdiff.json` to your `.gitignore` to prevent it
 ```
 
 `custom_make` _(optional)_: By default, objdiff will use `make` to build the project.  
-If the project uses a different build system (e.g. `ninja`), specify it here.
+If the project uses a different build system (e.g. `ninja`), specify it here.  
+The build command will be `[custom_make] [custom_args] path/to/object.o`.
+
+`custom_args` _(optional)_: Additional arguments to pass to the build command prior to the object path.
 
 `target_dir` _(optional)_: Relative from the root of the project, this where the "target" or "expected" objects are located.  
 These are the **intended result** of the match.
