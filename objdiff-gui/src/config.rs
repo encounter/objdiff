@@ -71,6 +71,7 @@ pub fn load_project_config(config: &mut AppConfig) -> Result<()> {
     if let Some((result, info)) = try_project_config(project_dir) {
         let project_config = result?;
         config.custom_make = project_config.custom_make;
+        config.custom_args = project_config.custom_args;
         config.target_obj_dir = project_config.target_dir.map(|p| project_dir.join(p));
         config.base_obj_dir = project_config.base_dir.map(|p| project_dir.join(p));
         config.build_base = project_config.build_base;

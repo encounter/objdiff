@@ -59,6 +59,10 @@ file as well. You can then add `objdiff.json` to your `.gitignore` to prevent it
 // objdiff.json
 {
   "custom_make": "ninja",
+  "custom_args": [
+    "-C",
+    "build"
+  ],
 
   // Only required if objects use "path" instead of "target_path" and "base_path".
   "target_dir": "build/asm",
