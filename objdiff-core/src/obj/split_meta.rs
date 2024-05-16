@@ -87,12 +87,12 @@ impl SplitMeta {
         if let Some(generator) = &self.generator {
             write_note_header(writer, e, NT_SPLIT_GENERATOR, generator.len())?;
             writer.write_all(generator.as_bytes())?;
-            align_to_4(writer, generator.len())?;
+            align_data_to_4(writer, generator.len())?;
         }
         if let Some(module_name) = &self.module_name {
             write_note_header(writer, e, NT_SPLIT_MODULE_NAME, module_name.len())?;
             writer.write_all(module_name.as_bytes())?;
-            align_to_4(writer, module_name.len())?;
+            align_data_to_4(writer, module_name.len())?;
         }
         if let Some(module_id) = self.module_id {
             write_note_header(writer, e, NT_SPLIT_MODULE_ID, 4)?;
@@ -119,15 +119,19 @@ impl SplitMeta {
         let mut size = 0;
         if let Some(generator) = self.generator.as_deref() {
             size += NOTE_HEADER_SIZE + generator.len();
+            size = align_size_to_4(size);
         }
         if let Some(module_name) = self.module_name.as_deref() {
             size += NOTE_HEADER_SIZE + module_name.len();
+            size = align_size_to_4(size);
         }
         if self.module_id.is_some() {
             size += NOTE_HEADER_SIZE + 4;
+            size = align_size_to_4(size);
         }
         if let Some(virtual_addresses) = self.virtual_addresses.as_deref() {
             size += NOTE_HEADER_SIZE + if is_64 { 8 } else { 4 } * virtual_addresses.len();
+            size = align_size_to_4(size);
         }
         size
     }
@@ -186,7 +190,9 @@ where E: Endian
     }
 }
 
-fn align_to_4<W: Write + ?Sized>(writer: &mut W, len: usize) -> io::Result<()> {
+fn align_size_to_4(size: usize) -> usize { return (size + 3) & !3; }
+
+fn align_data_to_4<W: Write + ?Sized>(writer: &mut W, len: usize) -> io::Result<()> {
     const ALIGN_BYTES: &[u8] = &[0; 4];
     if len % 4 != 0 {
         writer.write_all(&ALIGN_BYTES[..4 - len % 4])?;
@@ -212,6 +218,6 @@ where
     writer.write_all(&e.write_u32_bytes(kind))?; // Type
     writer.write_all(ELF_NOTE_SPLIT)?; // Name
     writer.write_all(&[0; 1])?; // Null terminator
-    align_to_4(writer, ELF_NOTE_SPLIT.len() + 1)?;
+    align_data_to_4(writer, ELF_NOTE_SPLIT.len() + 1)?;
     Ok(())
 }
