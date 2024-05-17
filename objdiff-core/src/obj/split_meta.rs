@@ -190,7 +190,7 @@ where E: Endian
     }
 }
 
-fn align_size_to_4(size: usize) -> usize { return (size + 3) & !3; }
+fn align_size_to_4(size: usize) -> usize { (size + 3) & !3 }
 
 fn align_data_to_4<W: Write + ?Sized>(writer: &mut W, len: usize) -> io::Result<()> {
     const ALIGN_BYTES: &[u8] = &[0; 4];
