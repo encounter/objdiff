@@ -84,6 +84,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub custom_make: Option<String>,
     #[serde(default)]
+    pub custom_args: Option<Vec<String>>,
+    #[serde(default)]
     pub selected_wsl_distro: Option<String>,
     #[serde(default)]
     pub project_dir: Option<PathBuf>,
@@ -131,6 +133,7 @@ impl Default for AppConfig {
         Self {
             version: AppConfigVersion::default().version,
             custom_make: None,
+            custom_args: None,
             selected_wsl_distro: None,
             project_dir: None,
             target_obj_dir: None,

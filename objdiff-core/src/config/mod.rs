@@ -18,6 +18,8 @@ pub struct ProjectConfig {
     #[serde(default)]
     pub custom_make: Option<String>,
     #[serde(default)]
+    pub custom_args: Option<Vec<String>>,
+    #[serde(default)]
     pub target_dir: Option<PathBuf>,
     #[serde(default)]
     pub base_dir: Option<PathBuf>,
