@@ -217,9 +217,9 @@ dependencies = [
 
 [[package]]
 name = "armv5te"
-version = "0.1.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7603974675228909093b94530f81c2ebaeafb7dc05968e48f422e453970dc80"
+checksum = "fd80f9acaa34edbec1011a43c96f1dba19c2e1afd6f144f2156c2ae8c2035f04"
 
 [[package]]
 name = "arrayref"
