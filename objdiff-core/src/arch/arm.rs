@@ -1,6 +1,6 @@
 use std::{borrow::Cow, collections::HashMap};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use armv5te::{arm, thumb};
 use object::{
     elf, File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, SectionIndex,
@@ -58,18 +58,18 @@ impl ObjArch for ObjArchArm {
         let end_addr = start_addr + symbol.size as u32;
 
         // Mapping symbols decide what kind of data comes after it. $a for ARM code, $t for Thumb code and $d for data.
+        let fallback_mappings =
+            [DisasmMode { address: symbol.address as u32, mapping: MappingSymbol::Arm }];
         let mapping_symbols = self
             .disasm_modes
             .get(&SectionIndex(section.orig_index))
-            .with_context(|| format!("No mappings symbols in the section of '{}'", symbol.name))?;
-        let first_mapping = self
-            .disasm_modes
-            .get(&SectionIndex(section.orig_index))
-            .map(|s| match s.binary_search_by_key(&(symbol.address as u32), |x| x.address) {
+            .map(|x| x.as_slice())
+            .unwrap_or(&fallback_mappings);
+        let first_mapping =
+            match mapping_symbols.binary_search_by_key(&(symbol.address as u32), |x| x.address) {
                 Ok(idx) => idx,
                 Err(idx) => idx - 1,
-            })
-            .with_context(|| format!("No mapping symbol found before or at '{}'", symbol.name))?;
+            };
         let mut mapping = mapping_symbols[first_mapping].mapping;
 
         let mut mappings_iter =
