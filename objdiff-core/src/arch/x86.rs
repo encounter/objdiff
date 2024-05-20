@@ -57,6 +57,7 @@ impl ObjArch for ObjArchX86 {
                 reloc: None,
                 branch_dest: None,
                 line: None,
+                formatted: String::new(),
                 orig: None,
             },
             error: None,
@@ -81,6 +82,7 @@ impl ObjArch for ObjArchX86 {
                 reloc: reloc.cloned(),
                 branch_dest: None,
                 line: obj.line_info.as_ref().and_then(|m| m.get(&address).cloned()),
+                formatted: String::new(),
                 orig: None,
             };
             // Run the formatter, which will populate output.ins
@@ -89,7 +91,7 @@ impl ObjArch for ObjArchX86 {
                 return Err(error);
             }
             ensure!(output.ins_operands.len() == output.ins.args.len());
-            output.ins.orig = Some(output.formatted.clone());
+            output.ins.formatted.clone_from(&output.formatted);
 
             // Make sure we've put the relocation somewhere in the instruction
             if reloc.is_some() && !output.ins.args.iter().any(|a| matches!(a, ObjInsArg::Reloc)) {

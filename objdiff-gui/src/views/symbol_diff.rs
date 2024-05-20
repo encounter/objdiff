@@ -171,10 +171,7 @@ fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol, appearance: &Appearance) {
             );
         }
         if let Some(address) = symbol.virtual_address {
-            ui.colored_label(
-                appearance.highlight_color,
-                format!("Virtual address: {:#x}", address),
-            );
+            ui.colored_label(appearance.replace_color, format!("Virtual address: {:#x}", address));
         }
     });
 }

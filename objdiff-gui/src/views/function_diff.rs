@@ -1,6 +1,6 @@
 use std::default::Default;
 
-use egui::{text::LayoutJob, Align, Label, Layout, Sense, Vec2, Widget};
+use egui::{text::LayoutJob, Align, Label, Layout, Response, Sense, Vec2, Widget};
 use egui_extras::{Column, TableBuilder, TableRow};
 use objdiff_core::{
     arch::ObjArch,
@@ -27,6 +27,7 @@ fn ins_hover_ui(
     arch: &dyn ObjArch,
     section: &ObjSection,
     ins: &ObjIns,
+    symbol: &ObjSymbol,
     appearance: &Appearance,
 ) {
     ui.scope(|ui| {
@@ -35,9 +36,17 @@ fn ins_hover_ui(
 
         let offset = ins.address - section.address;
         ui.label(format!(
-            "{:02X?}",
+            "{:02x?}",
             &section.data[offset as usize..(offset + ins.size as u64) as usize]
         ));
+
+        if let Some(virtual_address) = symbol.virtual_address {
+            let offset = ins.address - symbol.address;
+            ui.colored_label(
+                appearance.replace_color,
+                format!("Virtual address: {:#x}", virtual_address + offset),
+            );
+        }
 
         if let Some(orig) = &ins.orig {
             ui.label(format!("Original: {}", orig));
@@ -77,12 +86,33 @@ fn ins_hover_ui(
     });
 }
 
-fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
+fn ins_context_menu(ui: &mut egui::Ui, section: &ObjSection, ins: &ObjIns, symbol: &ObjSymbol) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap = Some(false);
 
-        // if ui.button("Copy hex").clicked() {}
+        if ui.button(format!("Copy \"{}\"", ins.formatted)).clicked() {
+            ui.output_mut(|output| output.copied_text.clone_from(&ins.formatted));
+            ui.close_menu();
+        }
+
+        let mut hex_string = "0x".to_string();
+        for byte in &section.data[ins.address as usize..(ins.address + ins.size as u64) as usize] {
+            hex_string.push_str(&format!("{:02x}", byte));
+        }
+        if ui.button(format!("Copy \"{hex_string}\" (instruction bytes)")).clicked() {
+            ui.output_mut(|output| output.copied_text = hex_string);
+            ui.close_menu();
+        }
+
+        if let Some(virtual_address) = symbol.virtual_address {
+            let offset = ins.address - symbol.address;
+            let offset_string = format!("{:#x}", virtual_address + offset);
+            if ui.button(format!("Copy \"{offset_string}\" (virtual address)")).clicked() {
+                ui.output_mut(|output| output.copied_text = offset_string);
+                ui.close_menu();
+            }
+        }
 
         for arg in &ins.args {
             if let ObjInsArg::Arg(arg) = arg {
@@ -144,6 +174,7 @@ fn diff_text_ui(
     appearance: &Appearance,
     ins_view_state: &mut FunctionViewState,
     space_width: f32,
+    response_cb: impl Fn(Response) -> Response,
 ) {
     let label_text;
     let mut base_color = match ins_diff.kind {
@@ -204,13 +235,13 @@ fn diff_text_ui(
 
     let len = label_text.len();
     let highlight = ins_view_state.highlight == text;
-    let response = Label::new(LayoutJob::single_section(
+    let mut response = Label::new(LayoutJob::single_section(
         label_text,
         appearance.code_text_format(base_color, highlight),
     ))
     .sense(Sense::click())
     .ui(ui);
-    response.context_menu(|ui| ins_context_menu(ui, ins_diff.ins.as_ref().unwrap()));
+    response = response_cb(response);
     if response.clicked() {
         if highlight {
             ins_view_state.highlight = HighlightKind::None;
@@ -229,6 +260,7 @@ fn asm_row_ui(
     symbol: &ObjSymbol,
     appearance: &Appearance,
     ins_view_state: &mut FunctionViewState,
+    response_cb: impl Fn(Response) -> Response,
 ) {
     ui.spacing_mut().item_spacing.x = 0.0;
     if ins_diff.kind != ObjInsDiffKind::None {
@@ -236,7 +268,7 @@ fn asm_row_ui(
     }
     let space_width = ui.fonts(|f| f.glyph_width(&appearance.code_font, ' '));
     display_diff(ins_diff, symbol.address, |text| {
-        diff_text_ui(ui, text, ins_diff, appearance, ins_view_state, space_width);
+        diff_text_ui(ui, text, ins_diff, appearance, ins_view_state, space_width, &response_cb);
         Ok::<_, ()>(())
     })
     .unwrap();
@@ -251,14 +283,20 @@ fn asm_col_ui(
 ) {
     let (section, symbol) = obj.0.section_symbol(symbol_ref);
     let ins_diff = &obj.1.symbol_diff(symbol_ref).instructions[row.index()];
+    let response_cb = |response: Response| {
+        if let Some(ins) = &ins_diff.ins {
+            response.context_menu(|ui| ins_context_menu(ui, section, ins, symbol));
+            response.on_hover_ui_at_pointer(|ui| {
+                ins_hover_ui(ui, obj.0.arch.as_ref(), section, ins, symbol, appearance)
+            })
+        } else {
+            response
+        }
+    };
     let (_, response) = row.col(|ui| {
-        asm_row_ui(ui, ins_diff, symbol, appearance, ins_view_state);
+        asm_row_ui(ui, ins_diff, symbol, appearance, ins_view_state, response_cb);
     });
-    if let Some(ins) = &ins_diff.ins {
-        response.on_hover_ui_at_pointer(|ui| {
-            ins_hover_ui(ui, obj.0.arch.as_ref(), section, ins, appearance)
-        });
-    }
+    response_cb(response);
 }
 
 fn empty_col_ui(row: &mut TableRow<'_, '_>) {
