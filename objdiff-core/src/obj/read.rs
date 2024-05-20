@@ -1,4 +1,9 @@
-use std::{collections::BTreeMap, fs, io::Cursor, path::Path};
+use std::{
+    collections::{BTreeMap, HashMap},
+    fs,
+    io::Cursor,
+    path::Path,
+};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use byteorder::{BigEndian, ReadBytesExt};
@@ -268,13 +273,20 @@ fn relocations_by_section(
     Ok(relocations)
 }
 
-fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u64, u64>>> {
+fn line_info(obj_file: &File<'_>) -> Result<Option<HashMap<SectionIndex, BTreeMap<u64, u64>>>> {
+    let mut map = HashMap::new();
+
     // DWARF 1.1
-    let mut map = BTreeMap::new();
     if let Some(section) = obj_file.section_by_name(".line") {
         if section.size() == 0 {
             return Ok(None);
         }
+        let text_section = obj_file
+            .sections()
+            .find(|s| s.kind() == SectionKind::Text)
+            .context("No text section found for line info")?;
+        let mut lines = BTreeMap::new();
+
         let data = section.uncompressed_data()?;
         let mut reader = Cursor::new(data.as_ref());
 
@@ -287,13 +299,20 @@ fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u64, u64>>> {
                 log::warn!("Unhandled statement pos {}", statement_pos);
             }
             let address_delta = reader.read_u32::<BigEndian>()? as u64;
-            map.insert(base_address + address_delta, line_number);
+            lines.insert(base_address + address_delta, line_number);
         }
+
+        map.insert(text_section.index(), lines);
     }
 
     // DWARF 2+
     #[cfg(feature = "dwarf")]
     {
+        let mut text_sections = obj_file.sections().filter(|s| s.kind() == SectionKind::Text);
+        let first_section = text_sections.next().context("No text section found for line info")?;
+        map.insert(first_section.index(), BTreeMap::new());
+        let mut lines = map.get_mut(&first_section.index()).unwrap();
+
         let dwarf_cow = gimli::DwarfSections::load(|id| {
             Ok::<_, gimli::Error>(
                 obj_file
@@ -308,13 +327,23 @@ fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u64, u64>>> {
         };
         let dwarf = dwarf_cow.borrow(|section| gimli::EndianSlice::new(section, endian));
         let mut iter = dwarf.units();
-        while let Some(header) = iter.next()? {
+        'outer: while let Some(header) = iter.next()? {
             let unit = dwarf.unit(header)?;
             if let Some(program) = unit.line_program.clone() {
                 let mut rows = program.rows();
                 while let Some((_header, row)) = rows.next_row()? {
                     if let Some(line) = row.line() {
-                        map.insert(row.address(), line.get());
+                        lines.insert(row.address(), line.get());
+                    }
+                    if row.end_sequence() {
+                        // The next row is the start of a new sequence, which means we must
+                        // advance to the next .text section.
+                        if let Some(next_section) = text_sections.next() {
+                            map.insert(next_section.index(), BTreeMap::new());
+                            lines = map.get_mut(&next_section.index()).unwrap();
+                        } else {
+                            break 'outer;
+                        }
                     }
                 }
             }
