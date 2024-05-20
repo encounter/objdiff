@@ -52,6 +52,7 @@ impl ObjArch for ObjArchMips {
             let code = self.endianness.read_u32_bytes(chunk.try_into()?);
             let instruction = Instruction::new(code, cur_addr, InstrCategory::CPU);
 
+            let formatted = instruction.disassemble(None, 0);
             let op = instruction.unique_id as u16;
             ops.push(op);
 
@@ -124,6 +125,7 @@ impl ObjArch for ObjArchMips {
                 reloc: reloc.cloned(),
                 branch_dest,
                 line,
+                formatted,
                 orig: None,
             });
             cur_addr += 4;

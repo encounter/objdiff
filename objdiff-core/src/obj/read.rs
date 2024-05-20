@@ -257,7 +257,7 @@ fn relocations_by_section(
         } else {
             reloc.addend()
         };
-        // println!("Reloc: {reloc:?}, symbol: {symbol:?}, addend: {addend:#X}");
+        // println!("Reloc: {reloc:?}, symbol: {symbol:?}, addend: {addend:#x}");
         let target = match symbol.kind() {
             SymbolKind::Text | SymbolKind::Data | SymbolKind::Label | SymbolKind::Unknown => {
                 to_obj_symbol(arch, obj_file, &symbol, addend, split_meta)

@@ -39,7 +39,7 @@ pub fn diff_code(
     config: &DiffObjConfig,
 ) -> Result<(ObjSymbolDiff, ObjSymbolDiff)> {
     let left_out = left_obj.arch.process_code(left_obj, left_symbol_ref, config)?;
-    let right_out = left_obj.arch.process_code(right_obj, right_symbol_ref, config)?;
+    let right_out = right_obj.arch.process_code(right_obj, right_symbol_ref, config)?;
 
     let mut left_diff = Vec::<ObjInsDiff>::new();
     let mut right_diff = Vec::<ObjInsDiff>::new();

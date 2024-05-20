@@ -106,6 +106,8 @@ pub struct ObjIns {
     pub branch_dest: Option<u64>,
     /// Line number
     pub line: Option<u64>,
+    /// Formatted instruction
+    pub formatted: String,
     /// Original (unsimplified) instruction
     pub orig: Option<String>,
 }

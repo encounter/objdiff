@@ -62,6 +62,7 @@ impl ObjArch for ObjArchPpc {
 
             let orig = ins.basic().to_string();
             let simplified = ins.simplified();
+            let formatted = simplified.to_string();
 
             let mut reloc_arg = None;
             if let Some(reloc) = reloc {
@@ -145,6 +146,7 @@ impl ObjArch for ObjArchPpc {
                 op: ins.op as u16,
                 branch_dest,
                 line,
+                formatted,
                 orig: Some(orig),
             });
         }

@@ -5,7 +5,7 @@ use crate::{
     obj::{ObjInsArg, ObjInsArgValue, ObjReloc, ObjSymbol},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum DiffText<'a> {
     /// Basic text
     Basic(&'a str),
@@ -95,8 +95,8 @@ fn display_reloc_name<E>(
 ) -> Result<(), E> {
     cb(DiffText::Symbol(&reloc.target))?;
     match reloc.target.addend.cmp(&0i64) {
-        Ordering::Greater => cb(DiffText::Basic(&format!("+{:#X}", reloc.target.addend))),
-        Ordering::Less => cb(DiffText::Basic(&format!("-{:#X}", -reloc.target.addend))),
+        Ordering::Greater => cb(DiffText::Basic(&format!("+{:#x}", reloc.target.addend))),
+        Ordering::Less => cb(DiffText::Basic(&format!("-{:#x}", -reloc.target.addend))),
         _ => Ok(()),
     }
 }
