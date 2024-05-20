@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use anyhow::{bail, Result};
-use object::{elf, Endian, Endianness, File, Object, Relocation, RelocationFlags};
+use object::{elf, Endian, Endianness, File, Object, Relocation, RelocationFlags, SectionIndex};
 use rabbitizer::{config, Abi, InstrCategory, Instruction, OperandType};
 
 use crate::{
@@ -37,6 +37,9 @@ impl ObjArch for ObjArchMips {
         let (section, symbol) = obj.section_symbol(symbol_ref);
         let code = &section.data
             [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
+
+        let line_info =
+            obj.line_info.as_ref().and_then(|map| map.get(&SectionIndex(section.orig_index)));
 
         let start_address = symbol.address;
         let end_address = symbol.address + symbol.size;
@@ -110,10 +113,8 @@ impl ObjArch for ObjArchMips {
                     }
                 }
             }
-            let line = obj
-                .line_info
-                .as_ref()
-                .and_then(|map| map.range(..=cur_addr as u64).last().map(|(_, &b)| b));
+            let line =
+                line_info.and_then(|map| map.range(..=cur_addr as u64).last().map(|(_, &b)| b));
             insts.push(ObjIns {
                 address: cur_addr as u64,
                 size: 4,
