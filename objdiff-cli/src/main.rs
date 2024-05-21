@@ -2,7 +2,7 @@ mod argp_version;
 mod cmd;
 mod util;
 
-use std::{env, ffi::OsStr, path::PathBuf, str::FromStr};
+use std::{env, ffi::OsStr, fmt::Display, path::PathBuf, str::FromStr};
 
 use anyhow::{Error, Result};
 use argp::{FromArgValue, FromArgs};
@@ -34,16 +34,15 @@ impl FromStr for LogLevel {
     }
 }
 
-impl ToString for LogLevel {
-    fn to_string(&self) -> String {
-        match self {
+impl Display for LogLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
             LogLevel::Error => "error",
             LogLevel::Warn => "warn",
             LogLevel::Info => "info",
             LogLevel::Debug => "debug",
             LogLevel::Trace => "trace",
-        }
-        .to_string()
+        })
     }
 }
 

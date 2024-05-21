@@ -12,8 +12,11 @@ use std::{
 use filetime::FileTime;
 use globset::{Glob, GlobSet};
 use notify::{RecursiveMode, Watcher};
-use objdiff_core::config::{
-    build_globset, ProjectConfigInfo, ProjectObject, ScratchConfig, DEFAULT_WATCH_PATTERNS,
+use objdiff_core::{
+    config::{
+        build_globset, ProjectConfigInfo, ProjectObject, ScratchConfig, DEFAULT_WATCH_PATTERNS,
+    },
+    diff::DiffObjConfig,
 };
 use time::UtcOffset;
 
@@ -26,7 +29,9 @@ use crate::{
     },
     views::{
         appearance::{appearance_window, Appearance},
-        config::{config_ui, project_window, ConfigViewState, CONFIG_DISABLED_TEXT},
+        config::{
+            config_ui, diff_config_window, project_window, ConfigViewState, CONFIG_DISABLED_TEXT,
+        },
         data_diff::data_diff_ui,
         debug::debug_window,
         demangle::{demangle_window, DemangleViewState},
@@ -47,7 +52,7 @@ pub struct ViewState {
     pub show_appearance_config: bool,
     pub show_demangle: bool,
     pub show_project_config: bool,
-    pub show_diff_options: bool,
+    pub show_diff_config: bool,
     pub show_debug: bool,
 }
 
@@ -79,6 +84,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub custom_make: Option<String>,
     #[serde(default)]
+    pub custom_args: Option<Vec<String>>,
+    #[serde(default)]
     pub selected_wsl_distro: Option<String>,
     #[serde(default)]
     pub project_dir: Option<PathBuf>,
@@ -101,7 +108,7 @@ pub struct AppConfig {
     #[serde(default)]
     pub recent_projects: Vec<PathBuf>,
     #[serde(default)]
-    pub relax_reloc_diffs: bool,
+    pub diff_obj_config: DiffObjConfig,
 
     #[serde(skip)]
     pub objects: Vec<ProjectObject>,
@@ -118,8 +125,6 @@ pub struct AppConfig {
     #[serde(skip)]
     pub queue_reload: bool,
     #[serde(skip)]
-    pub queue_scratch: bool,
-    #[serde(skip)]
     pub project_config_info: Option<ProjectConfigInfo>,
 }
 
@@ -128,6 +133,7 @@ impl Default for AppConfig {
         Self {
             version: AppConfigVersion::default().version,
             custom_make: None,
+            custom_args: None,
             selected_wsl_distro: None,
             project_dir: None,
             target_obj_dir: None,
@@ -139,7 +145,7 @@ impl Default for AppConfig {
             auto_update_check: true,
             watch_patterns: DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect(),
             recent_projects: vec![],
-            relax_reloc_diffs: false,
+            diff_obj_config: Default::default(),
             objects: vec![],
             object_nodes: vec![],
             watcher_change: false,
@@ -147,7 +153,6 @@ impl Default for AppConfig {
             obj_change: false,
             queue_build: false,
             queue_reload: false,
-            queue_scratch: false,
             project_config_info: None,
         }
     }
@@ -285,7 +290,7 @@ impl App {
                             title: "Error".to_string(),
                             progress_percent: 0.0,
                             progress_items: None,
-                            status: "".to_string(),
+                            status: String::new(),
                             error: Some(err),
                         }));
                     }
@@ -359,12 +364,12 @@ impl App {
         }
 
         if let Some(result) = &diff_state.build {
-            if let Some(obj) = &result.first_obj {
+            if let Some((obj, _)) = &result.first_obj {
                 if file_modified(&obj.path, obj.timestamp) {
                     config.queue_reload = true;
                 }
             }
-            if let Some(obj) = &result.second_obj {
+            if let Some((obj, _)) = &result.second_obj {
                 if file_modified(&obj.path, obj.timestamp) {
                     config.queue_reload = true;
                 }
@@ -409,7 +414,7 @@ impl eframe::App for App {
             show_appearance_config,
             show_demangle,
             show_project_config,
-            show_diff_options,
+            show_diff_config,
             show_debug,
         } = view_state;
 
@@ -463,8 +468,8 @@ impl eframe::App for App {
                     }
                 });
                 ui.menu_button("Diff Options", |ui| {
-                    if ui.button("Algorithm…").clicked() {
-                        *show_diff_options = !*show_diff_options;
+                    if ui.button("More…").clicked() {
+                        *show_diff_config = !*show_diff_config;
                         ui.close_menu();
                     }
                     let mut config = config.write().unwrap();
@@ -487,9 +492,21 @@ impl eframe::App for App {
                         "Show hidden symbols",
                     );
                     if ui
-                        .checkbox(&mut config.relax_reloc_diffs, "Relax relocation diffs")
+                        .checkbox(
+                            &mut config.diff_obj_config.relax_reloc_diffs,
+                            "Relax relocation diffs",
+                        )
                         .on_hover_text(
                             "Ignores differences in relocation targets. (Address, name, etc)",
+                        )
+                        .changed()
+                    {
+                        config.queue_reload = true;
+                    }
+                    if ui
+                        .checkbox(
+                            &mut config.diff_obj_config.space_between_args,
+                            "Space between args",
                         )
                         .changed()
                     {
@@ -524,6 +541,7 @@ impl eframe::App for App {
         project_window(ctx, config, show_project_config, config_state, appearance);
         appearance_window(ctx, show_appearance_config, appearance);
         demangle_window(ctx, show_demangle, demangle_state, appearance);
+        diff_config_window(ctx, config, show_diff_config, appearance);
         debug_window(ctx, show_debug, frame_history, appearance);
 
         self.post_update(ctx);

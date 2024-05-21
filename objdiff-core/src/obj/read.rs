@@ -1,18 +1,20 @@
-use std::{collections::BTreeMap, fs, io::Cursor, path::Path};
+use std::{fs, io::Cursor, path::Path};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use byteorder::{BigEndian, ReadBytesExt};
 use filetime::FileTime;
 use flagset::Flags;
 use object::{
-    elf, Architecture, File, Object, ObjectSection, ObjectSymbol, RelocationKind, RelocationTarget,
-    SectionIndex, SectionKind, Symbol, SymbolKind, SymbolScope, SymbolSection,
+    BinaryFormat, File, Object, ObjectSection, ObjectSymbol, RelocationTarget, SectionIndex,
+    SectionKind, Symbol, SymbolKind, SymbolScope, SymbolSection,
 };
 
-use crate::obj::{
-    split_meta::{SplitMeta, SPLITMETA_SECTION},
-    ObjArchitecture, ObjInfo, ObjReloc, ObjRelocKind, ObjSection, ObjSectionKind, ObjSymbol,
-    ObjSymbolFlagSet, ObjSymbolFlags,
+use crate::{
+    arch::{new_arch, ObjArch},
+    obj::{
+        split_meta::{SplitMeta, SPLITMETA_SECTION},
+        ObjInfo, ObjReloc, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlagSet, ObjSymbolFlags,
+    },
 };
 
 fn to_obj_section_kind(kind: SectionKind) -> Option<ObjSectionKind> {
@@ -25,6 +27,7 @@ fn to_obj_section_kind(kind: SectionKind) -> Option<ObjSectionKind> {
 }
 
 fn to_obj_symbol(
+    arch: &dyn ObjArch,
     obj_file: &File<'_>,
     symbol: &Symbol<'_, '_>,
     addend: i64,
@@ -48,7 +51,7 @@ fn to_obj_symbol(
     if symbol.is_weak() {
         flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Weak);
     }
-    if symbol.scope() == SymbolScope::Linkage {
+    if obj_file.format() == BinaryFormat::Elf && symbol.scope() == SymbolScope::Linkage {
         flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Hidden);
     }
     let section_address = if let Some(section) =
@@ -58,11 +61,7 @@ fn to_obj_symbol(
     } else {
         symbol.address()
     };
-    let mut demangled_name = None;
-    #[cfg(feature = "ppc")]
-    if obj_file.architecture() == Architecture::PowerPc {
-        demangled_name = cwdemangle::demangle(name, &Default::default());
-    }
+    let demangled_name = arch.demangle(name);
     // Find the virtual address for the symbol if available
     let virtual_address = split_meta
         .and_then(|m| m.virtual_addresses.as_ref())
@@ -77,9 +76,6 @@ fn to_obj_symbol(
         flags,
         addend,
         virtual_address,
-        diff_symbol: None,
-        instructions: vec![],
-        match_percent: None,
     })
 }
 
@@ -111,12 +107,11 @@ fn filter_sections(obj_file: &File<'_>, split_meta: Option<&SplitMeta>) -> Resul
             address: section.address(),
             size: section.size(),
             data: data.to_vec(),
-            index: section.index().0,
+            orig_index: section.index().0,
             symbols: Vec::new(),
             relocations: Vec::new(),
             virtual_address,
-            data_diff: vec![],
-            match_percent: 0.0,
+            line_info: Default::default(),
         });
     }
     result.sort_by(|a, b| a.name.cmp(&b.name));
@@ -124,6 +119,7 @@ fn filter_sections(obj_file: &File<'_>, split_meta: Option<&SplitMeta>) -> Resul
 }
 
 fn symbols_by_section(
+    arch: &dyn ObjArch,
     obj_file: &File<'_>,
     section: &ObjSection,
     split_meta: Option<&SplitMeta>,
@@ -134,7 +130,7 @@ fn symbols_by_section(
             continue;
         }
         if let Some(index) = symbol.section().index() {
-            if index.0 == section.index {
+            if index.0 == section.orig_index {
                 if symbol.is_local() && section.kind == ObjSectionKind::Code {
                     // TODO strip local syms in diff?
                     let name = symbol.name().context("Failed to process symbol name")?;
@@ -142,7 +138,7 @@ fn symbols_by_section(
                         continue;
                     }
                 }
-                result.push(to_obj_symbol(obj_file, &symbol, 0, split_meta)?);
+                result.push(to_obj_symbol(arch, obj_file, &symbol, 0, split_meta)?);
             }
         }
     }
@@ -160,15 +156,20 @@ fn symbols_by_section(
     Ok(result)
 }
 
-fn common_symbols(obj_file: &File<'_>, split_meta: Option<&SplitMeta>) -> Result<Vec<ObjSymbol>> {
+fn common_symbols(
+    arch: &dyn ObjArch,
+    obj_file: &File<'_>,
+    split_meta: Option<&SplitMeta>,
+) -> Result<Vec<ObjSymbol>> {
     obj_file
         .symbols()
         .filter(Symbol::is_common)
-        .map(|symbol| to_obj_symbol(obj_file, &symbol, 0, split_meta))
+        .map(|symbol| to_obj_symbol(arch, obj_file, &symbol, 0, split_meta))
         .collect::<Result<Vec<ObjSymbol>>>()
 }
 
 fn find_section_symbol(
+    arch: &dyn ObjArch,
     obj_file: &File<'_>,
     target: &Symbol<'_, '_>,
     address: u64,
@@ -192,7 +193,7 @@ fn find_section_symbol(
             }
             continue;
         }
-        return to_obj_symbol(obj_file, &symbol, 0, split_meta);
+        return to_obj_symbol(arch, obj_file, &symbol, 0, split_meta);
     }
     let (name, offset) = closest_symbol
         .and_then(|s| s.name().map(|n| (n, s.address())).ok())
@@ -209,54 +210,37 @@ fn find_section_symbol(
         flags: Default::default(),
         addend: offset_addr as i64,
         virtual_address: None,
-        diff_symbol: None,
-        instructions: vec![],
-        match_percent: None,
     })
 }
 
 fn relocations_by_section(
-    arch: ObjArchitecture,
+    arch: &dyn ObjArch,
     obj_file: &File<'_>,
     section: &ObjSection,
     split_meta: Option<&SplitMeta>,
 ) -> Result<Vec<ObjReloc>> {
-    let obj_section = obj_file.section_by_index(SectionIndex(section.index))?;
+    let obj_section = obj_file.section_by_index(SectionIndex(section.orig_index))?;
     let mut relocations = Vec::<ObjReloc>::new();
     for (address, reloc) in obj_section.relocations() {
         let symbol = match reloc.target() {
-            RelocationTarget::Symbol(idx) => obj_file
-                .symbol_by_index(idx)
-                .context("Failed to locate relocation target symbol")?,
+            RelocationTarget::Symbol(idx) => {
+                if idx.0 == u32::MAX as usize {
+                    // ???
+                    continue;
+                }
+                let Ok(symbol) = obj_file.symbol_by_index(idx) else {
+                    log::warn!(
+                        "Failed to locate relocation {:#x} target symbol {}",
+                        address,
+                        idx.0
+                    );
+                    continue;
+                };
+                symbol
+            }
             _ => bail!("Unhandled relocation target: {:?}", reloc.target()),
         };
-        let kind = match reloc.kind() {
-            RelocationKind::Absolute => ObjRelocKind::Absolute,
-            RelocationKind::Elf(kind) => match arch {
-                #[cfg(feature = "ppc")]
-                ObjArchitecture::PowerPc => match kind {
-                    elf::R_PPC_ADDR16_LO => ObjRelocKind::PpcAddr16Lo,
-                    elf::R_PPC_ADDR16_HI => ObjRelocKind::PpcAddr16Hi,
-                    elf::R_PPC_ADDR16_HA => ObjRelocKind::PpcAddr16Ha,
-                    elf::R_PPC_REL24 => ObjRelocKind::PpcRel24,
-                    elf::R_PPC_REL14 => ObjRelocKind::PpcRel14,
-                    elf::R_PPC_EMB_SDA21 => ObjRelocKind::PpcEmbSda21,
-                    _ => bail!("Unhandled PPC relocation type: {kind}"),
-                },
-                #[cfg(feature = "mips")]
-                ObjArchitecture::Mips => match kind {
-                    elf::R_MIPS_26 => ObjRelocKind::Mips26,
-                    elf::R_MIPS_HI16 => ObjRelocKind::MipsHi16,
-                    elf::R_MIPS_LO16 => ObjRelocKind::MipsLo16,
-                    elf::R_MIPS_GOT16 => ObjRelocKind::MipsGot16,
-                    elf::R_MIPS_CALL16 => ObjRelocKind::MipsCall16,
-                    elf::R_MIPS_GPREL16 => ObjRelocKind::MipsGpRel16,
-                    elf::R_MIPS_GPREL32 => ObjRelocKind::MipsGpRel32,
-                    _ => bail!("Unhandled MIPS relocation type: {kind}"),
-                },
-            },
-            _ => bail!("Unhandled relocation type: {:?}", reloc.kind()),
-        };
+        let flags = reloc.flags(); // TODO validate reloc here?
         let target_section = match symbol.section() {
             SymbolSection::Common => Some(".comm".to_string()),
             SymbolSection::Section(idx) => {
@@ -265,76 +249,72 @@ fn relocations_by_section(
             _ => None,
         };
         let addend = if reloc.has_implicit_addend() {
-            let addend = u32::from_be_bytes(
-                section.data[address as usize..address as usize + 4].try_into()?,
-            );
-            match kind {
-                ObjRelocKind::Absolute => addend as i64,
-                #[cfg(feature = "mips")]
-                ObjRelocKind::MipsHi16 => ((addend & 0x0000FFFF) << 16) as i32 as i64,
-                #[cfg(feature = "mips")]
-                ObjRelocKind::MipsLo16
-                | ObjRelocKind::MipsGot16
-                | ObjRelocKind::MipsCall16
-                | ObjRelocKind::MipsGpRel16 => (addend & 0x0000FFFF) as i16 as i64,
-                #[cfg(feature = "mips")]
-                ObjRelocKind::MipsGpRel32 => addend as i32 as i64,
-                #[cfg(feature = "mips")]
-                ObjRelocKind::Mips26 => ((addend & 0x03FFFFFF) << 2) as i64,
-                _ => bail!("Unsupported implicit relocation {kind:?}"),
-            }
+            arch.implcit_addend(section, address, &reloc)?
         } else {
             reloc.addend()
         };
-        // println!("Reloc: {reloc:?}, symbol: {symbol:?}, addend: {addend:#X}");
+        // println!("Reloc: {reloc:?}, symbol: {symbol:?}, addend: {addend:#x}");
         let target = match symbol.kind() {
             SymbolKind::Text | SymbolKind::Data | SymbolKind::Label | SymbolKind::Unknown => {
-                to_obj_symbol(obj_file, &symbol, addend, split_meta)
+                to_obj_symbol(arch, obj_file, &symbol, addend, split_meta)
             }
             SymbolKind::Section => {
                 ensure!(addend >= 0, "Negative addend in reloc: {addend}");
-                find_section_symbol(obj_file, &symbol, addend as u64, split_meta)
+                find_section_symbol(arch, obj_file, &symbol, addend as u64, split_meta)
             }
             kind => Err(anyhow!("Unhandled relocation symbol type {kind:?}")),
         }?;
-        relocations.push(ObjReloc { kind, address, target, target_section });
+        relocations.push(ObjReloc { flags, address, target, target_section });
     }
     Ok(relocations)
 }
 
-fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u64, u64>>> {
+fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection]) -> Result<()> {
     // DWARF 1.1
-    let mut map = BTreeMap::new();
     if let Some(section) = obj_file.section_by_name(".line") {
-        if section.size() == 0 {
-            return Ok(None);
-        }
         let data = section.uncompressed_data()?;
         let mut reader = Cursor::new(data.as_ref());
 
-        let size = reader.read_u32::<BigEndian>()?;
-        let base_address = reader.read_u32::<BigEndian>()? as u64;
-        while reader.position() < size as u64 {
-            let line_number = reader.read_u32::<BigEndian>()? as u64;
-            let statement_pos = reader.read_u16::<BigEndian>()?;
-            if statement_pos != 0xFFFF {
-                log::warn!("Unhandled statement pos {}", statement_pos);
+        let mut text_sections = obj_file.sections().filter(|s| s.kind() == SectionKind::Text);
+        while reader.position() < data.len() as u64 {
+            let text_section_index = text_sections
+                .next()
+                .ok_or_else(|| anyhow!("Next text section not found for line info"))?
+                .index()
+                .0;
+            let start = reader.position();
+            let size = reader.read_u32::<BigEndian>()?;
+            let base_address = reader.read_u32::<BigEndian>()? as u64;
+            let Some(out_section) =
+                sections.iter_mut().find(|s| s.orig_index == text_section_index)
+            else {
+                // Skip line info for sections we filtered out
+                reader.set_position(start + size as u64);
+                continue;
+            };
+            let end = start + size as u64;
+            while reader.position() < end {
+                let line_number = reader.read_u32::<BigEndian>()? as u64;
+                let statement_pos = reader.read_u16::<BigEndian>()?;
+                if statement_pos != 0xFFFF {
+                    log::warn!("Unhandled statement pos {}", statement_pos);
+                }
+                let address_delta = reader.read_u32::<BigEndian>()? as u64;
+                out_section.line_info.insert(base_address + address_delta, line_number);
+                log::debug!("Line: {:#x} -> {}", base_address + address_delta, line_number);
             }
-            let address_delta = reader.read_u32::<BigEndian>()? as u64;
-            map.insert(base_address + address_delta, line_number);
         }
     }
 
     // DWARF 2+
     #[cfg(feature = "dwarf")]
     {
-        use std::borrow::Cow;
-        let dwarf_cow = gimli::Dwarf::load(|id| {
+        let dwarf_cow = gimli::DwarfSections::load(|id| {
             Ok::<_, gimli::Error>(
                 obj_file
                     .section_by_name(id.name())
                     .and_then(|section| section.uncompressed_data().ok())
-                    .unwrap_or(Cow::Borrowed(&[][..])),
+                    .unwrap_or(std::borrow::Cow::Borrowed(&[][..])),
             )
         })?;
         let endian = match obj_file.endianness() {
@@ -343,22 +323,47 @@ fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u64, u64>>> {
         };
         let dwarf = dwarf_cow.borrow(|section| gimli::EndianSlice::new(section, endian));
         let mut iter = dwarf.units();
-        while let Some(header) = iter.next()? {
+        if let Some(header) = iter.next()? {
             let unit = dwarf.unit(header)?;
             if let Some(program) = unit.line_program.clone() {
+                let mut text_sections =
+                    obj_file.sections().filter(|s| s.kind() == SectionKind::Text);
+                let section_index = text_sections
+                    .next()
+                    .ok_or_else(|| anyhow!("Next text section not found for line info"))?
+                    .index()
+                    .0;
+                let mut lines = sections
+                    .iter_mut()
+                    .find(|s| s.orig_index == section_index)
+                    .map(|s| &mut s.line_info);
+
                 let mut rows = program.rows();
                 while let Some((_header, row)) = rows.next_row()? {
-                    if let Some(line) = row.line() {
-                        map.insert(row.address(), line.get());
+                    if let (Some(line), Some(lines)) = (row.line(), &mut lines) {
+                        lines.insert(row.address(), line.get());
+                    }
+                    if row.end_sequence() {
+                        // The next row is the start of a new sequence, which means we must
+                        // advance to the next .text section.
+                        let section_index = text_sections.next().map(|s| s.index().0);
+                        lines = section_index.map(|index| {
+                            &mut sections
+                                .iter_mut()
+                                .find(|s| s.orig_index == index)
+                                .unwrap()
+                                .line_info
+                        });
                     }
                 }
             }
         }
+        if iter.next()?.is_some() {
+            log::warn!("Multiple units found in DWARF data, only processing the first");
+        }
     }
-    if map.is_empty() {
-        return Ok(None);
-    }
-    Ok(Some(map))
+
+    Ok(())
 }
 
 pub fn read(obj_path: &Path) -> Result<ObjInfo> {
@@ -368,30 +373,18 @@ pub fn read(obj_path: &Path) -> Result<ObjInfo> {
         (unsafe { memmap2::Mmap::map(&file) }?, timestamp)
     };
     let obj_file = File::parse(&*data)?;
-    let architecture = match obj_file.architecture() {
-        #[cfg(feature = "ppc")]
-        Architecture::PowerPc => ObjArchitecture::PowerPc,
-        #[cfg(feature = "mips")]
-        Architecture::Mips => ObjArchitecture::Mips,
-        _ => bail!("Unsupported architecture: {:?}", obj_file.architecture()),
-    };
+    let arch = new_arch(&obj_file)?;
     let split_meta = split_meta(&obj_file)?;
-    let mut result = ObjInfo {
-        architecture,
-        path: obj_path.to_owned(),
-        timestamp,
-        sections: filter_sections(&obj_file, split_meta.as_ref())?,
-        common: common_symbols(&obj_file, split_meta.as_ref())?,
-        line_info: line_info(&obj_file)?,
-        split_meta: None,
-    };
-    for section in &mut result.sections {
-        section.symbols = symbols_by_section(&obj_file, section, split_meta.as_ref())?;
+    let mut sections = filter_sections(&obj_file, split_meta.as_ref())?;
+    for section in &mut sections {
+        section.symbols =
+            symbols_by_section(arch.as_ref(), &obj_file, section, split_meta.as_ref())?;
         section.relocations =
-            relocations_by_section(architecture, &obj_file, section, split_meta.as_ref())?;
+            relocations_by_section(arch.as_ref(), &obj_file, section, split_meta.as_ref())?;
     }
-    result.split_meta = split_meta;
-    Ok(result)
+    line_info(&obj_file, &mut sections)?;
+    let common = common_symbols(arch.as_ref(), &obj_file, split_meta.as_ref())?;
+    Ok(ObjInfo { arch, path: obj_path.to_owned(), timestamp, sections, common, split_meta })
 }
 
 pub fn has_function(obj_path: &Path, symbol_name: &str) -> Result<bool> {
@@ -407,13 +400,7 @@ pub fn has_function(obj_path: &Path, symbol_name: &str) -> Result<bool> {
 
 fn split_meta(obj_file: &File<'_>) -> Result<Option<SplitMeta>> {
     Ok(if let Some(section) = obj_file.section_by_name(SPLITMETA_SECTION) {
-        if section.size() != 0 {
-            let data = section.uncompressed_data()?;
-            let mut reader = data.as_ref();
-            Some(SplitMeta::from_reader(&mut reader, obj_file.endianness(), obj_file.is_64())?)
-        } else {
-            None
-        }
+        Some(SplitMeta::from_section(section, obj_file.endianness(), obj_file.is_64())?)
     } else {
         None
     })

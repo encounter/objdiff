@@ -7,8 +7,8 @@ use std::{
 
 use anyhow::{anyhow, Context, Error, Result};
 use objdiff_core::{
-    diff::{diff_objs, DiffObjConfig},
-    obj::{elf, ObjInfo},
+    diff::{diff_objs, DiffObjConfig, ObjDiff},
+    obj::{read, ObjInfo},
 };
 use time::OffsetDateTime;
 
@@ -39,6 +39,7 @@ impl Default for BuildStatus {
 pub struct BuildConfig {
     pub project_dir: Option<PathBuf>,
     pub custom_make: Option<String>,
+    pub custom_args: Option<Vec<String>>,
     pub selected_wsl_distro: Option<String>,
 }
 
@@ -47,6 +48,7 @@ impl BuildConfig {
         Self {
             project_dir: config.project_dir.clone(),
             custom_make: config.custom_make.clone(),
+            custom_args: config.custom_args.clone(),
             selected_wsl_distro: config.selected_wsl_distro.clone(),
         }
     }
@@ -57,7 +59,7 @@ pub struct ObjDiffConfig {
     pub build_base: bool,
     pub build_target: bool,
     pub selected_obj: Option<ObjectConfig>,
-    pub relax_reloc_diffs: bool,
+    pub diff_obj_config: DiffObjConfig,
 }
 
 impl ObjDiffConfig {
@@ -67,7 +69,7 @@ impl ObjDiffConfig {
             build_base: config.build_base,
             build_target: config.build_target,
             selected_obj: config.selected_obj.clone(),
-            relax_reloc_diffs: config.relax_reloc_diffs,
+            diff_obj_config: config.diff_obj_config.clone(),
         }
     }
 }
@@ -75,8 +77,8 @@ impl ObjDiffConfig {
 pub struct ObjDiffResult {
     pub first_status: BuildStatus,
     pub second_status: BuildStatus,
-    pub first_obj: Option<ObjInfo>,
-    pub second_obj: Option<ObjInfo>,
+    pub first_obj: Option<(ObjInfo, ObjDiff)>,
+    pub second_obj: Option<(ObjInfo, ObjDiff)>,
     pub time: OffsetDateTime,
 }
 
@@ -96,10 +98,11 @@ pub(crate) fn run_make(config: &BuildConfig, arg: &Path) -> BuildStatus {
 
 fn run_make_cmd(config: &BuildConfig, cwd: &Path, arg: &Path) -> Result<BuildStatus> {
     let make = config.custom_make.as_deref().unwrap_or("make");
+    let make_args = config.custom_args.as_deref().unwrap_or(&[]);
     #[cfg(not(windows))]
     let mut command = {
         let mut command = Command::new(make);
-        command.current_dir(cwd).arg(arg);
+        command.current_dir(cwd).args(make_args).arg(arg);
         command
     };
     #[cfg(windows)]
@@ -113,6 +116,13 @@ fn run_make_cmd(config: &BuildConfig, cwd: &Path, arg: &Path) -> Result<BuildSta
             Command::new(make)
         };
         if let Some(distro) = &config.selected_wsl_distro {
+            // Strip distro root prefix \\wsl.localhost\{distro}
+            let wsl_path_prefix = format!("\\\\wsl.localhost\\{}", distro);
+            let cwd = match cwd.strip_prefix(wsl_path_prefix) {
+                Ok(new_cwd) => format!("/{}", new_cwd.to_slash_lossy().as_ref()),
+                Err(_) => cwd.to_string_lossy().to_string(),
+            };
+
             command
                 .arg("--cd")
                 .arg(cwd)
@@ -120,9 +130,10 @@ fn run_make_cmd(config: &BuildConfig, cwd: &Path, arg: &Path) -> Result<BuildSta
                 .arg(distro)
                 .arg("--")
                 .arg(make)
+                .args(make_args)
                 .arg(arg.to_slash_lossy().as_ref());
         } else {
-            command.current_dir(cwd).arg(arg.to_slash_lossy().as_ref());
+            command.current_dir(cwd).args(make_args).arg(arg.to_slash_lossy().as_ref());
         }
         command.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
         command
@@ -214,7 +225,7 @@ fn run_build(
 
     let time = OffsetDateTime::now_utc();
 
-    let mut first_obj =
+    let first_obj =
         match &obj_config.target_path {
             Some(target_path) if first_status.success => {
                 update_status(
@@ -224,14 +235,14 @@ fn run_build(
                     total,
                     &cancel,
                 )?;
-                Some(elf::read(target_path).with_context(|| {
+                Some(read::read(target_path).with_context(|| {
                     format!("Failed to read object '{}'", target_path.display())
                 })?)
             }
             _ => None,
         };
 
-    let mut second_obj = match &obj_config.base_path {
+    let second_obj = match &obj_config.base_path {
         Some(base_path) if second_status.success => {
             update_status(
                 context,
@@ -241,7 +252,7 @@ fn run_build(
                 &cancel,
             )?;
             Some(
-                elf::read(base_path)
+                read::read(base_path)
                     .with_context(|| format!("Failed to read object '{}'", base_path.display()))?,
             )
         }
@@ -249,11 +260,16 @@ fn run_build(
     };
 
     update_status(context, "Performing diff".to_string(), 4, total, &cancel)?;
-    let diff_config = DiffObjConfig { relax_reloc_diffs: config.relax_reloc_diffs };
-    diff_objs(&diff_config, first_obj.as_mut(), second_obj.as_mut())?;
+    let result = diff_objs(&config.diff_obj_config, first_obj.as_ref(), second_obj.as_ref(), None)?;
 
     update_status(context, "Complete".to_string(), total, total, &cancel)?;
-    Ok(Box::new(ObjDiffResult { first_status, second_status, first_obj, second_obj, time }))
+    Ok(Box::new(ObjDiffResult {
+        first_status,
+        second_status,
+        first_obj: first_obj.and_then(|o| result.left.map(|d| (o, d))),
+        second_obj: second_obj.and_then(|o| result.right.map(|d| (o, d))),
+        time,
+    }))
 }
 
 pub fn start_build(ctx: &egui::Context, config: ObjDiffConfig) -> JobState {

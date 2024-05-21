@@ -1,6 +1,6 @@
 [package]
 name = "objdiff-core"
-version = "1.0.0"
+version = "2.0.0-alpha.1"
 edition = "2021"
 rust-version = "1.70"
 authors = ["Luke Street <luke@street.dev>"]
@@ -12,31 +12,43 @@ A local diffing tool for decompilation projects.
 """
 
 [features]
-all = ["config", "dwarf", "mips", "ppc"]
+all = ["config", "dwarf", "mips", "ppc", "x86"]
 any-arch = [] # Implicit, used to check if any arch is enabled
-config = []
+config = ["globset", "semver", "serde_json", "serde_yaml"]
 dwarf = ["gimli"]
 mips = ["any-arch", "rabbitizer"]
 ppc = ["any-arch", "cwdemangle", "ppc750cl"]
+x86 = ["any-arch", "cpp_demangle", "iced-x86", "msvc-demangler"]
 
 [dependencies]
-anyhow = "1.0.80"
+anyhow = "1.0.82"
 byteorder = "1.5.0"
-cwdemangle = { version = "0.1.6", optional = true }
 filetime = "0.2.23"
-flagset = "0.4.4"
-gimli = { version = "0.28.1", default-features = false, features = ["read-all"], optional = true }
-log = "0.4.20"
-memmap2 = "0.9.3"
+flagset = "0.4.5"
+log = "0.4.21"
+memmap2 = "0.9.4"
 num-traits = "0.2.18"
-object = { version = "0.32.2", features = ["read_core", "std", "elf"], default-features = false }
-ppc750cl = { git = "https://github.com/encounter/ppc750cl", rev = "4a2bbbc6f84dcb76255ab6f3595a8d4a0ce96618", optional = true }
-rabbitizer = { version = "1.8.1", optional = true }
+object = { version = "0.35.0", features = ["read_core", "std", "elf", "pe"], default-features = false }
 serde = { version = "1", features = ["derive"] }
-similar = { version = "2.4.0", default-features = false }
+similar = { version = "2.5.0", default-features = false }
 
 # config
-globset = { version = "0.4.14", features = ["serde1"] }
-semver = "1.0.21"
-serde_json = "1.0.111"
-serde_yaml = "0.9.30"
+globset = { version = "0.4.14", features = ["serde1"], optional = true }
+semver = { version = "1.0.22", optional = true }
+serde_json = { version = "1.0.116", optional = true }
+serde_yaml = { version = "0.9.34", optional = true }
+
+# dwarf
+gimli = { version = "0.29.0", default-features = false, features = ["read-all"], optional = true }
+
+# ppc
+cwdemangle = { version = "1.0.0", optional = true }
+ppc750cl = { git = "https://github.com/encounter/ppc750cl", rev = "6cbd7d888c7082c2c860f66cbb9848d633f753ed", optional = true }
+
+# mips
+rabbitizer = { version = "1.10.0", optional = true }
+
+# x86
+cpp_demangle = { version = "0.4.3", optional = true }
+iced-x86 = { version = "1.21.0", default-features = false, features = ["std", "decoder", "intel", "gas", "masm", "nasm", "exhaustive_enums"], optional = true }
+msvc-demangler = { version = "0.10.0", optional = true }

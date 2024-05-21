@@ -7,7 +7,7 @@ pub(crate) struct ReallySigned<N: PrimInt>(pub(crate) N);
 
 impl<N: PrimInt> LowerHex for ReallySigned<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let num = self.0.to_i32().unwrap();
+        let num = self.0.to_i64().unwrap();
         let prefix = if f.alternate() { "0x" } else { "" };
         let bare_hex = format!("{:x}", num.abs());
         f.pad_integral(num >= 0, prefix, &bare_hex)
@@ -16,7 +16,7 @@ impl<N: PrimInt> LowerHex for ReallySigned<N> {
 
 impl<N: PrimInt> UpperHex for ReallySigned<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let num = self.0.to_i32().unwrap();
+        let num = self.0.to_i64().unwrap();
         let prefix = if f.alternate() { "0x" } else { "" };
         let bare_hex = format!("{:X}", num.abs());
         f.pad_integral(num >= 0, prefix, &bare_hex)

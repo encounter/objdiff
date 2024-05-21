@@ -14,7 +14,10 @@ use egui::{
     SelectableLabel, TextFormat, Widget,
 };
 use globset::Glob;
-use objdiff_core::config::{ProjectObject, DEFAULT_WATCH_PATTERNS};
+use objdiff_core::{
+    config::{ProjectObject, DEFAULT_WATCH_PATTERNS},
+    diff::X86Formatter,
+};
 use self_update::cargo_crate_version;
 
 use crate::{
@@ -38,7 +41,7 @@ pub struct ConfigViewState {
     pub check_update_running: bool,
     pub queue_check_update: bool,
     pub update_running: bool,
-    pub queue_update: bool,
+    pub queue_update: Option<String>,
     pub build_running: bool,
     pub queue_build: bool,
     pub watch_pattern_text: String,
@@ -124,9 +127,8 @@ impl ConfigViewState {
             jobs.push_once(Job::CheckUpdate, || start_check_update(ctx));
         }
 
-        if self.queue_update {
-            self.queue_update = false;
-            jobs.push_once(Job::Update, || start_update(ctx));
+        if let Some(bin_name) = self.queue_update.take() {
+            jobs.push_once(Job::Update, || start_update(ctx, bin_name));
         }
     }
 }
@@ -198,15 +200,16 @@ pub fn config_ui(
         if result.update_available {
             ui.colored_label(appearance.insert_color, "Update available");
             ui.horizontal(|ui| {
-                if result.found_binary
-                    && ui
+                if let Some(bin_name) = &result.found_binary {
+                    if ui
                         .add_enabled(!state.update_running, egui::Button::new("Automatic"))
                         .on_hover_text_at_pointer(
                             "Automatically download and replace the current build",
                         )
                         .clicked()
-                {
-                    state.queue_update = true;
+                    {
+                        state.queue_update = Some(bin_name.clone());
+                    }
                 }
                 if ui
                     .button("Manual")
@@ -239,7 +242,7 @@ pub fn config_ui(
                         Box::pin(
                             rfd::AsyncFileDialog::new()
                                 .set_directory(&target_dir)
-                                .add_filter("Object file", &["o", "elf"])
+                                .add_filter("Object file", &["o", "elf", "obj"])
                                 .pick_file(),
                         )
                     },
@@ -837,4 +840,37 @@ fn split_obj_config_ui(
             }
         }
     });
+}
+
+pub fn diff_config_window(
+    ctx: &egui::Context,
+    config: &AppConfigRef,
+    show: &mut bool,
+    appearance: &Appearance,
+) {
+    let mut config_guard = config.write().unwrap();
+    egui::Window::new("Diff Config").open(show).show(ctx, |ui| {
+        diff_config_ui(ui, &mut config_guard, appearance);
+    });
+}
+
+fn diff_config_ui(ui: &mut egui::Ui, config: &mut AppConfig, _appearance: &Appearance) {
+    egui::ComboBox::new("x86_formatter", "X86 Format")
+        .selected_text(format!("{:?}", config.diff_obj_config.x86_formatter))
+        .show_ui(ui, |ui| {
+            for &formatter in
+                &[X86Formatter::Intel, X86Formatter::Gas, X86Formatter::Nasm, X86Formatter::Masm]
+            {
+                if ui
+                    .selectable_label(
+                        config.diff_obj_config.x86_formatter == formatter,
+                        format!("{:?}", formatter),
+                    )
+                    .clicked()
+                {
+                    config.diff_obj_config.x86_formatter = formatter;
+                    config.queue_reload = true;
+                }
+            }
+        });
 }

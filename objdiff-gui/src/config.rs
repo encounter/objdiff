@@ -1,6 +1,6 @@
 use std::path::{Component, Path};
 
-use anyhow::{ensure, Result};
+use anyhow::Result;
 use globset::Glob;
 use objdiff_core::config::{try_project_config, ProjectObject, DEFAULT_WATCH_PATTERNS};
 
@@ -70,16 +70,8 @@ pub fn load_project_config(config: &mut AppConfig) -> Result<()> {
     };
     if let Some((result, info)) = try_project_config(project_dir) {
         let project_config = result?;
-        if let Some(min_version) = &project_config.min_version {
-            let version_str = env!("CARGO_PKG_VERSION");
-            let version = semver::Version::parse(version_str).unwrap();
-            let version_req = semver::VersionReq::parse(&format!(">={min_version}"))?;
-            ensure!(
-                version_req.matches(&version),
-                "Project requires objdiff version {min_version} or higher"
-            );
-        }
         config.custom_make = project_config.custom_make;
+        config.custom_args = project_config.custom_args;
         config.target_obj_dir = project_config.target_dir.map(|p| project_dir.join(p));
         config.base_obj_dir = project_config.base_dir.map(|p| project_dir.join(p));
         config.build_base = project_config.build_base;

@@ -1,3 +1,4 @@
+pub mod arch;
 #[cfg(feature = "config")]
 pub mod config;
 pub mod diff;

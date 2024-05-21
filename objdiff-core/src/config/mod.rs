@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::Result;
+use anyhow::{anyhow, Context, Result};
 use filetime::FileTime;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 
@@ -17,6 +17,8 @@ pub struct ProjectConfig {
     pub min_version: Option<String>,
     #[serde(default)]
     pub custom_make: Option<String>,
+    #[serde(default)]
+    pub custom_args: Option<Vec<String>>,
     #[serde(default)]
     pub target_dir: Option<PathBuf>,
     #[serde(default)]
@@ -96,7 +98,7 @@ pub struct ScratchConfig {
     pub build_ctx: bool,
 }
 
-pub const CONFIG_FILENAMES: [&str; 3] = ["objdiff.yml", "objdiff.yaml", "objdiff.json"];
+pub const CONFIG_FILENAMES: [&str; 3] = ["objdiff.json", "objdiff.yml", "objdiff.yaml"];
 
 pub const DEFAULT_WATCH_PATTERNS: &[&str] = &[
     "*.c", "*.cp", "*.cpp", "*.cxx", "*.h", "*.hp", "*.hpp", "*.hxx", "*.s", "*.S", "*.asm",
@@ -121,14 +123,32 @@ pub fn try_project_config(dir: &Path) -> Option<(Result<ProjectConfig>, ProjectC
                 continue;
             }
             let ts = FileTime::from_last_modification_time(&metadata);
-            let config = match filename.contains("json") {
+            let mut result = match filename.contains("json") {
                 true => read_json_config(&mut file),
                 false => read_yml_config(&mut file),
             };
-            return Some((config, ProjectConfigInfo { path: config_path, timestamp: ts }));
+            if let Ok(config) = &result {
+                // Validate min_version if present
+                if let Err(e) = validate_min_version(config) {
+                    result = Err(e);
+                }
+            }
+            return Some((result, ProjectConfigInfo { path: config_path, timestamp: ts }));
         }
     }
     None
+}
+
+fn validate_min_version(config: &ProjectConfig) -> Result<()> {
+    let Some(min_version) = &config.min_version else { return Ok(()) };
+    let version = semver::Version::parse(env!("CARGO_PKG_VERSION"))
+        .context("Failed to parse package version")?;
+    let min_version = semver::Version::parse(min_version).context("Failed to parse min_version")?;
+    if version >= min_version {
+        Ok(())
+    } else {
+        Err(anyhow!("Project requires objdiff version {min_version} or higher"))
+    }
 }
 
 fn read_yml_config<R: Read>(reader: &mut R) -> Result<ProjectConfig> {

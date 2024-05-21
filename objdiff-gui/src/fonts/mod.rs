@@ -10,12 +10,12 @@ pub struct LoadedFontFamily {
     pub family_name: String,
     pub fonts: Vec<font_kit::font::Font>,
     pub handles: Vec<font_kit::handle::Handle>,
-    pub properties: Vec<font_kit::properties::Properties>,
+    // pub properties: Vec<font_kit::properties::Properties>,
     pub default_index: usize,
 }
 
 pub struct LoadedFont {
-    pub font_name: String,
+    // pub font_name: String,
     pub font_data: egui::FontData,
 }
 
@@ -48,13 +48,13 @@ pub fn load_font_family(
         family_name: font_family_name,
         fonts: loaded,
         handles,
-        properties,
+        // properties,
         default_index,
     })
 }
 
 pub fn load_font(handle: &font_kit::handle::Handle) -> Result<LoadedFont> {
-    let loaded = font_kit::loaders::default::Font::from_handle(handle)?;
+    // let loaded = font_kit::loaders::default::Font::from_handle(handle)?;
     let data = match handle {
         font_kit::handle::Handle::Memory { bytes, font_index } => egui::FontData {
             font: Cow::Owned(bytes.to_vec()),
@@ -68,7 +68,10 @@ pub fn load_font(handle: &font_kit::handle::Handle) -> Result<LoadedFont> {
             egui::FontData { font: Cow::Owned(vec), index: *font_index, tweak: Default::default() }
         }
     };
-    Ok(LoadedFont { font_name: loaded.full_name(), font_data: data })
+    Ok(LoadedFont {
+        // font_name: loaded.full_name(),
+        font_data: data,
+    })
 }
 
 pub fn load_font_if_needed(

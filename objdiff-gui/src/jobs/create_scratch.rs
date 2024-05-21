@@ -67,8 +67,7 @@ struct CreateScratchResponse {
     pub claim_token: String,
 }
 
-const API_HOST: &str = "http://127.0.0.1:8000";
-const WEB_HOST: &str = "http://localhost:8080";
+const API_HOST: &str = "https://decomp.me";
 
 fn run_create_scratch(
     status: &JobContext,
@@ -121,7 +120,7 @@ fn run_create_scratch(
         return Err(anyhow!("Failed to create scratch: {}", response.text()?));
     }
     let body: CreateScratchResponse = response.json().context("Failed to parse response")?;
-    let scratch_url = format!("{WEB_HOST}/scratch/{}/claim?token={}", body.slug, body.claim_token);
+    let scratch_url = format!("{API_HOST}/scratch/{}/claim?token={}", body.slug, body.claim_token);
 
     update_status(status, "Complete".to_string(), 2, 2, &cancel)?;
     Ok(Box::from(CreateScratchResult { scratch_url }))

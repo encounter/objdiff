@@ -20,8 +20,9 @@ cfg_if! {
 }
 pub const GITHUB_USER: &str = "encounter";
 pub const GITHUB_REPO: &str = "objdiff";
-pub const BIN_NAME: &str =
-    formatcp!("{}-{}-{}{}", GITHUB_REPO, OS, ARCH, std::env::consts::EXE_SUFFIX);
+pub const BIN_NAME_NEW: &str =
+    formatcp!("objdiff-gui-{}-{}{}", OS, ARCH, std::env::consts::EXE_SUFFIX);
+pub const BIN_NAME_OLD: &str = formatcp!("objdiff-{}-{}{}", OS, ARCH, std::env::consts::EXE_SUFFIX);
 pub const RELEASE_URL: &str =
     formatcp!("https://github.com/{}/{}/releases/latest", GITHUB_USER, GITHUB_REPO);
 
@@ -29,7 +30,8 @@ pub fn build_updater() -> self_update::errors::Result<Box<dyn ReleaseUpdate>> {
     self_update::backends::github::Update::configure()
         .repo_owner(GITHUB_USER)
         .repo_name(GITHUB_REPO)
-        .bin_name(BIN_NAME)
+        // bin_name is required, but unused?
+        .bin_name(BIN_NAME_NEW)
         .no_confirm(true)
         .show_output(false)
         .current_version(cargo_crate_version!())
