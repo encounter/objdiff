@@ -6,26 +6,29 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use const_format::formatcp;
 
 use crate::{
     jobs::{start_job, update_status, Job, JobContext, JobResult, JobState},
-    update::{build_updater, BIN_NAME},
+    update::build_updater,
 };
 
 pub struct UpdateResult {
     pub exe_path: PathBuf,
 }
 
-fn run_update(status: &JobContext, cancel: Receiver<()>) -> Result<Box<UpdateResult>> {
+fn run_update(
+    status: &JobContext,
+    cancel: Receiver<()>,
+    bin_name: String,
+) -> Result<Box<UpdateResult>> {
     update_status(status, "Fetching latest release".to_string(), 0, 3, &cancel)?;
     let updater = build_updater().context("Failed to create release updater")?;
     let latest_release = updater.get_latest_release()?;
     let asset = latest_release
         .assets
         .iter()
-        .find(|a| a.name == BIN_NAME)
-        .ok_or_else(|| anyhow::Error::msg(formatcp!("No release asset for {}", BIN_NAME)))?;
+        .find(|a| a.name == bin_name)
+        .ok_or_else(|| anyhow::Error::msg(format!("No release asset for {bin_name}")))?;
 
     update_status(status, "Downloading release".to_string(), 1, 3, &cancel)?;
     let tmp_dir = tempfile::Builder::new().prefix("update").tempdir_in(current_dir()?)?;
@@ -53,8 +56,8 @@ fn run_update(status: &JobContext, cancel: Receiver<()>) -> Result<Box<UpdateRes
     Ok(Box::from(UpdateResult { exe_path: target_file }))
 }
 
-pub fn start_update(ctx: &egui::Context) -> JobState {
+pub fn start_update(ctx: &egui::Context, bin_name: String) -> JobState {
     start_job(ctx, "Update app", Job::Update, move |context, cancel| {
-        run_update(&context, cancel).map(JobResult::Update)
+        run_update(&context, cancel, bin_name).map(JobResult::Update)
     })
 }

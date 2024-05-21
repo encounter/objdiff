@@ -41,7 +41,7 @@ pub struct ConfigViewState {
     pub check_update_running: bool,
     pub queue_check_update: bool,
     pub update_running: bool,
-    pub queue_update: bool,
+    pub queue_update: Option<String>,
     pub build_running: bool,
     pub queue_build: bool,
     pub watch_pattern_text: String,
@@ -127,9 +127,8 @@ impl ConfigViewState {
             jobs.push_once(Job::CheckUpdate, || start_check_update(ctx));
         }
 
-        if self.queue_update {
-            self.queue_update = false;
-            jobs.push_once(Job::Update, || start_update(ctx));
+        if let Some(bin_name) = self.queue_update.take() {
+            jobs.push_once(Job::Update, || start_update(ctx, bin_name));
         }
     }
 }
@@ -201,15 +200,16 @@ pub fn config_ui(
         if result.update_available {
             ui.colored_label(appearance.insert_color, "Update available");
             ui.horizontal(|ui| {
-                if result.found_binary
-                    && ui
+                if let Some(bin_name) = &result.found_binary {
+                    if ui
                         .add_enabled(!state.update_running, egui::Button::new("Automatic"))
                         .on_hover_text_at_pointer(
                             "Automatically download and replace the current build",
                         )
                         .clicked()
-                {
-                    state.queue_update = true;
+                    {
+                        state.queue_update = Some(bin_name.clone());
+                    }
                 }
                 if ui
                     .button("Manual")

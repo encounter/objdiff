@@ -3081,7 +3081,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-cli"
-version = "0.1.0"
+version = "2.0.0-alpha.1"
 dependencies = [
  "anyhow",
  "argp",
@@ -3100,7 +3100,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-core"
-version = "1.0.0"
+version = "2.0.0-alpha.1"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -3127,7 +3127,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-gui"
-version = "1.0.0"
+version = "2.0.0-alpha.1"
 dependencies = [
  "anyhow",
  "bytes",

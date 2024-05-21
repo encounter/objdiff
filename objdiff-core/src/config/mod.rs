@@ -143,10 +143,11 @@ fn validate_min_version(config: &ProjectConfig) -> Result<()> {
     let Some(min_version) = &config.min_version else { return Ok(()) };
     let version = semver::Version::parse(env!("CARGO_PKG_VERSION"))
         .context("Failed to parse package version")?;
-    match semver::VersionReq::parse(&format!(">={min_version}")) {
-        Ok(version_req) if version_req.matches(&version) => Ok(()),
-        Ok(_) => Err(anyhow!("Project requires objdiff version {min_version} or higher")),
-        Err(e) => Err(anyhow::Error::new(e).context("Failed to parse min_version")),
+    let min_version = semver::Version::parse(min_version).context("Failed to parse min_version")?;
+    if version >= min_version {
+        Ok(())
+    } else {
+        Err(anyhow!("Project requires objdiff version {min_version} or higher"))
     }
 }
 
