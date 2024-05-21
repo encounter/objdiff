@@ -1,16 +1,11 @@
 pub mod read;
 pub mod split_meta;
 
-use std::{
-    borrow::Cow,
-    collections::{BTreeMap, HashMap},
-    fmt,
-    path::PathBuf,
-};
+use std::{borrow::Cow, collections::BTreeMap, fmt, path::PathBuf};
 
 use filetime::FileTime;
 use flagset::{flags, FlagSet};
-use object::{RelocationFlags, SectionIndex};
+use object::RelocationFlags;
 use split_meta::SplitMeta;
 
 use crate::{arch::ObjArch, util::ReallySigned};
@@ -44,6 +39,8 @@ pub struct ObjSection {
     pub symbols: Vec<ObjSymbol>,
     pub relocations: Vec<ObjReloc>,
     pub virtual_address: Option<u64>,
+    /// Line number info (.line or .debug_line section)
+    pub line_info: Option<BTreeMap<u64, u64>>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -133,8 +130,6 @@ pub struct ObjInfo {
     pub sections: Vec<ObjSection>,
     /// Common BSS symbols
     pub common: Vec<ObjSymbol>,
-    /// Line number info (.line or .debug_line section)
-    pub line_info: Option<HashMap<SectionIndex, BTreeMap<u64, u64>>>,
     /// Split object metadata (.note.split section)
     pub split_meta: Option<SplitMeta>,
 }

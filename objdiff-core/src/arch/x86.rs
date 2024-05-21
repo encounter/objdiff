@@ -6,7 +6,7 @@ use iced_x86::{
     GasFormatter, Instruction, IntelFormatter, MasmFormatter, NasmFormatter, NumberKind, OpKind,
     PrefixKind, Register,
 };
-use object::{pe, Endian, Endianness, File, Object, Relocation, RelocationFlags, SectionIndex};
+use object::{pe, Endian, Endianness, File, Object, Relocation, RelocationFlags};
 
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
@@ -35,9 +35,6 @@ impl ObjArch for ObjArchX86 {
         let (section, symbol) = obj.section_symbol(symbol_ref);
         let code = &section.data
             [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
-
-        let line_info =
-            obj.line_info.as_ref().and_then(|map| map.get(&SectionIndex(section.orig_index)));
 
         let mut result = ProcessCodeResult { ops: Vec::new(), insts: Vec::new() };
         let mut decoder = Decoder::with_ip(self.bits, code, symbol.address, DecoderOptions::NONE);
@@ -76,6 +73,7 @@ impl ObjArch for ObjArchX86 {
                 .relocations
                 .iter()
                 .find(|r| r.address >= address && r.address < address + instruction.len() as u64);
+            let line = section.line_info.as_ref().and_then(|m| m.get(&address).cloned());
             output.ins = ObjIns {
                 address,
                 size: instruction.len() as u8,
@@ -84,7 +82,7 @@ impl ObjArch for ObjArchX86 {
                 args: vec![],
                 reloc: reloc.cloned(),
                 branch_dest: None,
-                line: line_info.and_then(|m| m.get(&address).cloned()),
+                line,
                 formatted: String::new(),
                 orig: None,
             };
