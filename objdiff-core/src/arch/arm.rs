@@ -54,9 +54,6 @@ impl ObjArch for ObjArchArm {
         let mut code = &section.data
             [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
 
-        let line_info =
-            obj.line_info.as_ref().and_then(|map| map.get(&SectionIndex(section.orig_index)));
-
         let start_addr = symbol.address as u32;
         let end_addr = start_addr + symbol.size as u32;
 
@@ -96,8 +93,7 @@ impl ObjArch for ObjArchArm {
                 break;
             }
 
-            let line =
-                line_info.and_then(|map| map.range(..=cur_addr as u64).last().map(|(_, &b)| b));
+            let line = section.line_info.range(..=cur_addr as u64).last().map(|(_, &b)| b);
 
             let ins = match mapping {
                 MappingSymbol::Arm => {
@@ -136,7 +132,8 @@ impl ObjArch for ObjArchArm {
                         reloc: reloc.cloned(),
                         branch_dest,
                         line,
-                        orig: Some(parsed_ins.to_string()),
+                        formatted: parsed_ins.to_string(),
+                        orig: None,
                     }
                 }
                 MappingSymbol::Thumb => {
@@ -194,7 +191,8 @@ impl ObjArch for ObjArchArm {
                         reloc: reloc.cloned(),
                         branch_dest,
                         line,
-                        orig: Some(parsed_ins.to_string()),
+                        formatted: parsed_ins.to_string(),
+                        orig: None,
                     }
                 }
                 MappingSymbol::Data => {
@@ -222,6 +220,7 @@ impl ObjArch for ObjArchArm {
                         reloc: reloc.cloned(),
                         branch_dest: None,
                         line,
+                        formatted: format!(".word {data:#x}"),
                         orig: None,
                     }
                 }
