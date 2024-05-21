@@ -242,7 +242,7 @@ pub fn config_ui(
                         Box::pin(
                             rfd::AsyncFileDialog::new()
                                 .set_directory(&target_dir)
-                                .add_filter("Object file", &["o", "elf"])
+                                .add_filter("Object file", &["o", "elf", "obj"])
                                 .pick_file(),
                         )
                     },
