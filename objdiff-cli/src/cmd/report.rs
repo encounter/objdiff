@@ -254,23 +254,21 @@ fn report_object(
     };
     let obj = target.as_ref().or(base.as_ref()).unwrap();
 
-    for section in target
-        .as_ref()
-        .map_or(&vec![], |o| &o.sections)
-        .iter()
-        .chain(base.as_ref().map_or(&vec![], |o| &o.sections))
-        .filter(|o| o.match_percent != 0.0)
-    {
-        // TODO
-        println!("{}: {}", section.name, section.match_percent);
-    }
-
     let obj_diff = result.left.as_ref().or(result.right.as_ref()).unwrap();
     for (section, section_diff) in obj.sections.iter().zip(&obj_diff.sections) {
+        let section_match_percent = section_diff.match_percent.unwrap_or_else(|| {
+            // Support cases where we don't have a target object,
+            // assume complete means 100% match
+            if object.complete == Some(true) {
+                100.0
+            } else {
+                0.0
+            }
+        });
         unit.sections.push(ReportItem {
             name: section.name.clone(),
             demangled_name: None,
-            fuzzy_match_percent: section.match_percent,
+            fuzzy_match_percent: section_match_percent,
             size: section.size,
             address: section.virtual_address,
         });
@@ -278,8 +276,7 @@ fn report_object(
         match section.kind {
             ObjSectionKind::Data | ObjSectionKind::Bss => {
                 unit.total_data += section.size;
-                // section.data_diff
-                if section.match_percent == 100.0 {
+                if section_match_percent == 100.0 {
                     unit.matched_data += section.size;
                 }
                 continue;
