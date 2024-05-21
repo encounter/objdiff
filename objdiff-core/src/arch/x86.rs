@@ -6,7 +6,7 @@ use iced_x86::{
     GasFormatter, Instruction, IntelFormatter, MasmFormatter, NasmFormatter, NumberKind, OpKind,
     PrefixKind, Register,
 };
-use object::{pe, Endian, Endianness, File, Object, Relocation, RelocationFlags, SectionIndex};
+use object::{pe, Endian, Endianness, File, Object, Relocation, RelocationFlags};
 
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
@@ -36,9 +36,6 @@ impl ObjArch for ObjArchX86 {
         let code = &section.data
             [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
 
-        let line_info =
-            obj.line_info.as_ref().and_then(|map| map.get(&SectionIndex(section.orig_index)));
-
         let mut result = ProcessCodeResult { ops: Vec::new(), insts: Vec::new() };
         let mut decoder = Decoder::with_ip(self.bits, code, symbol.address, DecoderOptions::NONE);
         let mut formatter: Box<dyn Formatter> = match config.x86_formatter {
@@ -60,6 +57,7 @@ impl ObjArch for ObjArchX86 {
                 reloc: None,
                 branch_dest: None,
                 line: None,
+                formatted: String::new(),
                 orig: None,
             },
             error: None,
@@ -75,6 +73,7 @@ impl ObjArch for ObjArchX86 {
                 .relocations
                 .iter()
                 .find(|r| r.address >= address && r.address < address + instruction.len() as u64);
+            let line = section.line_info.range(..=address).last().map(|(_, &b)| b);
             output.ins = ObjIns {
                 address,
                 size: instruction.len() as u8,
@@ -83,7 +82,8 @@ impl ObjArch for ObjArchX86 {
                 args: vec![],
                 reloc: reloc.cloned(),
                 branch_dest: None,
-                line: line_info.and_then(|m| m.get(&address).cloned()),
+                line,
+                formatted: String::new(),
                 orig: None,
             };
             // Run the formatter, which will populate output.ins
@@ -92,7 +92,7 @@ impl ObjArch for ObjArchX86 {
                 return Err(error);
             }
             ensure!(output.ins_operands.len() == output.ins.args.len());
-            output.ins.orig = Some(output.formatted.clone());
+            output.ins.formatted.clone_from(&output.formatted);
 
             // Make sure we've put the relocation somewhere in the instruction
             if reloc.is_some() && !output.ins.args.iter().any(|a| matches!(a, ObjInsArg::Reloc)) {

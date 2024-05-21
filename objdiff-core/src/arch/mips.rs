@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use anyhow::{bail, Result};
-use object::{elf, Endian, Endianness, File, Object, Relocation, RelocationFlags, SectionIndex};
+use object::{elf, Endian, Endianness, File, Object, Relocation, RelocationFlags};
 use rabbitizer::{config, Abi, InstrCategory, Instruction, OperandType};
 
 use crate::{
@@ -38,9 +38,6 @@ impl ObjArch for ObjArchMips {
         let code = &section.data
             [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
 
-        let line_info =
-            obj.line_info.as_ref().and_then(|map| map.get(&SectionIndex(section.orig_index)));
-
         let start_address = symbol.address;
         let end_address = symbol.address + symbol.size;
         let ins_count = code.len() / 4;
@@ -52,6 +49,7 @@ impl ObjArch for ObjArchMips {
             let code = self.endianness.read_u32_bytes(chunk.try_into()?);
             let instruction = Instruction::new(code, cur_addr, InstrCategory::CPU);
 
+            let formatted = instruction.disassemble(None, 0);
             let op = instruction.unique_id as u16;
             ops.push(op);
 
@@ -113,8 +111,7 @@ impl ObjArch for ObjArchMips {
                     }
                 }
             }
-            let line =
-                line_info.and_then(|map| map.range(..=cur_addr as u64).last().map(|(_, &b)| b));
+            let line = section.line_info.range(..=cur_addr as u64).last().map(|(_, &b)| b);
             insts.push(ObjIns {
                 address: cur_addr as u64,
                 size: 4,
@@ -124,6 +121,7 @@ impl ObjArch for ObjArchMips {
                 reloc: reloc.cloned(),
                 branch_dest,
                 line,
+                formatted,
                 orig: None,
             });
             cur_addr += 4;

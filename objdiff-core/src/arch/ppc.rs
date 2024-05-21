@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use anyhow::{bail, Result};
-use object::{elf, File, Relocation, RelocationFlags, SectionIndex};
+use object::{elf, File, Relocation, RelocationFlags};
 use ppc750cl::{Argument, InsIter, GPR};
 
 use crate::{
@@ -39,9 +39,6 @@ impl ObjArch for ObjArchPpc {
         let code = &section.data
             [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
 
-        let line_info =
-            obj.line_info.as_ref().and_then(|map| map.get(&SectionIndex(section.orig_index)));
-
         let ins_count = code.len() / 4;
         let mut ops = Vec::<u16>::with_capacity(ins_count);
         let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
@@ -62,6 +59,7 @@ impl ObjArch for ObjArchPpc {
 
             let orig = ins.basic().to_string();
             let simplified = ins.simplified();
+            let formatted = simplified.to_string();
 
             let mut reloc_arg = None;
             if let Some(reloc) = reloc {
@@ -134,8 +132,7 @@ impl ObjArch for ObjArchPpc {
             }
 
             ops.push(ins.op as u16);
-            let line =
-                line_info.and_then(|map| map.range(..=cur_addr as u64).last().map(|(_, &b)| b));
+            let line = section.line_info.range(..=cur_addr as u64).last().map(|(_, &b)| b);
             insts.push(ObjIns {
                 address: cur_addr as u64,
                 size: 4,
@@ -145,6 +142,7 @@ impl ObjArch for ObjArchPpc {
                 op: ins.op as u16,
                 branch_dest,
                 line,
+                formatted,
                 orig: Some(orig),
             });
         }
