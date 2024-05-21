@@ -28,7 +28,7 @@ pub fn no_diff_code(
         diff.push(ObjInsDiff { ins: Some(i), kind: ObjInsDiffKind::None, ..Default::default() });
     }
     resolve_branches(&mut diff);
-    Ok(ObjSymbolDiff { diff_symbol: None, instructions: diff, match_percent: None })
+    Ok(ObjSymbolDiff { symbol_ref, diff_symbol: None, instructions: diff, match_percent: None })
 }
 
 pub fn diff_code(
@@ -66,11 +66,13 @@ pub fn diff_code(
 
     Ok((
         ObjSymbolDiff {
+            symbol_ref: left_symbol_ref,
             diff_symbol: Some(right_symbol_ref),
             instructions: left_diff,
             match_percent: Some(percent),
         },
         ObjSymbolDiff {
+            symbol_ref: right_symbol_ref,
             diff_symbol: Some(left_symbol_ref),
             instructions: right_diff,
             match_percent: Some(percent),

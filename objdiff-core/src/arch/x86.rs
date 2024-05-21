@@ -33,6 +33,7 @@ impl ObjArch for ObjArchX86 {
         config: &DiffObjConfig,
     ) -> Result<ProcessCodeResult> {
         let (section, symbol) = obj.section_symbol(symbol_ref);
+        let section = section.ok_or_else(|| anyhow!("Code symbol section not found"))?;
         let code = &section.data
             [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
 

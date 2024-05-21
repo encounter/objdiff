@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use object::{elf, Endian, Endianness, File, Object, Relocation, RelocationFlags};
 use rabbitizer::{config, Abi, InstrCategory, Instruction, OperandType};
 
@@ -35,6 +35,7 @@ impl ObjArch for ObjArchMips {
         config: &DiffObjConfig,
     ) -> Result<ProcessCodeResult> {
         let (section, symbol) = obj.section_symbol(symbol_ref);
+        let section = section.ok_or_else(|| anyhow!("Code symbol section not found"))?;
         let code = &section.data
             [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
 

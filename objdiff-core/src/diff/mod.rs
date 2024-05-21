@@ -1,7 +1,3 @@
-mod code;
-mod data;
-pub mod display;
-
 use std::collections::HashSet;
 
 use anyhow::Result;
@@ -9,10 +5,14 @@ use anyhow::Result;
 use crate::{
     diff::{
         code::{diff_code, no_diff_code},
-        data::{diff_bss_symbol, diff_data, no_diff_bss_symbol},
+        data::{diff_bss_symbol, diff_data, diff_data_symbol, no_diff_symbol},
     },
-    obj::{ObjInfo, ObjIns, ObjSectionKind, SymbolRef},
+    obj::{ObjInfo, ObjIns, ObjSection, ObjSectionKind, ObjSymbol, SymbolRef},
 };
+
+mod code;
+mod data;
+pub mod display;
 
 #[derive(Debug, Copy, Clone, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub enum X86Formatter {
@@ -62,6 +62,7 @@ impl ObjSectionDiff {
 
 #[derive(Debug, Clone, Default)]
 pub struct ObjSymbolDiff {
+    pub symbol_ref: SymbolRef,
     pub diff_symbol: Option<SymbolRef>,
     pub instructions: Vec<ObjInsDiff>,
     pub match_percent: Option<f32>,
@@ -142,10 +143,11 @@ impl ObjDiff {
             sections: Vec::with_capacity(obj.sections.len()),
             common: Vec::with_capacity(obj.common.len()),
         };
-        for section in &obj.sections {
+        for (section_idx, section) in obj.sections.iter().enumerate() {
             let mut symbols = Vec::with_capacity(section.symbols.len());
-            for _ in &section.symbols {
+            for (symbol_idx, _) in section.symbols.iter().enumerate() {
                 symbols.push(ObjSymbolDiff {
+                    symbol_ref: SymbolRef { section_idx, symbol_idx },
                     diff_symbol: None,
                     instructions: vec![],
                     match_percent: None,
@@ -162,8 +164,9 @@ impl ObjDiff {
                 match_percent: None,
             });
         }
-        for _ in &obj.common {
+        for (symbol_idx, _) in obj.common.iter().enumerate() {
             result.common.push(ObjSymbolDiff {
+                symbol_ref: SymbolRef { section_idx: obj.sections.len(), symbol_idx },
                 diff_symbol: None,
                 instructions: vec![],
                 match_percent: None,
@@ -184,12 +187,20 @@ impl ObjDiff {
 
     #[inline]
     pub fn symbol_diff(&self, symbol_ref: SymbolRef) -> &ObjSymbolDiff {
-        &self.section_diff(symbol_ref.section_idx).symbols[symbol_ref.symbol_idx]
+        if symbol_ref.section_idx == self.sections.len() {
+            &self.common[symbol_ref.symbol_idx]
+        } else {
+            &self.section_diff(symbol_ref.section_idx).symbols[symbol_ref.symbol_idx]
+        }
     }
 
     #[inline]
     pub fn symbol_diff_mut(&mut self, symbol_ref: SymbolRef) -> &mut ObjSymbolDiff {
-        &mut self.section_diff_mut(symbol_ref.section_idx).symbols[symbol_ref.symbol_idx]
+        if symbol_ref.section_idx == self.sections.len() {
+            &mut self.common[symbol_ref.symbol_idx]
+        } else {
+            &mut self.section_diff_mut(symbol_ref.section_idx).symbols[symbol_ref.symbol_idx]
+        }
     }
 }
 
@@ -247,7 +258,14 @@ pub fn diff_objs(
                         }
                     }
                     ObjSectionKind::Data => {
-                        // TODO diff data symbol
+                        let (left_diff, right_diff) = diff_data_symbol(
+                            left_obj,
+                            right_obj,
+                            left_symbol_ref,
+                            right_symbol_ref,
+                        )?;
+                        *left_out.symbol_diff_mut(left_symbol_ref) = left_diff;
+                        *right_out.symbol_diff_mut(right_symbol_ref) = right_diff;
                     }
                     ObjSectionKind::Bss => {
                         let (left_diff, right_diff) = diff_bss_symbol(
@@ -268,10 +286,9 @@ pub fn diff_objs(
                         *left_out.symbol_diff_mut(left_symbol_ref) =
                             no_diff_code(left_obj, left_symbol_ref, config)?;
                     }
-                    ObjSectionKind::Data => {}
-                    ObjSectionKind::Bss => {
+                    ObjSectionKind::Data | ObjSectionKind::Bss => {
                         *left_out.symbol_diff_mut(left_symbol_ref) =
-                            no_diff_bss_symbol(left_obj, left_symbol_ref);
+                            no_diff_symbol(left_obj, left_symbol_ref);
                     }
                 }
             }
@@ -282,10 +299,9 @@ pub fn diff_objs(
                         *right_out.symbol_diff_mut(right_symbol_ref) =
                             no_diff_code(right_obj, right_symbol_ref, config)?;
                     }
-                    ObjSectionKind::Data => {}
-                    ObjSectionKind::Bss => {
+                    ObjSectionKind::Data | ObjSectionKind::Bss => {
                         *right_out.symbol_diff_mut(right_symbol_ref) =
-                            no_diff_bss_symbol(right_obj, right_symbol_ref);
+                            no_diff_symbol(right_obj, right_symbol_ref);
                     }
                 }
             }
@@ -357,14 +373,26 @@ fn matching_symbols(
             for (symbol_idx, symbol) in section.symbols.iter().enumerate() {
                 let symbol_match = SymbolMatch {
                     left: Some(SymbolRef { section_idx, symbol_idx }),
-                    right: find_symbol(right, &symbol.name, section.kind),
-                    prev: find_symbol(prev, &symbol.name, section.kind),
+                    right: find_symbol(right, symbol, section),
+                    prev: find_symbol(prev, symbol, section),
                     section_kind: section.kind,
                 };
                 matches.push(symbol_match);
                 if let Some(right) = symbol_match.right {
                     right_used.insert(right);
                 }
+            }
+        }
+        for (symbol_idx, symbol) in left.common.iter().enumerate() {
+            let symbol_match = SymbolMatch {
+                left: Some(SymbolRef { section_idx: left.sections.len(), symbol_idx }),
+                right: find_common_symbol(right, symbol),
+                prev: find_common_symbol(prev, symbol),
+                section_kind: ObjSectionKind::Bss,
+            };
+            matches.push(symbol_match);
+            if let Some(right) = symbol_match.right {
+                right_used.insert(right);
             }
         }
     }
@@ -378,10 +406,22 @@ fn matching_symbols(
                 matches.push(SymbolMatch {
                     left: None,
                     right: Some(symbol_ref),
-                    prev: find_symbol(prev, &symbol.name, section.kind),
+                    prev: find_symbol(prev, symbol, section),
                     section_kind: section.kind,
                 });
             }
+        }
+        for (symbol_idx, symbol) in right.common.iter().enumerate() {
+            let symbol_ref = SymbolRef { section_idx: right.sections.len(), symbol_idx };
+            if right_used.contains(&symbol_ref) {
+                continue;
+            }
+            matches.push(SymbolMatch {
+                left: None,
+                right: Some(symbol_ref),
+                prev: find_common_symbol(prev, symbol),
+                section_kind: ObjSectionKind::Bss,
+            });
         }
     }
     Ok(matches)
@@ -389,18 +429,45 @@ fn matching_symbols(
 
 fn find_symbol(
     obj: Option<&ObjInfo>,
-    name: &str,
-    section_kind: ObjSectionKind,
+    in_symbol: &ObjSymbol,
+    in_section: &ObjSection,
 ) -> Option<SymbolRef> {
-    for (section_idx, section) in obj?.sections.iter().enumerate() {
-        if section.kind != section_kind {
+    let obj = obj?;
+    // Try to find an exact name match
+    for (section_idx, section) in obj.sections.iter().enumerate() {
+        if section.kind != in_section.kind {
             continue;
         }
-        let symbol_idx = match section.symbols.iter().position(|symbol| symbol.name == name) {
-            Some(symbol_idx) => symbol_idx,
-            None => continue,
-        };
-        return Some(SymbolRef { section_idx, symbol_idx });
+        if let Some(symbol_idx) =
+            section.symbols.iter().position(|symbol| symbol.name == in_symbol.name)
+        {
+            return Some(SymbolRef { section_idx, symbol_idx });
+        }
+    }
+    // Match compiler-generated symbols against each other (e.g. @251 -> @60)
+    // If they are at the same address in the same section
+    if in_symbol.name.starts_with('@')
+        && matches!(in_section.kind, ObjSectionKind::Data | ObjSectionKind::Bss)
+    {
+        if let Some((section_idx, section)) =
+            obj.sections.iter().enumerate().find(|(_, s)| s.name == in_section.name)
+        {
+            if let Some(symbol_idx) = section.symbols.iter().position(|symbol| {
+                symbol.address == in_symbol.address && symbol.name.starts_with('@')
+            }) {
+                return Some(SymbolRef { section_idx, symbol_idx });
+            }
+        }
+    }
+    None
+}
+
+fn find_common_symbol(obj: Option<&ObjInfo>, in_symbol: &ObjSymbol) -> Option<SymbolRef> {
+    let obj = obj?;
+    for (symbol_idx, symbol) in obj.common.iter().enumerate() {
+        if symbol.name == in_symbol.name {
+            return Some(SymbolRef { section_idx: obj.sections.len(), symbol_idx });
+        }
     }
     None
 }
