@@ -303,7 +303,32 @@ fn symbol_list_ui(
             }
 
             for (section, section_diff) in obj.0.sections.iter().zip(&obj.1.sections) {
-                CollapsingHeader::new(format!("{} ({:x})", section.name, section.size))
+                let mut header = LayoutJob::simple_singleline(
+                    format!("{} ({:x})", section.name, section.size),
+                    appearance.code_font.clone(),
+                    Color32::PLACEHOLDER,
+                );
+                if let Some(match_percent) = section_diff.match_percent {
+                    write_text(
+                        " (",
+                        Color32::PLACEHOLDER,
+                        &mut header,
+                        appearance.code_font.clone(),
+                    );
+                    write_text(
+                        &format!("{match_percent:.0}%"),
+                        match_color_for_symbol(match_percent, appearance),
+                        &mut header,
+                        appearance.code_font.clone(),
+                    );
+                    write_text(
+                        ")",
+                        Color32::PLACEHOLDER,
+                        &mut header,
+                        appearance.code_font.clone(),
+                    );
+                }
+                CollapsingHeader::new(header)
                     .id_source(Id::new(section.name.clone()).with(section.orig_index))
                     .default_open(true)
                     .show(ui, |ui| {

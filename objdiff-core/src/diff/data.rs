@@ -11,6 +11,27 @@ use crate::{
     obj::{ObjInfo, ObjSection, SymbolRef},
 };
 
+/// Compare the addresses and sizes of each symbol in the BSS sections.
+pub fn diff_bss_section(
+    left: &ObjSection,
+    right: &ObjSection,
+) -> Result<(ObjSectionDiff, ObjSectionDiff)> {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let left_sizes = left.symbols.iter().map(|s| (s.section_address, s.size)).collect::<Vec<_>>();
+    let right_sizes = right.symbols.iter().map(|s| (s.section_address, s.size)).collect::<Vec<_>>();
+    let ops = capture_diff_slices_deadline(
+        Algorithm::Patience,
+        &left_sizes,
+        &right_sizes,
+        Some(deadline),
+    );
+    let match_percent = get_diff_ratio(&ops, left_sizes.len(), right_sizes.len()) * 100.0;
+    Ok((
+        ObjSectionDiff { symbols: vec![], data_diff: vec![], match_percent: Some(match_percent) },
+        ObjSectionDiff { symbols: vec![], data_diff: vec![], match_percent: Some(match_percent) },
+    ))
+}
+
 pub fn diff_bss_symbol(
     left_obj: &ObjInfo,
     right_obj: &ObjInfo,
@@ -40,14 +61,19 @@ pub fn no_diff_symbol(_obj: &ObjInfo, symbol_ref: SymbolRef) -> ObjSymbolDiff {
     ObjSymbolDiff { symbol_ref, diff_symbol: None, instructions: vec![], match_percent: None }
 }
 
-pub fn diff_data(
+/// Compare the data sections of two object files.
+pub fn diff_data_section(
     left: &ObjSection,
     right: &ObjSection,
 ) -> Result<(ObjSectionDiff, ObjSectionDiff)> {
     let deadline = Instant::now() + Duration::from_secs(5);
+    let left_max = left.symbols.iter().map(|s| s.section_address + s.size).max().unwrap_or(0);
+    let right_max = right.symbols.iter().map(|s| s.section_address + s.size).max().unwrap_or(0);
+    let left_data = &left.data[..left_max as usize];
+    let right_data = &right.data[..right_max as usize];
     let ops =
-        capture_diff_slices_deadline(Algorithm::Patience, &left.data, &right.data, Some(deadline));
-    let match_percent = get_diff_ratio(&ops, left.data.len(), right.data.len()) * 100.0;
+        capture_diff_slices_deadline(Algorithm::Patience, left_data, right_data, Some(deadline));
+    let match_percent = get_diff_ratio(&ops, left_data.len(), right_data.len()) * 100.0;
 
     let mut left_diff = Vec::<ObjDataDiff>::new();
     let mut right_diff = Vec::<ObjDataDiff>::new();
@@ -166,5 +192,26 @@ pub fn diff_data_symbol(
             instructions: vec![],
             match_percent: Some(match_percent),
         },
+    ))
+}
+
+/// Compare the text sections of two object files.
+/// This essentially adds up the match percentage of each symbol in the text section.
+pub fn diff_text_section(
+    left: &ObjSection,
+    _right: &ObjSection,
+    left_diff: &ObjSectionDiff,
+    _right_diff: &ObjSectionDiff,
+) -> Result<(ObjSectionDiff, ObjSectionDiff)> {
+    let match_percent = left
+        .symbols
+        .iter()
+        .zip(left_diff.symbols.iter())
+        .map(|(s, d)| d.match_percent.unwrap_or(0.0) * s.size as f32)
+        .sum::<f32>()
+        / left.size as f32;
+    Ok((
+        ObjSectionDiff { symbols: vec![], data_diff: vec![], match_percent: Some(match_percent) },
+        ObjSectionDiff { symbols: vec![], data_diff: vec![], match_percent: Some(match_percent) },
     ))
 }
