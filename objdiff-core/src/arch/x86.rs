@@ -265,7 +265,7 @@ impl FormatterOutput for InstructionFormatterOutput {
             FormatterTextKind::LabelAddress => {
                 if let Some(reloc) = self.ins.reloc.as_ref() {
                     if matches!(reloc.flags, RelocationFlags::Coff {
-                        typ: pe::IMAGE_REL_I386_DIR32
+                        typ: pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32
                     }) {
                         self.ins.args.push(ObjInsArg::Reloc);
                         return;
