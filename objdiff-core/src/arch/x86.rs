@@ -73,7 +73,7 @@ impl ObjArch for ObjArchX86 {
                 .relocations
                 .iter()
                 .find(|r| r.address >= address && r.address < address + instruction.len() as u64);
-            let line = section.line_info.as_ref().and_then(|m| m.get(&address).cloned());
+            let line = section.line_info.range(..=address).last().map(|(_, &b)| b);
             output.ins = ObjIns {
                 address,
                 size: instruction.len() as u8,

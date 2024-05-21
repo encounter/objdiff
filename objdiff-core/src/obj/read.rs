@@ -111,7 +111,7 @@ fn filter_sections(obj_file: &File<'_>, split_meta: Option<&SplitMeta>) -> Resul
             symbols: Vec::new(),
             relocations: Vec::new(),
             virtual_address,
-            line_info: None,
+            line_info: Default::default(),
         });
     }
     result.sort_by(|a, b| a.name.cmp(&b.name));
@@ -292,7 +292,6 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection]) -> Result<()> {
                 reader.set_position(start + size as u64);
                 continue;
             };
-            let lines = out_section.line_info.get_or_insert_with(Default::default);
             let end = start + size as u64;
             while reader.position() < end {
                 let line_number = reader.read_u32::<BigEndian>()? as u64;
@@ -301,7 +300,7 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection]) -> Result<()> {
                     log::warn!("Unhandled statement pos {}", statement_pos);
                 }
                 let address_delta = reader.read_u32::<BigEndian>()? as u64;
-                lines.insert(base_address + address_delta, line_number);
+                out_section.line_info.insert(base_address + address_delta, line_number);
                 log::debug!("Line: {:#x} -> {}", base_address + address_delta, line_number);
             }
         }
@@ -337,7 +336,7 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection]) -> Result<()> {
                 let mut lines = sections
                     .iter_mut()
                     .find(|s| s.orig_index == section_index)
-                    .map(|s| s.line_info.get_or_insert_with(Default::default));
+                    .map(|s| &mut s.line_info);
 
                 let mut rows = program.rows();
                 while let Some((_header, row)) = rows.next_row()? {
@@ -355,7 +354,7 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection]) -> Result<()> {
                         lines = sections
                             .iter_mut()
                             .find(|s| s.orig_index == section_index)
-                            .map(|s| s.line_info.get_or_insert_with(Default::default));
+                            .map(|s| &mut s.line_info);
                     }
                 }
             }
