@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fs, io::Cursor, path::Path};
+use std::{fs, io::Cursor, path::Path};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use byteorder::{BigEndian, ReadBytesExt};
@@ -111,6 +111,7 @@ fn filter_sections(obj_file: &File<'_>, split_meta: Option<&SplitMeta>) -> Resul
             symbols: Vec::new(),
             relocations: Vec::new(),
             virtual_address,
+            line_info: Default::default(),
         });
     }
     result.sort_by(|a, b| a.name.cmp(&b.name));
@@ -268,26 +269,40 @@ fn relocations_by_section(
     Ok(relocations)
 }
 
-fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u64, u64>>> {
+fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection]) -> Result<()> {
     // DWARF 1.1
-    let mut map = BTreeMap::new();
     if let Some(section) = obj_file.section_by_name(".line") {
-        if section.size() == 0 {
-            return Ok(None);
-        }
         let data = section.uncompressed_data()?;
         let mut reader = Cursor::new(data.as_ref());
 
-        let size = reader.read_u32::<BigEndian>()?;
-        let base_address = reader.read_u32::<BigEndian>()? as u64;
-        while reader.position() < size as u64 {
-            let line_number = reader.read_u32::<BigEndian>()? as u64;
-            let statement_pos = reader.read_u16::<BigEndian>()?;
-            if statement_pos != 0xFFFF {
-                log::warn!("Unhandled statement pos {}", statement_pos);
+        let mut text_sections = obj_file.sections().filter(|s| s.kind() == SectionKind::Text);
+        while reader.position() < data.len() as u64 {
+            let text_section_index = text_sections
+                .next()
+                .ok_or_else(|| anyhow!("Next text section not found for line info"))?
+                .index()
+                .0;
+            let start = reader.position();
+            let size = reader.read_u32::<BigEndian>()?;
+            let base_address = reader.read_u32::<BigEndian>()? as u64;
+            let Some(out_section) =
+                sections.iter_mut().find(|s| s.orig_index == text_section_index)
+            else {
+                // Skip line info for sections we filtered out
+                reader.set_position(start + size as u64);
+                continue;
+            };
+            let end = start + size as u64;
+            while reader.position() < end {
+                let line_number = reader.read_u32::<BigEndian>()? as u64;
+                let statement_pos = reader.read_u16::<BigEndian>()?;
+                if statement_pos != 0xFFFF {
+                    log::warn!("Unhandled statement pos {}", statement_pos);
+                }
+                let address_delta = reader.read_u32::<BigEndian>()? as u64;
+                out_section.line_info.insert(base_address + address_delta, line_number);
+                log::debug!("Line: {:#x} -> {}", base_address + address_delta, line_number);
             }
-            let address_delta = reader.read_u32::<BigEndian>()? as u64;
-            map.insert(base_address + address_delta, line_number);
         }
     }
 
@@ -308,22 +323,48 @@ fn line_info(obj_file: &File<'_>) -> Result<Option<BTreeMap<u64, u64>>> {
         };
         let dwarf = dwarf_cow.borrow(|section| gimli::EndianSlice::new(section, endian));
         let mut iter = dwarf.units();
-        while let Some(header) = iter.next()? {
+        if let Some(header) = iter.next()? {
             let unit = dwarf.unit(header)?;
             if let Some(program) = unit.line_program.clone() {
+                let mut text_sections =
+                    obj_file.sections().filter(|s| s.kind() == SectionKind::Text);
+                let section_index = text_sections
+                    .next()
+                    .ok_or_else(|| anyhow!("Next text section not found for line info"))?
+                    .index()
+                    .0;
+                let mut lines = sections
+                    .iter_mut()
+                    .find(|s| s.orig_index == section_index)
+                    .map(|s| &mut s.line_info);
+
                 let mut rows = program.rows();
                 while let Some((_header, row)) = rows.next_row()? {
-                    if let Some(line) = row.line() {
-                        map.insert(row.address(), line.get());
+                    if let (Some(line), Some(lines)) = (row.line(), &mut lines) {
+                        lines.insert(row.address(), line.get());
+                    }
+                    if row.end_sequence() {
+                        // The next row is the start of a new sequence, which means we must
+                        // advance to the next .text section.
+                        let section_index = text_sections
+                            .next()
+                            .ok_or_else(|| anyhow!("Next text section not found for line info"))?
+                            .index()
+                            .0;
+                        lines = sections
+                            .iter_mut()
+                            .find(|s| s.orig_index == section_index)
+                            .map(|s| &mut s.line_info);
                     }
                 }
             }
         }
+        if iter.next()?.is_some() {
+            log::warn!("Multiple units found in DWARF data, only processing the first");
+        }
     }
-    if map.is_empty() {
-        return Ok(None);
-    }
-    Ok(Some(map))
+
+    Ok(())
 }
 
 pub fn read(obj_path: &Path) -> Result<ObjInfo> {
@@ -342,16 +383,9 @@ pub fn read(obj_path: &Path) -> Result<ObjInfo> {
         section.relocations =
             relocations_by_section(arch.as_ref(), &obj_file, section, split_meta.as_ref())?;
     }
+    line_info(&obj_file, &mut sections)?;
     let common = common_symbols(arch.as_ref(), &obj_file, split_meta.as_ref())?;
-    Ok(ObjInfo {
-        arch,
-        path: obj_path.to_owned(),
-        timestamp,
-        sections,
-        common,
-        line_info: line_info(&obj_file)?,
-        split_meta,
-    })
+    Ok(ObjInfo { arch, path: obj_path.to_owned(), timestamp, sections, common, split_meta })
 }
 
 pub fn has_function(obj_path: &Path, symbol_name: &str) -> Result<bool> {

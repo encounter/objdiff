@@ -133,10 +133,7 @@ impl ObjArch for ObjArchPpc {
             }
 
             ops.push(ins.op as u16);
-            let line = obj
-                .line_info
-                .as_ref()
-                .and_then(|map| map.range(..=cur_addr as u64).last().map(|(_, &b)| b));
+            let line = section.line_info.range(..=cur_addr as u64).last().map(|(_, &b)| b);
             insts.push(ObjIns {
                 address: cur_addr as u64,
                 size: 4,
