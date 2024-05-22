@@ -14,8 +14,8 @@ Features:
 - Click to highlight all instances of values and registers.
 
 Supports:
-- PowerPC 750CL (GameCube & Wii)
-- MIPS (Nintendo 64 & PS2)
+- PowerPC 750CL (GameCube, Wii)
+- MIPS (N64, PS1, PS2, PSP)
 - x86 (COFF only at the moment)
 
 See [Usage](#usage) for more information.
