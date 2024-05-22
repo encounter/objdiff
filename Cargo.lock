@@ -3081,7 +3081,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-cli"
-version = "2.0.0-alpha.1"
+version = "2.0.0-alpha.2"
 dependencies = [
  "anyhow",
  "argp",
@@ -3100,7 +3100,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-core"
-version = "2.0.0-alpha.1"
+version = "2.0.0-alpha.2"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -3123,11 +3123,12 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "similar",
+ "strum",
 ]
 
 [[package]]
 name = "objdiff-gui"
-version = "2.0.0-alpha.1"
+version = "2.0.0-alpha.2"
 dependencies = [
  "anyhow",
  "bytes",
@@ -3157,6 +3158,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shell-escape",
+ "strum",
  "tempfile",
  "time",
  "tracing-subscriber",

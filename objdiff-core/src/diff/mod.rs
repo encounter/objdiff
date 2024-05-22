@@ -17,13 +17,80 @@ mod code;
 mod data;
 pub mod display;
 
-#[derive(Debug, Copy, Clone, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    Default,
+    Eq,
+    PartialEq,
+    serde::Deserialize,
+    serde::Serialize,
+    strum::VariantArray,
+    strum::EnumMessage,
+)]
 pub enum X86Formatter {
     #[default]
+    #[strum(message = "Intel (default)")]
     Intel,
+    #[strum(message = "AT&T")]
     Gas,
+    #[strum(message = "NASM")]
     Nasm,
+    #[strum(message = "MASM")]
     Masm,
+}
+
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    Default,
+    Eq,
+    PartialEq,
+    serde::Deserialize,
+    serde::Serialize,
+    strum::VariantArray,
+    strum::EnumMessage,
+)]
+pub enum MipsAbi {
+    #[default]
+    #[strum(message = "Auto (default)")]
+    Auto,
+    #[strum(message = "O32")]
+    O32,
+    #[strum(message = "N32")]
+    N32,
+    #[strum(message = "N64")]
+    N64,
+}
+
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    Default,
+    Eq,
+    PartialEq,
+    serde::Deserialize,
+    serde::Serialize,
+    strum::VariantArray,
+    strum::EnumMessage,
+)]
+pub enum MipsInstrCategory {
+    #[default]
+    #[strum(message = "Auto (default)")]
+    Auto,
+    #[strum(message = "CPU")]
+    Cpu,
+    #[strum(message = "RSP (N64)")]
+    Rsp,
+    #[strum(message = "R3000 GTE (PS1)")]
+    R3000Gte,
+    #[strum(message = "R4000 ALLEGREX (PSP)")]
+    R4000Allegrex,
+    #[strum(message = "R5900 EE (PS2)")]
+    R5900,
 }
 
 #[inline]
@@ -35,7 +102,11 @@ pub struct DiffObjConfig {
     pub relax_reloc_diffs: bool,
     #[serde(default = "default_true")]
     pub space_between_args: bool,
+    // x86
     pub x86_formatter: X86Formatter,
+    // MIPS
+    pub mips_abi: MipsAbi,
+    pub mips_instr_category: MipsInstrCategory,
 }
 
 impl DiffObjConfig {
