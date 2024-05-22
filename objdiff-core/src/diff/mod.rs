@@ -96,7 +96,7 @@ pub enum MipsInstrCategory {
 #[inline]
 const fn default_true() -> bool { true }
 
-#[derive(Debug, Clone, Default, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct DiffObjConfig {
     pub relax_reloc_diffs: bool,
@@ -107,6 +107,18 @@ pub struct DiffObjConfig {
     // MIPS
     pub mips_abi: MipsAbi,
     pub mips_instr_category: MipsInstrCategory,
+}
+
+impl Default for DiffObjConfig {
+    fn default() -> Self {
+        Self {
+            relax_reloc_diffs: false,
+            space_between_args: true,
+            x86_formatter: Default::default(),
+            mips_abi: Default::default(),
+            mips_instr_category: Default::default(),
+        }
+    }
 }
 
 impl DiffObjConfig {
