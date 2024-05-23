@@ -1,6 +1,6 @@
 use std::{borrow::Cow, collections::HashMap};
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use armv5te::{arm, thumb};
 use object::{
     elf, File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, SectionIndex,
@@ -51,6 +51,7 @@ impl ObjArch for ObjArchArm {
         config: &DiffObjConfig,
     ) -> Result<ProcessCodeResult> {
         let (section, symbol) = obj.section_symbol(symbol_ref);
+        let section = section.ok_or_else(|| anyhow!("Code symbol section not found"))?;
         let mut code = &section.data
             [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
 
