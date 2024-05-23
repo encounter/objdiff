@@ -821,8 +821,10 @@ impl FunctionDiffUi {
             .transpose()?;
         let config = diff::DiffObjConfig {
             relax_reloc_diffs: self.relax_reloc_diffs,
-            space_between_args: true,          // TODO
-            x86_formatter: Default::default(), // TODO
+            space_between_args: true,                // TODO
+            x86_formatter: Default::default(),       // TODO
+            mips_abi: Default::default(),            // TODO
+            mips_instr_category: Default::default(), // TODO
         };
         let result = diff::diff_objs(&config, target.as_ref(), base.as_ref(), prev.as_ref())?;
 

@@ -1,29 +1,56 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, sync::Mutex};
 
-use anyhow::{bail, Result};
-use object::{elf, Endian, Endianness, File, Object, Relocation, RelocationFlags};
+use anyhow::{anyhow, bail, Result};
+use object::{elf, Endian, Endianness, File, FileFlags, Object, Relocation, RelocationFlags};
 use rabbitizer::{config, Abi, InstrCategory, Instruction, OperandType};
 
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
-    diff::DiffObjConfig,
+    diff::{DiffObjConfig, MipsAbi, MipsInstrCategory},
     obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection, SymbolRef},
 };
 
-fn configure_rabbitizer() {
+static RABBITIZER_MUTEX: Mutex<()> = Mutex::new(());
+
+fn configure_rabbitizer(abi: Abi) {
     unsafe {
-        config::RabbitizerConfig_Cfg.reg_names.fpr_abi_names = Abi::O32;
+        config::RabbitizerConfig_Cfg.reg_names.fpr_abi_names = abi;
     }
 }
 
 pub struct ObjArchMips {
     pub endianness: Endianness,
+    pub abi: Abi,
+    pub instr_category: InstrCategory,
 }
+
+const EF_MIPS_ABI: u32 = 0x0000F000;
+const EF_MIPS_MACH: u32 = 0x00FF0000;
+
+const E_MIPS_MACH_ALLEGREX: u32 = 0x00840000;
+const E_MIPS_MACH_5900: u32 = 0x00920000;
 
 impl ObjArchMips {
     pub fn new(object: &File) -> Result<Self> {
-        configure_rabbitizer();
-        Ok(Self { endianness: object.endianness() })
+        let mut abi = Abi::NUMERIC;
+        let mut instr_category = InstrCategory::CPU;
+        match object.flags() {
+            FileFlags::None => {}
+            FileFlags::Elf { e_flags, .. } => {
+                abi = match e_flags & EF_MIPS_ABI {
+                    elf::EF_MIPS_ABI_O32 => Abi::O32,
+                    elf::EF_MIPS_ABI_EABI32 | elf::EF_MIPS_ABI_EABI64 => Abi::N32,
+                    _ => Abi::NUMERIC,
+                };
+                instr_category = match e_flags & EF_MIPS_MACH {
+                    E_MIPS_MACH_ALLEGREX => InstrCategory::R4000ALLEGREX,
+                    E_MIPS_MACH_5900 => InstrCategory::R5900,
+                    _ => InstrCategory::CPU,
+                };
+            }
+            _ => bail!("Unsupported MIPS file flags"),
+        }
+        Ok(Self { endianness: object.endianness(), abi, instr_category })
     }
 }
 
@@ -35,8 +62,25 @@ impl ObjArch for ObjArchMips {
         config: &DiffObjConfig,
     ) -> Result<ProcessCodeResult> {
         let (section, symbol) = obj.section_symbol(symbol_ref);
+        let section = section.ok_or_else(|| anyhow!("Code symbol section not found"))?;
         let code = &section.data
             [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
+
+        let _guard = RABBITIZER_MUTEX.lock().map_err(|e| anyhow!("Failed to lock mutex: {e}"))?;
+        configure_rabbitizer(match config.mips_abi {
+            MipsAbi::Auto => self.abi,
+            MipsAbi::O32 => Abi::O32,
+            MipsAbi::N32 => Abi::N32,
+            MipsAbi::N64 => Abi::N64,
+        });
+        let instr_category = match config.mips_instr_category {
+            MipsInstrCategory::Auto => self.instr_category,
+            MipsInstrCategory::Cpu => InstrCategory::CPU,
+            MipsInstrCategory::Rsp => InstrCategory::RSP,
+            MipsInstrCategory::R3000Gte => InstrCategory::R3000GTE,
+            MipsInstrCategory::R4000Allegrex => InstrCategory::R4000ALLEGREX,
+            MipsInstrCategory::R5900 => InstrCategory::R5900,
+        };
 
         let start_address = symbol.address;
         let end_address = symbol.address + symbol.size;
@@ -47,7 +91,7 @@ impl ObjArch for ObjArchMips {
         for chunk in code.chunks_exact(4) {
             let reloc = section.relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
             let code = self.endianness.read_u32_bytes(chunk.try_into()?);
-            let instruction = Instruction::new(code, cur_addr, InstrCategory::CPU);
+            let instruction = Instruction::new(code, cur_addr, instr_category);
 
             let formatted = instruction.disassemble(None, 0);
             let op = instruction.unique_id as u16;

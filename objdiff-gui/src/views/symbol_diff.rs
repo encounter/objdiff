@@ -7,7 +7,7 @@ use egui::{
 use egui_extras::{Size, StripBuilder};
 use objdiff_core::{
     diff::{ObjDiff, ObjSymbolDiff},
-    obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags},
+    obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags, SymbolRef},
 };
 
 use crate::{
@@ -52,7 +52,7 @@ pub struct DiffViewState {
 
 #[derive(Default)]
 pub struct SymbolViewState {
-    pub highlighted_symbol: Option<String>,
+    pub highlighted_symbol: (Option<SymbolRef>, Option<SymbolRef>),
     pub selected_symbol: Option<SymbolRefByName>,
     pub reverse_fn_order: bool,
     pub disable_reverse_fn_order: bool,
@@ -184,6 +184,7 @@ fn symbol_ui(
     section: Option<&ObjSection>,
     state: &mut SymbolViewState,
     appearance: &Appearance,
+    left: bool,
 ) -> Option<View> {
     if symbol.flags.0.contains(ObjSymbolFlags::Hidden) && !state.show_hidden_symbols {
         return None;
@@ -193,8 +194,10 @@ fn symbol_ui(
     let name: &str =
         if let Some(demangled) = &symbol.demangled_name { demangled } else { &symbol.name };
     let mut selected = false;
-    if let Some(sym) = &state.highlighted_symbol {
-        selected = sym == &symbol.name;
+    if let Some(sym_ref) =
+        if left { state.highlighted_symbol.0 } else { state.highlighted_symbol.1 }
+    {
+        selected = symbol_diff.symbol_ref == sym_ref;
     }
     write_text("[", appearance.text_color, &mut job, appearance.code_font.clone());
     if symbol.flags.0.contains(ObjSymbolFlags::Common) {
@@ -245,7 +248,15 @@ fn symbol_ui(
             }
         }
     } else if response.hovered() {
-        state.highlighted_symbol = Some(symbol.name.clone());
+        state.highlighted_symbol = if let Some(diff_symbol) = symbol_diff.diff_symbol {
+            if left {
+                (Some(symbol_diff.symbol_ref), Some(diff_symbol))
+            } else {
+                (Some(diff_symbol), Some(symbol_diff.symbol_ref))
+            }
+        } else {
+            (None, None)
+        };
     }
     ret
 }
@@ -267,6 +278,7 @@ fn symbol_list_ui(
     state: &mut SymbolViewState,
     lower_search: &str,
     appearance: &Appearance,
+    left: bool,
 ) -> Option<View> {
     let mut ret = None;
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
@@ -277,13 +289,46 @@ fn symbol_list_ui(
             if !obj.0.common.is_empty() {
                 CollapsingHeader::new(".comm").default_open(true).show(ui, |ui| {
                     for (symbol, symbol_diff) in obj.0.common.iter().zip(&obj.1.common) {
-                        ret = ret.or(symbol_ui(ui, symbol, symbol_diff, None, state, appearance));
+                        ret = ret.or(symbol_ui(
+                            ui,
+                            symbol,
+                            symbol_diff,
+                            None,
+                            state,
+                            appearance,
+                            left,
+                        ));
                     }
                 });
             }
 
             for (section, section_diff) in obj.0.sections.iter().zip(&obj.1.sections) {
-                CollapsingHeader::new(format!("{} ({:x})", section.name, section.size))
+                let mut header = LayoutJob::simple_singleline(
+                    format!("{} ({:x})", section.name, section.size),
+                    appearance.code_font.clone(),
+                    Color32::PLACEHOLDER,
+                );
+                if let Some(match_percent) = section_diff.match_percent {
+                    write_text(
+                        " (",
+                        Color32::PLACEHOLDER,
+                        &mut header,
+                        appearance.code_font.clone(),
+                    );
+                    write_text(
+                        &format!("{match_percent:.0}%"),
+                        match_color_for_symbol(match_percent, appearance),
+                        &mut header,
+                        appearance.code_font.clone(),
+                    );
+                    write_text(
+                        ")",
+                        Color32::PLACEHOLDER,
+                        &mut header,
+                        appearance.code_font.clone(),
+                    );
+                }
+                CollapsingHeader::new(header)
                     .id_source(Id::new(section.name.clone()).with(section.orig_index))
                     .default_open(true)
                     .show(ui, |ui| {
@@ -301,6 +346,7 @@ fn symbol_list_ui(
                                     Some(section),
                                     state,
                                     appearance,
+                                    left,
                                 ));
                             }
                         } else {
@@ -317,6 +363,7 @@ fn symbol_list_ui(
                                     Some(section),
                                     state,
                                     appearance,
+                                    left,
                                 ));
                             }
                         }
@@ -447,6 +494,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                                     symbol_state,
                                     &lower_search,
                                     appearance,
+                                    true,
                                 ));
                             } else {
                                 missing_obj_ui(ui, appearance);
@@ -466,6 +514,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                                     symbol_state,
                                     &lower_search,
                                     appearance,
+                                    false,
                                 ));
                             } else {
                                 missing_obj_ui(ui, appearance);

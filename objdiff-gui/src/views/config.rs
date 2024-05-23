@@ -16,9 +16,10 @@ use egui::{
 use globset::Glob;
 use objdiff_core::{
     config::{ProjectObject, DEFAULT_WATCH_PATTERNS},
-    diff::X86Formatter,
+    diff::{MipsAbi, MipsInstrCategory, X86Formatter},
 };
 use self_update::cargo_crate_version;
+use strum::{EnumMessage, VariantArray};
 
 use crate::{
     app::{AppConfig, AppConfigRef, ObjectConfig},
@@ -41,7 +42,7 @@ pub struct ConfigViewState {
     pub check_update_running: bool,
     pub queue_check_update: bool,
     pub update_running: bool,
-    pub queue_update: bool,
+    pub queue_update: Option<String>,
     pub build_running: bool,
     pub queue_build: bool,
     pub watch_pattern_text: String,
@@ -127,9 +128,8 @@ impl ConfigViewState {
             jobs.push_once(Job::CheckUpdate, || start_check_update(ctx));
         }
 
-        if self.queue_update {
-            self.queue_update = false;
-            jobs.push_once(Job::Update, || start_update(ctx));
+        if let Some(bin_name) = self.queue_update.take() {
+            jobs.push_once(Job::Update, || start_update(ctx, bin_name));
         }
     }
 }
@@ -201,15 +201,16 @@ pub fn config_ui(
         if result.update_available {
             ui.colored_label(appearance.insert_color, "Update available");
             ui.horizontal(|ui| {
-                if result.found_binary
-                    && ui
+                if let Some(bin_name) = &result.found_binary {
+                    if ui
                         .add_enabled(!state.update_running, egui::Button::new("Automatic"))
                         .on_hover_text_at_pointer(
                             "Automatically download and replace the current build",
                         )
                         .clicked()
-                {
-                    state.queue_update = true;
+                    {
+                        state.queue_update = Some(bin_name.clone());
+                    }
                 }
                 if ui
                     .button("Manual")
@@ -242,7 +243,7 @@ pub fn config_ui(
                         Box::pin(
                             rfd::AsyncFileDialog::new()
                                 .set_directory(&target_dir)
-                                .add_filter("Object file", &["o", "elf"])
+                                .add_filter("Object file", &["o", "elf", "obj"])
                                 .pick_file(),
                         )
                     },
@@ -842,33 +843,66 @@ fn split_obj_config_ui(
     });
 }
 
-pub fn diff_config_window(
+pub fn arch_config_window(
     ctx: &egui::Context,
     config: &AppConfigRef,
     show: &mut bool,
     appearance: &Appearance,
 ) {
     let mut config_guard = config.write().unwrap();
-    egui::Window::new("Diff Config").open(show).show(ctx, |ui| {
-        diff_config_ui(ui, &mut config_guard, appearance);
+    egui::Window::new("Arch Settings").open(show).show(ctx, |ui| {
+        arch_config_ui(ui, &mut config_guard, appearance);
     });
 }
 
-fn diff_config_ui(ui: &mut egui::Ui, config: &mut AppConfig, _appearance: &Appearance) {
-    egui::ComboBox::new("x86_formatter", "X86 Format")
-        .selected_text(format!("{:?}", config.diff_obj_config.x86_formatter))
+fn arch_config_ui(ui: &mut egui::Ui, config: &mut AppConfig, _appearance: &Appearance) {
+    ui.heading("x86");
+    egui::ComboBox::new("x86_formatter", "Format")
+        .selected_text(config.diff_obj_config.x86_formatter.get_message().unwrap())
         .show_ui(ui, |ui| {
-            for &formatter in
-                &[X86Formatter::Intel, X86Formatter::Gas, X86Formatter::Nasm, X86Formatter::Masm]
-            {
+            for &formatter in X86Formatter::VARIANTS {
                 if ui
                     .selectable_label(
                         config.diff_obj_config.x86_formatter == formatter,
-                        format!("{:?}", formatter),
+                        formatter.get_message().unwrap(),
                     )
                     .clicked()
                 {
                     config.diff_obj_config.x86_formatter = formatter;
+                    config.queue_reload = true;
+                }
+            }
+        });
+    ui.separator();
+    ui.heading("MIPS");
+    egui::ComboBox::new("mips_abi", "ABI")
+        .selected_text(config.diff_obj_config.mips_abi.get_message().unwrap())
+        .show_ui(ui, |ui| {
+            for &abi in MipsAbi::VARIANTS {
+                if ui
+                    .selectable_label(
+                        config.diff_obj_config.mips_abi == abi,
+                        abi.get_message().unwrap(),
+                    )
+                    .clicked()
+                {
+                    config.diff_obj_config.mips_abi = abi;
+                    config.queue_reload = true;
+                }
+            }
+        });
+    egui::ComboBox::new("mips_instr_category", "Instruction Category")
+        .selected_text(config.diff_obj_config.mips_instr_category.get_message().unwrap())
+        .show_ui(ui, |ui| {
+            for &category in MipsInstrCategory::VARIANTS {
+                if ui
+                    .selectable_label(
+                        config.diff_obj_config.mips_instr_category == category,
+                        category.get_message().unwrap(),
+                    )
+                    .clicked()
+                {
+                    config.diff_obj_config.mips_instr_category = category;
                     config.queue_reload = true;
                 }
             }

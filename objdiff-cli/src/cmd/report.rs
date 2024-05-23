@@ -42,7 +42,7 @@ pub struct GenerateArgs {
     /// Output JSON file
     output: Option<PathBuf>,
     #[argp(switch, short = 'd')]
-    /// Deduplicate global and weak symbols
+    /// Deduplicate global and weak symbols (runs single-threaded)
     deduplicate: bool,
 }
 
@@ -64,9 +64,12 @@ pub struct ChangesArgs {
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 struct Report {
     fuzzy_match_percent: f32,
-    total_size: u64,
-    matched_size: u64,
-    matched_size_percent: f32,
+    total_code: u64,
+    matched_code: u64,
+    matched_code_percent: f32,
+    total_data: u64,
+    matched_data: u64,
+    matched_data_percent: f32,
     total_functions: u32,
     matched_functions: u32,
     matched_functions_percent: f32,
@@ -77,8 +80,10 @@ struct Report {
 struct ReportUnit {
     name: String,
     fuzzy_match_percent: f32,
-    total_size: u64,
-    matched_size: u64,
+    total_code: u64,
+    matched_code: u64,
+    total_data: u64,
+    matched_data: u64,
     total_functions: u32,
     matched_functions: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -87,11 +92,12 @@ struct ReportUnit {
     module_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     module_id: Option<u32>,
-    functions: Vec<ReportFunction>,
+    sections: Vec<ReportItem>,
+    functions: Vec<ReportItem>,
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
-struct ReportFunction {
+struct ReportItem {
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     demangled_name: Option<String>,
@@ -160,21 +166,29 @@ fn generate(args: GenerateArgs) -> Result<()> {
         report.units = units.into_iter().flatten().collect();
     }
     for unit in &report.units {
-        report.fuzzy_match_percent += unit.fuzzy_match_percent * unit.total_size as f32;
-        report.total_size += unit.total_size;
-        report.matched_size += unit.matched_size;
+        report.fuzzy_match_percent += unit.fuzzy_match_percent * unit.total_code as f32;
+        report.total_code += unit.total_code;
+        report.matched_code += unit.matched_code;
+        report.total_data += unit.total_data;
+        report.matched_data += unit.matched_data;
         report.total_functions += unit.total_functions;
         report.matched_functions += unit.matched_functions;
     }
-    if report.total_size == 0 {
+    if report.total_code == 0 {
         report.fuzzy_match_percent = 100.0;
     } else {
-        report.fuzzy_match_percent /= report.total_size as f32;
+        report.fuzzy_match_percent /= report.total_code as f32;
     }
-    report.matched_size_percent = if report.total_size == 0 {
+
+    report.matched_code_percent = if report.total_code == 0 {
         100.0
     } else {
-        report.matched_size as f32 / report.total_size as f32 * 100.0
+        report.matched_code as f32 / report.total_code as f32 * 100.0
+    };
+    report.matched_data_percent = if report.total_data == 0 {
+        100.0
+    } else {
+        report.matched_data as f32 / report.total_data as f32 * 100.0
     };
     report.matched_functions_percent = if report.total_functions == 0 {
         100.0
@@ -216,7 +230,6 @@ fn report_object(
         }
         _ => {}
     }
-    // println!("Checking {}", object.name());
     let target = object
         .target_path
         .as_ref()
@@ -240,11 +253,37 @@ fn report_object(
         ..Default::default()
     };
     let obj = target.as_ref().or(base.as_ref()).unwrap();
+
     let obj_diff = result.left.as_ref().or(result.right.as_ref()).unwrap();
     for (section, section_diff) in obj.sections.iter().zip(&obj_diff.sections) {
-        if section.kind != ObjSectionKind::Code {
-            continue;
+        let section_match_percent = section_diff.match_percent.unwrap_or_else(|| {
+            // Support cases where we don't have a target object,
+            // assume complete means 100% match
+            if object.complete == Some(true) {
+                100.0
+            } else {
+                0.0
+            }
+        });
+        unit.sections.push(ReportItem {
+            name: section.name.clone(),
+            demangled_name: None,
+            fuzzy_match_percent: section_match_percent,
+            size: section.size,
+            address: section.virtual_address,
+        });
+
+        match section.kind {
+            ObjSectionKind::Data | ObjSectionKind::Bss => {
+                unit.total_data += section.size;
+                if section_match_percent == 100.0 {
+                    unit.matched_data += section.size;
+                }
+                continue;
+            }
+            ObjSectionKind::Code => (),
         }
+
         for (symbol, symbol_diff) in section.symbols.iter().zip(&section_diff.symbols) {
             if symbol.size == 0 {
                 continue;
@@ -267,11 +306,11 @@ fn report_object(
                 }
             });
             unit.fuzzy_match_percent += match_percent * symbol.size as f32;
-            unit.total_size += symbol.size;
+            unit.total_code += symbol.size;
             if match_percent == 100.0 {
-                unit.matched_size += symbol.size;
+                unit.matched_code += symbol.size;
             }
-            unit.functions.push(ReportFunction {
+            unit.functions.push(ReportItem {
                 name: symbol.name.clone(),
                 demangled_name: symbol.demangled_name.clone(),
                 size: symbol.size,
@@ -284,10 +323,10 @@ fn report_object(
             unit.total_functions += 1;
         }
     }
-    if unit.total_size == 0 {
+    if unit.total_code == 0 {
         unit.fuzzy_match_percent = 100.0;
     } else {
-        unit.fuzzy_match_percent /= unit.total_size as f32;
+        unit.fuzzy_match_percent /= unit.total_code as f32;
     }
     Ok(Some(unit))
 }
@@ -302,9 +341,12 @@ struct Changes {
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 struct ChangeInfo {
     fuzzy_match_percent: f32,
-    total_size: u64,
-    matched_size: u64,
-    matched_size_percent: f32,
+    total_code: u64,
+    matched_code: u64,
+    matched_code_percent: f32,
+    total_data: u64,
+    matched_data: u64,
+    matched_data_percent: f32,
     total_functions: u32,
     matched_functions: u32,
     matched_functions_percent: f32,
@@ -314,9 +356,12 @@ impl From<&Report> for ChangeInfo {
     fn from(report: &Report) -> Self {
         Self {
             fuzzy_match_percent: report.fuzzy_match_percent,
-            total_size: report.total_size,
-            matched_size: report.matched_size,
-            matched_size_percent: report.matched_size_percent,
+            total_code: report.total_code,
+            matched_code: report.matched_code,
+            matched_code_percent: report.matched_code_percent,
+            total_data: report.total_data,
+            matched_data: report.matched_data,
+            matched_data_percent: report.matched_data_percent,
             total_functions: report.total_functions,
             matched_functions: report.matched_functions,
             matched_functions_percent: report.matched_functions_percent,
@@ -328,12 +373,19 @@ impl From<&ReportUnit> for ChangeInfo {
     fn from(value: &ReportUnit) -> Self {
         Self {
             fuzzy_match_percent: value.fuzzy_match_percent,
-            total_size: value.total_size,
-            matched_size: value.matched_size,
-            matched_size_percent: if value.total_size == 0 {
+            total_code: value.total_code,
+            matched_code: value.matched_code,
+            matched_code_percent: if value.total_code == 0 {
                 100.0
             } else {
-                value.matched_size as f32 / value.total_size as f32 * 100.0
+                value.matched_code as f32 / value.total_code as f32 * 100.0
+            },
+            total_data: value.total_data,
+            matched_data: value.matched_data,
+            matched_data_percent: if value.total_data == 0 {
+                100.0
+            } else {
+                value.matched_data as f32 / value.total_data as f32 * 100.0
             },
             total_functions: value.total_functions,
             matched_functions: value.matched_functions,
@@ -351,24 +403,25 @@ struct ChangeUnit {
     name: String,
     from: Option<ChangeInfo>,
     to: Option<ChangeInfo>,
-    functions: Vec<ChangeFunction>,
+    sections: Vec<ChangeItem>,
+    functions: Vec<ChangeItem>,
 }
 
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
-struct ChangeFunction {
+struct ChangeItem {
     name: String,
-    from: Option<ChangeFunctionInfo>,
-    to: Option<ChangeFunctionInfo>,
+    from: Option<ChangeItemInfo>,
+    to: Option<ChangeItemInfo>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
-struct ChangeFunctionInfo {
+struct ChangeItemInfo {
     fuzzy_match_percent: f32,
     size: u64,
 }
 
-impl From<&ReportFunction> for ChangeFunctionInfo {
-    fn from(value: &ReportFunction) -> Self {
+impl From<&ReportItem> for ChangeItemInfo {
+    fn from(value: &ReportItem) -> Self {
         Self { fuzzy_match_percent: value.fuzzy_match_percent, size: value.size }
     }
 }
@@ -382,54 +435,18 @@ fn changes(args: ChangesArgs) -> Result<()> {
         units: vec![],
     };
     for prev_unit in &previous.units {
-        let prev_unit_info = ChangeInfo::from(prev_unit);
         let curr_unit = current.units.iter().find(|u| u.name == prev_unit.name);
+        let sections = process_items(prev_unit, curr_unit, |u| &u.sections);
+        let functions = process_items(prev_unit, curr_unit, |u| &u.functions);
+
+        let prev_unit_info = ChangeInfo::from(prev_unit);
         let curr_unit_info = curr_unit.map(ChangeInfo::from);
-        let mut functions = vec![];
-        if let Some(curr_unit) = curr_unit {
-            for prev_func in &prev_unit.functions {
-                let prev_func_info = ChangeFunctionInfo::from(prev_func);
-                let curr_func = curr_unit.functions.iter().find(|f| f.name == prev_func.name);
-                let curr_func_info = curr_func.map(ChangeFunctionInfo::from);
-                if let Some(curr_func_info) = curr_func_info {
-                    if prev_func_info != curr_func_info {
-                        functions.push(ChangeFunction {
-                            name: prev_func.name.clone(),
-                            from: Some(prev_func_info),
-                            to: Some(curr_func_info),
-                        });
-                    }
-                } else {
-                    functions.push(ChangeFunction {
-                        name: prev_func.name.clone(),
-                        from: Some(prev_func_info),
-                        to: None,
-                    });
-                }
-            }
-            for curr_func in &curr_unit.functions {
-                if !prev_unit.functions.iter().any(|f| f.name == curr_func.name) {
-                    functions.push(ChangeFunction {
-                        name: curr_func.name.clone(),
-                        from: None,
-                        to: Some(ChangeFunctionInfo::from(curr_func)),
-                    });
-                }
-            }
-        } else {
-            for prev_func in &prev_unit.functions {
-                functions.push(ChangeFunction {
-                    name: prev_func.name.clone(),
-                    from: Some(ChangeFunctionInfo::from(prev_func)),
-                    to: None,
-                });
-            }
-        }
         if !functions.is_empty() || !matches!(&curr_unit_info, Some(v) if v == &prev_unit_info) {
             changes.units.push(ChangeUnit {
                 name: prev_unit.name.clone(),
                 from: Some(prev_unit_info),
                 to: curr_unit_info,
+                sections,
                 functions,
             });
         }
@@ -440,15 +457,8 @@ fn changes(args: ChangesArgs) -> Result<()> {
                 name: curr_unit.name.clone(),
                 from: None,
                 to: Some(ChangeInfo::from(curr_unit)),
-                functions: curr_unit
-                    .functions
-                    .iter()
-                    .map(|f| ChangeFunction {
-                        name: f.name.clone(),
-                        from: None,
-                        to: Some(ChangeFunctionInfo::from(f)),
-                    })
-                    .collect(),
+                sections: process_new_items(&curr_unit.sections),
+                functions: process_new_items(&curr_unit.functions),
             });
         }
     }
@@ -464,6 +474,63 @@ fn changes(args: ChangesArgs) -> Result<()> {
         serde_json::to_writer_pretty(std::io::stdout(), &changes)?;
     }
     Ok(())
+}
+
+fn process_items<F: Fn(&ReportUnit) -> &Vec<ReportItem>>(
+    prev_unit: &ReportUnit,
+    curr_unit: Option<&ReportUnit>,
+    getter: F,
+) -> Vec<ChangeItem> {
+    let prev_items = getter(prev_unit);
+    let mut items = vec![];
+    if let Some(curr_unit) = curr_unit {
+        let curr_items = getter(curr_unit);
+        for prev_func in prev_items {
+            let prev_func_info = ChangeItemInfo::from(prev_func);
+            let curr_func = curr_items.iter().find(|f| f.name == prev_func.name);
+            let curr_func_info = curr_func.map(ChangeItemInfo::from);
+            if let Some(curr_func_info) = curr_func_info {
+                if prev_func_info != curr_func_info {
+                    items.push(ChangeItem {
+                        name: prev_func.name.clone(),
+                        from: Some(prev_func_info),
+                        to: Some(curr_func_info),
+                    });
+                }
+            } else {
+                items.push(ChangeItem {
+                    name: prev_func.name.clone(),
+                    from: Some(prev_func_info),
+                    to: None,
+                });
+            }
+        }
+        for curr_func in curr_items {
+            if !prev_items.iter().any(|f| f.name == curr_func.name) {
+                items.push(ChangeItem {
+                    name: curr_func.name.clone(),
+                    from: None,
+                    to: Some(ChangeItemInfo::from(curr_func)),
+                });
+            }
+        }
+    } else {
+        for prev_func in prev_items {
+            items.push(ChangeItem {
+                name: prev_func.name.clone(),
+                from: Some(ChangeItemInfo::from(prev_func)),
+                to: None,
+            });
+        }
+    }
+    items
+}
+
+fn process_new_items(items: &[ReportItem]) -> Vec<ChangeItem> {
+    items
+        .iter()
+        .map(|f| ChangeItem { name: f.name.clone(), from: None, to: Some(ChangeItemInfo::from(f)) })
+        .collect()
 }
 
 fn read_report(path: &Path) -> Result<Report> {

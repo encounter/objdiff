@@ -282,6 +282,7 @@ fn asm_col_ui(
     ins_view_state: &mut FunctionViewState,
 ) {
     let (section, symbol) = obj.0.section_symbol(symbol_ref);
+    let section = section.unwrap();
     let ins_diff = &obj.1.symbol_diff(symbol_ref).instructions[row.index()];
     let response_cb = |response: Response| {
         if let Some(ins) = &ins_diff.ins {

@@ -33,6 +33,7 @@ impl ObjArch for ObjArchX86 {
         config: &DiffObjConfig,
     ) -> Result<ProcessCodeResult> {
         let (section, symbol) = obj.section_symbol(symbol_ref);
+        let section = section.ok_or_else(|| anyhow!("Code symbol section not found"))?;
         let code = &section.data
             [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
 
@@ -264,7 +265,7 @@ impl FormatterOutput for InstructionFormatterOutput {
             FormatterTextKind::LabelAddress => {
                 if let Some(reloc) = self.ins.reloc.as_ref() {
                     if matches!(reloc.flags, RelocationFlags::Coff {
-                        typ: pe::IMAGE_REL_I386_DIR32
+                        typ: pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32
                     }) {
                         self.ins.args.push(ObjInsArg::Reloc);
                         return;

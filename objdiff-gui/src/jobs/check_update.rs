@@ -5,13 +5,13 @@ use self_update::{cargo_crate_version, update::Release};
 
 use crate::{
     jobs::{start_job, update_status, Job, JobContext, JobResult, JobState},
-    update::{build_updater, BIN_NAME},
+    update::{build_updater, BIN_NAME_NEW, BIN_NAME_OLD},
 };
 
 pub struct CheckUpdateResult {
     pub update_available: bool,
     pub latest_release: Release,
-    pub found_binary: bool,
+    pub found_binary: Option<String>,
 }
 
 fn run_check_update(context: &JobContext, cancel: Receiver<()>) -> Result<Box<CheckUpdateResult>> {
@@ -20,7 +20,13 @@ fn run_check_update(context: &JobContext, cancel: Receiver<()>) -> Result<Box<Ch
     let latest_release = updater.get_latest_release()?;
     let update_available =
         self_update::version::bump_is_greater(cargo_crate_version!(), &latest_release.version)?;
-    let found_binary = latest_release.assets.iter().any(|a| a.name == BIN_NAME);
+    // Find the binary name in the release assets
+    let found_binary = latest_release
+        .assets
+        .iter()
+        .find(|a| a.name == BIN_NAME_NEW)
+        .or_else(|| latest_release.assets.iter().find(|a| a.name == BIN_NAME_OLD))
+        .map(|a| a.name.clone());
 
     update_status(context, "Complete".to_string(), 1, 1, &cancel)?;
     Ok(Box::new(CheckUpdateResult { update_available, latest_release, found_binary }))

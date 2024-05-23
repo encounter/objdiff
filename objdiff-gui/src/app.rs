@@ -30,7 +30,7 @@ use crate::{
     views::{
         appearance::{appearance_window, Appearance},
         config::{
-            config_ui, diff_config_window, project_window, ConfigViewState, CONFIG_DISABLED_TEXT,
+            arch_config_window, config_ui, project_window, ConfigViewState, CONFIG_DISABLED_TEXT,
         },
         data_diff::data_diff_ui,
         debug::debug_window,
@@ -52,7 +52,7 @@ pub struct ViewState {
     pub show_appearance_config: bool,
     pub show_demangle: bool,
     pub show_project_config: bool,
-    pub show_diff_config: bool,
+    pub show_arch_config: bool,
     pub show_debug: bool,
 }
 
@@ -414,7 +414,7 @@ impl eframe::App for App {
             show_appearance_config,
             show_demangle,
             show_project_config,
-            show_diff_config,
+            show_arch_config,
             show_debug,
         } = view_state;
 
@@ -468,8 +468,8 @@ impl eframe::App for App {
                     }
                 });
                 ui.menu_button("Diff Options", |ui| {
-                    if ui.button("More…").clicked() {
-                        *show_diff_config = !*show_diff_config;
+                    if ui.button("Arch Settings…").clicked() {
+                        *show_arch_config = !*show_arch_config;
                         ui.close_menu();
                     }
                     let mut config = config.write().unwrap();
@@ -541,7 +541,7 @@ impl eframe::App for App {
         project_window(ctx, config, show_project_config, config_state, appearance);
         appearance_window(ctx, show_appearance_config, appearance);
         demangle_window(ctx, show_demangle, demangle_state, appearance);
-        diff_config_window(ctx, config, show_diff_config, appearance);
+        arch_config_window(ctx, config, show_arch_config, appearance);
         debug_window(ctx, show_debug, frame_history, appearance);
 
         self.post_update(ctx);

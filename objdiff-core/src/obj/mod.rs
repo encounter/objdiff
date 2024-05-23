@@ -142,16 +142,20 @@ pub struct ObjReloc {
     pub target_section: Option<String>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct SymbolRef {
     pub section_idx: usize,
     pub symbol_idx: usize,
 }
 
 impl ObjInfo {
-    pub fn section_symbol(&self, symbol_ref: SymbolRef) -> (&ObjSection, &ObjSymbol) {
+    pub fn section_symbol(&self, symbol_ref: SymbolRef) -> (Option<&ObjSection>, &ObjSymbol) {
+        if symbol_ref.section_idx == self.sections.len() {
+            let symbol = &self.common[symbol_ref.symbol_idx];
+            return (None, symbol);
+        }
         let section = &self.sections[symbol_ref.section_idx];
         let symbol = &section.symbols[symbol_ref.symbol_idx];
-        (section, symbol)
+        (Some(section), symbol)
     }
 }
