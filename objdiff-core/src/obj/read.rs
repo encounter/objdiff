@@ -277,11 +277,13 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection]) -> Result<()> {
 
         let mut text_sections = obj_file.sections().filter(|s| s.kind() == SectionKind::Text);
         while reader.position() < data.len() as u64 {
-            let text_section_index = text_sections
-                .next()
-                .ok_or_else(|| anyhow!("Next text section not found for line info"))?
-                .index()
-                .0;
+            let text_section_index = if let Some(index) = text_sections.next().map(|s| s.index().0)
+            {
+                index
+            } else {
+                // No more text sections to generate line info for
+                break;
+            };
             let start = reader.position();
             let size = reader.read_u32::<BigEndian>()?;
             let base_address = reader.read_u32::<BigEndian>()? as u64;
