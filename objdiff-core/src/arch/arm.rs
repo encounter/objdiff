@@ -147,8 +147,8 @@ impl ObjArch for ObjArchArm {
                     let ins_code = mask_reloc_from_code(ins_code, reloc)?;
 
                     let ins = thumb::Ins::new(ins_code);
-
                     let mut parsed_ins = thumb::ParsedIns::parse(ins);
+
                     let mut size = 2;
                     let address = cur_addr as u64;
                     if ins.is_half_bl() {
@@ -304,6 +304,7 @@ fn mask_reloc_from_code(code: u32, reloc: Option<&ObjReloc>) -> Result<u32> {
             RelocationFlags::Elf { r_type } => match r_type {
                 elf::R_ARM_PC24 => Ok(code & !0xffffff),
                 elf::R_ARM_ABS32 => Ok(0),
+                elf::R_ARM_SBREL32 => Ok(0),
                 elf::R_ARM_THM_PC22 => Ok(code & !0x7ff),
                 elf::R_ARM_XPC25 => Ok(code & !0xffffff),
                 elf::R_ARM_THM_XPC22 => Ok(code & !0x7ff),
