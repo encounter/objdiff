@@ -8,14 +8,14 @@ use crate::{
     obj::{ObjInfo, ObjIns, ObjSection, SymbolRef},
 };
 
+#[cfg(feature = "arm")]
+mod arm;
 #[cfg(feature = "mips")]
 mod mips;
 #[cfg(feature = "ppc")]
 mod ppc;
 #[cfg(feature = "x86")]
 mod x86;
-#[cfg(feature = "arm")]
-mod arm;
 
 pub trait ObjArch: Send + Sync {
     fn process_code(
