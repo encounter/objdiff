@@ -6,6 +6,7 @@
 A local diffing tool for decompilation projects. Inspired by [decomp.me](https://decomp.me) and [asm-differ](https://github.com/simonlindholm/asm-differ).
 
 Features:
+
 - Compare entire object files: functions and data.
 - Built-in symbol demangling for C++. (CodeWarrior, Itanium & MSVC)
 - Automatic rebuild on source file changes.
@@ -14,9 +15,11 @@ Features:
 - Click to highlight all instances of values and registers.
 
 Supports:
+
 - PowerPC 750CL (GameCube, Wii)
 - MIPS (N64, PS1, PS2, PSP)
 - x86 (COFF only at the moment)
+- ARM (DS)
 
 See [Usage](#usage) for more information.
 
@@ -58,40 +61,30 @@ file as well. You can then add `objdiff.json` to your `.gitignore` to prevent it
 ```json5
 // objdiff.json
 {
-  "custom_make": "ninja",
-  "custom_args": [
-    "-d",
-    "keeprsp"
-  ],
+  custom_make: "ninja",
+  custom_args: ["-d", "keeprsp"],
 
   // Only required if objects use "path" instead of "target_path" and "base_path".
-  "target_dir": "build/asm",
-  "base_dir": "build/src",
+  target_dir: "build/asm",
+  base_dir: "build/src",
 
-  "build_target": true,
-  "watch_patterns": [
-    "*.c",
-    "*.cp",
-    "*.cpp",
-    "*.h",
-    "*.hpp",
-    "*.py"
-  ],
-  "objects": [
+  build_target: true,
+  watch_patterns: ["*.c", "*.cp", "*.cpp", "*.h", "*.hpp", "*.py"],
+  objects: [
     {
-      "name": "main/MetroTRK/mslsupp",
+      name: "main/MetroTRK/mslsupp",
 
       // Option 1: Relative to target_dir and base_dir
-      "path": "MetroTRK/mslsupp.o",
+      path: "MetroTRK/mslsupp.o",
       // Option 2: Explicit paths from project root
       // Useful for more complex directory layouts
-      "target_path": "build/asm/MetroTRK/mslsupp.o",
-      "base_path": "build/src/MetroTRK/mslsupp.o",
-      
-      "reverse_fn_order": false
+      target_path: "build/asm/MetroTRK/mslsupp.o",
+      base_path: "build/src/MetroTRK/mslsupp.o",
+
+      reverse_fn_order: false,
     },
     // ...
-  ]
+  ],
 }
 ```
 
@@ -108,7 +101,7 @@ These are the **intended result** of the match.
 These are objects built from the **current source code**.
 
 `build_target`: If true, objdiff will tell the build system to build the target objects before diffing (e.g.
-  `make path/to/target.o`).  
+`make path/to/target.o`).  
 This is useful if the target objects are not built by default or can change based on project configuration or edits
 to assembly files.  
 Requires the build system to be configured properly.
@@ -121,18 +114,18 @@ If not specified, objdiff will use the default patterns listed above.
 `objects` _(optional)_: If specified, objdiff will display a list of objects in the sidebar for easy navigation.
 
 > `name` _(optional)_: The name of the object in the UI. If not specified, the object's `path` will be used.
-> 
+>
 > `path`: Relative path to the object from the `target_dir` and `base_dir`.  
 > Requires `target_dir` and `base_dir` to be specified.
-> 
+>
 > `target_path`: Path to the target object from the project root.  
 > Required if `path` is not specified.
-> 
+>
 > `base_path`: Path to the base object from the project root.  
 > Required if `path` is not specified.
-> 
+>
 > `reverse_fn_order` _(optional)_: Displays function symbols in reversed order.  
-Used to support MWCC's `-inline deferred` option, which reverses the order of functions in the object file.
+> Used to support MWCC's `-inline deferred` option, which reverses the order of functions in the object file.
 
 ## Building
 
@@ -150,8 +143,8 @@ $ cargo run --release --features wgpu
 
 Licensed under either of
 
-* Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
 
 at your option.
 
