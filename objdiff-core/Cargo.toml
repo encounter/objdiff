@@ -19,7 +19,7 @@ dwarf = ["gimli"]
 mips = ["any-arch", "rabbitizer"]
 ppc = ["any-arch", "cwdemangle", "ppc750cl"]
 x86 = ["any-arch", "cpp_demangle", "iced-x86", "msvc-demangler"]
-arm = ["any-arch", "cpp_demangle", "armv5te"]
+arm = ["any-arch", "cpp_demangle", "unarm"]
 
 [dependencies]
 anyhow = "1.0.82"
@@ -56,4 +56,4 @@ iced-x86 = { version = "1.21.0", default-features = false, features = ["std", "d
 msvc-demangler = { version = "0.10.0", optional = true }
 
 # arm
-armv5te = { version = "0.3.0", optional = true }
+unarm = { version = "1.0.0", optional = true }

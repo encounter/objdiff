@@ -1,16 +1,20 @@
 use std::{borrow::Cow, collections::HashMap};
 
 use anyhow::{anyhow, bail, Result};
-use armv5te::{arm, thumb};
 use object::{
     elf, File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, SectionIndex,
     SectionKind, Symbol,
+};
+use unarm::{
+    args::{Argument, OffsetImm, OffsetReg, Register},
+    parse::{ArmVersion, ParseMode, Parser},
+    ParsedIns,
 };
 
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
     diff::DiffObjConfig,
-    obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection, SymbolRef},
+    obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjSection, SymbolRef},
 };
 
 pub struct ObjArchArm {
@@ -52,7 +56,7 @@ impl ObjArch for ObjArchArm {
     ) -> Result<ProcessCodeResult> {
         let (section, symbol) = obj.section_symbol(symbol_ref);
         let section = section.ok_or_else(|| anyhow!("Code symbol section not found"))?;
-        let mut code = &section.data
+        let code = &section.data
             [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
 
         let start_addr = symbol.address as u32;
@@ -60,176 +64,74 @@ impl ObjArch for ObjArchArm {
 
         // Mapping symbols decide what kind of data comes after it. $a for ARM code, $t for Thumb code and $d for data.
         let fallback_mappings =
-            [DisasmMode { address: symbol.address as u32, mapping: MappingSymbol::Arm }];
+            [DisasmMode { address: symbol.address as u32, mapping: ParseMode::Arm }];
         let mapping_symbols = self
             .disasm_modes
             .get(&SectionIndex(section.orig_index))
             .map(|x| x.as_slice())
             .unwrap_or(&fallback_mappings);
-        let first_mapping =
+        let first_mapping_idx =
             match mapping_symbols.binary_search_by_key(&(symbol.address as u32), |x| x.address) {
                 Ok(idx) => idx,
                 Err(idx) => idx - 1,
             };
-        let mut mapping = mapping_symbols[first_mapping].mapping;
+        let first_mapping = mapping_symbols[first_mapping_idx].mapping;
 
         let mut mappings_iter =
-            mapping_symbols.iter().skip(first_mapping + 1).take_while(|x| x.address < end_addr);
+            mapping_symbols.iter().skip(first_mapping_idx + 1).take_while(|x| x.address < end_addr);
         let mut next_mapping = mappings_iter.next();
 
-        let ins_count = code.len() / mapping.ins_size();
+        let ins_count = code.len() / first_mapping.instruction_size();
         let mut ops = Vec::<u16>::with_capacity(ins_count);
         let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
-        let mut cur_addr = start_addr;
+        let mut parser = Parser::new(ArmVersion::V5Te, first_mapping, start_addr, code);
 
-        while cur_addr < end_addr {
+        while let Some((address, op, ins)) = parser.next() {
             if let Some(next) = next_mapping {
-                if cur_addr >= next.address {
+                let next_address = parser.address;
+                if next_address >= next.address {
                     // Change mapping
-                    mapping = next.mapping;
+                    parser.mode = next.mapping;
                     next_mapping = mappings_iter.next();
                 }
             }
-            if code.len() < mapping.ins_size() {
-                break;
-            }
 
-            let line = section.line_info.range(..=cur_addr as u64).last().map(|(_, &b)| b);
+            let line = section.line_info.range(..=address as u64).last().map(|(_, &b)| b);
 
-            let ins = match mapping {
-                MappingSymbol::Arm => {
-                    let bytes = [code[0], code[1], code[2], code[3]];
-                    code = &code[4..];
-                    let ins_code = u32::from_le_bytes(bytes);
+            let reloc =
+                section.relocations.iter().find(|r| (r.address as u32 & !1) == address).cloned();
 
-                    let reloc =
-                        section.relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
-                    let ins_code = mask_reloc_from_code(ins_code, reloc)?;
-
-                    let ins = arm::Ins::new(ins_code);
-                    let parsed_ins = arm::ParsedIns::parse(ins);
-
-                    let mut reloc_arg = None;
-                    if let Some(reloc) = reloc {
-                        if let RelocationFlags::Elf { r_type: elf::R_ARM_PC24 } = reloc.flags {
-                            reloc_arg = parsed_ins
-                                .args
-                                .iter()
-                                .rposition(|a| matches!(a, arm::Argument::BranchDest(_)));
-                        }
+            let mut reloc_arg = None;
+            if let Some(reloc) = &reloc {
+                match reloc.flags {
+                    RelocationFlags::Elf { r_type: elf::R_ARM_THM_XPC22 }
+                    | RelocationFlags::Elf { r_type: elf::R_ARM_PC24 } => {
+                        reloc_arg =
+                            ins.args.iter().rposition(|a| matches!(a, Argument::BranchDest(_)));
                     }
-
-                    let (args, branch_dest) =
-                        push_arm_args(&parsed_ins, config, reloc_arg, cur_addr)?;
-                    let op = ins.op as u16;
-                    let mnemonic = parsed_ins.mnemonic;
-
-                    ObjIns {
-                        address: cur_addr as u64,
-                        size: mapping.ins_size() as u8,
-                        op,
-                        mnemonic: mnemonic.to_string(),
-                        args,
-                        reloc: reloc.cloned(),
-                        branch_dest,
-                        line,
-                        formatted: parsed_ins.to_string(),
-                        orig: None,
-                    }
-                }
-                MappingSymbol::Thumb => {
-                    let bytes = [code[0], code[1]];
-                    code = &code[2..];
-                    let ins_code = u16::from_le_bytes(bytes) as u32;
-
-                    let reloc =
-                        section.relocations.iter().find(|r| (r.address as u32 & !1) == cur_addr);
-                    let ins_code = mask_reloc_from_code(ins_code, reloc)?;
-
-                    let ins = thumb::Ins::new(ins_code);
-                    let mut parsed_ins = thumb::ParsedIns::parse(ins);
-
-                    let mut size = 2;
-                    let address = cur_addr as u64;
-                    if ins.is_half_bl() {
-                        cur_addr += 2;
-                        let bytes = [code[0], code[1]];
-                        code = &code[2..];
-                        let second_code = u16::from_le_bytes(bytes) as u32;
-                        let reloc = section
-                            .relocations
-                            .iter()
-                            .find(|r| (r.address as u32 & !1) == cur_addr);
-                        let second_code = mask_reloc_from_code(second_code, reloc)?;
-
-                        let second_ins = thumb::Ins::new(second_code);
-                        let second_ins = thumb::ParsedIns::parse(second_ins);
-                        parsed_ins = parsed_ins.combine_bl(&second_ins);
-                        size = 4;
-                    }
-
-                    let mut reloc_arg = None;
-                    if let Some(reloc) = reloc {
-                        if let RelocationFlags::Elf { r_type: elf::R_ARM_THM_XPC22 } = reloc.flags {
-                            reloc_arg = parsed_ins
-                                .args
-                                .iter()
-                                .rposition(|a| matches!(a, thumb::Argument::BranchDest(_)));
-                        }
-                    }
-
-                    let (args, branch_dest) =
-                        push_thumb_args(&parsed_ins, config, reloc_arg, cur_addr)?;
-                    let op = ins.op as u16;
-                    let mnemonic = parsed_ins.mnemonic;
-
-                    ObjIns {
-                        address,
-                        size,
-                        op,
-                        mnemonic: mnemonic.to_string(),
-                        args,
-                        reloc: reloc.cloned(),
-                        branch_dest,
-                        line,
-                        formatted: parsed_ins.to_string(),
-                        orig: None,
-                    }
-                }
-                MappingSymbol::Data => {
-                    let bytes = [code[0], code[1], code[2], code[3]];
-                    code = &code[4..];
-                    let data = u32::from_le_bytes(bytes);
-
-                    let reloc =
-                        section.relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
-                    let data = mask_reloc_from_code(data, reloc)?;
-
-                    let mut args = vec![];
-                    if reloc.is_some() {
-                        args.push(ObjInsArg::Reloc);
-                    } else {
-                        args.push(ObjInsArg::Arg(ObjInsArgValue::Unsigned(data as u64)));
-                    }
-
-                    ObjIns {
-                        address: cur_addr as u64,
-                        size: mapping.ins_size() as u8,
-                        op: u16::MAX,
-                        mnemonic: ".word".to_string(),
-                        args,
-                        reloc: reloc.cloned(),
-                        branch_dest: None,
-                        line,
-                        formatted: format!(".word {data:#x}"),
-                        orig: None,
-                    }
+                    _ => (),
                 }
             };
 
-            ops.push(ins.op);
-            insts.push(ins);
-            cur_addr += mapping.ins_size() as u32;
+            let (args, branch_dest) = if reloc.is_some() && parser.mode == ParseMode::Data {
+                (vec![ObjInsArg::Reloc], None)
+            } else {
+                push_args(&ins, config, reloc_arg, address)?
+            };
+
+            ops.push(op.id());
+            insts.push(ObjIns {
+                address: address as u64,
+                size: (parser.address - address) as u8,
+                op: op.id(),
+                mnemonic: ins.mnemonic.to_string(),
+                args,
+                reloc,
+                branch_dest,
+                line,
+                formatted: ins.to_string(),
+                orig: None,
+            });
         }
 
         Ok(ProcessCodeResult { ops, insts })
@@ -258,13 +160,13 @@ impl ObjArch for ObjArchArm {
 #[derive(Clone, Copy, Debug)]
 struct DisasmMode {
     address: u32,
-    mapping: MappingSymbol,
+    mapping: ParseMode,
 }
 
 impl DisasmMode {
     fn from_symbol<'a>(sym: &Symbol<'a, '_, &'a [u8]>) -> Option<Self> {
         if let Ok(name) = sym.name() {
-            MappingSymbol::from_symbol_name(name)
+            ParseMode::from_mapping_symbol(name)
                 .map(|mapping| DisasmMode { address: sym.address() as u32, mapping })
         } else {
             None
@@ -272,53 +174,8 @@ impl DisasmMode {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-enum MappingSymbol {
-    Arm,
-    Thumb,
-    Data,
-}
-
-impl MappingSymbol {
-    fn ins_size(self) -> usize {
-        match self {
-            MappingSymbol::Arm => 4,
-            MappingSymbol::Thumb => 2,
-            MappingSymbol::Data => 4,
-        }
-    }
-
-    fn from_symbol_name(sym: &str) -> Option<Self> {
-        match sym {
-            "$a" => Some(Self::Arm),
-            "$t" => Some(Self::Thumb),
-            "$d" => Some(Self::Data),
-            _ => None,
-        }
-    }
-}
-
-fn mask_reloc_from_code(code: u32, reloc: Option<&ObjReloc>) -> Result<u32> {
-    if let Some(reloc) = reloc {
-        match reloc.flags {
-            RelocationFlags::Elf { r_type } => match r_type {
-                elf::R_ARM_PC24 => Ok(code & !0xffffff),
-                elf::R_ARM_ABS32 => Ok(0),
-                elf::R_ARM_SBREL32 => Ok(0),
-                elf::R_ARM_THM_PC22 => Ok(code & !0x7ff),
-                elf::R_ARM_XPC25 => Ok(code & !0xffffff),
-                elf::R_ARM_THM_XPC22 => Ok(code & !0x7ff),
-                _ => bail!("Unhandled ELF relocation type {:?}", r_type),
-            },
-            _ => bail!("Unhandled relocation flags {:?}", reloc.flags),
-        }
-    } else {
-        Ok(code)
-    }
-}
-
-fn push_arm_args(
-    parsed_ins: &arm::ParsedIns,
+fn push_args(
+    parsed_ins: &ParsedIns,
     config: &DiffObjConfig,
     reloc_arg: Option<usize>,
     cur_addr: u32,
@@ -331,9 +188,9 @@ fn push_arm_args(
         // Emit punctuation before separator
         if deref {
             match arg {
-                arm::Argument::PostOffset(_)
-                | arm::Argument::RegPostOffset(_)
-                | arm::Argument::CoOption(_) => {
+                Argument::OffsetImm(OffsetImm { post_indexed: true, value: _ })
+                | Argument::OffsetReg(OffsetReg { add: _, post_indexed: true, reg: _ })
+                | Argument::CoOption(_) => {
                     deref = false;
                     args.push(ObjInsArg::PlainText("]".into()));
                     if writeback {
@@ -353,50 +210,78 @@ fn push_arm_args(
             args.push(ObjInsArg::Reloc);
         } else {
             match arg {
-                arm::Argument::RegWb(reg) => {
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(reg.to_string().into())));
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque("!".into())));
+                Argument::Reg(reg) => {
+                    if reg.deref {
+                        deref = true;
+                        args.push(ObjInsArg::PlainText("[".into()));
+                    }
+                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(reg.reg.to_string().into())));
+                    if reg.writeback {
+                        if reg.deref {
+                            writeback = true;
+                        } else {
+                            args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque("!".into())));
+                        }
+                    }
                 }
-                arm::Argument::RegDeref(reg) => {
-                    deref = true;
-                    args.push(ObjInsArg::PlainText("[".into()));
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(reg.to_string().into())));
+                Argument::RegList(reg_list) => {
+                    args.push(ObjInsArg::PlainText("{".into()));
+                    let mut first = true;
+                    for i in 0..16 {
+                        if (reg_list.regs & (1 << i)) != 0 {
+                            if !first {
+                                args.push(ObjInsArg::PlainText(config.separator().into()));
+                            }
+                            args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
+                                Register::parse(i).to_string().into(),
+                            )));
+                            first = false;
+                        }
+                    }
+                    args.push(ObjInsArg::PlainText("}".into()));
+                    if reg_list.user_mode {
+                        args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque("^".to_string().into())));
+                    }
                 }
-                arm::Argument::RegDerefWb(reg) => {
-                    deref = true;
-                    writeback = true;
-                    args.push(ObjInsArg::PlainText("[".into()));
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(reg.to_string().into())));
-                }
-                arm::Argument::RegList(reg_list) => {
-                    push_reg_list(*reg_list, &mut args, config);
-                }
-                arm::Argument::RegListC(reg_list) => {
-                    push_reg_list(*reg_list, &mut args, config);
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque("^".to_string().into())));
-                }
-                arm::Argument::UImm(value) | arm::Argument::CoOpcode(value) => {
+                Argument::UImm(value) | Argument::CoOpcode(value) => {
                     args.push(ObjInsArg::PlainText("#".into()));
                     args.push(ObjInsArg::Arg(ObjInsArgValue::Unsigned(*value as u64)));
                 }
-                arm::Argument::SImm((value, _))
-                | arm::Argument::Offset((value, _))
-                | arm::Argument::PostOffset((value, _)) => {
+                Argument::SImm(value)
+                | Argument::OffsetImm(OffsetImm { post_indexed: _, value }) => {
                     args.push(ObjInsArg::PlainText("#".into()));
                     args.push(ObjInsArg::Arg(ObjInsArgValue::Signed(*value as i64)));
                 }
-                arm::Argument::BranchDest((value, _)) => {
+                Argument::BranchDest(value) => {
                     let dest = cur_addr.wrapping_add_signed(*value) as u64;
                     args.push(ObjInsArg::BranchDest(dest));
                     branch_dest = Some(dest);
                 }
-                arm::Argument::CoOption(value) => {
+                Argument::CoOption(value) => {
                     args.push(ObjInsArg::PlainText("{".into()));
                     args.push(ObjInsArg::Arg(ObjInsArgValue::Unsigned(*value as u64)));
                     args.push(ObjInsArg::PlainText("}".into()));
                 }
-                arm::Argument::CoprocNum(value) => {
+                Argument::CoprocNum(value) => {
                     args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(format!("p{}", value).into())));
+                }
+                Argument::ShiftImm(shift) => {
+                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(shift.op.to_string().into())));
+                    args.push(ObjInsArg::PlainText(" #".into()));
+                    args.push(ObjInsArg::Arg(ObjInsArgValue::Unsigned(shift.imm as u64)));
+                }
+                Argument::ShiftReg(shift) => {
+                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(shift.op.to_string().into())));
+                    args.push(ObjInsArg::PlainText(" ".into()));
+                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(shift.reg.to_string().into())));
+                }
+                Argument::OffsetReg(offset) => {
+                    if !offset.add {
+                        args.push(ObjInsArg::PlainText("-".into()));
+                    }
+                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
+                        offset.reg.to_string().into(),
+                    )));
                 }
                 _ => args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(arg.to_string().into()))),
             }
@@ -409,81 +294,4 @@ fn push_arm_args(
         }
     }
     Ok((args, branch_dest))
-}
-
-fn push_thumb_args(
-    parsed_ins: &thumb::ParsedIns,
-    config: &DiffObjConfig,
-    reloc_arg: Option<usize>,
-    cur_addr: u32,
-) -> Result<(Vec<ObjInsArg>, Option<u64>)> {
-    let mut args = vec![];
-    let mut branch_dest = None;
-    let mut deref = false;
-    for (i, arg) in parsed_ins.args_iter().enumerate() {
-        if i > 0 {
-            args.push(ObjInsArg::PlainText(config.separator().into()));
-        }
-
-        if reloc_arg == Some(i) {
-            args.push(ObjInsArg::Reloc);
-        } else {
-            match arg {
-                thumb::Argument::RegWb(reg) => {
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(reg.to_string().into())));
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque("!".into())));
-                }
-                thumb::Argument::RegDeref(reg) => {
-                    deref = true;
-                    args.push(ObjInsArg::PlainText("[".into()));
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(reg.to_string().into())));
-                }
-                thumb::Argument::RegList(reg_list) => {
-                    push_reg_list(*reg_list, &mut args, config);
-                }
-                thumb::Argument::RegListPc(reg_list) => {
-                    push_reg_list(
-                        reg_list | ((1 << thumb::Reg::Pc as u8) as u32),
-                        &mut args,
-                        config,
-                    );
-                }
-                thumb::Argument::UImm(value) => {
-                    args.push(ObjInsArg::PlainText("#".into()));
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Unsigned(*value as u64)));
-                }
-                thumb::Argument::SImm((value, _)) | thumb::Argument::Offset((value, _)) => {
-                    args.push(ObjInsArg::PlainText("#".into()));
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Signed(*value as i64)));
-                }
-                thumb::Argument::BranchDest((value, _)) => {
-                    let dest = cur_addr.wrapping_add_signed(*value) as u64;
-                    args.push(ObjInsArg::BranchDest(dest));
-                    branch_dest = Some(dest);
-                }
-                _ => args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(arg.to_string().into()))),
-            }
-        }
-    }
-    if deref {
-        args.push(ObjInsArg::PlainText("]".into()));
-    }
-    Ok((args, branch_dest))
-}
-
-fn push_reg_list(reg_list: u32, args: &mut Vec<ObjInsArg>, config: &DiffObjConfig) {
-    args.push(ObjInsArg::PlainText("{".into()));
-    let mut first = true;
-    for i in 0..16 {
-        if (reg_list & (1 << i)) != 0 {
-            if !first {
-                args.push(ObjInsArg::PlainText(config.separator().into()));
-            }
-            args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                arm::Reg::parse(i).to_string().into(),
-            )));
-            first = false;
-        }
-    }
-    args.push(ObjInsArg::PlainText("}".into()));
 }
