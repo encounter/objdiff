@@ -8,6 +8,8 @@ use crate::{
     obj::{ObjIns, ObjReloc, ObjSection},
 };
 
+#[cfg(feature = "arm")]
+mod arm;
 #[cfg(feature = "mips")]
 pub mod mips;
 #[cfg(feature = "ppc")]
@@ -46,6 +48,8 @@ pub fn new_arch(object: &object::File) -> Result<Box<dyn ObjArch>> {
         Architecture::Mips => Box::new(mips::ObjArchMips::new(object)?),
         #[cfg(feature = "x86")]
         Architecture::I386 | Architecture::X86_64 => Box::new(x86::ObjArchX86::new(object)?),
+        #[cfg(feature = "arm")]
+        Architecture::Arm => Box::new(arm::ObjArchArm::new(object)?),
         arch => bail!("Unsupported architecture: {arch:?}"),
     })
 }
