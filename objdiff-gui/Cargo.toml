@@ -1,6 +1,6 @@
 [package]
 name = "objdiff-gui"
-version = "2.0.0-alpha.3"
+version = "2.0.0-alpha.4"
 edition = "2021"
 rust-version = "1.70"
 authors = ["Luke Street <luke@street.dev>"]
@@ -37,7 +37,7 @@ float-ord = "0.3.2"
 font-kit = "0.13.0"
 globset = { version = "0.4.14", features = ["serde1"] }
 log = "0.4.21"
-notify = "6.1.1"
+notify = { git = "https://github.com/encounter/notify", rev = "4c1783e8e041b5f69d4cf1750b9f07e335a0771e" }
 objdiff-core = { path = "../objdiff-core", features = ["all"] }
 png = "0.17.13"
 pollster = "0.3.0"

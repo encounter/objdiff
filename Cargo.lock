@@ -2371,9 +2371,9 @@ checksum = "b248f5224d1d606005e02c97f5aa4e88eeb230488bcc03bc9ca4d7991399f2b5"
 
 [[package]]
 name = "inotify"
-version = "0.9.6"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8069d3ec154eb856955c1c0fbffefbf5f3c40a104ec912d4797314c1801abff"
+checksum = "fdd168d97690d0b8c412d6b6c10360277f4d7ee495c5d0d5d5fe0854923255cc"
 dependencies = [
  "bitflags 1.3.2",
  "inotify-sys",
@@ -2835,8 +2835,7 @@ checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
 [[package]]
 name = "notify"
 version = "6.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6205bd8bb1e454ad2e27422015fb5e4f2bcc7e08fa8f27058670d208324a4d2d"
+source = "git+https://github.com/encounter/notify?rev=4c1783e8e041b5f69d4cf1750b9f07e335a0771e#4c1783e8e041b5f69d4cf1750b9f07e335a0771e"
 dependencies = [
  "bitflags 2.5.0",
  "crossbeam-channel",
@@ -2847,8 +2846,17 @@ dependencies = [
  "libc",
  "log",
  "mio",
+ "notify-types",
  "walkdir",
  "windows-sys 0.48.0",
+]
+
+[[package]]
+name = "notify-types"
+version = "1.0.0"
+source = "git+https://github.com/encounter/notify?rev=4c1783e8e041b5f69d4cf1750b9f07e335a0771e#4c1783e8e041b5f69d4cf1750b9f07e335a0771e"
+dependencies = [
+ "instant",
 ]
 
 [[package]]
@@ -3081,7 +3089,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-cli"
-version = "2.0.0-alpha.3"
+version = "2.0.0-alpha.4"
 dependencies = [
  "anyhow",
  "argp",
@@ -3100,7 +3108,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-core"
-version = "2.0.0-alpha.3"
+version = "2.0.0-alpha.4"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -3129,7 +3137,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-gui"
-version = "2.0.0-alpha.3"
+version = "2.0.0-alpha.4"
 dependencies = [
  "anyhow",
  "bytes",
