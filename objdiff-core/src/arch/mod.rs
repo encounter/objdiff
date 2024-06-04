@@ -1,25 +1,27 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::BTreeMap};
 
 use anyhow::{bail, Result};
 use object::{Architecture, Object, Relocation, RelocationFlags};
 
 use crate::{
     diff::DiffObjConfig,
-    obj::{ObjInfo, ObjIns, ObjSection, SymbolRef},
+    obj::{ObjIns, ObjReloc, ObjSection},
 };
 
 #[cfg(feature = "mips")]
-mod mips;
+pub mod mips;
 #[cfg(feature = "ppc")]
-mod ppc;
+pub mod ppc;
 #[cfg(feature = "x86")]
-mod x86;
+pub mod x86;
 
 pub trait ObjArch: Send + Sync {
     fn process_code(
         &self,
-        obj: &ObjInfo,
-        symbol_ref: SymbolRef,
+        address: u64,
+        code: &[u8],
+        relocations: &[ObjReloc],
+        line_info: &BTreeMap<u64, u64>,
         config: &DiffObjConfig,
     ) -> Result<ProcessCodeResult>;
 

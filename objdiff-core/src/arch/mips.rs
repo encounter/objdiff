@@ -1,4 +1,4 @@
-use std::{borrow::Cow, sync::Mutex};
+use std::{borrow::Cow, collections::BTreeMap, sync::Mutex};
 
 use anyhow::{anyhow, bail, Result};
 use object::{elf, Endian, Endianness, File, FileFlags, Object, Relocation, RelocationFlags};
@@ -7,7 +7,7 @@ use rabbitizer::{config, Abi, InstrCategory, Instruction, OperandType};
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
     diff::{DiffObjConfig, MipsAbi, MipsInstrCategory},
-    obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection, SymbolRef},
+    obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
 };
 
 static RABBITIZER_MUTEX: Mutex<()> = Mutex::new(());
@@ -57,15 +57,12 @@ impl ObjArchMips {
 impl ObjArch for ObjArchMips {
     fn process_code(
         &self,
-        obj: &ObjInfo,
-        symbol_ref: SymbolRef,
+        address: u64,
+        code: &[u8],
+        relocations: &[ObjReloc],
+        line_info: &BTreeMap<u64, u64>,
         config: &DiffObjConfig,
     ) -> Result<ProcessCodeResult> {
-        let (section, symbol) = obj.section_symbol(symbol_ref);
-        let section = section.ok_or_else(|| anyhow!("Code symbol section not found"))?;
-        let code = &section.data
-            [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
-
         let _guard = RABBITIZER_MUTEX.lock().map_err(|e| anyhow!("Failed to lock mutex: {e}"))?;
         configure_rabbitizer(match config.mips_abi {
             MipsAbi::Auto => self.abi,
@@ -82,14 +79,14 @@ impl ObjArch for ObjArchMips {
             MipsInstrCategory::R5900 => InstrCategory::R5900,
         };
 
-        let start_address = symbol.address;
-        let end_address = symbol.address + symbol.size;
+        let start_address = address;
+        let end_address = address + code.len() as u64;
         let ins_count = code.len() / 4;
         let mut ops = Vec::<u16>::with_capacity(ins_count);
         let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
         let mut cur_addr = start_address as u32;
         for chunk in code.chunks_exact(4) {
-            let reloc = section.relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
+            let reloc = relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
             let code = self.endianness.read_u32_bytes(chunk.try_into()?);
             let instruction = Instruction::new(code, cur_addr, instr_category);
 
@@ -155,7 +152,7 @@ impl ObjArch for ObjArchMips {
                     }
                 }
             }
-            let line = section.line_info.range(..=cur_addr as u64).last().map(|(_, &b)| b);
+            let line = line_info.range(..=cur_addr as u64).last().map(|(_, &b)| b);
             insts.push(ObjIns {
                 address: cur_addr as u64,
                 size: 4,

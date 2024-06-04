@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use similar::{capture_diff_slices_deadline, Algorithm};
 
 use crate::{
@@ -16,34 +16,41 @@ use crate::{
     obj::{ObjInfo, ObjInsArg, ObjReloc, ObjSymbol, ObjSymbolFlags, SymbolRef},
 };
 
-pub fn no_diff_code(
+pub fn process_code_symbol(
     obj: &ObjInfo,
     symbol_ref: SymbolRef,
     config: &DiffObjConfig,
-) -> Result<ObjSymbolDiff> {
-    let out = obj.arch.process_code(obj, symbol_ref, config)?;
+) -> Result<ProcessCodeResult> {
+    let (section, symbol) = obj.section_symbol(symbol_ref);
+    let section = section.ok_or_else(|| anyhow!("Code symbol section not found"))?;
+    let code = &section.data
+        [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
+    obj.arch.process_code(symbol.address, code, &section.relocations, &section.line_info, config)
+}
 
+pub fn no_diff_code(out: &ProcessCodeResult, symbol_ref: SymbolRef) -> Result<ObjSymbolDiff> {
     let mut diff = Vec::<ObjInsDiff>::new();
-    for i in out.insts {
-        diff.push(ObjInsDiff { ins: Some(i), kind: ObjInsDiffKind::None, ..Default::default() });
+    for i in &out.insts {
+        diff.push(ObjInsDiff {
+            ins: Some(i.clone()),
+            kind: ObjInsDiffKind::None,
+            ..Default::default()
+        });
     }
     resolve_branches(&mut diff);
     Ok(ObjSymbolDiff { symbol_ref, diff_symbol: None, instructions: diff, match_percent: None })
 }
 
 pub fn diff_code(
-    left_obj: &ObjInfo,
-    right_obj: &ObjInfo,
+    left_out: &ProcessCodeResult,
+    right_out: &ProcessCodeResult,
     left_symbol_ref: SymbolRef,
     right_symbol_ref: SymbolRef,
     config: &DiffObjConfig,
 ) -> Result<(ObjSymbolDiff, ObjSymbolDiff)> {
-    let left_out = left_obj.arch.process_code(left_obj, left_symbol_ref, config)?;
-    let right_out = right_obj.arch.process_code(right_obj, right_symbol_ref, config)?;
-
     let mut left_diff = Vec::<ObjInsDiff>::new();
     let mut right_diff = Vec::<ObjInsDiff>::new();
-    diff_instructions(&mut left_diff, &mut right_diff, &left_out, &right_out)?;
+    diff_instructions(&mut left_diff, &mut right_diff, left_out, right_out)?;
 
     resolve_branches(&mut left_diff);
     resolve_branches(&mut right_diff);

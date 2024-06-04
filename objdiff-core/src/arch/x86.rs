@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::BTreeMap};
 
 use anyhow::{anyhow, bail, ensure, Result};
 use iced_x86::{
@@ -11,7 +11,7 @@ use object::{pe, Endian, Endianness, File, Object, Relocation, RelocationFlags};
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
     diff::{DiffObjConfig, X86Formatter},
-    obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjSection, SymbolRef},
+    obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
 };
 
 pub struct ObjArchX86 {
@@ -28,17 +28,14 @@ impl ObjArchX86 {
 impl ObjArch for ObjArchX86 {
     fn process_code(
         &self,
-        obj: &ObjInfo,
-        symbol_ref: SymbolRef,
+        address: u64,
+        code: &[u8],
+        relocations: &[ObjReloc],
+        line_info: &BTreeMap<u64, u64>,
         config: &DiffObjConfig,
     ) -> Result<ProcessCodeResult> {
-        let (section, symbol) = obj.section_symbol(symbol_ref);
-        let section = section.ok_or_else(|| anyhow!("Code symbol section not found"))?;
-        let code = &section.data
-            [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
-
         let mut result = ProcessCodeResult { ops: Vec::new(), insts: Vec::new() };
-        let mut decoder = Decoder::with_ip(self.bits, code, symbol.address, DecoderOptions::NONE);
+        let mut decoder = Decoder::with_ip(self.bits, code, address, DecoderOptions::NONE);
         let mut formatter: Box<dyn Formatter> = match config.x86_formatter {
             X86Formatter::Intel => Box::new(IntelFormatter::new()),
             X86Formatter::Gas => Box::new(GasFormatter::new()),
@@ -70,11 +67,10 @@ impl ObjArch for ObjArchX86 {
 
             let address = instruction.ip();
             let op = instruction.mnemonic() as u16;
-            let reloc = section
-                .relocations
+            let reloc = relocations
                 .iter()
                 .find(|r| r.address >= address && r.address < address + instruction.len() as u64);
-            let line = section.line_info.range(..=address).last().map(|(_, &b)| b);
+            let line = line_info.range(..=address).last().map(|(_, &b)| b);
             output.ins = ObjIns {
                 address,
                 size: instruction.len() as u8,

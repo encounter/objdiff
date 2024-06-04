@@ -1,13 +1,13 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::BTreeMap};
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use object::{elf, File, Relocation, RelocationFlags};
 use ppc750cl::{Argument, InsIter, GPR};
 
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
     diff::DiffObjConfig,
-    obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection, SymbolRef},
+    obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
 };
 
 // Relative relocation, can be Simm, Offset or BranchDest
@@ -31,20 +31,17 @@ impl ObjArchPpc {
 impl ObjArch for ObjArchPpc {
     fn process_code(
         &self,
-        obj: &ObjInfo,
-        symbol_ref: SymbolRef,
+        address: u64,
+        code: &[u8],
+        relocations: &[ObjReloc],
+        line_info: &BTreeMap<u64, u64>,
         config: &DiffObjConfig,
     ) -> Result<ProcessCodeResult> {
-        let (section, symbol) = obj.section_symbol(symbol_ref);
-        let section = section.ok_or_else(|| anyhow!("Code symbol section not found"))?;
-        let code = &section.data
-            [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
-
         let ins_count = code.len() / 4;
         let mut ops = Vec::<u16>::with_capacity(ins_count);
         let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
-        for (cur_addr, mut ins) in InsIter::new(code, symbol.address as u32) {
-            let reloc = section.relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
+        for (cur_addr, mut ins) in InsIter::new(code, address as u32) {
+            let reloc = relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
             if let Some(reloc) = reloc {
                 // Zero out relocations
                 ins.code = match reloc.flags {
@@ -133,7 +130,7 @@ impl ObjArch for ObjArchPpc {
             }
 
             ops.push(ins.op as u16);
-            let line = section.line_info.range(..=cur_addr as u64).last().map(|(_, &b)| b);
+            let line = line_info.range(..=cur_addr as u64).last().map(|(_, &b)| b);
             insts.push(ObjIns {
                 address: cur_addr as u64,
                 size: 4,
