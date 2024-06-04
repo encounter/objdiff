@@ -22,6 +22,7 @@ pub trait ObjArch: Send + Sync {
         &self,
         address: u64,
         code: &[u8],
+        section_index: usize,
         relocations: &[ObjReloc],
         line_info: &BTreeMap<u64, u64>,
         config: &DiffObjConfig,

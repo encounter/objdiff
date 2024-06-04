@@ -59,6 +59,7 @@ impl ObjArch for ObjArchMips {
         &self,
         address: u64,
         code: &[u8],
+        _section_index: usize,
         relocations: &[ObjReloc],
         line_info: &BTreeMap<u64, u64>,
         config: &DiffObjConfig,

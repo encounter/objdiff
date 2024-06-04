@@ -1,6 +1,9 @@
-use std::{borrow::Cow, collections::HashMap};
+use std::{
+    borrow::Cow,
+    collections::{BTreeMap, HashMap},
+};
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use object::{
     elf, File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, SectionIndex,
     SectionKind, Symbol,
@@ -14,7 +17,7 @@ use unarm::{
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
     diff::DiffObjConfig,
-    obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjSection, SymbolRef},
+    obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
 };
 
 pub struct ObjArchArm {
@@ -50,28 +53,25 @@ impl ObjArchArm {
 impl ObjArch for ObjArchArm {
     fn process_code(
         &self,
-        obj: &ObjInfo,
-        symbol_ref: SymbolRef,
+        address: u64,
+        code: &[u8],
+        section_index: usize,
+        relocations: &[ObjReloc],
+        line_info: &BTreeMap<u64, u64>,
         config: &DiffObjConfig,
     ) -> Result<ProcessCodeResult> {
-        let (section, symbol) = obj.section_symbol(symbol_ref);
-        let section = section.ok_or_else(|| anyhow!("Code symbol section not found"))?;
-        let code = &section.data
-            [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
-
-        let start_addr = symbol.address as u32;
-        let end_addr = start_addr + symbol.size as u32;
+        let start_addr = address as u32;
+        let end_addr = start_addr + code.len() as u32;
 
         // Mapping symbols decide what kind of data comes after it. $a for ARM code, $t for Thumb code and $d for data.
-        let fallback_mappings =
-            [DisasmMode { address: symbol.address as u32, mapping: ParseMode::Arm }];
+        let fallback_mappings = [DisasmMode { address: start_addr, mapping: ParseMode::Arm }];
         let mapping_symbols = self
             .disasm_modes
-            .get(&SectionIndex(section.orig_index))
+            .get(&SectionIndex(section_index))
             .map(|x| x.as_slice())
             .unwrap_or(&fallback_mappings);
         let first_mapping_idx =
-            match mapping_symbols.binary_search_by_key(&(symbol.address as u32), |x| x.address) {
+            match mapping_symbols.binary_search_by_key(&start_addr, |x| x.address) {
                 Ok(idx) => idx,
                 Err(idx) => idx - 1,
             };
@@ -96,10 +96,9 @@ impl ObjArch for ObjArchArm {
                 }
             }
 
-            let line = section.line_info.range(..=address as u64).last().map(|(_, &b)| b);
+            let line = line_info.range(..=address as u64).last().map(|(_, &b)| b);
 
-            let reloc =
-                section.relocations.iter().find(|r| (r.address as u32 & !1) == address).cloned();
+            let reloc = relocations.iter().find(|r| (r.address as u32 & !1) == address).cloned();
 
             let mut reloc_arg = None;
             if let Some(reloc) = &reloc {

@@ -25,7 +25,14 @@ pub fn process_code_symbol(
     let section = section.ok_or_else(|| anyhow!("Code symbol section not found"))?;
     let code = &section.data
         [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
-    obj.arch.process_code(symbol.address, code, &section.relocations, &section.line_info, config)
+    obj.arch.process_code(
+        symbol.address,
+        code,
+        section.orig_index,
+        &section.relocations,
+        &section.line_info,
+        config,
+    )
 }
 
 pub fn no_diff_code(out: &ProcessCodeResult, symbol_ref: SymbolRef) -> Result<ObjSymbolDiff> {
