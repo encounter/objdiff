@@ -47,7 +47,7 @@ cwdemangle = { version = "1.0.0", optional = true }
 ppc750cl = { git = "https://github.com/encounter/ppc750cl", rev = "6cbd7d888c7082c2c860f66cbb9848d633f753ed", optional = true }
 
 # mips
-rabbitizer = { version = "1.10.0", optional = true }
+rabbitizer = { version = "1.11.0", optional = true }
 
 # x86
 cpp_demangle = { version = "0.4.3", optional = true }
