@@ -3081,7 +3081,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-cli"
-version = "2.0.0-alpha.2"
+version = "2.0.0-alpha.3"
 dependencies = [
  "anyhow",
  "argp",
@@ -3100,7 +3100,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-core"
-version = "2.0.0-alpha.2"
+version = "2.0.0-alpha.3"
 dependencies = [
  "anyhow",
  "byteorder",
@@ -3124,11 +3124,12 @@ dependencies = [
  "serde_yaml",
  "similar",
  "strum",
+ "unarm",
 ]
 
 [[package]]
 name = "objdiff-gui"
-version = "2.0.0-alpha.2"
+version = "2.0.0-alpha.3"
 dependencies = [
  "anyhow",
  "bytes",
@@ -3545,9 +3546,9 @@ dependencies = [
 
 [[package]]
 name = "rabbitizer"
-version = "1.10.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f570a07717dcb6edf85e6652d92671c49e8728014c6ec1577a81b4d949725e27"
+checksum = "305e6fb948a8a884ba996ac4efb1d7b0ee44d0bbfcd86b9c0f0fc0aa0aa0fc21"
 dependencies = [
  "cc",
  "glob",
@@ -4694,6 +4695,12 @@ dependencies = [
  "tempfile",
  "winapi",
 ]
+
+[[package]]
+name = "unarm"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1c13fc9a9c95348bf7565e5c30688fc288239962958cac0ccdc7cd009141d850"
 
 [[package]]
 name = "unicase"

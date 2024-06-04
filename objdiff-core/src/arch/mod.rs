@@ -1,25 +1,30 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::BTreeMap};
 
 use anyhow::{bail, Result};
 use object::{Architecture, Object, Relocation, RelocationFlags};
 
 use crate::{
     diff::DiffObjConfig,
-    obj::{ObjInfo, ObjIns, ObjSection, SymbolRef},
+    obj::{ObjIns, ObjReloc, ObjSection},
 };
 
+#[cfg(feature = "arm")]
+mod arm;
 #[cfg(feature = "mips")]
-mod mips;
+pub mod mips;
 #[cfg(feature = "ppc")]
-mod ppc;
+pub mod ppc;
 #[cfg(feature = "x86")]
-mod x86;
+pub mod x86;
 
 pub trait ObjArch: Send + Sync {
     fn process_code(
         &self,
-        obj: &ObjInfo,
-        symbol_ref: SymbolRef,
+        address: u64,
+        code: &[u8],
+        section_index: usize,
+        relocations: &[ObjReloc],
+        line_info: &BTreeMap<u64, u64>,
         config: &DiffObjConfig,
     ) -> Result<ProcessCodeResult>;
 
@@ -44,6 +49,8 @@ pub fn new_arch(object: &object::File) -> Result<Box<dyn ObjArch>> {
         Architecture::Mips => Box::new(mips::ObjArchMips::new(object)?),
         #[cfg(feature = "x86")]
         Architecture::I386 | Architecture::X86_64 => Box::new(x86::ObjArchX86::new(object)?),
+        #[cfg(feature = "arm")]
+        Architecture::Arm => Box::new(arm::ObjArchArm::new(object)?),
         arch => bail!("Unsupported architecture: {arch:?}"),
     })
 }

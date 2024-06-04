@@ -8,5 +8,7 @@ resolver = "2"
 
 [profile.release-lto]
 inherits = "release"
-lto = "thin"
+# Temporarily disabled to fix notify crash
+# See https://github.com/encounter/objdiff/issues/66
+#lto = "thin"
 strip = "debuginfo"

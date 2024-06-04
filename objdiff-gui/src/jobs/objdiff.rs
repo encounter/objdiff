@@ -143,7 +143,7 @@ fn run_make_cmd(config: &BuildConfig, cwd: &Path, arg: &Path) -> Result<BuildSta
         cmdline.push(' ');
         cmdline.push_str(shell_escape::escape(arg.to_string_lossy()).as_ref());
     }
-    let output = command.output().context("Failed to execute build")?;
+    let output = command.output().map_err(|e| anyhow!("Failed to execute build: {e}"))?;
     let stdout = from_utf8(&output.stdout).context("Failed to process stdout")?;
     let stderr = from_utf8(&output.stderr).context("Failed to process stderr")?;
     Ok(BuildStatus {
