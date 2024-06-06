@@ -17,7 +17,7 @@ Supports:
 - PowerPC 750CL (GameCube, Wii)
 - MIPS (N64, PS1, PS2, PSP)
 - x86 (COFF only at the moment)
-- ARM (DS)
+- ARMv5 (DS)
 
 See [Usage](#usage) for more information.
 

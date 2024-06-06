@@ -1,6 +1,6 @@
 [package]
 name = "objdiff-gui"
-version = "2.0.0-alpha.2"
+version = "2.0.0-alpha.4"
 edition = "2021"
 rust-version = "1.70"
 authors = ["Luke Street <luke@street.dev>"]
@@ -19,7 +19,8 @@ path = "src/main.rs"
 
 [features]
 default = ["wgpu", "wsl"]
-wgpu = ["eframe/wgpu"]
+glow = ["eframe/glow"]
+wgpu = ["eframe/wgpu", "dep:wgpu"]
 wsl = []
 
 [dependencies]
@@ -29,7 +30,6 @@ cfg-if = "1.0.0"
 const_format = "0.2.32"
 cwdemangle = "1.0.0"
 dirs = "5.0.1"
-eframe = { version = "0.27.2", features = ["persistence"] }
 egui = "0.27.2"
 egui_extras = "0.27.2"
 filetime = "0.2.23"
@@ -37,7 +37,7 @@ float-ord = "0.3.2"
 font-kit = "0.13.0"
 globset = { version = "0.4.14", features = ["serde1"] }
 log = "0.4.21"
-notify = "6.1.1"
+notify = { git = "https://github.com/encounter/notify", rev = "4c1783e8e041b5f69d4cf1750b9f07e335a0771e" }
 objdiff-core = { path = "../objdiff-core", features = ["all"] }
 png = "0.17.13"
 pollster = "0.3.0"
@@ -49,6 +49,28 @@ shell-escape = "0.1.5"
 strum = { version = "0.26.2", features = ["derive"] }
 tempfile = "3.10.1"
 time = { version = "0.3.36", features = ["formatting", "local-offset"] }
+
+# Keep version in sync with egui
+[dependencies.eframe]
+version = "0.27.2"
+features = [
+    "default_fonts",
+    "persistence",
+    "wayland",
+    "x11",
+]
+default-features = false
+
+# Keep version in sync with eframe
+[dependencies.wgpu]
+version = "0.19.1"
+features = [
+    "dx12",
+    "metal",
+    "webgpu",
+]
+optional = true
+default-features = false
 
 # For Linux static binaries, use rustls
 [target.'cfg(target_os = "linux")'.dependencies]

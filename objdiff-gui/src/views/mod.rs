@@ -8,6 +8,7 @@ pub(crate) mod demangle;
 pub(crate) mod file;
 pub(crate) mod frame_history;
 pub(crate) mod function_diff;
+pub(crate) mod graphics;
 pub(crate) mod jobs;
 pub(crate) mod symbol_diff;
 

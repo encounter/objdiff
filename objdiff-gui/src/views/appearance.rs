@@ -119,6 +119,8 @@ impl Appearance {
                 self.delete_color = Color32::from_rgb(200, 40, 41);
             }
         }
+        style.spacing.scroll = egui::style::ScrollStyle::solid();
+        style.spacing.scroll.bar_width = 10.0;
         ctx.set_style(style);
     }
 
