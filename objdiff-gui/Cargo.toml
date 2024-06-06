@@ -19,7 +19,8 @@ path = "src/main.rs"
 
 [features]
 default = ["wgpu", "wsl"]
-wgpu = ["eframe/wgpu"]
+glow = ["eframe/glow"]
+wgpu = ["eframe/wgpu", "dep:wgpu"]
 wsl = []
 
 [dependencies]
@@ -29,7 +30,6 @@ cfg-if = "1.0.0"
 const_format = "0.2.32"
 cwdemangle = "1.0.0"
 dirs = "5.0.1"
-eframe = { version = "0.27.2", features = ["persistence"] }
 egui = "0.27.2"
 egui_extras = "0.27.2"
 filetime = "0.2.23"
@@ -49,6 +49,28 @@ shell-escape = "0.1.5"
 strum = { version = "0.26.2", features = ["derive"] }
 tempfile = "3.10.1"
 time = { version = "0.3.36", features = ["formatting", "local-offset"] }
+
+# Keep version in sync with egui
+[dependencies.eframe]
+version = "0.27.2"
+features = [
+    "default_fonts",
+    "persistence",
+    "wayland",
+    "x11",
+]
+default-features = false
+
+# Keep version in sync with eframe
+[dependencies.wgpu]
+version = "0.19.1"
+features = [
+    "dx12",
+    "metal",
+    "webgpu",
+]
+optional = true
+default-features = false
 
 # For Linux static binaries, use rustls
 [target.'cfg(target_os = "linux")'.dependencies]

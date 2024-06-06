@@ -37,6 +37,7 @@ use crate::{
         demangle::{demangle_window, DemangleViewState},
         frame_history::FrameHistory,
         function_diff::function_diff_ui,
+        graphics::{graphics_window, GraphicsConfig, GraphicsViewState},
         jobs::jobs_ui,
         symbol_diff::{symbol_diff_ui, DiffViewState, View},
     },
@@ -48,12 +49,14 @@ pub struct ViewState {
     pub config_state: ConfigViewState,
     pub demangle_state: DemangleViewState,
     pub diff_state: DiffViewState,
+    pub graphics_state: GraphicsViewState,
     pub frame_history: FrameHistory,
     pub show_appearance_config: bool,
     pub show_demangle: bool,
     pub show_project_config: bool,
     pub show_arch_config: bool,
     pub show_debug: bool,
+    pub show_graphics: bool,
 }
 
 /// The configuration for a single object file.
@@ -209,6 +212,7 @@ pub struct App {
     config: AppConfigRef,
     modified: Arc<AtomicBool>,
     watcher: Option<notify::RecommendedWatcher>,
+    app_path: Option<PathBuf>,
     relaunch_path: Rc<Mutex<Option<PathBuf>>>,
     should_relaunch: bool,
 }
@@ -222,6 +226,9 @@ impl App {
         cc: &eframe::CreationContext<'_>,
         utc_offset: UtcOffset,
         relaunch_path: Rc<Mutex<Option<PathBuf>>>,
+        app_path: Option<PathBuf>,
+        graphics_config: GraphicsConfig,
+        graphics_config_path: Option<PathBuf>,
     ) -> Self {
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
@@ -244,7 +251,32 @@ impl App {
         }
         app.appearance.init_fonts(&cc.egui_ctx);
         app.appearance.utc_offset = utc_offset;
+        app.app_path = app_path;
         app.relaunch_path = relaunch_path;
+        #[cfg(feature = "wgpu")]
+        if let Some(wgpu_render_state) = &cc.wgpu_render_state {
+            use eframe::egui_wgpu::wgpu::Backend;
+            let info = wgpu_render_state.adapter.get_info();
+            app.view_state.graphics_state.active_backend = match info.backend {
+                Backend::Empty => "Unknown",
+                Backend::Vulkan => "Vulkan",
+                Backend::Metal => "Metal",
+                Backend::Dx12 => "DirectX 12",
+                Backend::Gl => "OpenGL",
+                Backend::BrowserWebGpu => "WebGPU",
+            }
+            .to_string();
+            app.view_state.graphics_state.active_device.clone_from(&info.name);
+        }
+        #[cfg(feature = "glow")]
+        if let Some(gl) = &cc.gl {
+            use eframe::glow::HasContext;
+            app.view_state.graphics_state.active_backend = "OpenGL".to_string();
+            app.view_state.graphics_state.active_device =
+                unsafe { gl.get_parameter_string(0x1F01) }; // GL_RENDERER
+        }
+        app.view_state.graphics_state.graphics_config = graphics_config;
+        app.view_state.graphics_state.graphics_config_path = graphics_config_path;
         app
     }
 
@@ -267,8 +299,8 @@ impl App {
                         JobResult::Update(state) => {
                             if let Ok(mut guard) = self.relaunch_path.lock() {
                                 *guard = Some(state.exe_path);
+                                self.should_relaunch = true;
                             }
-                            self.should_relaunch = true;
                         }
                         _ => results.push(result),
                     }
@@ -308,7 +340,7 @@ impl App {
     fn post_update(&mut self, ctx: &egui::Context) {
         self.appearance.post_update(ctx);
 
-        let ViewState { jobs, diff_state, config_state, .. } = &mut self.view_state;
+        let ViewState { jobs, diff_state, config_state, graphics_state, .. } = &mut self.view_state;
         config_state.post_update(ctx, jobs, &self.config);
         diff_state.post_update(ctx, jobs, &self.config);
 
@@ -390,6 +422,15 @@ impl App {
             jobs.push(start_build(ctx, diff_config));
             config.queue_reload = false;
         }
+
+        if graphics_state.should_relaunch {
+            if let Some(app_path) = &self.app_path {
+                if let Ok(mut guard) = self.relaunch_path.lock() {
+                    *guard = Some(app_path.clone());
+                    self.should_relaunch = true;
+                }
+            }
+        }
     }
 }
 
@@ -410,12 +451,14 @@ impl eframe::App for App {
             config_state,
             demangle_state,
             diff_state,
+            graphics_state,
             frame_history,
             show_appearance_config,
             show_demangle,
             show_project_config,
             show_arch_config,
             show_debug,
+            show_graphics,
         } = view_state;
 
         frame_history.on_new_frame(ctx.input(|i| i.time), frame.info().cpu_usage);
@@ -455,6 +498,10 @@ impl eframe::App for App {
                     }
                     if ui.button("Appearance…").clicked() {
                         *show_appearance_config = !*show_appearance_config;
+                        ui.close_menu();
+                    }
+                    if ui.button("Graphics…").clicked() {
+                        *show_graphics = !*show_graphics;
                         ui.close_menu();
                     }
                     if ui.button("Quit").clicked() {
@@ -543,6 +590,7 @@ impl eframe::App for App {
         demangle_window(ctx, show_demangle, demangle_state, appearance);
         arch_config_window(ctx, config, show_arch_config, appearance);
         debug_window(ctx, show_debug, frame_history, appearance);
+        graphics_window(ctx, show_graphics, frame_history, graphics_state, appearance);
 
         self.post_update(ctx);
     }
