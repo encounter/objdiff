@@ -1,3 +1,5 @@
+use arm_attr::{enums::CpuArch, read::Endian, tag::Tag, BuildAttrs};
+use object::Endianness;
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
@@ -5,7 +7,8 @@ use std::{
 
 use anyhow::{bail, Result};
 use object::{
-    elf, File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, SectionIndex,
+    elf::{self, SHT_ARM_ATTRIBUTES},
+    File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, SectionIndex,
     SectionKind, Symbol,
 };
 use unarm::{
@@ -23,30 +26,74 @@ use crate::{
 pub struct ObjArchArm {
     /// Maps section index, to list of disasm modes (arm, thumb or data) sorted by address
     disasm_modes: HashMap<SectionIndex, Vec<DisasmMode>>,
+    detected_version: Option<ArmVersion>,
 }
 
 impl ObjArchArm {
     pub fn new(file: &File) -> Result<Self> {
         match file {
             File::Elf32(_) => {
-                let disasm_modes: HashMap<_, _> = file
-                    .sections()
-                    .filter(|s| s.kind() == SectionKind::Text)
-                    .map(|s| {
-                        let index = s.index();
-                        let mut mapping_symbols: Vec<_> = file
-                            .symbols()
-                            .filter(|s| s.section_index().map(|i| i == index).unwrap_or(false))
-                            .filter_map(|s| DisasmMode::from_symbol(&s))
-                            .collect();
-                        mapping_symbols.sort_unstable_by_key(|x| x.address);
-                        (s.index(), mapping_symbols)
-                    })
-                    .collect();
-                Ok(Self { disasm_modes })
+                let disasm_modes = Self::elf_get_mapping_symbols(file);
+                let detected_version = Self::elf_detect_arm_version(file)?;
+                Ok(Self { disasm_modes, detected_version })
             }
             _ => bail!("Unsupported file format {:?}", file.format()),
         }
+    }
+
+    fn elf_detect_arm_version(file: &File) -> Result<Option<ArmVersion>> {
+        // Check ARM attributes
+        if let Some(arm_attrs) = file.sections().find(|s| {
+            s.kind() == SectionKind::Elf(SHT_ARM_ATTRIBUTES) && s.name() == Ok(".ARM.attributes")
+        }) {
+            let attr_data = arm_attrs.uncompressed_data()?;
+            let build_attrs = BuildAttrs::new(
+                &attr_data,
+                match file.endianness() {
+                    Endianness::Little => Endian::Little,
+                    Endianness::Big => Endian::Big,
+                },
+            )?;
+            for subsection in build_attrs.subsections() {
+                let subsection = subsection?;
+                if !subsection.is_aeabi() {
+                    continue;
+                }
+                // Only checking first CpuArch tag. Others may exist, but that's very unlikely.
+                let cpu_arch = subsection.into_public_tag_iter()?.find_map(|(_, tag)| {
+                    if let Tag::CpuArch(cpu_arch) = tag {
+                        Some(cpu_arch)
+                    } else {
+                        None
+                    }
+                });
+                match cpu_arch {
+                    Some(CpuArch::V4T) => return Ok(Some(ArmVersion::V4T)),
+                    Some(CpuArch::V5TE) => return Ok(Some(ArmVersion::V5Te)),
+                    Some(CpuArch::V6K) => return Ok(Some(ArmVersion::V6K)),
+                    Some(arch) => bail!("ARM arch {} not supported", arch),
+                    None => {}
+                };
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn elf_get_mapping_symbols(file: &File) -> HashMap<SectionIndex, Vec<DisasmMode>> {
+        file.sections()
+            .filter(|s| s.kind() == SectionKind::Text)
+            .map(|s| {
+                let index = s.index();
+                let mut mapping_symbols: Vec<_> = file
+                    .symbols()
+                    .filter(|s| s.section_index().map(|i| i == index).unwrap_or(false))
+                    .filter_map(|s| DisasmMode::from_symbol(&s))
+                    .collect();
+                mapping_symbols.sort_unstable_by_key(|x| x.address);
+                (s.index(), mapping_symbols)
+            })
+            .collect()
     }
 }
 
@@ -84,7 +131,9 @@ impl ObjArch for ObjArchArm {
         let ins_count = code.len() / first_mapping.instruction_size();
         let mut ops = Vec::<u16>::with_capacity(ins_count);
         let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
-        let mut parser = Parser::new(ArmVersion::V5Te, first_mapping, start_addr, code);
+
+        let version = self.detected_version.unwrap_or(ArmVersion::V5Te);
+        let mut parser = Parser::new(version, first_mapping, start_addr, code);
 
         while let Some((address, op, ins)) = parser.next() {
             if let Some(next) = next_mapping {
