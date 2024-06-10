@@ -19,7 +19,7 @@ use unarm::{
 
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
-    diff::DiffObjConfig,
+    diff::{ArmArchVersion, DiffObjConfig},
     obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
 };
 
@@ -132,7 +132,12 @@ impl ObjArch for ObjArchArm {
         let mut ops = Vec::<u16>::with_capacity(ins_count);
         let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
 
-        let version = self.detected_version.unwrap_or(ArmVersion::V5Te);
+        let version = match config.arm_arch_version {
+            ArmArchVersion::Auto => self.detected_version.unwrap_or(ArmVersion::V5Te),
+            ArmArchVersion::V4T => ArmVersion::V4T,
+            ArmArchVersion::V5TE => ArmVersion::V5Te,
+            ArmArchVersion::V6K => ArmVersion::V6K,
+        };
         let mut parser = Parser::new(version, first_mapping, start_addr, code);
 
         while let Some((address, op, ins)) = parser.next() {

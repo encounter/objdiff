@@ -16,7 +16,7 @@ use egui::{
 use globset::Glob;
 use objdiff_core::{
     config::{ProjectObject, DEFAULT_WATCH_PATTERNS},
-    diff::{MipsAbi, MipsInstrCategory, X86Formatter},
+    diff::{ArmArchVersion, MipsAbi, MipsInstrCategory, X86Formatter},
 };
 use self_update::cargo_crate_version;
 use strum::{EnumMessage, VariantArray};
@@ -903,6 +903,24 @@ fn arch_config_ui(ui: &mut egui::Ui, config: &mut AppConfig, _appearance: &Appea
                     .clicked()
                 {
                     config.diff_obj_config.mips_instr_category = category;
+                    config.queue_reload = true;
+                }
+            }
+        });
+    ui.separator();
+    ui.heading("ARM");
+    egui::ComboBox::new("arm_arch_version", "Architecture Version")
+        .selected_text(config.diff_obj_config.arm_arch_version.get_message().unwrap())
+        .show_ui(ui, |ui| {
+            for &version in ArmArchVersion::VARIANTS {
+                if ui
+                    .selectable_label(
+                        config.diff_obj_config.arm_arch_version == version,
+                        version.get_message().unwrap(),
+                    )
+                    .clicked()
+                {
+                    config.diff_obj_config.arm_arch_version = version;
                     config.queue_reload = true;
                 }
             }
