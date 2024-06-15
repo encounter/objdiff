@@ -34,6 +34,8 @@ pub trait ObjArch: Send + Sync {
     fn demangle(&self, _name: &str) -> Option<String> { None }
 
     fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str>;
+
+    fn symbol_address(&self, address: u64) -> u64 { address }
 }
 
 pub struct ProcessCodeResult {

@@ -98,6 +98,10 @@ impl ObjArchArm {
 }
 
 impl ObjArch for ObjArchArm {
+    fn symbol_address(&self, address: u64) -> u64 {
+        address & !1
+    }
+
     fn process_code(
         &self,
         address: u64,
