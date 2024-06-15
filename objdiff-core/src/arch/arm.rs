@@ -1,10 +1,10 @@
-use arm_attr::{enums::CpuArch, tag::Tag, BuildAttrs};
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
 };
 
 use anyhow::{bail, Result};
+use arm_attr::{enums::CpuArch, tag::Tag, BuildAttrs};
 use object::{
     elf::{self, SHT_ARM_ATTRIBUTES},
     File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, SectionIndex,
@@ -48,13 +48,10 @@ impl ObjArchArm {
             s.kind() == SectionKind::Elf(SHT_ARM_ATTRIBUTES) && s.name() == Ok(".ARM.attributes")
         }) {
             let attr_data = arm_attrs.uncompressed_data()?;
-            let build_attrs = BuildAttrs::new(
-                &attr_data,
-                match file.endianness() {
-                    object::Endianness::Little => arm_attr::Endian::Little,
-                    object::Endianness::Big => arm_attr::Endian::Big,
-                },
-            )?;
+            let build_attrs = BuildAttrs::new(&attr_data, match file.endianness() {
+                object::Endianness::Little => arm_attr::Endian::Little,
+                object::Endianness::Big => arm_attr::Endian::Big,
+            })?;
             for subsection in build_attrs.subsections() {
                 let subsection = subsection?;
                 if !subsection.is_aeabi() {
@@ -99,9 +96,7 @@ impl ObjArchArm {
 }
 
 impl ObjArch for ObjArchArm {
-    fn symbol_address(&self, address: u64) -> u64 {
-        address & !1
-    }
+    fn symbol_address(&self, address: u64) -> u64 { address & !1 }
 
     fn process_code(
         &self,
