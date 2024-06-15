@@ -1,5 +1,4 @@
-use arm_attr::{enums::CpuArch, read::Endian, tag::Tag, BuildAttrs};
-use object::Endianness;
+use arm_attr::{enums::CpuArch, tag::Tag, BuildAttrs};
 use std::{
     borrow::Cow,
     collections::{BTreeMap, HashMap},
@@ -27,15 +26,17 @@ pub struct ObjArchArm {
     /// Maps section index, to list of disasm modes (arm, thumb or data) sorted by address
     disasm_modes: HashMap<SectionIndex, Vec<DisasmMode>>,
     detected_version: Option<ArmVersion>,
+    endianness: object::Endianness,
 }
 
 impl ObjArchArm {
     pub fn new(file: &File) -> Result<Self> {
+        let endianness = file.endianness();
         match file {
             File::Elf32(_) => {
                 let disasm_modes = Self::elf_get_mapping_symbols(file);
                 let detected_version = Self::elf_detect_arm_version(file)?;
-                Ok(Self { disasm_modes, detected_version })
+                Ok(Self { disasm_modes, detected_version, endianness })
             }
             _ => bail!("Unsupported file format {:?}", file.format()),
         }
@@ -50,8 +51,8 @@ impl ObjArchArm {
             let build_attrs = BuildAttrs::new(
                 &attr_data,
                 match file.endianness() {
-                    Endianness::Little => Endian::Little,
-                    Endianness::Big => Endian::Big,
+                    object::Endianness::Little => arm_attr::Endian::Little,
+                    object::Endianness::Big => arm_attr::Endian::Big,
                 },
             )?;
             for subsection in build_attrs.subsections() {
@@ -142,7 +143,11 @@ impl ObjArch for ObjArchArm {
             ArmArchVersion::V5TE => ArmVersion::V5Te,
             ArmArchVersion::V6K => ArmVersion::V6K,
         };
-        let mut parser = Parser::new(version, first_mapping, start_addr, code);
+        let endian = match self.endianness {
+            object::Endianness::Little => unarm::Endian::Little,
+            object::Endianness::Big => unarm::Endian::Big,
+        };
+        let mut parser = Parser::new(version, first_mapping, start_addr, endian, code);
 
         while let Some((address, op, ins)) = parser.next() {
             if let Some(next) = next_mapping {
