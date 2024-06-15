@@ -279,6 +279,7 @@ fn push_args(
             args.push(ObjInsArg::Reloc);
         } else {
             match arg {
+                Argument::None => {}
                 Argument::Reg(reg) => {
                     if reg.deref {
                         deref = true;
@@ -312,7 +313,7 @@ fn push_args(
                         args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque("^".to_string().into())));
                     }
                 }
-                Argument::UImm(value) | Argument::CoOpcode(value) => {
+                Argument::UImm(value) | Argument::CoOpcode(value) | Argument::SatImm(value) => {
                     args.push(ObjInsArg::PlainText("#".into()));
                     args.push(ObjInsArg::Arg(ObjInsArgValue::Unsigned(*value as u64)));
                 }
@@ -352,7 +353,21 @@ fn push_args(
                         offset.reg.to_string().into(),
                     )));
                 }
-                _ => args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(arg.to_string().into()))),
+                Argument::CpsrMode(mode) => {
+                    args.push(ObjInsArg::PlainText("#".into()));
+                    args.push(ObjInsArg::Arg(ObjInsArgValue::Unsigned(mode.mode as u64)));
+                    if mode.writeback {
+                        args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque("!".into())));
+                    }
+                }
+                Argument::CoReg(_)
+                | Argument::StatusReg(_)
+                | Argument::StatusMask(_)
+                | Argument::Shift(_)
+                | Argument::CpsrFlags(_)
+                | Argument::Endian(_) => {
+                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(arg.to_string().into())))
+                }
             }
         }
     }
