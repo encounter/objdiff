@@ -133,7 +133,7 @@ impl ObjArch for ObjArchArm {
             mapping_symbols.iter().skip(first_mapping_idx + 1).take_while(|x| x.address < end_addr);
         let mut next_mapping = mappings_iter.next();
 
-        let ins_count = code.len() / first_mapping.instruction_size();
+        let ins_count = code.len() / first_mapping.instruction_size(start_addr);
         let mut ops = Vec::<u16>::with_capacity(ins_count);
         let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
 
