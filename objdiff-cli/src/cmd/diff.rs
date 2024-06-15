@@ -809,23 +809,28 @@ impl FunctionDiffUi {
 
     fn reload(&mut self) -> Result<()> {
         let prev = self.right_obj.take();
-        let target = self
-            .target_path
-            .as_deref()
-            .map(|p| obj::read::read(p).with_context(|| format!("Loading {}", p.display())))
-            .transpose()?;
-        let base = self
-            .base_path
-            .as_deref()
-            .map(|p| obj::read::read(p).with_context(|| format!("Loading {}", p.display())))
-            .transpose()?;
         let config = diff::DiffObjConfig {
             relax_reloc_diffs: self.relax_reloc_diffs,
             space_between_args: true,                // TODO
+            combine_data_sections: false,            // TODO
             x86_formatter: Default::default(),       // TODO
             mips_abi: Default::default(),            // TODO
             mips_instr_category: Default::default(), // TODO
         };
+        let target = self
+            .target_path
+            .as_deref()
+            .map(|p| {
+                obj::read::read(p, &config).with_context(|| format!("Loading {}", p.display()))
+            })
+            .transpose()?;
+        let base = self
+            .base_path
+            .as_deref()
+            .map(|p| {
+                obj::read::read(p, &config).with_context(|| format!("Loading {}", p.display()))
+            })
+            .transpose()?;
         let result = diff::diff_objs(&config, target.as_ref(), base.as_ref(), prev.as_ref())?;
 
         let left_sym = target.as_ref().and_then(|o| find_function(o, &self.symbol_name));

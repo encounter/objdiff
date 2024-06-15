@@ -235,7 +235,7 @@ fn run_build(
                     total,
                     &cancel,
                 )?;
-                Some(read::read(target_path).with_context(|| {
+                Some(read::read(target_path, &config.diff_obj_config).with_context(|| {
                     format!("Failed to read object '{}'", target_path.display())
                 })?)
             }
@@ -252,7 +252,7 @@ fn run_build(
                 &cancel,
             )?;
             Some(
-                read::read(base_path)
+                read::read(base_path, &config.diff_obj_config)
                     .with_context(|| format!("Failed to read object '{}'", base_path.display()))?,
             )
         }

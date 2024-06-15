@@ -102,6 +102,7 @@ pub struct DiffObjConfig {
     pub relax_reloc_diffs: bool,
     #[serde(default = "default_true")]
     pub space_between_args: bool,
+    pub combine_data_sections: bool,
     // x86
     pub x86_formatter: X86Formatter,
     // MIPS
@@ -114,6 +115,7 @@ impl Default for DiffObjConfig {
         Self {
             relax_reloc_diffs: false,
             space_between_args: true,
+            combine_data_sections: false,
             x86_formatter: Default::default(),
             mips_abi: Default::default(),
             mips_instr_category: Default::default(),

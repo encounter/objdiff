@@ -1,4 +1,4 @@
-use std::{fs, io::Cursor, path::Path};
+use std::{collections::HashSet, fs, io::Cursor, path::Path};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use byteorder::{BigEndian, ReadBytesExt};
@@ -11,6 +11,7 @@ use object::{
 
 use crate::{
     arch::{new_arch, ObjArch},
+    diff::DiffObjConfig,
     obj::{
         split_meta::{SplitMeta, SPLITMETA_SECTION},
         ObjInfo, ObjReloc, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlagSet, ObjSymbolFlags,
@@ -361,7 +362,105 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection]) -> Result<()> {
     Ok(())
 }
 
-pub fn read(obj_path: &Path) -> Result<ObjInfo> {
+fn update_combined_symbol(symbol: ObjSymbol, address_change: i64) -> Result<ObjSymbol> {
+    Ok(ObjSymbol {
+        name: symbol.name,
+        demangled_name: symbol.demangled_name,
+        address: (symbol.address as i64 + address_change).try_into()?,
+        section_address: (symbol.section_address as i64 + address_change).try_into()?,
+        size: symbol.size,
+        size_known: symbol.size_known,
+        flags: symbol.flags,
+        addend: symbol.addend,
+        virtual_address: if let Some(virtual_address) = symbol.virtual_address {
+            Some((virtual_address as i64 + address_change).try_into()?)
+        } else {
+            None
+        },
+    })
+}
+
+fn combine_sections(section: ObjSection, combine: ObjSection) -> Result<ObjSection> {
+    let mut data = section.data;
+    data.extend(combine.data);
+
+    let address_change: i64 = (section.address + section.size) as i64 - combine.address as i64;
+    let mut symbols = section.symbols;
+    for symbol in combine.symbols {
+        symbols.push(update_combined_symbol(symbol, address_change)?);
+    }
+
+    let mut relocations = section.relocations;
+    for reloc in combine.relocations {
+        relocations.push(ObjReloc {
+            flags: reloc.flags,
+            address: (reloc.address as i64 + address_change).try_into()?,
+            target: reloc.target,                 // TODO: Should be updated?
+            target_section: reloc.target_section, // TODO: Same as above
+        });
+    }
+
+    let mut line_info = section.line_info;
+    for (addr, line) in combine.line_info {
+        let key = (addr as i64 + address_change).try_into()?;
+        line_info.insert(key, line);
+    }
+
+    Ok(ObjSection {
+        name: section.name,
+        kind: section.kind,
+        address: section.address,
+        size: section.size + combine.size,
+        data,
+        orig_index: section.orig_index,
+        symbols,
+        relocations,
+        virtual_address: section.virtual_address,
+        line_info,
+    })
+}
+
+fn combine_data_sections(sections: &mut Vec<ObjSection>) -> Result<()> {
+    let names_to_combine: HashSet<_> = sections
+        .iter()
+        .filter(|s| s.kind == ObjSectionKind::Data)
+        .map(|s| s.name.clone())
+        .collect();
+
+    for name in names_to_combine {
+        // Take section with lowest index
+        let (mut section_index, _) = sections
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.name == name)
+            .min_by_key(|(_, s)| s.orig_index)
+            // Should not happen
+            .context("No combine section found with name")?;
+        let mut section = sections.remove(section_index);
+
+        // Remove equally named sections
+        let mut combines = vec![];
+        for i in (0..sections.len()).rev() {
+            if sections[i].name != name || sections[i].orig_index == section.orig_index {
+                continue;
+            }
+            combines.push(sections.remove(i));
+            if i < section_index {
+                section_index -= 1;
+            }
+        }
+
+        // Combine sections ordered by index
+        combines.sort_unstable_by_key(|c| c.orig_index);
+        for combine in combines {
+            section = combine_sections(section, combine)?;
+        }
+        sections.insert(section_index, section);
+    }
+    Ok(())
+}
+
+pub fn read(obj_path: &Path, config: &DiffObjConfig) -> Result<ObjInfo> {
     let (data, timestamp) = {
         let file = fs::File::open(obj_path)?;
         let timestamp = FileTime::from_last_modification_time(&file.metadata()?);
@@ -376,6 +475,9 @@ pub fn read(obj_path: &Path) -> Result<ObjInfo> {
             symbols_by_section(arch.as_ref(), &obj_file, section, split_meta.as_ref())?;
         section.relocations =
             relocations_by_section(arch.as_ref(), &obj_file, section, split_meta.as_ref())?;
+    }
+    if config.combine_data_sections {
+        combine_data_sections(&mut sections)?;
     }
     line_info(&obj_file, &mut sections)?;
     let common = common_symbols(arch.as_ref(), &obj_file, split_meta.as_ref())?;
