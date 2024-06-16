@@ -160,10 +160,18 @@ impl ObjArch for ObjArchArm {
             let mut reloc_arg = None;
             if let Some(reloc) = &reloc {
                 match reloc.flags {
+                    // Calls
                     RelocationFlags::Elf { r_type: elf::R_ARM_THM_XPC22 }
-                    | RelocationFlags::Elf { r_type: elf::R_ARM_PC24 } => {
+                    | RelocationFlags::Elf { r_type: elf::R_ARM_THM_PC22 }
+                    | RelocationFlags::Elf { r_type: elf::R_ARM_PC24 }
+                    | RelocationFlags::Elf { r_type: elf::R_ARM_XPC25 }
+                    | RelocationFlags::Elf { r_type: elf::R_ARM_CALL } => {
                         reloc_arg =
                             ins.args.iter().rposition(|a| matches!(a, Argument::BranchDest(_)));
+                    }
+                    // Data
+                    RelocationFlags::Elf { r_type: elf::R_ARM_ABS32 } => {
+                        reloc_arg = ins.args.iter().rposition(|a| matches!(a, Argument::UImm(_)));
                     }
                     _ => (),
                 }
@@ -195,19 +203,25 @@ impl ObjArch for ObjArchArm {
 
     fn implcit_addend(
         &self,
-        section: &ObjSection,
-        address: u64,
+        _section: &ObjSection,
+        _address: u64,
         reloc: &Relocation,
     ) -> anyhow::Result<i64> {
-        let data = section.data[address as usize..address as usize + 4].try_into()?;
-        let addend = u32::from_le_bytes(data);
         Ok(match reloc.flags() {
-            RelocationFlags::Elf { r_type: elf::R_ARM_ABS32 } => addend,
-            RelocationFlags::Elf { r_type: elf::R_ARM_THM_PC22 } => {
-                ((addend & 0x07ff0000) >> 3) | ((addend & 0x07ff) << 1)
-            }
+            // ARM calls
+            RelocationFlags::Elf { r_type: elf::R_ARM_PC24 }
+            | RelocationFlags::Elf { r_type: elf::R_ARM_XPC25 }
+            | RelocationFlags::Elf { r_type: elf::R_ARM_CALL } => -8,
+
+            // Thumb calls
+            RelocationFlags::Elf { r_type: elf::R_ARM_THM_PC22 }
+            | RelocationFlags::Elf { r_type: elf::R_ARM_THM_XPC22 } => -4,
+
+            // Data
+            RelocationFlags::Elf { r_type: elf::R_ARM_ABS32 } => 0,
+
             flags => bail!("Unsupported ARM implicit relocation {flags:?}"),
-        } as i32 as i64)
+        })
     }
 
     fn demangle(&self, name: &str) -> Option<String> {
