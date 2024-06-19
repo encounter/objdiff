@@ -40,6 +40,7 @@ pub struct BuildConfig {
     pub project_dir: Option<PathBuf>,
     pub custom_make: Option<String>,
     pub custom_args: Option<Vec<String>>,
+    #[allow(unused)]
     pub selected_wsl_distro: Option<String>,
 }
 
