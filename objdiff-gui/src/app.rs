@@ -559,6 +559,16 @@ impl eframe::App for App {
                     {
                         config.queue_reload = true;
                     }
+                    if ui
+                        .checkbox(
+                            &mut config.diff_obj_config.combine_data_sections,
+                            "Combine data sections",
+                        )
+                        .on_hover_text("Combines data sections with equal names.")
+                        .changed()
+                    {
+                        config.queue_reload = true;
+                    }
                 });
             });
         });
