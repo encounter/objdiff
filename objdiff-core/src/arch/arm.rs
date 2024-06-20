@@ -8,7 +8,7 @@ use arm_attr::{enums::CpuArch, tag::Tag, BuildAttrs};
 use object::{
     elf::{self, SHT_ARM_ATTRIBUTES},
     File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, SectionIndex,
-    SectionKind, Symbol,
+    SectionKind, Symbol, SymbolKind,
 };
 use unarm::{
     args::{Argument, OffsetImm, OffsetReg, Register},
@@ -96,7 +96,14 @@ impl ObjArchArm {
 }
 
 impl ObjArch for ObjArchArm {
-    fn symbol_address(&self, address: u64) -> u64 { address & !1 }
+    fn symbol_address(&self, symbol: &Symbol) -> u64 {
+        let address = symbol.address();
+        if symbol.kind() == SymbolKind::Text {
+            address & !1
+        } else {
+            address
+        }
+    }
 
     fn process_code(
         &self,

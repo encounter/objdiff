@@ -54,7 +54,7 @@ fn to_obj_symbol(
     if obj_file.format() == BinaryFormat::Elf && symbol.scope() == SymbolScope::Linkage {
         flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Hidden);
     }
-    let address = arch.symbol_address(symbol.address());
+    let address = arch.symbol_address(symbol);
     let section_address = if let Some(section) =
         symbol.section_index().and_then(|idx| obj_file.section_by_index(idx).ok())
     {
