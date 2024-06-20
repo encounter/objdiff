@@ -7,7 +7,7 @@ use anyhow::{bail, Result};
 use arm_attr::{enums::CpuArch, tag::Tag, BuildAttrs};
 use object::{
     elf::{self, SHT_ARM_ATTRIBUTES},
-    File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, SectionIndex,
+    Endian, File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, SectionIndex,
     SectionKind, Symbol, SymbolKind,
 };
 use unarm::{
@@ -48,10 +48,13 @@ impl ObjArchArm {
             s.kind() == SectionKind::Elf(SHT_ARM_ATTRIBUTES) && s.name() == Ok(".ARM.attributes")
         }) {
             let attr_data = arm_attrs.uncompressed_data()?;
-            let build_attrs = BuildAttrs::new(&attr_data, match file.endianness() {
-                object::Endianness::Little => arm_attr::Endian::Little,
-                object::Endianness::Big => arm_attr::Endian::Big,
-            })?;
+            let build_attrs = BuildAttrs::new(
+                &attr_data,
+                match file.endianness() {
+                    object::Endianness::Little => arm_attr::Endian::Little,
+                    object::Endianness::Big => arm_attr::Endian::Big,
+                },
+            )?;
             for subsection in build_attrs.subsections() {
                 let subsection = subsection?;
                 if !subsection.is_aeabi() {
@@ -210,25 +213,42 @@ impl ObjArch for ObjArchArm {
 
     fn implcit_addend(
         &self,
-        _section: &ObjSection,
-        _address: u64,
+        section: &ObjSection,
+        address: u64,
         reloc: &Relocation,
     ) -> anyhow::Result<i64> {
+        let address = address as usize;
         Ok(match reloc.flags() {
             // ARM calls
             RelocationFlags::Elf { r_type: elf::R_ARM_PC24 }
             | RelocationFlags::Elf { r_type: elf::R_ARM_XPC25 }
-            | RelocationFlags::Elf { r_type: elf::R_ARM_CALL } => -8,
+            | RelocationFlags::Elf { r_type: elf::R_ARM_CALL } => {
+                let data = section.data[address..address + 4].try_into()?;
+                let addend = self.endianness.read_i32_bytes(data);
+                let imm24 = addend & 0xffffff;
+                (imm24 << 2) << 8 >> 8
+            }
 
             // Thumb calls
             RelocationFlags::Elf { r_type: elf::R_ARM_THM_PC22 }
-            | RelocationFlags::Elf { r_type: elf::R_ARM_THM_XPC22 } => -4,
+            | RelocationFlags::Elf { r_type: elf::R_ARM_THM_XPC22 } => {
+                let data = section.data[address..address + 2].try_into()?;
+                let high = self.endianness.read_i16_bytes(data) as i32;
+                let data = section.data[address + 2..address + 4].try_into()?;
+                let low = self.endianness.read_i16_bytes(data) as i32;
+
+                let imm22 = ((high & 0x7ff) << 11) | (low & 0x7ff);
+                (imm22 << 1) << 9 >> 9
+            }
 
             // Data
-            RelocationFlags::Elf { r_type: elf::R_ARM_ABS32 } => 0,
+            RelocationFlags::Elf { r_type: elf::R_ARM_ABS32 } => {
+                let data = section.data[address..address + 4].try_into()?;
+                self.endianness.read_i32_bytes(data)
+            }
 
             flags => bail!("Unsupported ARM implicit relocation {flags:?}"),
-        })
+        } as i64)
     }
 
     fn demangle(&self, name: &str) -> Option<String> {
