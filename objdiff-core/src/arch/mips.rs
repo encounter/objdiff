@@ -27,8 +27,8 @@ pub struct ObjArchMips {
 const EF_MIPS_ABI: u32 = 0x0000F000;
 const EF_MIPS_MACH: u32 = 0x00FF0000;
 
-const E_MIPS_MACH_ALLEGREX: u32 = 0x00840000;
-const E_MIPS_MACH_5900: u32 = 0x00920000;
+const EF_MIPS_MACH_ALLEGREX: u32 = 0x00840000;
+const EF_MIPS_MACH_5900: u32 = 0x00920000;
 
 impl ObjArchMips {
     pub fn new(object: &File) -> Result<Self> {
@@ -38,13 +38,19 @@ impl ObjArchMips {
             FileFlags::None => {}
             FileFlags::Elf { e_flags, .. } => {
                 abi = match e_flags & EF_MIPS_ABI {
-                    elf::EF_MIPS_ABI_O32 => Abi::O32,
+                    elf::EF_MIPS_ABI_O32 | elf::EF_MIPS_ABI_O64 => Abi::O32,
                     elf::EF_MIPS_ABI_EABI32 | elf::EF_MIPS_ABI_EABI64 => Abi::N32,
-                    _ => Abi::NUMERIC,
+                    _ => {
+                        if e_flags & elf::EF_MIPS_ABI2 != 0 {
+                            Abi::N32
+                        } else {
+                            Abi::NUMERIC
+                        }
+                    }
                 };
                 instr_category = match e_flags & EF_MIPS_MACH {
-                    E_MIPS_MACH_ALLEGREX => InstrCategory::R4000ALLEGREX,
-                    E_MIPS_MACH_5900 => InstrCategory::R5900,
+                    EF_MIPS_MACH_ALLEGREX => InstrCategory::R4000ALLEGREX,
+                    EF_MIPS_MACH_5900 => InstrCategory::R5900,
                     _ => InstrCategory::CPU,
                 };
             }
