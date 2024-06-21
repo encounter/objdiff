@@ -93,6 +93,30 @@ pub enum MipsInstrCategory {
     R5900,
 }
 
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    Default,
+    Eq,
+    PartialEq,
+    serde::Deserialize,
+    serde::Serialize,
+    strum::VariantArray,
+    strum::EnumMessage,
+)]
+pub enum ArmArchVersion {
+    #[default]
+    #[strum(message = "Auto (default)")]
+    Auto,
+    #[strum(message = "ARMv4T (GBA)")]
+    V4T,
+    #[strum(message = "ARMv5TE (DS)")]
+    V5TE,
+    #[strum(message = "ARMv6K (3DS)")]
+    V6K,
+}
+
 #[inline]
 const fn default_true() -> bool { true }
 
@@ -108,6 +132,8 @@ pub struct DiffObjConfig {
     // MIPS
     pub mips_abi: MipsAbi,
     pub mips_instr_category: MipsInstrCategory,
+    // ARM
+    pub arm_arch_version: ArmArchVersion,
 }
 
 impl Default for DiffObjConfig {
@@ -119,6 +145,7 @@ impl Default for DiffObjConfig {
             x86_formatter: Default::default(),
             mips_abi: Default::default(),
             mips_instr_category: Default::default(),
+            arm_arch_version: Default::default(),
         }
     }
 }

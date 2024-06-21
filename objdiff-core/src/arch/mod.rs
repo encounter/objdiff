@@ -1,7 +1,7 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
 use anyhow::{bail, Result};
-use object::{Architecture, Object, Relocation, RelocationFlags};
+use object::{Architecture, Object, ObjectSymbol, Relocation, RelocationFlags, Symbol};
 
 use crate::{
     diff::DiffObjConfig,
@@ -34,6 +34,8 @@ pub trait ObjArch: Send + Sync {
     fn demangle(&self, _name: &str) -> Option<String> { None }
 
     fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str>;
+
+    fn symbol_address(&self, symbol: &Symbol) -> u64 { symbol.address() }
 }
 
 pub struct ProcessCodeResult {

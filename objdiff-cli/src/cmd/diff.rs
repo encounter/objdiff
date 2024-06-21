@@ -816,6 +816,7 @@ impl FunctionDiffUi {
             x86_formatter: Default::default(),       // TODO
             mips_abi: Default::default(),            // TODO
             mips_instr_category: Default::default(), // TODO
+            arm_arch_version: Default::default(),    // TODO
         };
         let target = self
             .target_path

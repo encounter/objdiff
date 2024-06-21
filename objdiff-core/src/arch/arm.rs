@@ -4,9 +4,11 @@ use std::{
 };
 
 use anyhow::{bail, Result};
+use arm_attr::{enums::CpuArch, tag::Tag, BuildAttrs};
 use object::{
-    elf, File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, SectionIndex,
-    SectionKind, Symbol,
+    elf::{self, SHT_ARM_ATTRIBUTES},
+    Endian, File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, SectionIndex,
+    SectionKind, Symbol, SymbolKind,
 };
 use unarm::{
     args::{Argument, OffsetImm, OffsetReg, Register},
@@ -16,41 +18,93 @@ use unarm::{
 
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
-    diff::DiffObjConfig,
+    diff::{ArmArchVersion, DiffObjConfig},
     obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
 };
 
 pub struct ObjArchArm {
     /// Maps section index, to list of disasm modes (arm, thumb or data) sorted by address
     disasm_modes: HashMap<SectionIndex, Vec<DisasmMode>>,
+    detected_version: Option<ArmVersion>,
+    endianness: object::Endianness,
 }
 
 impl ObjArchArm {
     pub fn new(file: &File) -> Result<Self> {
+        let endianness = file.endianness();
         match file {
             File::Elf32(_) => {
-                let disasm_modes: HashMap<_, _> = file
-                    .sections()
-                    .filter(|s| s.kind() == SectionKind::Text)
-                    .map(|s| {
-                        let index = s.index();
-                        let mut mapping_symbols: Vec<_> = file
-                            .symbols()
-                            .filter(|s| s.section_index().map(|i| i == index).unwrap_or(false))
-                            .filter_map(|s| DisasmMode::from_symbol(&s))
-                            .collect();
-                        mapping_symbols.sort_unstable_by_key(|x| x.address);
-                        (s.index(), mapping_symbols)
-                    })
-                    .collect();
-                Ok(Self { disasm_modes })
+                let disasm_modes = Self::elf_get_mapping_symbols(file);
+                let detected_version = Self::elf_detect_arm_version(file)?;
+                Ok(Self { disasm_modes, detected_version, endianness })
             }
             _ => bail!("Unsupported file format {:?}", file.format()),
         }
     }
+
+    fn elf_detect_arm_version(file: &File) -> Result<Option<ArmVersion>> {
+        // Check ARM attributes
+        if let Some(arm_attrs) = file.sections().find(|s| {
+            s.kind() == SectionKind::Elf(SHT_ARM_ATTRIBUTES) && s.name() == Ok(".ARM.attributes")
+        }) {
+            let attr_data = arm_attrs.uncompressed_data()?;
+            let build_attrs = BuildAttrs::new(&attr_data, match file.endianness() {
+                object::Endianness::Little => arm_attr::Endian::Little,
+                object::Endianness::Big => arm_attr::Endian::Big,
+            })?;
+            for subsection in build_attrs.subsections() {
+                let subsection = subsection?;
+                if !subsection.is_aeabi() {
+                    continue;
+                }
+                // Only checking first CpuArch tag. Others may exist, but that's very unlikely.
+                let cpu_arch = subsection.into_public_tag_iter()?.find_map(|(_, tag)| {
+                    if let Tag::CpuArch(cpu_arch) = tag {
+                        Some(cpu_arch)
+                    } else {
+                        None
+                    }
+                });
+                match cpu_arch {
+                    Some(CpuArch::V4T) => return Ok(Some(ArmVersion::V4T)),
+                    Some(CpuArch::V5TE) => return Ok(Some(ArmVersion::V5Te)),
+                    Some(CpuArch::V6K) => return Ok(Some(ArmVersion::V6K)),
+                    Some(arch) => bail!("ARM arch {} not supported", arch),
+                    None => {}
+                };
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn elf_get_mapping_symbols(file: &File) -> HashMap<SectionIndex, Vec<DisasmMode>> {
+        file.sections()
+            .filter(|s| s.kind() == SectionKind::Text)
+            .map(|s| {
+                let index = s.index();
+                let mut mapping_symbols: Vec<_> = file
+                    .symbols()
+                    .filter(|s| s.section_index().map(|i| i == index).unwrap_or(false))
+                    .filter_map(|s| DisasmMode::from_symbol(&s))
+                    .collect();
+                mapping_symbols.sort_unstable_by_key(|x| x.address);
+                (s.index(), mapping_symbols)
+            })
+            .collect()
+    }
 }
 
 impl ObjArch for ObjArchArm {
+    fn symbol_address(&self, symbol: &Symbol) -> u64 {
+        let address = symbol.address();
+        if symbol.kind() == SymbolKind::Text {
+            address & !1
+        } else {
+            address
+        }
+    }
+
     fn process_code(
         &self,
         address: u64,
@@ -81,10 +135,21 @@ impl ObjArch for ObjArchArm {
             mapping_symbols.iter().skip(first_mapping_idx + 1).take_while(|x| x.address < end_addr);
         let mut next_mapping = mappings_iter.next();
 
-        let ins_count = code.len() / first_mapping.instruction_size();
+        let ins_count = code.len() / first_mapping.instruction_size(start_addr);
         let mut ops = Vec::<u16>::with_capacity(ins_count);
         let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
-        let mut parser = Parser::new(ArmVersion::V5Te, first_mapping, start_addr, code);
+
+        let version = match config.arm_arch_version {
+            ArmArchVersion::Auto => self.detected_version.unwrap_or(ArmVersion::V5Te),
+            ArmArchVersion::V4T => ArmVersion::V4T,
+            ArmArchVersion::V5TE => ArmVersion::V5Te,
+            ArmArchVersion::V6K => ArmVersion::V6K,
+        };
+        let endian = match self.endianness {
+            object::Endianness::Little => unarm::Endian::Little,
+            object::Endianness::Big => unarm::Endian::Big,
+        };
+        let mut parser = Parser::new(version, first_mapping, start_addr, endian, code);
 
         while let Some((address, op, ins)) = parser.next() {
             if let Some(next) = next_mapping {
@@ -95,7 +160,6 @@ impl ObjArch for ObjArchArm {
                     next_mapping = mappings_iter.next();
                 }
             }
-
             let line = line_info.range(..=address as u64).last().map(|(_, &b)| b);
 
             let reloc = relocations.iter().find(|r| (r.address as u32 & !1) == address).cloned();
@@ -103,10 +167,18 @@ impl ObjArch for ObjArchArm {
             let mut reloc_arg = None;
             if let Some(reloc) = &reloc {
                 match reloc.flags {
+                    // Calls
                     RelocationFlags::Elf { r_type: elf::R_ARM_THM_XPC22 }
-                    | RelocationFlags::Elf { r_type: elf::R_ARM_PC24 } => {
+                    | RelocationFlags::Elf { r_type: elf::R_ARM_THM_PC22 }
+                    | RelocationFlags::Elf { r_type: elf::R_ARM_PC24 }
+                    | RelocationFlags::Elf { r_type: elf::R_ARM_XPC25 }
+                    | RelocationFlags::Elf { r_type: elf::R_ARM_CALL } => {
                         reloc_arg =
                             ins.args.iter().rposition(|a| matches!(a, Argument::BranchDest(_)));
+                    }
+                    // Data
+                    RelocationFlags::Elf { r_type: elf::R_ARM_ABS32 } => {
+                        reloc_arg = ins.args.iter().rposition(|a| matches!(a, Argument::UImm(_)));
                     }
                     _ => (),
                 }
@@ -138,11 +210,42 @@ impl ObjArch for ObjArchArm {
 
     fn implcit_addend(
         &self,
-        _section: &ObjSection,
+        section: &ObjSection,
         address: u64,
         reloc: &Relocation,
     ) -> anyhow::Result<i64> {
-        bail!("Unsupported ARM implicit relocation {:#x}{:?}", address, reloc.flags())
+        let address = address as usize;
+        Ok(match reloc.flags() {
+            // ARM calls
+            RelocationFlags::Elf { r_type: elf::R_ARM_PC24 }
+            | RelocationFlags::Elf { r_type: elf::R_ARM_XPC25 }
+            | RelocationFlags::Elf { r_type: elf::R_ARM_CALL } => {
+                let data = section.data[address..address + 4].try_into()?;
+                let addend = self.endianness.read_i32_bytes(data);
+                let imm24 = addend & 0xffffff;
+                (imm24 << 2) << 8 >> 8
+            }
+
+            // Thumb calls
+            RelocationFlags::Elf { r_type: elf::R_ARM_THM_PC22 }
+            | RelocationFlags::Elf { r_type: elf::R_ARM_THM_XPC22 } => {
+                let data = section.data[address..address + 2].try_into()?;
+                let high = self.endianness.read_i16_bytes(data) as i32;
+                let data = section.data[address + 2..address + 4].try_into()?;
+                let low = self.endianness.read_i16_bytes(data) as i32;
+
+                let imm22 = ((high & 0x7ff) << 11) | (low & 0x7ff);
+                (imm22 << 1) << 9 >> 9
+            }
+
+            // Data
+            RelocationFlags::Elf { r_type: elf::R_ARM_ABS32 } => {
+                let data = section.data[address..address + 4].try_into()?;
+                self.endianness.read_i32_bytes(data)
+            }
+
+            flags => bail!("Unsupported ARM implicit relocation {flags:?}"),
+        } as i64)
     }
 
     fn demangle(&self, name: &str) -> Option<String> {
@@ -209,6 +312,7 @@ fn push_args(
             args.push(ObjInsArg::Reloc);
         } else {
             match arg {
+                Argument::None => {}
                 Argument::Reg(reg) => {
                     if reg.deref {
                         deref = true;
@@ -242,7 +346,7 @@ fn push_args(
                         args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque("^".to_string().into())));
                     }
                 }
-                Argument::UImm(value) | Argument::CoOpcode(value) => {
+                Argument::UImm(value) | Argument::CoOpcode(value) | Argument::SatImm(value) => {
                     args.push(ObjInsArg::PlainText("#".into()));
                     args.push(ObjInsArg::Arg(ObjInsArgValue::Unsigned(*value as u64)));
                 }
@@ -282,7 +386,21 @@ fn push_args(
                         offset.reg.to_string().into(),
                     )));
                 }
-                _ => args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(arg.to_string().into()))),
+                Argument::CpsrMode(mode) => {
+                    args.push(ObjInsArg::PlainText("#".into()));
+                    args.push(ObjInsArg::Arg(ObjInsArgValue::Unsigned(mode.mode as u64)));
+                    if mode.writeback {
+                        args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque("!".into())));
+                    }
+                }
+                Argument::CoReg(_)
+                | Argument::StatusReg(_)
+                | Argument::StatusMask(_)
+                | Argument::Shift(_)
+                | Argument::CpsrFlags(_)
+                | Argument::Endian(_) => {
+                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(arg.to_string().into())))
+                }
             }
         }
     }

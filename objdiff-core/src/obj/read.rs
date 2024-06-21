@@ -55,12 +55,13 @@ fn to_obj_symbol(
     if obj_file.format() == BinaryFormat::Elf && symbol.scope() == SymbolScope::Linkage {
         flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Hidden);
     }
+    let address = arch.symbol_address(symbol);
     let section_address = if let Some(section) =
         symbol.section_index().and_then(|idx| obj_file.section_by_index(idx).ok())
     {
-        symbol.address() - section.address()
+        address - section.address()
     } else {
-        symbol.address()
+        address
     };
     let demangled_name = arch.demangle(name);
     // Find the virtual address for the symbol if available
@@ -70,7 +71,7 @@ fn to_obj_symbol(
     Ok(ObjSymbol {
         name: name.to_string(),
         demangled_name,
-        address: symbol.address(),
+        address,
         section_address,
         size: symbol.size(),
         size_known: symbol.size() != 0,
