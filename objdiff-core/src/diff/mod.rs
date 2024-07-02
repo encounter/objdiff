@@ -117,6 +117,34 @@ pub enum ArmArchVersion {
     V6K,
 }
 
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    Default,
+    Eq,
+    PartialEq,
+    serde::Deserialize,
+    serde::Serialize,
+    strum::VariantArray,
+    strum::EnumMessage,
+)]
+pub enum ArmR9Usage {
+    #[default]
+    #[strum(
+        message = "R9 or V6 (default)",
+        detailed_message = "Use R9 as a general-purpose register."
+    )]
+    GeneralPurpose,
+    #[strum(
+        message = "SB (static base)",
+        detailed_message = "Used for position-independent data (PID)."
+    )]
+    Sb,
+    #[strum(message = "TR (TLS register)", detailed_message = "Used for thread-local storage.")]
+    Tr,
+}
+
 #[inline]
 const fn default_true() -> bool { true }
 
@@ -134,6 +162,12 @@ pub struct DiffObjConfig {
     pub mips_instr_category: MipsInstrCategory,
     // ARM
     pub arm_arch_version: ArmArchVersion,
+    pub arm_unified_syntax: bool,
+    pub arm_av_registers: bool,
+    pub arm_r9_usage: ArmR9Usage,
+    pub arm_sl_usage: bool,
+    pub arm_fp_usage: bool,
+    pub arm_ip_usage: bool,
 }
 
 impl Default for DiffObjConfig {
@@ -146,6 +180,12 @@ impl Default for DiffObjConfig {
             mips_abi: Default::default(),
             mips_instr_category: Default::default(),
             arm_arch_version: Default::default(),
+            arm_unified_syntax: true,
+            arm_av_registers: false,
+            arm_r9_usage: Default::default(),
+            arm_sl_usage: false,
+            arm_fp_usage: false,
+            arm_ip_usage: false,
         }
     }
 }
