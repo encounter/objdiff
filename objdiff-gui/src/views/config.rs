@@ -16,7 +16,7 @@ use egui::{
 use globset::Glob;
 use objdiff_core::{
     config::{ProjectObject, DEFAULT_WATCH_PATTERNS},
-    diff::{ArmArchVersion, MipsAbi, MipsInstrCategory, X86Formatter},
+    diff::{ArmArchVersion, ArmR9Usage, MipsAbi, MipsInstrCategory, X86Formatter},
 };
 use self_update::cargo_crate_version;
 use strum::{EnumMessage, VariantArray};
@@ -925,4 +925,51 @@ fn arch_config_ui(ui: &mut egui::Ui, config: &mut AppConfig, _appearance: &Appea
                 }
             }
         });
+    let response = ui
+        .checkbox(&mut config.diff_obj_config.arm_unified_syntax, "Unified syntax")
+        .on_hover_text("Disassemble as unified assembly language (UAL).");
+    if response.changed() {
+        config.queue_reload = true;
+    }
+    let response = ui
+        .checkbox(&mut config.diff_obj_config.arm_av_registers, "Use A/V registers")
+        .on_hover_text("Display R0-R3 as A1-A4 and R4-R11 as V1-V8");
+    if response.changed() {
+        config.queue_reload = true;
+    }
+    egui::ComboBox::new("arm_r9_usage", "Display R9 as")
+        .selected_text(config.diff_obj_config.arm_r9_usage.get_message().unwrap())
+        .show_ui(ui, |ui| {
+            for &usage in ArmR9Usage::VARIANTS {
+                if ui
+                    .selectable_label(
+                        config.diff_obj_config.arm_r9_usage == usage,
+                        usage.get_message().unwrap(),
+                    )
+                    .on_hover_text(usage.get_detailed_message().unwrap())
+                    .clicked()
+                {
+                    config.diff_obj_config.arm_r9_usage = usage;
+                    config.queue_reload = true;
+                }
+            }
+        });
+    let response = ui
+        .checkbox(&mut config.diff_obj_config.arm_sl_usage, "Display R10 as SL")
+        .on_hover_text("Used for explicit stack limits.");
+    if response.changed() {
+        config.queue_reload = true;
+    }
+    let response = ui
+        .checkbox(&mut config.diff_obj_config.arm_fp_usage, "Display R11 as FP")
+        .on_hover_text("Used for frame pointers.");
+    if response.changed() {
+        config.queue_reload = true;
+    }
+    let response = ui
+        .checkbox(&mut config.diff_obj_config.arm_ip_usage, "Display R12 as IP")
+        .on_hover_text("Used for interworking and long branches.");
+    if response.changed() {
+        config.queue_reload = true;
+    }
 }

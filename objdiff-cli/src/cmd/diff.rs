@@ -817,6 +817,12 @@ impl FunctionDiffUi {
             mips_abi: Default::default(),            // TODO
             mips_instr_category: Default::default(), // TODO
             arm_arch_version: Default::default(),    // TODO
+            arm_unified_syntax: true,                // TODO
+            arm_av_registers: false,                 // TODO
+            arm_r9_usage: Default::default(),        // TODO
+            arm_sl_usage: false,                     // TODO
+            arm_fp_usage: false,                     // TODO
+            arm_ip_usage: false,                     // TODO
         };
         let target = self
             .target_path
