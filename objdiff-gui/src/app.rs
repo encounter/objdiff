@@ -35,6 +35,7 @@ use crate::{
         data_diff::data_diff_ui,
         debug::debug_window,
         demangle::{demangle_window, DemangleViewState},
+		extab::{extab_window, ExtabViewState},
         frame_history::FrameHistory,
         function_diff::function_diff_ui,
         graphics::{graphics_window, GraphicsConfig, GraphicsViewState},
@@ -48,11 +49,13 @@ pub struct ViewState {
     pub jobs: JobQueue,
     pub config_state: ConfigViewState,
     pub demangle_state: DemangleViewState,
+	pub extab_state: ExtabViewState,
     pub diff_state: DiffViewState,
     pub graphics_state: GraphicsViewState,
     pub frame_history: FrameHistory,
     pub show_appearance_config: bool,
     pub show_demangle: bool,
+	pub show_extab: bool,
     pub show_project_config: bool,
     pub show_arch_config: bool,
     pub show_debug: bool,
@@ -450,11 +453,13 @@ impl eframe::App for App {
             jobs,
             config_state,
             demangle_state,
+			extab_state,
             diff_state,
             graphics_state,
             frame_history,
             show_appearance_config,
             show_demangle,
+			show_extab,
             show_project_config,
             show_arch_config,
             show_debug,
@@ -511,6 +516,10 @@ impl eframe::App for App {
                 ui.menu_button("Tools", |ui| {
                     if ui.button("Demangle…").clicked() {
                         *show_demangle = !*show_demangle;
+                        ui.close_menu();
+                    }
+					if ui.button("Extab Decoder…").clicked() {
+                        *show_extab = !*show_extab;
                         ui.close_menu();
                     }
                 });
@@ -598,6 +607,7 @@ impl eframe::App for App {
         project_window(ctx, config, show_project_config, config_state, appearance);
         appearance_window(ctx, show_appearance_config, appearance);
         demangle_window(ctx, show_demangle, demangle_state, appearance);
+		extab_window(ctx, show_extab, extab_state, appearance);
         arch_config_window(ctx, config, show_arch_config, appearance);
         debug_window(ctx, show_debug, frame_history, appearance);
         graphics_window(ctx, show_graphics, frame_history, graphics_state, appearance);
