@@ -601,6 +601,13 @@ impl eframe::App for App {
 
             egui::CentralPanel::default().show(ctx, |ui| {
                 symbol_diff_ui(ui, diff_state, appearance);
+				//If an extab decode was queued, update the extab view state accordingly
+				if diff_state.symbol_state.queue_extab_decode {
+					extab_state.extab_data = diff_state.symbol_state.decode_extab.clone();
+					extab_state.queue_decode = true;
+					*show_extab = !*show_extab;
+					diff_state.symbol_state.queue_extab_decode = false;
+				}
             });
         }
 
