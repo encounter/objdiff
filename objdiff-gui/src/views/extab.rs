@@ -1,3 +1,5 @@
+//I hate rust i wish i could burn it with fire btw - Amber
+
 use egui::{TextStyle, ScrollArea};
 
 use objdiff_core::obj::ObjExtab;
