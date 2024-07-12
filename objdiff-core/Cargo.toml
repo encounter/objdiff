@@ -17,7 +17,7 @@ any-arch = [] # Implicit, used to check if any arch is enabled
 config = ["globset", "semver", "serde_json", "serde_yaml"]
 dwarf = ["gimli"]
 mips = ["any-arch", "rabbitizer"]
-ppc = ["any-arch", "cwdemangle", "ppc750cl"]
+ppc = ["any-arch", "cwdemangle", "cwextab", "ppc750cl"]
 x86 = ["any-arch", "cpp_demangle", "iced-x86", "msvc-demangler"]
 arm = ["any-arch", "cpp_demangle", "unarm", "arm-attr"]
 
@@ -45,6 +45,7 @@ gimli = { version = "0.29.0", default-features = false, features = ["read-all"],
 
 # ppc
 cwdemangle = { version = "1.0.0", optional = true }
+cwextab = { version = "0.2.3", optional = true }
 ppc750cl = { git = "https://github.com/encounter/ppc750cl", rev = "6cbd7d888c7082c2c860f66cbb9848d633f753ed", optional = true }
 
 # mips

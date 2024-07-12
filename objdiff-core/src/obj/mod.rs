@@ -7,6 +7,7 @@ use filetime::FileTime;
 use flagset::{flags, FlagSet};
 use object::RelocationFlags;
 use split_meta::SplitMeta;
+use cwextab::*;
 
 use crate::{arch::ObjArch, util::ReallySigned};
 
@@ -113,6 +114,7 @@ pub struct ObjIns {
 pub struct ObjSymbol {
     pub name: String,
     pub demangled_name: Option<String>,
+	pub has_extab: bool,
     pub address: u64,
     pub section_address: u64,
     pub size: u64,
@@ -123,6 +125,13 @@ pub struct ObjSymbol {
     pub virtual_address: Option<u64>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ObjExtab {
+	pub func : ObjSymbol,
+	pub data : ExceptionTableData,
+	pub dtors : Vec<ObjSymbol>,
+}
+
 pub struct ObjInfo {
     pub arch: Box<dyn ObjArch>,
     pub path: PathBuf,
@@ -130,6 +139,8 @@ pub struct ObjInfo {
     pub sections: Vec<ObjSection>,
     /// Common BSS symbols
     pub common: Vec<ObjSymbol>,
+	/// Exception tables
+	pub extab: Option<Vec<ObjExtab>>,
     /// Split object metadata (.note.split section)
     pub split_meta: Option<SplitMeta>,
 }

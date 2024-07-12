@@ -972,9 +972,9 @@ checksum = "c2e06f9bce634a3c898eb1e5cb949ff63133cbb218af93cc9b38b31d6f3ea285"
 
 [[package]]
 name = "cwextab"
-version = "0.2.1"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56cbd57a371d76d4f63e2ad07301b37a9a4e159272bd159313f27e1529d59455"
+checksum = "a92e840be31d11ead5f357b8fc503133d3657845d0ccf539afcc7d1212fad226"
 dependencies = [
  "anyhow",
 ]
@@ -2824,6 +2824,7 @@ dependencies = [
  "byteorder",
  "cpp_demangle",
  "cwdemangle",
+ "cwextab",
  "filetime",
  "flagset",
  "gimli 0.29.0",
