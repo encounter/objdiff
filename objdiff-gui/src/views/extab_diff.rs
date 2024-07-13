@@ -32,6 +32,9 @@ fn find_symbol(obj: &ObjInfo, selected_symbol: &SymbolRefByName) -> Option<Symbo
 fn decode_extab(extab: &ObjExtab) -> String {
     let mut text = String::from("");
 
+    text += format!("Extab symbol: {}\n", extab.extab_symbol_name).as_str();
+    text += format!("Extabindex symbol: {}\n\n", extab.extabindex_symbol_name).as_str();
+
     let mut dtor_names: Vec<&str> = vec![];
     for dtor in &extab.dtors {
         //For each function name, use the demangled name by default,
