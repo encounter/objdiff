@@ -2,20 +2,21 @@ use std::{collections::HashSet, fs, io::Cursor, path::Path};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use byteorder::{BigEndian, ReadBytesExt};
+use cwextab::decode_extab;
 use filetime::FileTime;
 use flagset::Flags;
 use object::{
-    Architecture, BinaryFormat, File, Object, ObjectSection, ObjectSymbol, RelocationTarget, SectionIndex, SectionKind, Symbol, SymbolKind, SymbolScope, SymbolSection
+    Architecture, BinaryFormat, File, Object, ObjectSection, ObjectSymbol, RelocationTarget,
+    SectionIndex, SectionKind, Symbol, SymbolKind, SymbolScope, SymbolSection,
 };
-use cwextab::decode_extab;
 
 use crate::{
     arch::{new_arch, ObjArch},
     diff::DiffObjConfig,
     obj::{
         split_meta::{SplitMeta, SPLITMETA_SECTION},
-        ObjInfo, ObjReloc, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlagSet, ObjSymbolFlags,
-        ObjExtab,
+        ObjExtab, ObjInfo, ObjReloc, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlagSet,
+        ObjSymbolFlags,
     },
 };
 
@@ -172,13 +173,8 @@ fn common_symbols(
         .collect::<Result<Vec<ObjSymbol>>>()
 }
 
-fn section_by_name<'a>(sections: &'a mut [ObjSection], name : &str) -> Option<&'a mut ObjSection> {
-    for section in sections {
-        if section.name == name {
-            return Some(section);
-        }
-    }
-    None
+fn section_by_name<'a>(sections: &'a mut [ObjSection], name: &str) -> Option<&'a mut ObjSection> {
+    sections.iter_mut().find(|section| section.name == name)
 }
 
 fn exception_tables(
@@ -187,7 +183,6 @@ fn exception_tables(
     obj_file: &File<'_>,
     _split_meta: Option<&SplitMeta>,
 ) -> Option<Vec<ObjExtab>> {
-
     //PowerPC only
     if obj_file.architecture() != Architecture::PowerPc {
         return None;
@@ -203,7 +198,7 @@ fn exception_tables(
     let extab_symbol_count = extab_section.symbols.len();
     let extab_reloc_count = extab_section.relocations.len();
     let table_count = extab_symbol_count;
-    let mut extab_reloc_index : usize = 0;
+    let mut extab_reloc_index: usize = 0;
 
     //Go through each pair
     for i in 0..table_count {
@@ -214,7 +209,7 @@ fn exception_tables(
         /* Get the function symbol from the extabindex relocations array. Each extabindex
         entry has two relocations (the first for the function, the second for the extab entry),
         so get the first of each. */
-        let extab_func = extabindex_section.relocations[i*2].target.clone();
+        let extab_func = extabindex_section.relocations[i * 2].target.clone();
 
         //Find the function in the text section, and set the has extab flag
         for i in 0..text_section.symbols.len() {
@@ -227,7 +222,7 @@ fn exception_tables(
         /* Iterate through the list of extab relocations, continuing until we hit a relocation
         that isn't within the current extab symbol. Get the target dtor function symbol from
         each relocation used, and add them to the list. */
-        let mut dtors : Vec<ObjSymbol> = vec![];
+        let mut dtors: Vec<ObjSymbol> = vec![];
         
         while extab_reloc_index < extab_reloc_count {
             let extab_reloc = &extab_section.relocations[extab_reloc_index];
@@ -235,7 +230,7 @@ fn exception_tables(
             if extab_reloc.address >= extab_end_addr {
                 break;
             }
-            
+
             //Otherwise, the current relocation is used by the current table
             dtors.push(extab_reloc.target.clone());
             //Go to the next entry
@@ -249,7 +244,7 @@ fn exception_tables(
         let data = decode_extab(extab_data)?;
 
         //Add the new entry to the list
-        let entry = ObjExtab {func: extab_func, data, dtors};
+        let entry = ObjExtab { func: extab_func, data, dtors };
         result.push(entry);
     }
 

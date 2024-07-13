@@ -3,11 +3,11 @@ pub mod split_meta;
 
 use std::{borrow::Cow, collections::BTreeMap, fmt, path::PathBuf};
 
+use cwextab::*;
 use filetime::FileTime;
 use flagset::{flags, FlagSet};
 use object::RelocationFlags;
 use split_meta::SplitMeta;
-use cwextab::*;
 
 use crate::{arch::ObjArch, util::ReallySigned};
 
@@ -127,9 +127,9 @@ pub struct ObjSymbol {
 
 #[derive(Debug, Clone)]
 pub struct ObjExtab {
-    pub func : ObjSymbol,
-    pub data : ExceptionTableData,
-    pub dtors : Vec<ObjSymbol>,
+    pub func: ObjSymbol,
+    pub data: ExceptionTableData,
+    pub dtors: Vec<ObjSymbol>,
 }
 
 pub struct ObjInfo {
