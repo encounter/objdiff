@@ -2,11 +2,11 @@
 
 use std::default::Default;
 
-use egui::{text::LayoutJob, Align, Layout, Vec2, ScrollArea, Ui};
+use egui::{text::LayoutJob, Align, Layout, ScrollArea, Ui, Vec2};
 use egui_extras::{Size, StripBuilder};
 use objdiff_core::{
     diff::ObjDiff,
-    obj::{ObjInfo, ObjSymbol, SymbolRef, ObjExtab},
+    obj::{ObjExtab, ObjInfo, ObjSymbol, SymbolRef},
 };
 use time::format_description;
 
@@ -15,10 +15,8 @@ use crate::views::{
     symbol_diff::{match_color_for_symbol, DiffViewState, SymbolRefByName, View},
 };
 
-
 #[derive(Default)]
-pub struct ExtabViewState {
-}
+pub struct ExtabViewState {}
 
 fn find_symbol(obj: &ObjInfo, selected_symbol: &SymbolRefByName) -> Option<SymbolRef> {
     for (section_idx, section) in obj.sections.iter().enumerate() {
@@ -38,10 +36,9 @@ fn decode_extab(extab: &ObjExtab) -> String {
     for dtor in &extab.dtors {
         //For each function name, use the demangled name by default,
         //and if not available fallback to the original name
-        let name =
-        match &dtor.demangled_name {
+        let name = match &dtor.demangled_name {
             Some(demangled_name) => demangled_name,
-            None => &dtor.name
+            None => &dtor.name,
         };
         dtor_names.push(name.as_str());
     }
@@ -52,22 +49,27 @@ fn decode_extab(extab: &ObjExtab) -> String {
     text
 }
 
-fn find_extab_entry(obj : &ObjInfo, symbol : &ObjSymbol) -> Option<ObjExtab> {
+fn find_extab_entry(obj: &ObjInfo, symbol: &ObjSymbol) -> Option<ObjExtab> {
     if let Some(extab_array) = &obj.extab {
         for extab_entry in extab_array {
             if extab_entry.func.name == symbol.name {
                 return Some(extab_entry.clone());
             }
         }
-    }else{
+    } else {
         return None;
     }
 
     None
 }
 
-fn extab_text_ui(ui: &mut Ui, obj : &(ObjInfo, ObjDiff), symbol_ref : SymbolRef,
-appearance: &Appearance, _state : &mut ExtabViewState) -> Option<()> {
+fn extab_text_ui(
+    ui: &mut Ui,
+    obj: &(ObjInfo, ObjDiff),
+    symbol_ref: SymbolRef,
+    appearance: &Appearance,
+    _state : &mut ExtabViewState,
+) -> Option<()> {
     let (_section, symbol) = obj.0.section_symbol(symbol_ref);
 
     if let Some(extab_entry) = find_extab_entry(&obj.0, symbol) {
@@ -92,7 +94,7 @@ fn extab_ui(
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
             ui.style_mut().wrap = Some(false);
 
-            let symbol =  obj.and_then(|(obj, _)| find_symbol(obj, selected_symbol));
+            let symbol = obj.and_then(|(obj, _)| find_symbol(obj, selected_symbol));
 
             if let (Some(object), Some(symbol_ref)) = (obj, symbol) {
                 extab_text_ui(ui, object, symbol_ref, appearance, state);

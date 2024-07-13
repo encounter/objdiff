@@ -17,7 +17,10 @@ use crate::{
         objdiff::{BuildStatus, ObjDiffResult},
         Job, JobQueue, JobResult,
     },
-    views::{appearance::Appearance, function_diff::FunctionViewState, extab_diff::ExtabViewState, write_text},
+    views::{
+		appearance::Appearance, extab_diff::ExtabViewState, function_diff::FunctionViewState,
+		write_text,
+	},
 };
 
 pub struct SymbolRefByName {
@@ -134,7 +137,7 @@ pub fn match_color_for_symbol(match_percent: f32, appearance: &Appearance) -> Co
     }
 }
 
-fn symbol_context_menu_ui(ui: &mut Ui, state : &mut SymbolViewState, symbol: &ObjSymbol) {
+fn symbol_context_menu_ui(ui: &mut Ui, state: &mut SymbolViewState, symbol: &ObjSymbol) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap = Some(false);
