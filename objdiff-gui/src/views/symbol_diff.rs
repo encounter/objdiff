@@ -18,9 +18,9 @@ use crate::{
         Job, JobQueue, JobResult,
     },
     views::{
-		appearance::Appearance, extab_diff::ExtabViewState, function_diff::FunctionViewState,
-		write_text,
-	},
+        appearance::Appearance, extab_diff::ExtabViewState, function_diff::FunctionViewState,
+        write_text,
+    },
 };
 
 pub struct SymbolRefByName {
@@ -158,16 +158,14 @@ fn symbol_context_menu_ui(ui: &mut Ui, state: &mut SymbolViewState, symbol: &Obj
                 ui.close_menu();
             }
         }
-        if symbol.has_extab {
-            if ui.button("Decode exception table").clicked() {
-                state.queue_extab_decode = true;
-                state.selected_symbol = Some(SymbolRefByName {
-                    symbol_name: symbol.name.clone(),
-                    demangled_symbol_name: symbol.demangled_name.clone(),
-                    section_name: String::from(".text"), //TODO: this shouldn't be hardcoded
-                });
-                ui.close_menu();
-            }
+        if symbol.has_extab && ui.button("Decode exception table").clicked() {
+            state.queue_extab_decode = true;
+            state.selected_symbol = Some(SymbolRefByName {
+                symbol_name: symbol.name.clone(),
+                demangled_symbol_name: symbol.demangled_name.clone(),
+                section_name: String::from(".text"), //TODO: this shouldn't be hardcoded
+            });
+            ui.close_menu();
         }
     });
 }

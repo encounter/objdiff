@@ -68,7 +68,7 @@ fn extab_text_ui(
     obj: &(ObjInfo, ObjDiff),
     symbol_ref: SymbolRef,
     appearance: &Appearance,
-    _state : &mut ExtabViewState,
+    _state: &mut ExtabViewState,
 ) -> Option<()> {
     let (_section, symbol) = obj.0.section_symbol(symbol_ref);
 
