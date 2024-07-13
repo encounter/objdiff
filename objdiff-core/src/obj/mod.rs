@@ -130,6 +130,8 @@ pub struct ObjExtab {
     pub func: ObjSymbol,
     pub data: ExceptionTableData,
     pub dtors: Vec<ObjSymbol>,
+    pub extab_symbol_name: String,
+    pub extabindex_symbol_name: String,
 }
 
 pub struct ObjInfo {

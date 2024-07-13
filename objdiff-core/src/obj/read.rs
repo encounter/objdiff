@@ -203,6 +203,7 @@ fn exception_tables(
     //Go through each pair
     for i in 0..table_count {
         let extab = &extab_section.symbols[i];
+        let extabindex = &extabindex_section.symbols[i];
         let extab_start_addr = extab.address;
         let extab_end_addr = extab_start_addr + extab.size;
 
@@ -242,9 +243,11 @@ fn exception_tables(
         let end_index = extab_end_addr as usize;
         let extab_data = extab_section.data[start_index..end_index].try_into().unwrap();
         let data = decode_extab(extab_data)?;
+        let extab_symbol_name = extab.name.clone();
+        let extabindex_symbol_name = extabindex.name.clone();
 
         //Add the new entry to the list
-        let entry = ObjExtab { func: extab_func, data, dtors };
+        let entry = ObjExtab { func: extab_func, data, dtors, extab_symbol_name, extabindex_symbol_name };
         result.push(entry);
     }
 
