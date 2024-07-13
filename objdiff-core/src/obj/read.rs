@@ -247,7 +247,8 @@ fn exception_tables(
         let extabindex_symbol_name = extabindex.name.clone();
 
         //Add the new entry to the list
-        let entry = ObjExtab { func: extab_func, data, dtors, extab_symbol_name, extabindex_symbol_name };
+        let entry =
+            ObjExtab { func: extab_func, data, dtors, extab_symbol_name, extabindex_symbol_name };
         result.push(entry);
     }
 
