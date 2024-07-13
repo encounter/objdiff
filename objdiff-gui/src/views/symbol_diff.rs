@@ -7,7 +7,7 @@ use egui::{
 use egui_extras::{Size, StripBuilder};
 use objdiff_core::{
     diff::{ObjDiff, ObjSymbolDiff},
-    obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags, SymbolRef, ObjExtab},
+    obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags, SymbolRef},
 };
 
 use crate::{
@@ -17,7 +17,7 @@ use crate::{
         objdiff::{BuildStatus, ObjDiffResult},
         Job, JobQueue, JobResult,
     },
-    views::{appearance::Appearance, function_diff::FunctionViewState, write_text},
+    views::{appearance::Appearance, function_diff::FunctionViewState, extab_diff::ExtabViewState, write_text},
 };
 
 pub struct SymbolRefByName {
@@ -33,6 +33,7 @@ pub enum View {
     SymbolDiff,
     FunctionDiff,
     DataDiff,
+    ExtabDiff,
 }
 
 #[derive(Default)]
@@ -42,6 +43,7 @@ pub struct DiffViewState {
     pub current_view: View,
     pub symbol_state: SymbolViewState,
     pub function_state: FunctionViewState,
+    pub extab_state: ExtabViewState,
     pub search: String,
     pub queue_build: bool,
     pub build_running: bool,
@@ -57,8 +59,7 @@ pub struct SymbolViewState {
     pub reverse_fn_order: bool,
     pub disable_reverse_fn_order: bool,
     pub show_hidden_symbols: bool,
-	pub queue_extab_decode: bool,
-	pub decode_extab: Option<ObjExtab>,
+    pub queue_extab_decode: bool,
 }
 
 impl DiffViewState {
@@ -133,7 +134,7 @@ pub fn match_color_for_symbol(match_percent: f32, appearance: &Appearance) -> Co
     }
 }
 
-fn symbol_context_menu_ui(ui: &mut Ui, state : &mut SymbolViewState, extab : &Option<Vec<ObjExtab>>, symbol: &ObjSymbol) {
+fn symbol_context_menu_ui(ui: &mut Ui, state : &mut SymbolViewState, symbol: &ObjSymbol) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap = Some(false);
@@ -154,19 +155,17 @@ fn symbol_context_menu_ui(ui: &mut Ui, state : &mut SymbolViewState, extab : &Op
                 ui.close_menu();
             }
         }
-		if let Some(extab_array) = extab {
-			if symbol.has_extab {
-				if ui.button("Decode exception table").clicked() {
-					state.queue_extab_decode = true;
-					for extab_entry in extab_array {
-						if extab_entry.func.name == symbol.name {
-							state.decode_extab = Some(extab_entry.clone());
-						}
-					}
-					ui.close_menu();
-				}
-			}
-		}
+        if symbol.has_extab {
+            if ui.button("Decode exception table").clicked() {
+                state.queue_extab_decode = true;
+                state.selected_symbol = Some(SymbolRefByName {
+                    symbol_name: symbol.name.clone(),
+                    demangled_symbol_name: symbol.demangled_name.clone(),
+                    section_name: String::from(".text"), //TODO: this shouldn't be hardcoded
+                });
+                ui.close_menu();
+            }
+        }
     });
 }
 
@@ -197,7 +196,6 @@ fn symbol_ui(
     symbol: &ObjSymbol,
     symbol_diff: &ObjSymbolDiff,
     section: Option<&ObjSection>,
-	extab: &Option<Vec<ObjExtab>>,
     state: &mut SymbolViewState,
     appearance: &Appearance,
     left: bool,
@@ -244,7 +242,7 @@ fn symbol_ui(
     let response = SelectableLabel::new(selected, job)
         .ui(ui)
         .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, symbol, appearance));
-    response.context_menu(|ui| symbol_context_menu_ui(ui, state, extab, symbol));
+    response.context_menu(|ui| symbol_context_menu_ui(ui, state, symbol));
     if response.clicked() {
         if let Some(section) = section {
             if section.kind == ObjSectionKind::Code {
@@ -274,6 +272,13 @@ fn symbol_ui(
             (None, None)
         };
     }
+
+    //If the decode extab context menu option was clicked, switch to the extab view
+    if state.queue_extab_decode {
+        ret = Some(View::ExtabDiff);
+        state.queue_extab_decode = false;
+    }
+
     ret
 }
 
@@ -310,7 +315,6 @@ fn symbol_list_ui(
                             symbol,
                             symbol_diff,
                             None,
-							&None,
                             state,
                             appearance,
                             left,
@@ -361,7 +365,6 @@ fn symbol_list_ui(
                                     symbol,
                                     symbol_diff,
                                     Some(section),
-									&obj.0.extab,
                                     state,
                                     appearance,
                                     left,
@@ -379,7 +382,6 @@ fn symbol_list_ui(
                                     symbol,
                                     symbol_diff,
                                     Some(section),
-									&obj.0.extab,
                                     state,
                                     appearance,
                                     left,

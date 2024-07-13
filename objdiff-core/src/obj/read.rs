@@ -15,7 +15,7 @@ use crate::{
     obj::{
         split_meta::{SplitMeta, SPLITMETA_SECTION},
         ObjInfo, ObjReloc, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlagSet, ObjSymbolFlags,
-		ObjExtab,
+        ObjExtab,
     },
 };
 
@@ -72,7 +72,7 @@ fn to_obj_symbol(
     Ok(ObjSymbol {
         name: name.to_string(),
         demangled_name,
-		has_extab: false,
+        has_extab: false,
         address,
         section_address,
         size: symbol.size(),
@@ -173,87 +173,87 @@ fn common_symbols(
 }
 
 fn section_by_name<'a>(sections: &'a mut [ObjSection], name : &str) -> Option<&'a mut ObjSection> {
-	for section in sections {
-		if section.name == name {
-			return Some(section);
-		}
-	}
-	None
+    for section in sections {
+        if section.name == name {
+            return Some(section);
+        }
+    }
+    None
 }
 
 fn exception_tables(
-	_arch: &dyn ObjArch,
+    _arch: &dyn ObjArch,
     sections: &mut [ObjSection],
     obj_file: &File<'_>,
     _split_meta: Option<&SplitMeta>,
 ) -> Option<Vec<ObjExtab>> {
 
-	//PowerPC only
-	if obj_file.architecture() != Architecture::PowerPc {
-		return None;
-	}
+    //PowerPC only
+    if obj_file.architecture() != Architecture::PowerPc {
+        return None;
+    }
 
-	//Find the extab/extabindex sections
-	let extab_section = section_by_name(sections, "extab")?.clone();
-	let extabindex_section = section_by_name(sections, "extabindex")?.clone();
-	let text_section = section_by_name(sections, ".text")?;
+    //Find the extab/extabindex sections
+    let extab_section = section_by_name(sections, "extab")?.clone();
+    let extabindex_section = section_by_name(sections, "extabindex")?.clone();
+    let text_section = section_by_name(sections, ".text")?;
 
-	//Convert the extab/extabindex section data
-	let mut result: Vec<ObjExtab> = vec![];
-	let extab_symbol_count = extab_section.symbols.len();
-	let extab_reloc_count = extab_section.relocations.len();
-	let table_count = extab_symbol_count;
-	let mut extab_reloc_index : usize = 0;
+    //Convert the extab/extabindex section data
+    let mut result: Vec<ObjExtab> = vec![];
+    let extab_symbol_count = extab_section.symbols.len();
+    let extab_reloc_count = extab_section.relocations.len();
+    let table_count = extab_symbol_count;
+    let mut extab_reloc_index : usize = 0;
 
-	//Go through each pair
-	for i in 0..table_count {
-		let extab = &extab_section.symbols[i];
-		let extab_start_addr = extab.address;
-		let extab_end_addr = extab_start_addr + extab.size;
+    //Go through each pair
+    for i in 0..table_count {
+        let extab = &extab_section.symbols[i];
+        let extab_start_addr = extab.address;
+        let extab_end_addr = extab_start_addr + extab.size;
 
-		/* Get the function symbol from the extabindex relocations array. Each extabindex
-		entry has two relocations (the first for the function, the second for the extab entry),
-		so get the first of each. */
-		let extab_func = extabindex_section.relocations[i*2].target.clone();
+        /* Get the function symbol from the extabindex relocations array. Each extabindex
+        entry has two relocations (the first for the function, the second for the extab entry),
+        so get the first of each. */
+        let extab_func = extabindex_section.relocations[i*2].target.clone();
 
-		//Find the function in the text section, and set the has extab flag
-		for i in 0..text_section.symbols.len() {
-			let func = &mut text_section.symbols[i];
-			if func.name == extab_func.name {
-				func.has_extab = true;
-			}
-		}
+        //Find the function in the text section, and set the has extab flag
+        for i in 0..text_section.symbols.len() {
+            let func = &mut text_section.symbols[i];
+            if func.name == extab_func.name {
+                func.has_extab = true;
+            }
+        }
 
-		/* Iterate through the list of extab relocations, continuing until we hit a relocation
-		that isn't within the current extab symbol. Get the target dtor function symbol from
-		each relocation used, and add them to the list. */
-		let mut dtors : Vec<ObjSymbol> = vec![];
-		
-		while extab_reloc_index < extab_reloc_count {
-			let extab_reloc = &extab_section.relocations[extab_reloc_index];
-			//If the current entry is past the current extab table, stop here
-			if extab_reloc.address >= extab_end_addr {
-				break;
-			}
-			
-			//Otherwise, the current relocation is used by the current table
-			dtors.push(extab_reloc.target.clone());
-			//Go to the next entry
-			extab_reloc_index += 1;
-		}
+        /* Iterate through the list of extab relocations, continuing until we hit a relocation
+        that isn't within the current extab symbol. Get the target dtor function symbol from
+        each relocation used, and add them to the list. */
+        let mut dtors : Vec<ObjSymbol> = vec![];
+        
+        while extab_reloc_index < extab_reloc_count {
+            let extab_reloc = &extab_section.relocations[extab_reloc_index];
+            //If the current entry is past the current extab table, stop here
+            if extab_reloc.address >= extab_end_addr {
+                break;
+            }
+            
+            //Otherwise, the current relocation is used by the current table
+            dtors.push(extab_reloc.target.clone());
+            //Go to the next entry
+            extab_reloc_index += 1;
+        }
 
-		//Decode the extab data
-		let start_index = extab_start_addr as usize;
-		let end_index = extab_end_addr as usize;
-		let extab_data = extab_section.data[start_index..end_index].try_into().unwrap();
-		let data = decode_extab(extab_data)?;
+        //Decode the extab data
+        let start_index = extab_start_addr as usize;
+        let end_index = extab_end_addr as usize;
+        let extab_data = extab_section.data[start_index..end_index].try_into().unwrap();
+        let data = decode_extab(extab_data)?;
 
-		//Add the new entry to the list
-		let entry = ObjExtab {func: extab_func, data, dtors};
-		result.push(entry);
-	}
+        //Add the new entry to the list
+        let entry = ObjExtab {func: extab_func, data, dtors};
+        result.push(entry);
+    }
 
-	Some(result)
+    Some(result)
 }
 
 fn find_section_symbol(
@@ -291,7 +291,7 @@ fn find_section_symbol(
     Ok(ObjSymbol {
         name: name.to_string(),
         demangled_name: None,
-		has_extab: false,
+        has_extab: false,
         address: offset,
         section_address: address - section.address(),
         size: 0,
@@ -454,7 +454,7 @@ fn update_combined_symbol(symbol: ObjSymbol, address_change: i64) -> Result<ObjS
     Ok(ObjSymbol {
         name: symbol.name,
         demangled_name: symbol.demangled_name,
-		has_extab: symbol.has_extab,
+        has_extab: symbol.has_extab,
         address: (symbol.address as i64 + address_change).try_into()?,
         section_address: (symbol.section_address as i64 + address_change).try_into()?,
         size: symbol.size,
@@ -570,7 +570,7 @@ pub fn read(obj_path: &Path, config: &DiffObjConfig) -> Result<ObjInfo> {
     }
     line_info(&obj_file, &mut sections)?;
     let common = common_symbols(arch.as_ref(), &obj_file, split_meta.as_ref())?;
-	let extab = exception_tables(arch.as_ref(), &mut sections, &obj_file, split_meta.as_ref());
+    let extab = exception_tables(arch.as_ref(), &mut sections, &obj_file, split_meta.as_ref());
     Ok(ObjInfo { arch, path: obj_path.to_owned(), timestamp, sections, common, extab, split_meta })
 }
 
