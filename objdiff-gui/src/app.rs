@@ -35,7 +35,7 @@ use crate::{
         data_diff::data_diff_ui,
         debug::debug_window,
         demangle::{demangle_window, DemangleViewState},
-		extab::{extab_window, ExtabViewState},
+        extab_diff::{extab_diff_ui, ExtabViewState},
         frame_history::FrameHistory,
         function_diff::function_diff_ui,
         graphics::{graphics_window, GraphicsConfig, GraphicsViewState},
@@ -49,13 +49,12 @@ pub struct ViewState {
     pub jobs: JobQueue,
     pub config_state: ConfigViewState,
     pub demangle_state: DemangleViewState,
-	pub extab_state: ExtabViewState,
+    pub _extab_state: ExtabViewState,
     pub diff_state: DiffViewState,
     pub graphics_state: GraphicsViewState,
     pub frame_history: FrameHistory,
     pub show_appearance_config: bool,
     pub show_demangle: bool,
-	pub show_extab: bool,
     pub show_project_config: bool,
     pub show_arch_config: bool,
     pub show_debug: bool,
@@ -453,13 +452,12 @@ impl eframe::App for App {
             jobs,
             config_state,
             demangle_state,
-			extab_state,
+            _extab_state,
             diff_state,
             graphics_state,
             frame_history,
             show_appearance_config,
             show_demangle,
-			show_extab,
             show_project_config,
             show_arch_config,
             show_debug,
@@ -516,10 +514,6 @@ impl eframe::App for App {
                 ui.menu_button("Tools", |ui| {
                     if ui.button("Demangle…").clicked() {
                         *show_demangle = !*show_demangle;
-                        ui.close_menu();
-                    }
-					if ui.button("Extab Decoder…").clicked() {
-                        *show_extab = !*show_extab;
                         ui.close_menu();
                     }
                 });
@@ -591,6 +585,10 @@ impl eframe::App for App {
             egui::CentralPanel::default().show(ctx, |ui| {
                 data_diff_ui(ui, diff_state, appearance);
             });
+        } else if diff_state.current_view == View::ExtabDiff && build_success {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                extab_diff_ui(ui, diff_state, appearance);
+            });
         } else {
             egui::SidePanel::left("side_panel").show(ctx, |ui| {
                 egui::ScrollArea::both().show(ui, |ui| {
@@ -601,20 +599,12 @@ impl eframe::App for App {
 
             egui::CentralPanel::default().show(ctx, |ui| {
                 symbol_diff_ui(ui, diff_state, appearance);
-				//If an extab decode was queued, update the extab view state accordingly
-				if diff_state.symbol_state.queue_extab_decode {
-					extab_state.extab_data = diff_state.symbol_state.decode_extab.clone();
-					extab_state.queue_decode = true;
-					*show_extab = !*show_extab;
-					diff_state.symbol_state.queue_extab_decode = false;
-				}
             });
         }
 
         project_window(ctx, config, show_project_config, config_state, appearance);
         appearance_window(ctx, show_appearance_config, appearance);
         demangle_window(ctx, show_demangle, demangle_state, appearance);
-		extab_window(ctx, show_extab, extab_state, appearance);
         arch_config_window(ctx, config, show_arch_config, appearance);
         debug_window(ctx, show_debug, frame_history, appearance);
         graphics_window(ctx, show_graphics, frame_history, graphics_state, appearance);

@@ -114,7 +114,7 @@ pub struct ObjIns {
 pub struct ObjSymbol {
     pub name: String,
     pub demangled_name: Option<String>,
-	pub has_extab: bool,
+    pub has_extab: bool,
     pub address: u64,
     pub section_address: u64,
     pub size: u64,
@@ -127,9 +127,9 @@ pub struct ObjSymbol {
 
 #[derive(Debug, Clone)]
 pub struct ObjExtab {
-	pub func : ObjSymbol,
-	pub data : ExceptionTableData,
-	pub dtors : Vec<ObjSymbol>,
+    pub func : ObjSymbol,
+    pub data : ExceptionTableData,
+    pub dtors : Vec<ObjSymbol>,
 }
 
 pub struct ObjInfo {
@@ -139,8 +139,8 @@ pub struct ObjInfo {
     pub sections: Vec<ObjSection>,
     /// Common BSS symbols
     pub common: Vec<ObjSymbol>,
-	/// Exception tables
-	pub extab: Option<Vec<ObjExtab>>,
+    /// Exception tables
+    pub extab: Option<Vec<ObjExtab>>,
     /// Split object metadata (.note.split section)
     pub split_meta: Option<SplitMeta>,
 }
