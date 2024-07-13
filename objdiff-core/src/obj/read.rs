@@ -223,7 +223,7 @@ fn exception_tables(
         that isn't within the current extab symbol. Get the target dtor function symbol from
         each relocation used, and add them to the list. */
         let mut dtors: Vec<ObjSymbol> = vec![];
-        
+
         while extab_reloc_index < extab_reloc_count {
             let extab_reloc = &extab_section.relocations[extab_reloc_index];
             //If the current entry is past the current extab table, stop here
