@@ -13,12 +13,12 @@ use object::{
 use unarm::{
     args::{Argument, OffsetImm, OffsetReg, Register},
     parse::{ArmVersion, ParseMode, Parser},
-    ParsedIns,
+    DisplayOptions, ParseFlags, ParsedIns, RegNames,
 };
 
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
-    diff::{ArmArchVersion, DiffObjConfig},
+    diff::{ArmArchVersion, ArmR9Usage, DiffObjConfig},
     obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
 };
 
@@ -149,7 +149,24 @@ impl ObjArch for ObjArchArm {
             object::Endianness::Little => unarm::Endian::Little,
             object::Endianness::Big => unarm::Endian::Big,
         };
-        let mut parser = Parser::new(version, first_mapping, start_addr, endian, code);
+
+        let parse_flags = ParseFlags { ual: config.arm_unified_syntax };
+
+        let mut parser = Parser::new(version, first_mapping, start_addr, endian, parse_flags, code);
+
+        let display_options = DisplayOptions {
+            reg_names: RegNames {
+                av_registers: config.arm_av_registers,
+                r9_use: match config.arm_r9_usage {
+                    ArmR9Usage::GeneralPurpose => unarm::R9Use::GeneralPurpose,
+                    ArmR9Usage::Sb => unarm::R9Use::Pid,
+                    ArmR9Usage::Tr => unarm::R9Use::Tls,
+                },
+                explicit_stack_limit: config.arm_sl_usage,
+                frame_pointer: config.arm_fp_usage,
+                ip: config.arm_ip_usage,
+            },
+        };
 
         while let Some((address, op, ins)) = parser.next() {
             if let Some(next) = next_mapping {
@@ -187,7 +204,7 @@ impl ObjArch for ObjArchArm {
             let (args, branch_dest) = if reloc.is_some() && parser.mode == ParseMode::Data {
                 (vec![ObjInsArg::Reloc], None)
             } else {
-                push_args(&ins, config, reloc_arg, address)?
+                push_args(&ins, config, reloc_arg, address, display_options)?
             };
 
             ops.push(op.id());
@@ -200,7 +217,7 @@ impl ObjArch for ObjArchArm {
                 reloc,
                 branch_dest,
                 line,
-                formatted: ins.to_string(),
+                formatted: ins.display(display_options).to_string(),
                 orig: None,
             });
         }
@@ -281,6 +298,7 @@ fn push_args(
     config: &DiffObjConfig,
     reloc_arg: Option<usize>,
     cur_addr: u32,
+    display_options: DisplayOptions,
 ) -> Result<(Vec<ObjInsArg>, Option<u64>)> {
     let mut args = vec![];
     let mut branch_dest = None;
@@ -318,7 +336,9 @@ fn push_args(
                         deref = true;
                         args.push(ObjInsArg::PlainText("[".into()));
                     }
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(reg.reg.to_string().into())));
+                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
+                        reg.reg.display(display_options.reg_names).to_string().into(),
+                    )));
                     if reg.writeback {
                         if reg.deref {
                             writeback = true;
@@ -336,7 +356,10 @@ fn push_args(
                                 args.push(ObjInsArg::PlainText(config.separator().into()));
                             }
                             args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                                Register::parse(i).to_string().into(),
+                                Register::parse(i)
+                                    .display(display_options.reg_names)
+                                    .to_string()
+                                    .into(),
                             )));
                             first = false;
                         }
@@ -376,14 +399,16 @@ fn push_args(
                 Argument::ShiftReg(shift) => {
                     args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(shift.op.to_string().into())));
                     args.push(ObjInsArg::PlainText(" ".into()));
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(shift.reg.to_string().into())));
+                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
+                        shift.reg.display(display_options.reg_names).to_string().into(),
+                    )));
                 }
                 Argument::OffsetReg(offset) => {
                     if !offset.add {
                         args.push(ObjInsArg::PlainText("-".into()));
                     }
                     args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                        offset.reg.to_string().into(),
+                        offset.reg.display(display_options.reg_names).to_string().into(),
                     )));
                 }
                 Argument::CpsrMode(mode) => {
@@ -398,9 +423,9 @@ fn push_args(
                 | Argument::StatusMask(_)
                 | Argument::Shift(_)
                 | Argument::CpsrFlags(_)
-                | Argument::Endian(_) => {
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(arg.to_string().into())))
-                }
+                | Argument::Endian(_) => args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
+                    arg.display(display_options).to_string().into(),
+                ))),
             }
         }
     }
