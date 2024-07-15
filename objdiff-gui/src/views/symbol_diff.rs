@@ -507,44 +507,40 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
         strip.strip(|builder| {
             builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
                 strip.cell(|ui| {
-                    ui.push_id("left", |ui| {
-                        if result.first_status.success {
-                            if let Some(obj) = &result.first_obj {
-                                ret = ret.or(symbol_list_ui(
-                                    ui,
-                                    obj,
-                                    symbol_state,
-                                    &lower_search,
-                                    appearance,
-                                    true,
-                                ));
-                            } else {
-                                missing_obj_ui(ui, appearance);
-                            }
+                    if result.first_status.success {
+                        if let Some(obj) = &result.first_obj {
+                            ret = ret.or(symbol_list_ui(
+                                ui,
+                                obj,
+                                symbol_state,
+                                &lower_search,
+                                appearance,
+                                true,
+                            ));
                         } else {
-                            build_log_ui(ui, &result.first_status, appearance);
+                            missing_obj_ui(ui, appearance);
                         }
-                    });
+                    } else {
+                        build_log_ui(ui, &result.first_status, appearance);
+                    }
                 });
                 strip.cell(|ui| {
-                    ui.push_id("right", |ui| {
-                        if result.second_status.success {
-                            if let Some(obj) = &result.second_obj {
-                                ret = ret.or(symbol_list_ui(
-                                    ui,
-                                    obj,
-                                    symbol_state,
-                                    &lower_search,
-                                    appearance,
-                                    false,
-                                ));
-                            } else {
-                                missing_obj_ui(ui, appearance);
-                            }
+                    if result.second_status.success {
+                        if let Some(obj) = &result.second_obj {
+                            ret = ret.or(symbol_list_ui(
+                                ui,
+                                obj,
+                                symbol_state,
+                                &lower_search,
+                                appearance,
+                                false,
+                            ));
                         } else {
-                            build_log_ui(ui, &result.second_status, appearance);
+                            missing_obj_ui(ui, appearance);
                         }
-                    });
+                    } else {
+                        build_log_ui(ui, &result.second_status, appearance);
+                    }
                 });
             });
         });
