@@ -1,5 +1,3 @@
-//I hate rust i wish i could burn it with fire btw - Amber
-
 use std::default::Default;
 
 use egui::{text::LayoutJob, Align, Layout, ScrollArea, Ui, Vec2};
@@ -219,28 +217,24 @@ pub fn extab_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &
         strip.strip(|builder| {
             builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
                 strip.cell(|ui| {
-                    ui.push_id("left", |ui| {
-                        extab_ui(
-                            ui,
-                            result.first_obj.as_ref(),
-                            selected_symbol,
-                            appearance,
-                            true,
-                            &mut state.extab_state,
-                        );
-                    });
+                    extab_ui(
+                        ui,
+                        result.first_obj.as_ref(),
+                        selected_symbol,
+                        appearance,
+                        true,
+                        &mut state.extab_state,
+                    );
                 });
                 strip.cell(|ui| {
-                    ui.push_id("right", |ui| {
-                        extab_ui(
-                            ui,
-                            result.second_obj.as_ref(),
-                            selected_symbol,
-                            appearance,
-                            false,
-                            &mut state.extab_state,
-                        );
-                    });
+                    extab_ui(
+                        ui,
+                        result.second_obj.as_ref(),
+                        selected_symbol,
+                        appearance,
+                        false,
+                        &mut state.extab_state,
+                    );
                 });
             });
         });
