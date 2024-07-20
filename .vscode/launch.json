@@ -1,0 +1,101 @@
+{
+	// Use IntelliSense to learn about possible attributes.
+	// Hover to view descriptions of existing attributes.
+	// For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug executable 'objdiff-cli'",
+			"cargo": {
+				"args": [
+					"build",
+					"--bin=objdiff-cli",
+					"--package=objdiff-cli"
+				],
+				"filter": {
+					"name": "objdiff-cli",
+					"kind": "bin"
+				}
+			},
+			"args": [],
+			"cwd": "${workspaceFolder}"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug unit tests in executable 'objdiff-cli'",
+			"cargo": {
+				"args": [
+					"test",
+					"--no-run",
+					"--bin=objdiff-cli",
+					"--package=objdiff-cli"
+				],
+				"filter": {
+					"name": "objdiff-cli",
+					"kind": "bin"
+				}
+			},
+			"args": [],
+			"cwd": "${workspaceFolder}"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug unit tests in library 'objdiff_core'",
+			"cargo": {
+				"args": [
+					"test",
+					"--no-run",
+					"--lib",
+					"--package=objdiff-core"
+				],
+				"filter": {
+					"name": "objdiff_core",
+					"kind": "lib"
+				}
+			},
+			"args": [],
+			"cwd": "${workspaceFolder}"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug executable 'objdiff'",
+			"cargo": {
+				"args": [
+					"build",
+					"--bin=objdiff",
+					"--package=objdiff-gui"
+				],
+				"filter": {
+					"name": "objdiff",
+					"kind": "bin"
+				}
+			},
+			"args": [],
+			"cwd": "${workspaceFolder}"
+		},
+		{
+			"type": "lldb",
+			"request": "launch",
+			"name": "Debug unit tests in executable 'objdiff'",
+			"cargo": {
+				"args": [
+					"test",
+					"--no-run",
+					"--bin=objdiff",
+					"--package=objdiff-gui"
+				],
+				"filter": {
+					"name": "objdiff",
+					"kind": "bin"
+				}
+			},
+			"args": [],
+			"cwd": "${workspaceFolder}"
+		}
+	]
+}
