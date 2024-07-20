@@ -194,11 +194,11 @@ fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol, appearance: &Appearance) {
             {
                 ui.colored_label(
                     appearance.highlight_color,
-                    format!("Extab symbol: {}", extab_name)
+                    format!("Extab symbol: {}", extab_name),
                 );
                 ui.colored_label(
                     appearance.highlight_color,
-                    format!("Extabindex symbol: {}", extabindex_name)
+                    format!("Extabindex symbol: {}", extabindex_name),
                 );
             }
         }
