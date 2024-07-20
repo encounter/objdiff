@@ -115,6 +115,8 @@ pub struct ObjSymbol {
     pub name: String,
     pub demangled_name: Option<String>,
     pub has_extab: bool,
+    pub extab_name: Option<String>,
+    pub extabindex_name: Option<String>,
     pub address: u64,
     pub section_address: u64,
     pub size: u64,
@@ -129,9 +131,7 @@ pub struct ObjSymbol {
 pub struct ObjExtab {
     pub func: ObjSymbol,
     pub data: ExceptionTableData,
-    pub dtors: Vec<ObjSymbol>,
-    pub extab_symbol_name: String,
-    pub extabindex_symbol_name: String,
+    pub dtors: Vec<ObjSymbol>
 }
 
 pub struct ObjInfo {

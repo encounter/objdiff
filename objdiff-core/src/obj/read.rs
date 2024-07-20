@@ -74,6 +74,8 @@ fn to_obj_symbol(
         name: name.to_string(),
         demangled_name,
         has_extab: false,
+        extab_name: None,
+        extabindex_name: None,
         address,
         section_address,
         size: symbol.size(),
@@ -217,6 +219,8 @@ fn exception_tables(
             let func = &mut text_section.symbols[i];
             if func.name == extab_func.name {
                 func.has_extab = true;
+                func.extab_name = Some(extab.name.clone());
+                func.extabindex_name = Some(extabindex.name.clone());
             }
         }
 
@@ -243,12 +247,10 @@ fn exception_tables(
         let end_index = extab_end_addr as usize;
         let extab_data = extab_section.data[start_index..end_index].try_into().unwrap();
         let data = decode_extab(extab_data)?;
-        let extab_symbol_name = extab.name.clone();
-        let extabindex_symbol_name = extabindex.name.clone();
 
         //Add the new entry to the list
         let entry =
-            ObjExtab { func: extab_func, data, dtors, extab_symbol_name, extabindex_symbol_name };
+            ObjExtab { func: extab_func, data, dtors};
         result.push(entry);
     }
 
@@ -291,6 +293,8 @@ fn find_section_symbol(
         name: name.to_string(),
         demangled_name: None,
         has_extab: false,
+        extab_name: None,
+        extabindex_name: None,
         address: offset,
         section_address: address - section.address(),
         size: 0,
@@ -454,6 +458,8 @@ fn update_combined_symbol(symbol: ObjSymbol, address_change: i64) -> Result<ObjS
         name: symbol.name,
         demangled_name: symbol.demangled_name,
         has_extab: symbol.has_extab,
+        extab_name: symbol.extab_name,
+        extabindex_name: symbol.extabindex_name,
         address: (symbol.address as i64 + address_change).try_into()?,
         section_address: (symbol.section_address as i64 + address_change).try_into()?,
         size: symbol.size,
