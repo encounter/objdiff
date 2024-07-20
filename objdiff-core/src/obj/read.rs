@@ -249,8 +249,7 @@ fn exception_tables(
         let data = decode_extab(extab_data)?;
 
         //Add the new entry to the list
-        let entry =
-            ObjExtab { func: extab_func, data, dtors};
+        let entry = ObjExtab { func: extab_func, data, dtors };
         result.push(entry);
     }
 

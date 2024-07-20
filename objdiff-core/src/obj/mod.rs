@@ -131,7 +131,7 @@ pub struct ObjSymbol {
 pub struct ObjExtab {
     pub func: ObjSymbol,
     pub data: ExceptionTableData,
-    pub dtors: Vec<ObjSymbol>
+    pub dtors: Vec<ObjSymbol>,
 }
 
 pub struct ObjInfo {

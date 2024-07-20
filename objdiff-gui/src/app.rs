@@ -35,12 +35,12 @@ use crate::{
         data_diff::data_diff_ui,
         debug::debug_window,
         demangle::{demangle_window, DemangleViewState},
-        rlwinm::{rlwinm_decode_window, RlwinmDecodeViewState},
         extab_diff::{extab_diff_ui, ExtabViewState},
         frame_history::FrameHistory,
         function_diff::function_diff_ui,
         graphics::{graphics_window, GraphicsConfig, GraphicsViewState},
         jobs::jobs_ui,
+        rlwinm::{rlwinm_decode_window, RlwinmDecodeViewState},
         symbol_diff::{symbol_diff_ui, DiffViewState, View},
     },
 };
