@@ -204,15 +204,15 @@ fn exception_tables(
 
     //Go through each pair
     for i in 0..table_count {
-        let extab = &extab_section.symbols[i];
         let extabindex = &extabindex_section.symbols[i];
+
+        /* Get the function symbol and extab symbol from the extabindex relocations array. Each extabindex
+        entry has two relocations (the first for the function, the second for the extab entry) */
+        let extab_func = extabindex_section.relocations[i * 2].target.clone();
+        let extab = &extabindex_section.relocations[(i * 2) + 1].target;
+
         let extab_start_addr = extab.address;
         let extab_end_addr = extab_start_addr + extab.size;
-
-        /* Get the function symbol from the extabindex relocations array. Each extabindex
-        entry has two relocations (the first for the function, the second for the extab entry),
-        so get the first of each. */
-        let extab_func = extabindex_section.relocations[i * 2].target.clone();
 
         //Find the function in the text section, and set the has extab flag
         for i in 0..text_section.symbols.len() {
