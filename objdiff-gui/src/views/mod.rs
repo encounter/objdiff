@@ -10,6 +10,7 @@ pub(crate) mod frame_history;
 pub(crate) mod function_diff;
 pub(crate) mod graphics;
 pub(crate) mod jobs;
+pub(crate) mod rlwinm;
 pub(crate) mod symbol_diff;
 
 #[inline]
