@@ -207,22 +207,10 @@ pub fn extab_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &
         strip.strip(|builder| {
             builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
                 strip.cell(|ui| {
-                    extab_ui(
-                        ui,
-                        result.first_obj.as_ref(),
-                        selected_symbol,
-                        appearance,
-                        true,
-                    );
+                    extab_ui(ui, result.first_obj.as_ref(), selected_symbol, appearance, true);
                 });
                 strip.cell(|ui| {
-                    extab_ui(
-                        ui,
-                        result.second_obj.as_ref(),
-                        selected_symbol,
-                        appearance,
-                        false,
-                    );
+                    extab_ui(ui, result.second_obj.as_ref(), selected_symbol, appearance, false);
                 });
             });
         });

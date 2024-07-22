@@ -191,15 +191,19 @@ fn exception_tables(
     //Find the extab/extabindex sections
     let extab_section = match section_by_name(sections, "extab") {
         Some(section) => section.clone(),
-        None => { return Ok(None); },
+        None => {
+            return Ok(None);
+        },
     };
     let extabindex_section = match section_by_name(sections, "extabindex") {
         Some(section) => section.clone(),
-        None => { return Ok(None); },
+        None => {
+            return Ok(None);
+        },
     };
     let text_section = match section_by_name(sections, ".text") {
         Some(section) => section,
-        None => bail!(".text section is somehow missing, this should not happen")
+        None => bail!(".text section is somehow missing, this should not happen"),
     };
 
     let mut result: Vec<ObjExtab> = vec![];
