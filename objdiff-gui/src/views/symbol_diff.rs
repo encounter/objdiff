@@ -9,6 +9,7 @@ use objdiff_core::{
     diff::{ObjDiff, ObjSymbolDiff},
     obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags, SymbolRef},
 };
+use regex::{Regex, RegexBuilder};
 
 use crate::{
     app::AppConfigRef,
@@ -44,6 +45,7 @@ pub struct DiffViewState {
     pub symbol_state: SymbolViewState,
     pub function_state: FunctionViewState,
     pub search: String,
+    pub search_regex: Option<Regex>,
     pub queue_build: bool,
     pub build_running: bool,
     pub scratch_available: bool,
@@ -300,14 +302,13 @@ fn symbol_ui(
     ret
 }
 
-fn symbol_matches_search(symbol: &ObjSymbol, search_str: &str) -> bool {
-    search_str.is_empty()
-        || symbol.name.contains(search_str)
-        || symbol
-            .demangled_name
-            .as_ref()
-            .map(|s| s.to_ascii_lowercase().contains(search_str))
-            .unwrap_or(false)
+fn symbol_matches_search(symbol: &ObjSymbol, search_regex: Option<&Regex>) -> bool {
+    if let Some(search_regex) = search_regex {
+        search_regex.is_match(&symbol.name)
+            || symbol.demangled_name.as_ref().map(|s| search_regex.is_match(s)).unwrap_or(false)
+    } else {
+        true
+    }
 }
 
 #[must_use]
@@ -315,7 +316,7 @@ fn symbol_list_ui(
     ui: &mut Ui,
     obj: &(ObjInfo, ObjDiff),
     state: &mut SymbolViewState,
-    lower_search: &str,
+    search_regex: Option<&Regex>,
     appearance: &Appearance,
     left: bool,
 ) -> Option<View> {
@@ -328,6 +329,9 @@ fn symbol_list_ui(
             if !obj.0.common.is_empty() {
                 CollapsingHeader::new(".comm").default_open(true).show(ui, |ui| {
                     for (symbol, symbol_diff) in obj.0.common.iter().zip(&obj.1.common) {
+                        if !symbol_matches_search(symbol, search_regex) {
+                            continue;
+                        }
                         ret = ret.or(symbol_ui(
                             ui,
                             symbol,
@@ -375,7 +379,7 @@ fn symbol_list_ui(
                             for (symbol, symbol_diff) in
                                 section.symbols.iter().zip(&section_diff.symbols).rev()
                             {
-                                if !symbol_matches_search(symbol, lower_search) {
+                                if !symbol_matches_search(symbol, search_regex) {
                                     continue;
                                 }
                                 ret = ret.or(symbol_ui(
@@ -392,7 +396,7 @@ fn symbol_list_ui(
                             for (symbol, symbol_diff) in
                                 section.symbols.iter().zip(&section_diff.symbols)
                             {
-                                if !symbol_matches_search(symbol, lower_search) {
+                                if !symbol_matches_search(symbol, search_regex) {
                                     continue;
                                 }
                                 ret = ret.or(symbol_ui(
@@ -446,7 +450,7 @@ fn missing_obj_ui(ui: &mut Ui, appearance: &Appearance) {
 }
 
 pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appearance) {
-    let DiffViewState { build, current_view, symbol_state, search, .. } = state;
+    let DiffViewState { build, current_view, symbol_state, search, search_regex, .. } = state;
     let Some(result) = build else {
         return;
     };
@@ -481,7 +485,17 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                         }
                     });
 
-                    TextEdit::singleline(search).hint_text("Filter symbols").ui(ui);
+                    if TextEdit::singleline(search).hint_text("Filter symbols").ui(ui).changed() {
+                        if search.is_empty() {
+                            *search_regex = None;
+                        } else if let Ok(regex) =
+                            RegexBuilder::new(search).case_insensitive(true).build()
+                        {
+                            *search_regex = Some(regex);
+                        } else {
+                            *search_regex = None;
+                        }
+                    }
                 },
             );
 
@@ -519,7 +533,6 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
 
     // Table
     let mut ret = None;
-    let lower_search = search.to_ascii_lowercase();
     StripBuilder::new(ui).size(Size::remainder()).vertical(|mut strip| {
         strip.strip(|builder| {
             builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
@@ -531,7 +544,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                                     ui,
                                     obj,
                                     symbol_state,
-                                    &lower_search,
+                                    search_regex.as_ref(),
                                     appearance,
                                     true,
                                 ));
@@ -551,7 +564,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                                     ui,
                                     obj,
                                     symbol_state,
-                                    &lower_search,
+                                    search_regex.as_ref(),
                                     appearance,
                                     false,
                                 ));

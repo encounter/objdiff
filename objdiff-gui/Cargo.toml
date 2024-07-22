@@ -29,7 +29,6 @@ bytes = "1.6.0"
 cfg-if = "1.0.0"
 const_format = "0.2.32"
 cwdemangle = "1.0.0"
-rlwinmdec = "1.0.1"
 cwextab = "0.2.3"
 dirs = "5.0.1"
 egui = "0.27.2"
@@ -43,7 +42,9 @@ notify = { git = "https://github.com/encounter/notify", rev = "4c1783e8e041b5f69
 objdiff-core = { path = "../objdiff-core", features = ["all"] }
 png = "0.17.13"
 pollster = "0.3.0"
+regex = "1.10.5"
 rfd = { version = "0.14.1" } #, default-features = false, features = ['xdg-portal']
+rlwinmdec = "1.0.1"
 ron = "0.8.1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.116"
