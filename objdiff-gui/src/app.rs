@@ -35,6 +35,7 @@ use crate::{
         data_diff::data_diff_ui,
         debug::debug_window,
         demangle::{demangle_window, DemangleViewState},
+        extab_diff::extab_diff_ui,
         frame_history::FrameHistory,
         function_diff::function_diff_ui,
         graphics::{graphics_window, GraphicsConfig, GraphicsViewState},
@@ -590,6 +591,10 @@ impl eframe::App for App {
         } else if diff_state.current_view == View::DataDiff && build_success {
             egui::CentralPanel::default().show(ctx, |ui| {
                 data_diff_ui(ui, diff_state, appearance);
+            });
+        } else if diff_state.current_view == View::ExtabDiff && build_success {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                extab_diff_ui(ui, diff_state, appearance);
             });
         } else {
             egui::SidePanel::left("side_panel").show(ctx, |ui| {

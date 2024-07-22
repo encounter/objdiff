@@ -33,6 +33,7 @@ pub enum View {
     SymbolDiff,
     FunctionDiff,
     DataDiff,
+    ExtabDiff,
 }
 
 #[derive(Default)]
@@ -57,6 +58,7 @@ pub struct SymbolViewState {
     pub reverse_fn_order: bool,
     pub disable_reverse_fn_order: bool,
     pub show_hidden_symbols: bool,
+    pub queue_extab_decode: bool,
 }
 
 impl DiffViewState {
@@ -131,7 +133,12 @@ pub fn match_color_for_symbol(match_percent: f32, appearance: &Appearance) -> Co
     }
 }
 
-fn symbol_context_menu_ui(ui: &mut Ui, symbol: &ObjSymbol) {
+fn symbol_context_menu_ui(
+    ui: &mut Ui,
+    state: &mut SymbolViewState,
+    symbol: &ObjSymbol,
+    section: Option<&ObjSection>,
+) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap = Some(false);
@@ -149,6 +156,17 @@ fn symbol_context_menu_ui(ui: &mut Ui, symbol: &ObjSymbol) {
         if let Some(address) = symbol.virtual_address {
             if ui.button(format!("Copy \"{:#x}\" (virtual address)", address)).clicked() {
                 ui.output_mut(|output| output.copied_text = format!("{:#x}", address));
+                ui.close_menu();
+            }
+        }
+        if let Some(section) = section {
+            if symbol.has_extab && ui.button("Decode exception table").clicked() {
+                state.queue_extab_decode = true;
+                state.selected_symbol = Some(SymbolRefByName {
+                    symbol_name: symbol.name.clone(),
+                    demangled_symbol_name: symbol.demangled_name.clone(),
+                    section_name: section.name.clone(),
+                });
                 ui.close_menu();
             }
         }
@@ -172,6 +190,20 @@ fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol, appearance: &Appearance) {
         }
         if let Some(address) = symbol.virtual_address {
             ui.colored_label(appearance.replace_color, format!("Virtual address: {:#x}", address));
+        }
+        if symbol.has_extab {
+            if let (Some(extab_name), Some(extabindex_name)) =
+                (&symbol.extab_name, &symbol.extabindex_name)
+            {
+                ui.colored_label(
+                    appearance.highlight_color,
+                    format!("Extab Symbol: {}", extab_name),
+                );
+                ui.colored_label(
+                    appearance.highlight_color,
+                    format!("Extabindex Symbol: {}", extabindex_name),
+                );
+            }
         }
     });
 }
@@ -228,7 +260,7 @@ fn symbol_ui(
     let response = SelectableLabel::new(selected, job)
         .ui(ui)
         .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, symbol, appearance));
-    response.context_menu(|ui| symbol_context_menu_ui(ui, symbol));
+    response.context_menu(|ui| symbol_context_menu_ui(ui, state, symbol, section));
     if response.clicked() {
         if let Some(section) = section {
             if section.kind == ObjSectionKind::Code {
@@ -258,6 +290,13 @@ fn symbol_ui(
             (None, None)
         };
     }
+
+    //If the decode extab context menu option was clicked, switch to the extab view
+    if state.queue_extab_decode {
+        ret = Some(View::ExtabDiff);
+        state.queue_extab_decode = false;
+    }
+
     ret
 }
 

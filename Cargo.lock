@@ -971,6 +971,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2e06f9bce634a3c898eb1e5cb949ff63133cbb218af93cc9b38b31d6f3ea285"
 
 [[package]]
+name = "cwextab"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a92e840be31d11ead5f357b8fc503133d3657845d0ccf539afcc7d1212fad226"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
 name = "d3d12"
 version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2815,6 +2824,7 @@ dependencies = [
  "byteorder",
  "cpp_demangle",
  "cwdemangle",
+ "cwextab",
  "filetime",
  "flagset",
  "gimli 0.29.0",
@@ -2846,6 +2856,7 @@ dependencies = [
  "console_error_panic_hook",
  "const_format",
  "cwdemangle",
+ "cwextab",
  "dirs",
  "eframe",
  "egui",
