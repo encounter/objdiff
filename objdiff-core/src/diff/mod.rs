@@ -6,8 +6,8 @@ use crate::{
     diff::{
         code::{diff_code, no_diff_code, process_code_symbol},
         data::{
-            diff_bss_section, diff_bss_symbol, diff_data_section, diff_data_symbol,
-            diff_text_section, no_diff_symbol,
+            diff_bss_symbol, diff_data_section, diff_data_symbol, diff_generic_section,
+            no_diff_symbol,
         },
     },
     obj::{ObjInfo, ObjIns, ObjSection, ObjSectionKind, ObjSymbol, SymbolRef},
@@ -483,10 +483,10 @@ pub fn diff_objs(
             let left_section = &left_obj.sections[left_section_idx];
             let right_section = &right_obj.sections[right_section_idx];
             match section_kind {
-                ObjSectionKind::Code => {
+                ObjSectionKind::Code | ObjSectionKind::Bss => {
                     let left_section_diff = left_out.section_diff(left_section_idx);
                     let right_section_diff = right_out.section_diff(right_section_idx);
-                    let (left_diff, right_diff) = diff_text_section(
+                    let (left_diff, right_diff) = diff_generic_section(
                         left_section,
                         right_section,
                         left_section_diff,
@@ -496,12 +496,14 @@ pub fn diff_objs(
                     right_out.section_diff_mut(right_section_idx).merge(right_diff);
                 }
                 ObjSectionKind::Data => {
-                    let (left_diff, right_diff) = diff_data_section(left_section, right_section)?;
-                    left_out.section_diff_mut(left_section_idx).merge(left_diff);
-                    right_out.section_diff_mut(right_section_idx).merge(right_diff);
-                }
-                ObjSectionKind::Bss => {
-                    let (left_diff, right_diff) = diff_bss_section(left_section, right_section)?;
+                    let left_section_diff = left_out.section_diff(left_section_idx);
+                    let right_section_diff = right_out.section_diff(right_section_idx);
+                    let (left_diff, right_diff) = diff_data_section(
+                        left_section,
+                        right_section,
+                        left_section_diff,
+                        right_section_diff,
+                    )?;
                     left_out.section_diff_mut(left_section_idx).merge(left_diff);
                     right_out.section_diff_mut(right_section_idx).merge(right_diff);
                 }
@@ -625,6 +627,26 @@ fn find_symbol(
         {
             if let Some(symbol_idx) = section.symbols.iter().position(|symbol| {
                 symbol.address == in_symbol.address && symbol.name.starts_with('@')
+            }) {
+                return Some(SymbolRef { section_idx, symbol_idx });
+            }
+        }
+    }
+    // Match Metrowerks symbol$1234 against symbol$2345
+    if let Some((prefix, suffix)) = in_symbol.name.split_once('$') {
+        if !suffix.chars().all(char::is_numeric) {
+            return None;
+        }
+        for (section_idx, section) in obj.sections.iter().enumerate() {
+            if section.kind != in_section.kind {
+                continue;
+            }
+            if let Some(symbol_idx) = section.symbols.iter().position(|symbol| {
+                if let Some((p, s)) = symbol.name.split_once('$') {
+                    prefix == p && s.chars().all(char::is_numeric)
+                } else {
+                    false
+                }
             }) {
                 return Some(SymbolRef { section_idx, symbol_idx });
             }
