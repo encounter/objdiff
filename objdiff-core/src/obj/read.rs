@@ -180,29 +180,43 @@ fn section_by_name<'a>(sections: &'a mut [ObjSection], name: &str) -> Option<&'a
 }
 
 fn exception_tables(
-    _arch: &dyn ObjArch,
     sections: &mut [ObjSection],
     obj_file: &File<'_>,
-    _split_meta: Option<&SplitMeta>,
-) -> Option<Vec<ObjExtab>> {
+) -> Result<Option<Vec<ObjExtab>>> {
     //PowerPC only
     if obj_file.architecture() != Architecture::PowerPc {
-        return None;
+        return Ok(None);
     }
 
     //Find the extab/extabindex sections
-    let extab_section = section_by_name(sections, "extab")?.clone();
-    let extabindex_section = section_by_name(sections, "extabindex")?.clone();
-    let text_section = section_by_name(sections, ".text")?;
+    let extab_section = match section_by_name(sections, "extab") {
+        Some(section) => section.clone(),
+        None => { return Ok(None); },
+    };
+    let extabindex_section = match section_by_name(sections, "extabindex") {
+        Some(section) => section.clone(),
+        None => { return Ok(None); },
+    };
+    let text_section = match section_by_name(sections, ".text") {
+        Some(section) => section,
+        None => bail!(".text section is somehow missing, this should not happen")
+    };
 
-    //Convert the extab/extabindex section data
     let mut result: Vec<ObjExtab> = vec![];
     let extab_symbol_count = extab_section.symbols.len();
+    let extabindex_symbol_count = extabindex_section.symbols.len();
     let extab_reloc_count = extab_section.relocations.len();
     let table_count = extab_symbol_count;
     let mut extab_reloc_index: usize = 0;
 
-    //Go through each pair
+    //Make sure that the number of symbols in the extab/extabindex section matches. If not, exit early
+    if extab_symbol_count != extabindex_symbol_count {
+        bail!("Extab/Extabindex symbol counts do not match");
+    }
+
+    //Convert the extab/extabindex section data
+
+    //Go through each extabindex entry
     for i in 0..table_count {
         let extabindex = &extabindex_section.symbols[i];
 
@@ -246,14 +260,20 @@ fn exception_tables(
         let start_index = extab_start_addr as usize;
         let end_index = extab_end_addr as usize;
         let extab_data = extab_section.data[start_index..end_index].try_into().unwrap();
-        let data = decode_extab(extab_data)?;
+        let data = match decode_extab(extab_data) {
+            Some(decoded_data) => decoded_data,
+            None => {
+                log::warn!("Exception table decoding failed for function {}", extab_func.name);
+                return Ok(None);
+            }
+        };
 
         //Add the new entry to the list
         let entry = ObjExtab { func: extab_func, data, dtors };
         result.push(entry);
     }
 
-    Some(result)
+    Ok(Some(result))
 }
 
 fn find_section_symbol(
@@ -574,7 +594,7 @@ pub fn read(obj_path: &Path, config: &DiffObjConfig) -> Result<ObjInfo> {
     }
     line_info(&obj_file, &mut sections)?;
     let common = common_symbols(arch.as_ref(), &obj_file, split_meta.as_ref())?;
-    let extab = exception_tables(arch.as_ref(), &mut sections, &obj_file, split_meta.as_ref());
+    let extab = exception_tables(&mut sections, &obj_file)?;
     Ok(ObjInfo { arch, path: obj_path.to_owned(), timestamp, sections, common, extab, split_meta })
 }
 

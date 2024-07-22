@@ -1,5 +1,3 @@
-use std::default::Default;
-
 use egui::{text::LayoutJob, Align, Layout, ScrollArea, Ui, Vec2};
 use egui_extras::{Size, StripBuilder};
 use objdiff_core::{
@@ -12,9 +10,6 @@ use crate::views::{
     appearance::Appearance,
     symbol_diff::{match_color_for_symbol, DiffViewState, SymbolRefByName, View},
 };
-
-#[derive(Default)]
-pub struct ExtabViewState {}
 
 fn find_symbol(obj: &ObjInfo, selected_symbol: &SymbolRefByName) -> Option<SymbolRef> {
     for (section_idx, section) in obj.sections.iter().enumerate() {
@@ -66,7 +61,6 @@ fn extab_text_ui(
     obj: &(ObjInfo, ObjDiff),
     symbol_ref: SymbolRef,
     appearance: &Appearance,
-    _state: &mut ExtabViewState,
 ) -> Option<()> {
     let (_section, symbol) = obj.0.section_symbol(symbol_ref);
 
@@ -85,7 +79,6 @@ fn extab_ui(
     selected_symbol: &SymbolRefByName,
     appearance: &Appearance,
     _left: bool,
-    state: &mut ExtabViewState,
 ) {
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         ui.scope(|ui| {
@@ -95,7 +88,7 @@ fn extab_ui(
             let symbol = obj.and_then(|(obj, _)| find_symbol(obj, selected_symbol));
 
             if let (Some(object), Some(symbol_ref)) = (obj, symbol) {
-                extab_text_ui(ui, object, symbol_ref, appearance, state);
+                extab_text_ui(ui, object, symbol_ref, appearance);
             }
         });
     });
@@ -220,7 +213,6 @@ pub fn extab_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &
                         selected_symbol,
                         appearance,
                         true,
-                        &mut state.extab_state,
                     );
                 });
                 strip.cell(|ui| {
@@ -230,7 +222,6 @@ pub fn extab_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &
                         selected_symbol,
                         appearance,
                         false,
-                        &mut state.extab_state,
                     );
                 });
             });

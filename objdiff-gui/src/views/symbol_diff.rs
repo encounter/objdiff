@@ -18,7 +18,7 @@ use crate::{
         Job, JobQueue, JobResult,
     },
     views::{
-        appearance::Appearance, extab_diff::ExtabViewState, function_diff::FunctionViewState,
+        appearance::Appearance, function_diff::FunctionViewState,
         write_text,
     },
 };
@@ -46,7 +46,6 @@ pub struct DiffViewState {
     pub current_view: View,
     pub symbol_state: SymbolViewState,
     pub function_state: FunctionViewState,
-    pub extab_state: ExtabViewState,
     pub search: String,
     pub queue_build: bool,
     pub build_running: bool,
@@ -137,7 +136,7 @@ pub fn match_color_for_symbol(match_percent: f32, appearance: &Appearance) -> Co
     }
 }
 
-fn symbol_context_menu_ui(ui: &mut Ui, state: &mut SymbolViewState, symbol: &ObjSymbol) {
+fn symbol_context_menu_ui(ui: &mut Ui, state: &mut SymbolViewState, symbol: &ObjSymbol, section: Option<&ObjSection>) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap = Some(false);
@@ -158,14 +157,16 @@ fn symbol_context_menu_ui(ui: &mut Ui, state: &mut SymbolViewState, symbol: &Obj
                 ui.close_menu();
             }
         }
-        if symbol.has_extab && ui.button("Decode exception table").clicked() {
-            state.queue_extab_decode = true;
-            state.selected_symbol = Some(SymbolRefByName {
-                symbol_name: symbol.name.clone(),
-                demangled_symbol_name: symbol.demangled_name.clone(),
-                section_name: String::from(".text"), //TODO: this shouldn't be hardcoded
-            });
-            ui.close_menu();
+        if let Some(section) = section {
+            if symbol.has_extab && ui.button("Decode exception table").clicked() {
+                state.queue_extab_decode = true;
+                state.selected_symbol = Some(SymbolRefByName {
+                    symbol_name: symbol.name.clone(),
+                    demangled_symbol_name: symbol.demangled_name.clone(),
+                    section_name: section.name.clone(),
+                });
+                ui.close_menu();
+            }
         }
     });
 }
@@ -194,11 +195,11 @@ fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol, appearance: &Appearance) {
             {
                 ui.colored_label(
                     appearance.highlight_color,
-                    format!("Extab symbol: {}", extab_name),
+                    format!("Extab Symbol: {}", extab_name),
                 );
                 ui.colored_label(
                     appearance.highlight_color,
-                    format!("Extabindex symbol: {}", extabindex_name),
+                    format!("Extabindex Symbol: {}", extabindex_name),
                 );
             }
         }
@@ -257,7 +258,7 @@ fn symbol_ui(
     let response = SelectableLabel::new(selected, job)
         .ui(ui)
         .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, symbol, appearance));
-    response.context_menu(|ui| symbol_context_menu_ui(ui, state, symbol));
+    response.context_menu(|ui| symbol_context_menu_ui(ui, state, symbol, section));
     if response.clicked() {
         if let Some(section) = section {
             if section.kind == ObjSectionKind::Code {
