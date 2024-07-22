@@ -193,13 +193,13 @@ fn exception_tables(
         Some(section) => section.clone(),
         None => {
             return Ok(None);
-        },
+        }
     };
     let extabindex_section = match section_by_name(sections, "extabindex") {
         Some(section) => section.clone(),
         None => {
             return Ok(None);
-        },
+        }
     };
     let text_section = match section_by_name(sections, ".text") {
         Some(section) => section,
