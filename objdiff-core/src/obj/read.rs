@@ -364,7 +364,7 @@ fn relocations_by_section(
             _ => None,
         };
         let addend = if reloc.has_implicit_addend() {
-            arch.implcit_addend(section, address, &reloc)?
+            arch.implcit_addend(obj_file, section, address, &reloc)?
         } else {
             reloc.addend()
         };

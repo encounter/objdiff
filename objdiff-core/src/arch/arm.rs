@@ -48,10 +48,13 @@ impl ObjArchArm {
             s.kind() == SectionKind::Elf(SHT_ARM_ATTRIBUTES) && s.name() == Ok(".ARM.attributes")
         }) {
             let attr_data = arm_attrs.uncompressed_data()?;
-            let build_attrs = BuildAttrs::new(&attr_data, match file.endianness() {
-                object::Endianness::Little => arm_attr::Endian::Little,
-                object::Endianness::Big => arm_attr::Endian::Big,
-            })?;
+            let build_attrs = BuildAttrs::new(
+                &attr_data,
+                match file.endianness() {
+                    object::Endianness::Little => arm_attr::Endian::Little,
+                    object::Endianness::Big => arm_attr::Endian::Big,
+                },
+            )?;
             for subsection in build_attrs.subsections() {
                 let subsection = subsection?;
                 if !subsection.is_aeabi() {
@@ -227,6 +230,7 @@ impl ObjArch for ObjArchArm {
 
     fn implcit_addend(
         &self,
+        _file: &File<'_>,
         section: &ObjSection,
         address: u64,
         reloc: &Relocation,

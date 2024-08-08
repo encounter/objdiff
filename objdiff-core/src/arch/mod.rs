@@ -1,7 +1,7 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
 use anyhow::{bail, Result};
-use object::{Architecture, Object, ObjectSymbol, Relocation, RelocationFlags, Symbol};
+use object::{Architecture, File, Object, ObjectSymbol, Relocation, RelocationFlags, Symbol};
 
 use crate::{
     diff::DiffObjConfig,
@@ -28,14 +28,23 @@ pub trait ObjArch: Send + Sync {
         config: &DiffObjConfig,
     ) -> Result<ProcessCodeResult>;
 
-    fn implcit_addend(&self, section: &ObjSection, address: u64, reloc: &Relocation)
-        -> Result<i64>;
+    fn implcit_addend(
+        &self,
+        file: &File<'_>,
+        section: &ObjSection,
+        address: u64,
+        reloc: &Relocation,
+    ) -> Result<i64>;
 
-    fn demangle(&self, _name: &str) -> Option<String> { None }
+    fn demangle(&self, _name: &str) -> Option<String> {
+        None
+    }
 
     fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str>;
 
-    fn symbol_address(&self, symbol: &Symbol) -> u64 { symbol.address() }
+    fn symbol_address(&self, symbol: &Symbol) -> u64 {
+        symbol.address()
+    }
 }
 
 pub struct ProcessCodeResult {

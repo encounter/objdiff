@@ -20,12 +20,16 @@ fn is_rel_abs_arg(arg: &Argument) -> bool {
     matches!(arg, Argument::Uimm(_) | Argument::Simm(_) | Argument::Offset(_))
 }
 
-fn is_offset_arg(arg: &Argument) -> bool { matches!(arg, Argument::Offset(_)) }
+fn is_offset_arg(arg: &Argument) -> bool {
+    matches!(arg, Argument::Offset(_))
+}
 
 pub struct ObjArchPpc {}
 
 impl ObjArchPpc {
-    pub fn new(_file: &File) -> Result<Self> { Ok(Self {}) }
+    pub fn new(_file: &File) -> Result<Self> {
+        Ok(Self {})
+    }
 }
 
 impl ObjArch for ObjArchPpc {
@@ -150,6 +154,7 @@ impl ObjArch for ObjArchPpc {
 
     fn implcit_addend(
         &self,
+        _file: &File<'_>,
         _section: &ObjSection,
         address: u64,
         reloc: &Relocation,

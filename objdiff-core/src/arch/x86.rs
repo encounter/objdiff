@@ -128,6 +128,7 @@ impl ObjArch for ObjArchX86 {
 
     fn implcit_addend(
         &self,
+        _file: &File<'_>,
         section: &ObjSection,
         address: u64,
         reloc: &Relocation,
@@ -261,9 +262,12 @@ impl FormatterOutput for InstructionFormatterOutput {
         match kind {
             FormatterTextKind::LabelAddress => {
                 if let Some(reloc) = self.ins.reloc.as_ref() {
-                    if matches!(reloc.flags, RelocationFlags::Coff {
-                        typ: pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32
-                    }) {
+                    if matches!(
+                        reloc.flags,
+                        RelocationFlags::Coff {
+                            typ: pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32
+                        }
+                    ) {
                         self.ins.args.push(ObjInsArg::Reloc);
                         return;
                     } else if self.error.is_none() {
@@ -279,9 +283,10 @@ impl FormatterOutput for InstructionFormatterOutput {
             }
             FormatterTextKind::FunctionAddress => {
                 if let Some(reloc) = self.ins.reloc.as_ref() {
-                    if matches!(reloc.flags, RelocationFlags::Coff {
-                        typ: pe::IMAGE_REL_I386_REL32
-                    }) {
+                    if matches!(
+                        reloc.flags,
+                        RelocationFlags::Coff { typ: pe::IMAGE_REL_I386_REL32 }
+                    ) {
                         self.ins.args.push(ObjInsArg::Reloc);
                         return;
                     } else if self.error.is_none() {
