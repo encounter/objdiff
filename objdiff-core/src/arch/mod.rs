@@ -36,15 +36,11 @@ pub trait ObjArch: Send + Sync {
         reloc: &Relocation,
     ) -> Result<i64>;
 
-    fn demangle(&self, _name: &str) -> Option<String> {
-        None
-    }
+    fn demangle(&self, _name: &str) -> Option<String> { None }
 
     fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str>;
 
-    fn symbol_address(&self, symbol: &Symbol) -> u64 {
-        symbol.address()
-    }
+    fn symbol_address(&self, symbol: &Symbol) -> u64 { symbol.address() }
 }
 
 pub struct ProcessCodeResult {
