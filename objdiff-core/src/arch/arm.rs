@@ -227,6 +227,7 @@ impl ObjArch for ObjArchArm {
 
     fn implcit_addend(
         &self,
+        _file: &File<'_>,
         section: &ObjSection,
         address: u64,
         reloc: &Relocation,

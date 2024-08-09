@@ -128,6 +128,7 @@ impl ObjArch for ObjArchX86 {
 
     fn implcit_addend(
         &self,
+        _file: &File<'_>,
         section: &ObjSection,
         address: u64,
         reloc: &Relocation,

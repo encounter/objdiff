@@ -150,6 +150,7 @@ impl ObjArch for ObjArchPpc {
 
     fn implcit_addend(
         &self,
+        _file: &File<'_>,
         _section: &ObjSection,
         address: u64,
         reloc: &Relocation,

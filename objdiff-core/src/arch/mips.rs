@@ -1,7 +1,10 @@
 use std::{borrow::Cow, collections::BTreeMap, sync::Mutex};
 
 use anyhow::{anyhow, bail, Result};
-use object::{elf, Endian, Endianness, File, FileFlags, Object, Relocation, RelocationFlags};
+use object::{
+    elf, Endian, Endianness, File, FileFlags, Object, ObjectSection, ObjectSymbol, Relocation,
+    RelocationFlags, RelocationTarget,
+};
 use rabbitizer::{config, Abi, InstrCategory, Instruction, OperandType};
 
 use crate::{
@@ -22,6 +25,7 @@ pub struct ObjArchMips {
     pub endianness: Endianness,
     pub abi: Abi,
     pub instr_category: InstrCategory,
+    pub ri_gp_value: i32,
 }
 
 const EF_MIPS_ABI: u32 = 0x0000F000;
@@ -56,7 +60,19 @@ impl ObjArchMips {
             }
             _ => bail!("Unsupported MIPS file flags"),
         }
-        Ok(Self { endianness: object.endianness(), abi, instr_category })
+
+        // Parse the ri_gp_value stored in .reginfo to be able to correctly
+        // calculate R_MIPS_GPREL16 relocations later. The value is stored
+        // 0x14 bytes into .reginfo (on 32 bit platforms)
+        let ri_gp_value = object
+            .section_by_name(".reginfo")
+            .and_then(|section| section.data().ok())
+            .and_then(|data| data.get(0x14..0x18))
+            .and_then(|s| s.try_into().ok())
+            .map(|bytes| object.endianness().read_i32_bytes(bytes))
+            .unwrap_or(0);
+
+        Ok(Self { endianness: object.endianness(), abi, instr_category, ri_gp_value })
     }
 }
 
@@ -179,6 +195,7 @@ impl ObjArch for ObjArchMips {
 
     fn implcit_addend(
         &self,
+        file: &File<'_>,
         section: &ObjSection,
         address: u64,
         reloc: &Relocation,
@@ -191,9 +208,22 @@ impl ObjArch for ObjArchMips {
                 ((addend & 0x0000FFFF) << 16) as i32 as i64
             }
             RelocationFlags::Elf {
-                r_type:
-                    elf::R_MIPS_LO16 | elf::R_MIPS_GOT16 | elf::R_MIPS_CALL16 | elf::R_MIPS_GPREL16,
+                r_type: elf::R_MIPS_LO16 | elf::R_MIPS_GOT16 | elf::R_MIPS_CALL16,
             } => (addend & 0x0000FFFF) as i16 as i64,
+            RelocationFlags::Elf { r_type: elf::R_MIPS_GPREL16 } => {
+                let RelocationTarget::Symbol(idx) = reloc.target() else {
+                    bail!("Unsupported R_MIPS_GPREL16 relocation against a non-symbol");
+                };
+                let sym = file.symbol_by_index(idx)?;
+
+                // if the symbol we are relocating against is in a local section we need to add
+                // the ri_gp_value from .reginfo to the addend.
+                if sym.section().index().is_some() {
+                    ((addend & 0x0000FFFF) as i16 as i64) + self.ri_gp_value as i64
+                } else {
+                    (addend & 0x0000FFFF) as i16 as i64
+                }
+            }
             RelocationFlags::Elf { r_type: elf::R_MIPS_26 } => ((addend & 0x03FFFFFF) << 2) as i64,
             flags => bail!("Unsupported MIPS implicit relocation {flags:?}"),
         })
