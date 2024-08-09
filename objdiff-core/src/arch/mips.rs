@@ -64,13 +64,13 @@ impl ObjArchMips {
         // Parse the ri_gp_value stored in .reginfo to be able to correctly
         // calculate R_MIPS_GPREL16 relocations later. The value is stored
         // 0x14 bytes into .reginfo (on 32 bit platforms)
-        let ri_gp_value = match object.section_by_name(".reginfo").and_then(|s| s.data().ok()) {
-            Some(reginfo) => {
-                let gp_ri_value_bytes = reginfo[0x14..0x18].try_into().unwrap_or([0u8; 4]);
-                object.endianness().read_i32_bytes(gp_ri_value_bytes)
-            }
-            None => 0,
-        };
+        let ri_gp_value = object
+            .section_by_name(".reginfo")
+            .and_then(|section| section.data().ok())
+            .and_then(|data| data.get(0x14..0x18))
+            .and_then(|s| s.try_into().ok())
+            .map(|bytes| object.endianness().read_i32_bytes(bytes))
+            .unwrap_or(0);
 
         Ok(Self { endianness: object.endianness(), abi, instr_category, ri_gp_value })
     }
