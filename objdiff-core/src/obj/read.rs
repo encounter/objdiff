@@ -149,7 +149,7 @@ fn symbols_by_section(
             }
         }
     }
-    result.sort_by_key(|v| v.address);
+    result.sort_by(|a, b| a.address.cmp(&b.address).then(a.size.cmp(&b.size)));
     let mut iter = result.iter_mut().peekable();
     while let Some(symbol) = iter.next() {
         if symbol.size == 0 {

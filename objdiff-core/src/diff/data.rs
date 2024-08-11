@@ -54,6 +54,7 @@ pub fn diff_data_section(
     let right_data = &right.data[..right_max as usize];
     let ops =
         capture_diff_slices_deadline(Algorithm::Patience, left_data, right_data, Some(deadline));
+    let match_percent = get_diff_ratio(&ops, left_data.len(), right_data.len()) * 100.0;
 
     let mut left_diff = Vec::<ObjDataDiff>::new();
     let mut right_diff = Vec::<ObjDataDiff>::new();
@@ -127,6 +128,13 @@ pub fn diff_data_section(
         diff_generic_section(left, right, left_section_diff, right_section_diff)?;
     left_section_diff.data_diff = left_diff;
     right_section_diff.data_diff = right_diff;
+    // Use the highest match percent between two options:
+    // - Left symbols matching right symbols by name
+    // - Diff of the data itself
+    if left_section_diff.match_percent.unwrap_or(-1.0) < match_percent {
+        left_section_diff.match_percent = Some(match_percent);
+        right_section_diff.match_percent = Some(match_percent);
+    }
     Ok((left_section_diff, right_section_diff))
 }
 
@@ -186,6 +194,38 @@ pub fn diff_generic_section(
             .sum::<f32>()
             / left.size as f32
     };
+    Ok((
+        ObjSectionDiff { symbols: vec![], data_diff: vec![], match_percent: Some(match_percent) },
+        ObjSectionDiff { symbols: vec![], data_diff: vec![], match_percent: Some(match_percent) },
+    ))
+}
+
+/// Compare the addresses and sizes of each symbol in the BSS sections.
+pub fn diff_bss_section(
+    left: &ObjSection,
+    right: &ObjSection,
+    left_diff: &ObjSectionDiff,
+    right_diff: &ObjSectionDiff,
+) -> Result<(ObjSectionDiff, ObjSectionDiff)> {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let left_sizes = left.symbols.iter().map(|s| (s.section_address, s.size)).collect::<Vec<_>>();
+    let right_sizes = right.symbols.iter().map(|s| (s.section_address, s.size)).collect::<Vec<_>>();
+    let ops = capture_diff_slices_deadline(
+        Algorithm::Patience,
+        &left_sizes,
+        &right_sizes,
+        Some(deadline),
+    );
+    let mut match_percent = get_diff_ratio(&ops, left_sizes.len(), right_sizes.len()) * 100.0;
+
+    // Use the highest match percent between two options:
+    // - Left symbols matching right symbols by name
+    // - Diff of the addresses and sizes of each symbol
+    let (generic_diff, _) = diff_generic_section(left, right, left_diff, right_diff)?;
+    if generic_diff.match_percent.unwrap_or(-1.0) > match_percent {
+        match_percent = generic_diff.match_percent.unwrap();
+    }
+
     Ok((
         ObjSectionDiff { symbols: vec![], data_diff: vec![], match_percent: Some(match_percent) },
         ObjSectionDiff { symbols: vec![], data_diff: vec![], match_percent: Some(match_percent) },

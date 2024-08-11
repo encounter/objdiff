@@ -6,8 +6,8 @@ use crate::{
     diff::{
         code::{diff_code, no_diff_code, process_code_symbol},
         data::{
-            diff_bss_symbol, diff_data_section, diff_data_symbol, diff_generic_section,
-            no_diff_symbol,
+            diff_bss_section, diff_bss_symbol, diff_data_section, diff_data_symbol,
+            diff_generic_section, no_diff_symbol,
         },
     },
     obj::{ObjInfo, ObjIns, ObjSection, ObjSectionKind, ObjSymbol, SymbolRef},
@@ -483,7 +483,7 @@ pub fn diff_objs(
             let left_section = &left_obj.sections[left_section_idx];
             let right_section = &right_obj.sections[right_section_idx];
             match section_kind {
-                ObjSectionKind::Code | ObjSectionKind::Bss => {
+                ObjSectionKind::Code => {
                     let left_section_diff = left_out.section_diff(left_section_idx);
                     let right_section_diff = right_out.section_diff(right_section_idx);
                     let (left_diff, right_diff) = diff_generic_section(
@@ -499,6 +499,18 @@ pub fn diff_objs(
                     let left_section_diff = left_out.section_diff(left_section_idx);
                     let right_section_diff = right_out.section_diff(right_section_idx);
                     let (left_diff, right_diff) = diff_data_section(
+                        left_section,
+                        right_section,
+                        left_section_diff,
+                        right_section_diff,
+                    )?;
+                    left_out.section_diff_mut(left_section_idx).merge(left_diff);
+                    right_out.section_diff_mut(right_section_idx).merge(right_diff);
+                }
+                ObjSectionKind::Bss => {
+                    let left_section_diff = left_out.section_diff(left_section_idx);
+                    let right_section_diff = right_out.section_diff(right_section_idx);
+                    let (left_diff, right_diff) = diff_bss_section(
                         left_section,
                         right_section,
                         left_section_diff,
@@ -546,8 +558,8 @@ fn matching_symbols(
             for (symbol_idx, symbol) in section.symbols.iter().enumerate() {
                 let symbol_match = SymbolMatch {
                     left: Some(SymbolRef { section_idx, symbol_idx }),
-                    right: find_symbol(right, symbol, section),
-                    prev: find_symbol(prev, symbol, section),
+                    right: find_symbol(right, symbol, section, Some(&right_used)),
+                    prev: find_symbol(prev, symbol, section, None),
                     section_kind: section.kind,
                 };
                 matches.push(symbol_match);
@@ -579,7 +591,7 @@ fn matching_symbols(
                 matches.push(SymbolMatch {
                     left: None,
                     right: Some(symbol_ref),
-                    prev: find_symbol(prev, symbol, section),
+                    prev: find_symbol(prev, symbol, section, None),
                     section_kind: section.kind,
                 });
             }
@@ -604,6 +616,7 @@ fn find_symbol(
     obj: Option<&ObjInfo>,
     in_symbol: &ObjSymbol,
     in_section: &ObjSection,
+    used: Option<&HashSet<SymbolRef>>,
 ) -> Option<SymbolRef> {
     let obj = obj?;
     // Try to find an exact name match
@@ -641,13 +654,21 @@ fn find_symbol(
             if section.kind != in_section.kind {
                 continue;
             }
-            if let Some(symbol_idx) = section.symbols.iter().position(|symbol| {
-                if let Some((p, s)) = symbol.name.split_once('$') {
-                    prefix == p && s.chars().all(char::is_numeric)
-                } else {
-                    false
-                }
-            }) {
+            if let Some((symbol_idx, _)) =
+                section.symbols.iter().enumerate().find(|&(symbol_idx, symbol)| {
+                    if used
+                        .map(|u| u.contains(&SymbolRef { section_idx, symbol_idx }))
+                        .unwrap_or(false)
+                    {
+                        return false;
+                    }
+                    if let Some((p, s)) = symbol.name.split_once('$') {
+                        prefix == p && s.chars().all(char::is_numeric)
+                    } else {
+                        false
+                    }
+                })
+            {
                 return Some(SymbolRef { section_idx, symbol_idx });
             }
         }
