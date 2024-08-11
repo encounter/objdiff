@@ -233,21 +233,23 @@ fn symbol_ui(
     {
         selected = symbol_diff.symbol_ref == sym_ref;
     }
-    write_text("[", appearance.text_color, &mut job, appearance.code_font.clone());
-    if symbol.flags.0.contains(ObjSymbolFlags::Common) {
-        write_text("c", appearance.replace_color, &mut job, appearance.code_font.clone());
-    } else if symbol.flags.0.contains(ObjSymbolFlags::Global) {
-        write_text("g", appearance.insert_color, &mut job, appearance.code_font.clone());
-    } else if symbol.flags.0.contains(ObjSymbolFlags::Local) {
-        write_text("l", appearance.text_color, &mut job, appearance.code_font.clone());
+    if !symbol.flags.0.is_empty() {
+        write_text("[", appearance.text_color, &mut job, appearance.code_font.clone());
+        if symbol.flags.0.contains(ObjSymbolFlags::Common) {
+            write_text("c", appearance.replace_color, &mut job, appearance.code_font.clone());
+        } else if symbol.flags.0.contains(ObjSymbolFlags::Global) {
+            write_text("g", appearance.insert_color, &mut job, appearance.code_font.clone());
+        } else if symbol.flags.0.contains(ObjSymbolFlags::Local) {
+            write_text("l", appearance.text_color, &mut job, appearance.code_font.clone());
+        }
+        if symbol.flags.0.contains(ObjSymbolFlags::Weak) {
+            write_text("w", appearance.text_color, &mut job, appearance.code_font.clone());
+        }
+        if symbol.flags.0.contains(ObjSymbolFlags::Hidden) {
+            write_text("h", appearance.deemphasized_text_color, &mut job, appearance.code_font.clone());
+        }
+        write_text("] ", appearance.text_color, &mut job, appearance.code_font.clone());
     }
-    if symbol.flags.0.contains(ObjSymbolFlags::Weak) {
-        write_text("w", appearance.text_color, &mut job, appearance.code_font.clone());
-    }
-    if symbol.flags.0.contains(ObjSymbolFlags::Hidden) {
-        write_text("h", appearance.deemphasized_text_color, &mut job, appearance.code_font.clone());
-    }
-    write_text("] ", appearance.text_color, &mut job, appearance.code_font.clone());
     if let Some(match_percent) = symbol_diff.match_percent {
         write_text("(", appearance.text_color, &mut job, appearance.code_font.clone());
         write_text(

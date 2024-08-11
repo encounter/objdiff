@@ -160,6 +160,23 @@ fn symbols_by_section(
             }
         }
     }
+    if result.is_empty() {
+        // Dummy symbol for empty sections
+        result.push(ObjSymbol {
+            name: format!("[{}]", section.name),
+            demangled_name: None,
+            has_extab: false,
+            extab_name: None,
+            extabindex_name: None,
+            address: 0,
+            section_address: 0,
+            size: section.size,
+            size_known: true,
+            flags: Default::default(),
+            addend: 0,
+            virtual_address: None,
+        });
+    }
     Ok(result)
 }
 

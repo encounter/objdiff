@@ -612,6 +612,20 @@ fn matching_symbols(
     Ok(matches)
 }
 
+fn unmatched_symbols<'section, 'used>(
+    section: &'section ObjSection,
+    section_idx: usize,
+    used: Option<&'used HashSet<SymbolRef>>,
+) -> impl Iterator<Item = (usize, &'section ObjSymbol)> + 'used
+where
+    'section: 'used,
+{
+    section.symbols.iter().enumerate().filter(move |&(symbol_idx, _)| {
+        // Skip symbols that have already been matched
+        !used.map(|u| u.contains(&SymbolRef { section_idx, symbol_idx })).unwrap_or(false)
+    })
+}
+
 fn find_symbol(
     obj: Option<&ObjInfo>,
     in_symbol: &ObjSymbol,
@@ -624,8 +638,8 @@ fn find_symbol(
         if section.kind != in_section.kind {
             continue;
         }
-        if let Some(symbol_idx) =
-            section.symbols.iter().position(|symbol| symbol.name == in_symbol.name)
+        if let Some((symbol_idx, _)) = unmatched_symbols(section, section_idx, used)
+            .find(|(_, symbol)| symbol.name == in_symbol.name)
         {
             return Some(SymbolRef { section_idx, symbol_idx });
         }
@@ -638,9 +652,11 @@ fn find_symbol(
         if let Some((section_idx, section)) =
             obj.sections.iter().enumerate().find(|(_, s)| s.name == in_section.name)
         {
-            if let Some(symbol_idx) = section.symbols.iter().position(|symbol| {
-                symbol.address == in_symbol.address && symbol.name.starts_with('@')
-            }) {
+            if let Some((symbol_idx, _)) =
+                unmatched_symbols(section, section_idx, used).find(|(_, symbol)| {
+                    symbol.address == in_symbol.address && symbol.name.starts_with('@')
+                })
+            {
                 return Some(SymbolRef { section_idx, symbol_idx });
             }
         }
@@ -655,13 +671,7 @@ fn find_symbol(
                 continue;
             }
             if let Some((symbol_idx, _)) =
-                section.symbols.iter().enumerate().find(|&(symbol_idx, symbol)| {
-                    if used
-                        .map(|u| u.contains(&SymbolRef { section_idx, symbol_idx }))
-                        .unwrap_or(false)
-                    {
-                        return false;
-                    }
+                unmatched_symbols(section, section_idx, used).find(|&(_, symbol)| {
                     if let Some((p, s)) = symbol.name.split_once('$') {
                         prefix == p && s.chars().all(char::is_numeric)
                     } else {
