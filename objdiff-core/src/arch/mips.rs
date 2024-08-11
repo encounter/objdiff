@@ -120,7 +120,7 @@ impl ObjArch for ObjArchMips {
             let mnemonic = instruction.opcode_name().to_string();
             let is_branch = instruction.is_branch();
             let branch_offset = instruction.branch_offset();
-            let branch_dest = if is_branch {
+            let mut branch_dest = if is_branch {
                 cur_addr.checked_add_signed(branch_offset).map(|a| a as u64)
             } else {
                 None
@@ -137,9 +137,7 @@ impl ObjArch for ObjArchMips {
                     OperandType::cpu_immediate
                     | OperandType::cpu_label
                     | OperandType::cpu_branch_target_label => {
-                        if let Some(branch_dest) = branch_dest {
-                            args.push(ObjInsArg::BranchDest(branch_dest));
-                        } else if let Some(reloc) = reloc {
+                        if let Some(reloc) = reloc {
                             if matches!(&reloc.target_section, Some(s) if s == ".text")
                                 && reloc.target.address > start_address
                                 && reloc.target.address < end_address
@@ -147,7 +145,10 @@ impl ObjArch for ObjArchMips {
                                 args.push(ObjInsArg::BranchDest(reloc.target.address));
                             } else {
                                 push_reloc(&mut args, reloc)?;
+                                branch_dest = None;
                             }
+                        } else if let Some(branch_dest) = branch_dest {
+                            args.push(ObjInsArg::BranchDest(branch_dest));
                         } else {
                             args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
                                 op.disassemble(&instruction, None).into(),
@@ -225,6 +226,7 @@ impl ObjArch for ObjArchMips {
                 }
             }
             RelocationFlags::Elf { r_type: elf::R_MIPS_26 } => ((addend & 0x03FFFFFF) << 2) as i64,
+            RelocationFlags::Elf { r_type: elf::R_MIPS_PC16 } => 0, // PC-relative relocation
             flags => bail!("Unsupported MIPS implicit relocation {flags:?}"),
         })
     }
@@ -235,6 +237,7 @@ impl ObjArch for ObjArchMips {
                 elf::R_MIPS_HI16 => Cow::Borrowed("R_MIPS_HI16"),
                 elf::R_MIPS_LO16 => Cow::Borrowed("R_MIPS_LO16"),
                 elf::R_MIPS_GOT16 => Cow::Borrowed("R_MIPS_GOT16"),
+                elf::R_MIPS_PC16 => Cow::Borrowed("R_MIPS_PC16"),
                 elf::R_MIPS_CALL16 => Cow::Borrowed("R_MIPS_CALL16"),
                 elf::R_MIPS_GPREL16 => Cow::Borrowed("R_MIPS_GPREL16"),
                 elf::R_MIPS_32 => Cow::Borrowed("R_MIPS_32"),
@@ -274,7 +277,7 @@ fn push_reloc(args: &mut Vec<ObjInsArg>, reloc: &ObjReloc) -> Result<()> {
                 args.push(ObjInsArg::Reloc);
                 args.push(ObjInsArg::PlainText(")".into()));
             }
-            elf::R_MIPS_32 | elf::R_MIPS_26 => {
+            elf::R_MIPS_32 | elf::R_MIPS_26 | elf::R_MIPS_PC16 => {
                 args.push(ObjInsArg::Reloc);
             }
             _ => bail!("Unsupported ELF MIPS relocation type {r_type}"),
