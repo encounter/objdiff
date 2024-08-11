@@ -11,6 +11,7 @@ mod views;
 
 use std::{
     path::PathBuf,
+    process::ExitCode,
     rc::Rc,
     sync::{Arc, Mutex},
 };
@@ -37,7 +38,7 @@ const APP_NAME: &str = "objdiff";
 
 // When compiling natively:
 #[cfg(not(target_arch = "wasm32"))]
-fn main() {
+fn main() -> ExitCode {
     // Log to stdout (if you run with `RUST_LOG=debug`).
     tracing_subscriber::fmt::init();
 
@@ -48,7 +49,6 @@ fn main() {
 
     let app_path = std::env::current_exe().ok();
     let exec_path: Rc<Mutex<Option<PathBuf>>> = Rc::new(Mutex::new(None));
-    let exec_path_clone = exec_path.clone();
     let mut native_options =
         eframe::NativeOptions { follow_system_theme: false, ..Default::default() };
     match load_icon() {
@@ -56,7 +56,7 @@ fn main() {
             native_options.viewport.icon = Some(Arc::new(data));
         }
         Err(e) => {
-            log::warn!("Failed to load application icon: {}", e);
+            log::warn!("Failed to load application icon: {e:?}");
         }
     }
     let mut graphics_config = GraphicsConfig::default();
@@ -69,7 +69,7 @@ fn main() {
             }
             Ok(None) => {}
             Err(e) => {
-                log::error!("Failed to load native config: {:?}", e);
+                log::error!("Failed to load native config: {e:?}");
             }
         }
         graphics_config_path = Some(config_path);
@@ -87,6 +87,104 @@ fn main() {
             };
         }
     }
+    let mut eframe_error = None;
+    if let Err(e) = run_eframe(
+        native_options.clone(),
+        utc_offset,
+        exec_path.clone(),
+        app_path.clone(),
+        graphics_config.clone(),
+        graphics_config_path.clone(),
+    ) {
+        eframe_error = Some(e);
+    }
+    #[cfg(feature = "wgpu")]
+    if let Some(e) = eframe_error {
+        // Attempt to relaunch using wgpu auto backend if the desired backend failed
+        #[allow(unused_mut)]
+        let mut should_relaunch = graphics_config.desired_backend != GraphicsBackend::Auto;
+        #[cfg(feature = "glow")]
+        {
+            // If the desired backend is OpenGL, we should try to relaunch using the glow renderer
+            should_relaunch &= graphics_config.desired_backend != GraphicsBackend::OpenGL;
+        }
+        if should_relaunch {
+            log::warn!("Failed to launch application: {e:?}");
+            log::warn!("Attempting to relaunch using auto-detected backend");
+            native_options.wgpu_options.supported_backends = Default::default();
+            if let Err(e) = run_eframe(
+                native_options.clone(),
+                utc_offset,
+                exec_path.clone(),
+                app_path.clone(),
+                graphics_config.clone(),
+                graphics_config_path.clone(),
+            ) {
+                eframe_error = Some(e);
+            } else {
+                eframe_error = None;
+            }
+        } else {
+            eframe_error = Some(e);
+        }
+    }
+    #[cfg(all(feature = "wgpu", feature = "glow"))]
+    if let Some(e) = eframe_error {
+        // Attempt to relaunch using the glow renderer if the wgpu backend failed
+        log::warn!("Failed to launch application: {e:?}");
+        log::warn!("Attempting to relaunch using fallback OpenGL backend");
+        native_options.renderer = eframe::Renderer::Glow;
+        if let Err(e) = run_eframe(
+            native_options,
+            utc_offset,
+            exec_path.clone(),
+            app_path,
+            graphics_config,
+            graphics_config_path,
+        ) {
+            eframe_error = Some(e);
+        } else {
+            eframe_error = None;
+        }
+    }
+    if let Some(e) = eframe_error {
+        log::error!("Failed to launch application: {e:?}");
+        return ExitCode::FAILURE;
+    }
+
+    // Attempt to relaunch application from the updated path
+    if let Ok(mut guard) = exec_path.lock() {
+        if let Some(path) = guard.take() {
+            cfg_if! {
+                if #[cfg(unix)] {
+                    let e = exec::Command::new(path)
+                        .args(&std::env::args().collect::<Vec<String>>())
+                        .exec();
+                    log::error!("Failed to relaunch: {e:?}");
+                    return ExitCode::FAILURE;
+                } else {
+                    let result = std::process::Command::new(path)
+                        .args(std::env::args())
+                        .spawn();
+                    if let Err(e) = result {
+                        log::error!("Failed to relaunch: {e:?}");
+                        return ExitCode::FAILURE;
+                    }
+                }
+            }
+        }
+    };
+    ExitCode::SUCCESS
+}
+
+fn run_eframe(
+    native_options: eframe::NativeOptions,
+    utc_offset: UtcOffset,
+    exec_path_clone: Rc<Mutex<Option<PathBuf>>>,
+    app_path: Option<PathBuf>,
+    graphics_config: GraphicsConfig,
+    graphics_config_path: Option<PathBuf>,
+) -> Result<(), eframe::Error> {
     eframe::run_native(
         APP_NAME,
         native_options,
@@ -101,28 +199,6 @@ fn main() {
             ))
         }),
     )
-    .expect("Failed to run eframe application");
-
-    // Attempt to relaunch application from the updated path
-    if let Ok(mut guard) = exec_path.lock() {
-        if let Some(path) = guard.take() {
-            cfg_if! {
-                if #[cfg(unix)] {
-                    let result = exec::Command::new(path)
-                        .args(&std::env::args().collect::<Vec<String>>())
-                        .exec();
-                    log::error!("Failed to relaunch: {result:?}");
-                } else {
-                    let result = std::process::Command::new(path)
-                        .args(std::env::args())
-                        .spawn();
-                    if let Err(e) = result {
-                        log::error!("Failed to relaunch: {:?}", e);
-                    }
-                }
-            }
-        }
-    };
 }
 
 // when compiling to web using trunk.

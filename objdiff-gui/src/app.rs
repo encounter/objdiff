@@ -275,7 +275,7 @@ impl App {
         #[cfg(feature = "glow")]
         if let Some(gl) = &cc.gl {
             use eframe::glow::HasContext;
-            app.view_state.graphics_state.active_backend = "OpenGL".to_string();
+            app.view_state.graphics_state.active_backend = "OpenGL (Fallback)".to_string();
             app.view_state.graphics_state.active_device =
                 unsafe { gl.get_parameter_string(0x1F01) }; // GL_RENDERER
         }

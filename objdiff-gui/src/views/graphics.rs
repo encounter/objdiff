@@ -36,7 +36,7 @@ pub enum GraphicsBackend {
     OpenGL,
 }
 
-#[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct GraphicsConfig {
     #[serde(default)]
     pub desired_backend: GraphicsBackend,

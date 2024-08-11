@@ -18,7 +18,7 @@ name = "objdiff"
 path = "src/main.rs"
 
 [features]
-default = ["wgpu", "wsl"]
+default = ["glow", "wgpu", "wsl"]
 glow = ["eframe/glow"]
 wgpu = ["eframe/wgpu", "dep:wgpu"]
 wsl = []
