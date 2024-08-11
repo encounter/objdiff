@@ -246,7 +246,12 @@ fn symbol_ui(
             write_text("w", appearance.text_color, &mut job, appearance.code_font.clone());
         }
         if symbol.flags.0.contains(ObjSymbolFlags::Hidden) {
-            write_text("h", appearance.deemphasized_text_color, &mut job, appearance.code_font.clone());
+            write_text(
+                "h",
+                appearance.deemphasized_text_color,
+                &mut job,
+                appearance.code_font.clone(),
+            );
         }
         write_text("] ", appearance.text_color, &mut job, appearance.code_font.clone());
     }
