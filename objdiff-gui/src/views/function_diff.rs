@@ -216,8 +216,11 @@ fn diff_text_ui(
                 base_color = appearance.diff_colors[diff.idx % appearance.diff_colors.len()]
             }
         }
-        DiffText::BranchDest(addr) => {
+        DiffText::BranchDest(addr, diff) => {
             label_text = format!("{addr:x}");
+            if let Some(diff) = diff {
+                base_color = appearance.diff_colors[diff.idx % appearance.diff_colors.len()]
+            }
         }
         DiffText::Symbol(sym) => {
             let name = sym.demangled_name.as_ref().unwrap_or(&sym.name);

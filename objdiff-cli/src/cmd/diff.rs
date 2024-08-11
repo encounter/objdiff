@@ -750,8 +750,11 @@ impl FunctionDiffUi {
                             base_color = COLOR_ROTATION[diff.idx % COLOR_ROTATION.len()]
                         }
                     }
-                    DiffText::BranchDest(addr) => {
+                    DiffText::BranchDest(addr, diff) => {
                         label_text = format!("{addr:x}");
+                        if let Some(diff) = diff {
+                            base_color = COLOR_ROTATION[diff.idx % COLOR_ROTATION.len()]
+                        }
                     }
                     DiffText::Symbol(sym) => {
                         let name = sym.demangled_name.as_ref().unwrap_or(&sym.name);
