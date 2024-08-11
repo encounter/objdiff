@@ -48,8 +48,10 @@ pub fn diff_data_section(
     right_section_diff: &ObjSectionDiff,
 ) -> Result<(ObjSectionDiff, ObjSectionDiff)> {
     let deadline = Instant::now() + Duration::from_secs(5);
-    let left_max = left.symbols.iter().map(|s| s.section_address + s.size).max().unwrap_or(0);
-    let right_max = right.symbols.iter().map(|s| s.section_address + s.size).max().unwrap_or(0);
+    let left_max =
+        left.symbols.iter().map(|s| s.section_address + s.size).max().unwrap_or(0).min(left.size);
+    let right_max =
+        right.symbols.iter().map(|s| s.section_address + s.size).max().unwrap_or(0).min(right.size);
     let left_data = &left.data[..left_max as usize];
     let right_data = &right.data[..right_max as usize];
     let ops =
