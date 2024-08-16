@@ -1,6 +1,6 @@
 [package]
 name = "objdiff-cli"
-version = "2.0.0-beta.3"
+version = "2.0.0-beta.4"
 edition = "2021"
 rust-version = "1.70"
 authors = ["Luke Street <luke@street.dev>"]
@@ -18,7 +18,10 @@ anyhow = "1.0.82"
 argp = "0.3.0"
 crossterm = "0.27.0"
 enable-ansi-support = "0.2.1"
+memmap2 = "0.9.4"
 objdiff-core = { path = "../objdiff-core", features = ["all"] }
+pbjson = "0.7.0"
+prost = "0.13.1"
 ratatui = "0.26.2"
 rayon = "1.10.0"
 serde = { version = "1", features = ["derive"] }
@@ -27,3 +30,8 @@ supports-color = "3.0.0"
 time = { version = "0.3.36", features = ["formatting", "local-offset"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+
+[build-dependencies]
+prost-build = "0.13.1"
+pbjson-build = "0.7.0"
+

@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package objdiff.report;
+
+message Report {
+  float fuzzy_match_percent = 1;
+  uint64 total_code = 2;
+  uint64 matched_code = 3;
+  float matched_code_percent = 4;
+  uint64 total_data = 5;
+  uint64 matched_data = 6;
+  float matched_data_percent = 7;
+  uint32 total_functions = 8;
+  uint32 matched_functions = 9;
+  float matched_functions_percent = 10;
+  repeated ReportUnit units = 11;
+}
+
+message ReportUnit {
+  string name = 1;
+  float fuzzy_match_percent = 2;
+  uint64 total_code = 3;
+  uint64 matched_code = 4;
+  uint64 total_data = 5;
+  uint64 matched_data = 6;
+  uint32 total_functions = 7;
+  uint32 matched_functions = 8;
+  optional bool complete = 9;
+  optional string module_name = 10;
+  optional uint32 module_id = 11;
+  repeated ReportItem sections = 12;
+  repeated ReportItem functions = 13;
+}
+
+message ReportItem {
+  string name = 1;
+  uint64 size = 2;
+  float fuzzy_match_percent = 3;
+  optional string demangled_name = 4;
+  optional uint64 address = 5;
+}
+
+// Used as stdin for the changes command
+message ChangesInput {
+  Report from = 1;
+  Report to = 2;
+}
+
+message Changes {
+  ChangeInfo from = 1;
+  ChangeInfo to = 2;
+  repeated ChangeUnit units = 3;
+}
+
+message ChangeInfo {
+  float fuzzy_match_percent = 1;
+  uint64 total_code = 2;
+  uint64 matched_code = 3;
+  float matched_code_percent = 4;
+  uint64 total_data = 5;
+  uint64 matched_data = 6;
+  float matched_data_percent = 7;
+  uint32 total_functions = 8;
+  uint32 matched_functions = 9;
+  float matched_functions_percent = 10;
+}
+
+message ChangeUnit {
+  string name = 1;
+  optional ChangeInfo from = 2;
+  optional ChangeInfo to = 3;
+  repeated ChangeItem sections = 4;
+  repeated ChangeItem functions = 5;
+}
+
+message ChangeItem {
+  string name = 1;
+  optional ChangeItemInfo from = 2;
+  optional ChangeItemInfo to = 3;
+}
+
+message ChangeItemInfo {
+  float fuzzy_match_percent = 1;
+  uint64 size = 2;
+}
