@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn main() {
     let output = std::process::Command::new("git")
@@ -28,15 +28,29 @@ fn main() {
         }
     }
 
-    let mut config = prost_build::Config::new();
-    config.file_descriptor_set_path(&descriptor_path);
-    // If our cached descriptor is up-to-date, we don't need to run protoc.
-    // This is helpful so that users don't need to have protoc installed
-    // unless they're updating the protos.
-    if !run_protoc {
-        config.skip_protoc_run();
+    fn prost_config(descriptor_path: &Path, run_protoc: bool) -> prost_build::Config {
+        let mut config = prost_build::Config::new();
+        config.file_descriptor_set_path(descriptor_path);
+        // If our cached descriptor is up-to-date, we don't need to run protoc.
+        // This is helpful so that users don't need to have protoc installed
+        // unless they're updating the protos.
+        if !run_protoc {
+            config.skip_protoc_run();
+        }
+        config
     }
-    config.compile_protos(&proto_files, &[root]).expect("Failed to compile protos");
+    if let Err(e) =
+        prost_config(&descriptor_path, run_protoc).compile_protos(&proto_files, &[root.as_path()])
+    {
+        if e.kind() == std::io::ErrorKind::NotFound && e.to_string().contains("protoc") {
+            eprintln!("protoc not found, skipping protobuf compilation");
+            prost_config(&descriptor_path, false)
+                .compile_protos(&proto_files, &[root.as_path()])
+                .expect("Failed to compile protos");
+        } else {
+            panic!("Failed to compile protos: {e:?}");
+        }
+    }
 
     let descriptor_set = std::fs::read(descriptor_path).expect("Failed to read descriptor set");
     pbjson_build::Builder::new()
