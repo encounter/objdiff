@@ -10,20 +10,33 @@ fn main() {
     println!("cargo:rustc-rerun-if-changed=.git/HEAD");
 
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("protos");
+    let descriptor_path = root.join("proto_descriptor.bin");
+    println!("cargo:rerun-if-changed={}", descriptor_path.display());
+    let descriptor_mtime = std::fs::metadata(&descriptor_path)
+        .map(|m| m.modified().unwrap())
+        .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+    let mut run_protoc = false;
     let proto_files = vec![root.join("report.proto")];
-
-    // Tell cargo to recompile if any of these proto files are changed
     for proto_file in &proto_files {
         println!("cargo:rerun-if-changed={}", proto_file.display());
+        let mtime = match std::fs::metadata(proto_file) {
+            Ok(m) => m.modified().unwrap(),
+            Err(e) => panic!("Failed to stat proto file {}: {:?}", proto_file.display(), e),
+        };
+        if mtime > descriptor_mtime {
+            run_protoc = true;
+        }
     }
 
-    let descriptor_path =
-        PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("proto_descriptor.bin");
-
-    prost_build::Config::new()
-        .file_descriptor_set_path(&descriptor_path)
-        .compile_protos(&proto_files, &[root])
-        .expect("Failed to compile protos");
+    let mut config = prost_build::Config::new();
+    config.file_descriptor_set_path(&descriptor_path);
+    // If our cached descriptor is up-to-date, we don't need to run protoc.
+    // This is helpful so that users don't need to have protoc installed
+    // unless they're updating the protos.
+    if !run_protoc {
+        config.skip_protoc_run();
+    }
+    config.compile_protos(&proto_files, &[root]).expect("Failed to compile protos");
 
     let descriptor_set = std::fs::read(descriptor_path).expect("Failed to read descriptor set");
     pbjson_build::Builder::new()
