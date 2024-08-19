@@ -1,7 +1,6 @@
 use std::{collections::HashSet, fs, io::Cursor, path::Path};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
-use byteorder::{BigEndian, ReadBytesExt};
 use cwextab::decode_extab;
 use filetime::FileTime;
 use flagset::Flags;
@@ -18,6 +17,7 @@ use crate::{
         ObjExtab, ObjInfo, ObjReloc, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlagSet,
         ObjSymbolFlags,
     },
+    util::{read_u16, read_u32},
 };
 
 fn to_obj_section_kind(kind: SectionKind) -> Option<ObjSectionKind> {
@@ -415,8 +415,8 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection]) -> Result<()> {
                 .index()
                 .0;
             let start = reader.position();
-            let size = reader.read_u32::<BigEndian>()?;
-            let base_address = reader.read_u32::<BigEndian>()? as u64;
+            let size = read_u32(obj_file, &mut reader)?;
+            let base_address = read_u32(obj_file, &mut reader)? as u64;
             let Some(out_section) =
                 sections.iter_mut().find(|s| s.orig_index == text_section_index)
             else {
@@ -426,12 +426,12 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection]) -> Result<()> {
             };
             let end = start + size as u64;
             while reader.position() < end {
-                let line_number = reader.read_u32::<BigEndian>()? as u64;
-                let statement_pos = reader.read_u16::<BigEndian>()?;
+                let line_number = read_u32(obj_file, &mut reader)? as u64;
+                let statement_pos = read_u16(obj_file, &mut reader)?;
                 if statement_pos != 0xFFFF {
                     log::warn!("Unhandled statement pos {}", statement_pos);
                 }
-                let address_delta = reader.read_u32::<BigEndian>()? as u64;
+                let address_delta = read_u32(obj_file, &mut reader)? as u64;
                 out_section.line_info.insert(base_address + address_delta, line_number);
                 log::debug!("Line: {:#x} -> {}", base_address + address_delta, line_number);
             }
