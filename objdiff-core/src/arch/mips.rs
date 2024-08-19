@@ -34,6 +34,8 @@ const EF_MIPS_MACH: u32 = 0x00FF0000;
 const EF_MIPS_MACH_ALLEGREX: u32 = 0x00840000;
 const EF_MIPS_MACH_5900: u32 = 0x00920000;
 
+const R_MIPS15_S3: u32 = 119;
+
 impl ObjArchMips {
     pub fn new(object: &File) -> Result<Self> {
         let mut abi = Abi::NUMERIC;
@@ -169,6 +171,18 @@ impl ObjArch for ObjArchMips {
                         )));
                         args.push(ObjInsArg::PlainText(")".into()));
                     }
+                    // OperandType::r5900_immediate15 => match reloc {
+                    //     Some(reloc)
+                    //         if reloc.flags == RelocationFlags::Elf { r_type: R_MIPS15_S3 } =>
+                    //     {
+                    //         push_reloc(&mut args, reloc)?;
+                    //     }
+                    //     _ => {
+                    //         args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
+                    //             op.disassemble(&instruction, None).into(),
+                    //         )));
+                    //     }
+                    // },
                     _ => {
                         args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
                             op.disassemble(&instruction, None).into(),
@@ -205,13 +219,14 @@ impl ObjArch for ObjArchMips {
         let addend = self.endianness.read_u32_bytes(data);
         Ok(match reloc.flags() {
             RelocationFlags::Elf { r_type: elf::R_MIPS_32 } => addend as i64,
+            RelocationFlags::Elf { r_type: elf::R_MIPS_26 } => ((addend & 0x03FFFFFF) << 2) as i64,
             RelocationFlags::Elf { r_type: elf::R_MIPS_HI16 } => {
                 ((addend & 0x0000FFFF) << 16) as i32 as i64
             }
             RelocationFlags::Elf {
                 r_type: elf::R_MIPS_LO16 | elf::R_MIPS_GOT16 | elf::R_MIPS_CALL16,
             } => (addend & 0x0000FFFF) as i16 as i64,
-            RelocationFlags::Elf { r_type: elf::R_MIPS_GPREL16 } => {
+            RelocationFlags::Elf { r_type: elf::R_MIPS_GPREL16 | elf::R_MIPS_LITERAL } => {
                 let RelocationTarget::Symbol(idx) = reloc.target() else {
                     bail!("Unsupported R_MIPS_GPREL16 relocation against a non-symbol");
                 };
@@ -225,8 +240,8 @@ impl ObjArch for ObjArchMips {
                     (addend & 0x0000FFFF) as i16 as i64
                 }
             }
-            RelocationFlags::Elf { r_type: elf::R_MIPS_26 } => ((addend & 0x03FFFFFF) << 2) as i64,
             RelocationFlags::Elf { r_type: elf::R_MIPS_PC16 } => 0, // PC-relative relocation
+            RelocationFlags::Elf { r_type: R_MIPS15_S3 } => ((addend & 0x001FFFC0) >> 3) as i64,
             flags => bail!("Unsupported MIPS implicit relocation {flags:?}"),
         })
     }
@@ -234,14 +249,16 @@ impl ObjArch for ObjArchMips {
     fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str> {
         match flags {
             RelocationFlags::Elf { r_type } => match r_type {
+                elf::R_MIPS_32 => Cow::Borrowed("R_MIPS_32"),
+                elf::R_MIPS_26 => Cow::Borrowed("R_MIPS_26"),
                 elf::R_MIPS_HI16 => Cow::Borrowed("R_MIPS_HI16"),
                 elf::R_MIPS_LO16 => Cow::Borrowed("R_MIPS_LO16"),
+                elf::R_MIPS_GPREL16 => Cow::Borrowed("R_MIPS_GPREL16"),
+                elf::R_MIPS_LITERAL => Cow::Borrowed("R_MIPS_LITERAL"),
                 elf::R_MIPS_GOT16 => Cow::Borrowed("R_MIPS_GOT16"),
                 elf::R_MIPS_PC16 => Cow::Borrowed("R_MIPS_PC16"),
                 elf::R_MIPS_CALL16 => Cow::Borrowed("R_MIPS_CALL16"),
-                elf::R_MIPS_GPREL16 => Cow::Borrowed("R_MIPS_GPREL16"),
-                elf::R_MIPS_32 => Cow::Borrowed("R_MIPS_32"),
-                elf::R_MIPS_26 => Cow::Borrowed("R_MIPS_26"),
+                R_MIPS15_S3 => Cow::Borrowed("R_MIPS15_S3"),
                 _ => Cow::Owned(format!("<{flags:?}>")),
             },
             _ => Cow::Owned(format!("<{flags:?}>")),
@@ -277,7 +294,11 @@ fn push_reloc(args: &mut Vec<ObjInsArg>, reloc: &ObjReloc) -> Result<()> {
                 args.push(ObjInsArg::Reloc);
                 args.push(ObjInsArg::PlainText(")".into()));
             }
-            elf::R_MIPS_32 | elf::R_MIPS_26 | elf::R_MIPS_PC16 => {
+            elf::R_MIPS_32
+            | elf::R_MIPS_26
+            | elf::R_MIPS_LITERAL
+            | elf::R_MIPS_PC16
+            | R_MIPS15_S3 => {
                 args.push(ObjInsArg::Reloc);
             }
             _ => bail!("Unsupported ELF MIPS relocation type {r_type}"),
