@@ -1,8 +1,7 @@
 use std::{
     collections::HashSet,
     fs::File,
-    io::{BufWriter, Read, Write},
-    ops::DerefMut,
+    io::Read,
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -10,6 +9,10 @@ use std::{
 use anyhow::{bail, Context, Result};
 use argp::FromArgs;
 use objdiff_core::{
+    bindings::report::{
+        ChangeItem, ChangeItemInfo, ChangeUnit, Changes, ChangesInput, Measures, Report,
+        ReportItem, ReportItemMetadata, ReportUnit, ReportUnitMetadata,
+    },
     config::ProjectObject,
     diff, obj,
     obj::{ObjSectionKind, ObjSymbolFlags},
@@ -18,13 +21,10 @@ use prost::Message;
 use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
 use tracing::{info, warn};
 
-use crate::util::report::{
-    ChangeItem, ChangeItemInfo, ChangeUnit, Changes, ChangesInput, Measures, Report, ReportItem,
-    ReportItemMetadata, ReportUnit, ReportUnitMetadata,
-};
+use crate::util::output::{write_output, OutputFormat};
 
 #[derive(FromArgs, PartialEq, Debug)]
-/// Commands for processing NVIDIA Shield TV alf files.
+/// Generate a progress report for a project.
 #[argp(subcommand, name = "report")]
 pub struct Args {
     #[argp(subcommand)]
@@ -39,7 +39,7 @@ pub enum SubCommand {
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
-/// Generate a report from a project.
+/// Generate a progress report for a project.
 #[argp(subcommand, name = "generate")]
 pub struct GenerateArgs {
     #[argp(option, short = 'p')]
@@ -52,7 +52,7 @@ pub struct GenerateArgs {
     /// Deduplicate global and weak symbols (runs single-threaded)
     deduplicate: bool,
     #[argp(option, short = 'f')]
-    /// Output format (json or proto, default json)
+    /// Output format (json, json-pretty, proto) (default: json)
     format: Option<String>,
 }
 
@@ -70,7 +70,7 @@ pub struct ChangesArgs {
     /// Output file
     output: Option<PathBuf>,
     #[argp(option, short = 'f')]
-    /// Output format (json or proto, default json)
+    /// Output format (json, json-pretty, proto) (default: json)
     format: Option<String>,
 }
 
@@ -81,28 +81,8 @@ pub fn run(args: Args) -> Result<()> {
     }
 }
 
-enum OutputFormat {
-    Json,
-    Proto,
-}
-
-impl OutputFormat {
-    fn from_str(s: &str) -> Result<Self> {
-        match s {
-            "json" => Ok(Self::Json),
-            "binpb" | "pb" | "proto" | "protobuf" => Ok(Self::Proto),
-            _ => bail!("Invalid output format: {}", s),
-        }
-    }
-}
-
 fn generate(args: GenerateArgs) -> Result<()> {
-    let output_format = if let Some(format) = &args.format {
-        OutputFormat::from_str(format)?
-    } else {
-        OutputFormat::Json
-    };
-
+    let output_format = OutputFormat::from_option(args.format.as_deref())?;
     let project_dir = args.project.as_deref().unwrap_or_else(|| Path::new("."));
     info!("Loading project {}", project_dir.display());
 
@@ -153,45 +133,6 @@ fn generate(args: GenerateArgs) -> Result<()> {
     let duration = start.elapsed();
     info!("Report generated in {}.{:03}s", duration.as_secs(), duration.subsec_millis());
     write_output(&report, args.output.as_deref(), output_format)?;
-    Ok(())
-}
-
-fn write_output<T>(input: &T, output: Option<&Path>, format: OutputFormat) -> Result<()>
-where T: serde::Serialize + prost::Message {
-    if let Some(output) = output {
-        info!("Writing to {}", output.display());
-        let file = File::options()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(output)
-            .with_context(|| format!("Failed to create file {}", output.display()))?;
-        match format {
-            OutputFormat::Json => {
-                let mut output = BufWriter::new(file);
-                serde_json::to_writer_pretty(&mut output, input)
-                    .context("Failed to write output file")?;
-                output.flush().context("Failed to flush output file")?;
-            }
-            OutputFormat::Proto => {
-                file.set_len(input.encoded_len() as u64)?;
-                let map =
-                    unsafe { memmap2::Mmap::map(&file) }.context("Failed to map output file")?;
-                let mut output = map.make_mut().context("Failed to remap output file")?;
-                input.encode(&mut output.deref_mut()).context("Failed to encode output")?;
-            }
-        }
-    } else {
-        match format {
-            OutputFormat::Json => {
-                serde_json::to_writer_pretty(std::io::stdout(), input)?;
-            }
-            OutputFormat::Proto => {
-                std::io::stdout().write_all(&input.encode_to_vec())?;
-            }
-        }
-    };
     Ok(())
 }
 
@@ -329,19 +270,8 @@ fn report_object(
     }))
 }
 
-impl From<&ReportItem> for ChangeItemInfo {
-    fn from(value: &ReportItem) -> Self {
-        Self { fuzzy_match_percent: value.fuzzy_match_percent, size: value.size }
-    }
-}
-
 fn changes(args: ChangesArgs) -> Result<()> {
-    let output_format = if let Some(format) = &args.format {
-        OutputFormat::from_str(format)?
-    } else {
-        OutputFormat::Json
-    };
-
+    let output_format = OutputFormat::from_option(args.format.as_deref())?;
     let (previous, current) = if args.previous == Path::new("-") && args.current == Path::new("-") {
         // Special case for comparing two reports from stdin
         let mut data = vec![];

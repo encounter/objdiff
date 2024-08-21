@@ -54,7 +54,7 @@ impl FromArgValue for LogLevel {
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
-/// Yet another GameCube/Wii decompilation toolkit.
+/// A local diffing tool for decompilation projects.
 struct TopLevel {
     #[argp(subcommand)]
     command: SubCommand,

@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use anyhow::Result;
+use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::{
     diff::{
@@ -17,6 +18,7 @@ pub mod code;
 pub mod data;
 pub mod display;
 
+#[wasm_bindgen]
 #[derive(
     Debug,
     Copy,
@@ -41,6 +43,7 @@ pub enum X86Formatter {
     Masm,
 }
 
+#[wasm_bindgen]
 #[derive(
     Debug,
     Copy,
@@ -65,6 +68,7 @@ pub enum MipsAbi {
     N64,
 }
 
+#[wasm_bindgen]
 #[derive(
     Debug,
     Copy,
@@ -93,6 +97,7 @@ pub enum MipsInstrCategory {
     R5900,
 }
 
+#[wasm_bindgen]
 #[derive(
     Debug,
     Copy,
@@ -117,6 +122,7 @@ pub enum ArmArchVersion {
     V6K,
 }
 
+#[wasm_bindgen]
 #[derive(
     Debug,
     Copy,
@@ -148,6 +154,7 @@ pub enum ArmR9Usage {
 #[inline]
 const fn default_true() -> bool { true }
 
+#[wasm_bindgen]
 #[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct DiffObjConfig {
@@ -199,6 +206,9 @@ impl DiffObjConfig {
         }
     }
 }
+
+#[wasm_bindgen]
+pub fn default_diff_obj_config() -> DiffObjConfig { Default::default() }
 
 #[derive(Debug, Clone)]
 pub struct ObjSectionDiff {

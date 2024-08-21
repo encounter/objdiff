@@ -12,7 +12,7 @@ pub enum DiffText<'a> {
     /// Colored text
     BasicColor(&'a str, usize),
     /// Line number
-    Line(usize),
+    Line(u32),
     /// Instruction address
     Address(u64),
     /// Instruction mnemonic
@@ -49,7 +49,7 @@ pub fn display_diff<E>(
         return Ok(());
     };
     if let Some(line) = ins.line {
-        cb(DiffText::Line(line as usize))?;
+        cb(DiffText::Line(line))?;
     }
     cb(DiffText::Address(ins.address - base_addr))?;
     if let Some(branch) = &ins_diff.branch_from {

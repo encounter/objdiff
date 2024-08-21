@@ -1,0 +1,39 @@
+{
+  "name": "objdiff-wasm",
+  "version": "2.0.0-beta.6",
+  "description": "A local diffing tool for decompilation projects.",
+  "author": {
+    "name": "Luke Street",
+    "email": "luke@street.dev"
+  },
+  "license": "MIT OR Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/encounter/objdiff.git"
+  },
+  "files": [
+    "dist/*"
+  ],
+  "main": "dist/main.js",
+  "types": "dist/main.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "build:all": "npm run build && npm run build:proto && npm run build:wasm",
+    "build:proto": "protoc --ts_out=gen --ts_opt add_pb_suffix,eslint_disable,ts_nocheck,use_proto_field_name --proto_path=../objdiff-core/protos ../objdiff-core/protos/*.proto",
+    "build:wasm": "cd ../objdiff-core && wasm-pack build --out-dir ../objdiff-wasm/pkg --target web -- --features arm,dwarf,ppc,x86,wasm"
+  },
+  "dependencies": {
+    "@protobuf-ts/runtime": "2.9.4"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "@protobuf-ts/plugin": "2.9.4",
+    "@types/node": "22.4.1",
+    "esbuild": "0.23.1",
+    "eslint": "^9.9.0",
+    "globals": "^15.9.0",
+    "tsup": "8.2.4",
+    "typescript-eslint": "^8.2.0"
+  }
+}

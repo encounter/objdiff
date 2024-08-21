@@ -1,6 +1,6 @@
 [package]
 name = "objdiff-core"
-version = "2.0.0-beta.4"
+version = "2.0.0-beta.5"
 edition = "2021"
 rust-version = "1.70"
 authors = ["Luke Street <luke@street.dev>"]
@@ -11,6 +11,9 @@ description = """
 A local diffing tool for decompilation projects.
 """
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [features]
 all = ["config", "dwarf", "mips", "ppc", "x86", "arm"]
 any-arch = [] # Implicit, used to check if any arch is enabled
@@ -20,6 +23,7 @@ mips = ["any-arch", "rabbitizer"]
 ppc = ["any-arch", "cwdemangle", "cwextab", "ppc750cl"]
 x86 = ["any-arch", "cpp_demangle", "iced-x86", "msvc-demangler"]
 arm = ["any-arch", "cpp_demangle", "unarm", "arm-attr"]
+wasm = ["serde_json"]
 
 [dependencies]
 anyhow = "1.0.82"
@@ -30,9 +34,12 @@ log = "0.4.21"
 memmap2 = "0.9.4"
 num-traits = "0.2.18"
 object = { version = "0.35.0", features = ["read_core", "std", "elf", "pe"], default-features = false }
+pbjson = "0.7.0"
+prost = "0.13.1"
 serde = { version = "1", features = ["derive"] }
 similar = { version = "2.5.0", default-features = false }
 strum = { version = "0.26.2", features = ["derive"] }
+wasm-bindgen = "0.2.93"
 
 # config
 globset = { version = "0.4.14", features = ["serde1"], optional = true }
@@ -59,3 +66,7 @@ msvc-demangler = { version = "0.10.0", optional = true }
 # arm
 unarm = { version = "1.4.0", optional = true }
 arm-attr = { version = "0.1.1", optional = true }
+
+[build-dependencies]
+prost-build = "0.13.1"
+pbjson-build = "0.7.0"

@@ -41,7 +41,7 @@ pub struct ObjSection {
     pub relocations: Vec<ObjReloc>,
     pub virtual_address: Option<u64>,
     /// Line number info (.line or .debug_line section)
-    pub line_info: BTreeMap<u64, u64>,
+    pub line_info: BTreeMap<u64, u32>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -103,7 +103,7 @@ pub struct ObjIns {
     pub reloc: Option<ObjReloc>,
     pub branch_dest: Option<u64>,
     /// Line number
-    pub line: Option<u64>,
+    pub line: Option<u32>,
     /// Formatted instruction
     pub formatted: String,
     /// Original (unsimplified) instruction
@@ -136,8 +136,8 @@ pub struct ObjExtab {
 
 pub struct ObjInfo {
     pub arch: Box<dyn ObjArch>,
-    pub path: PathBuf,
-    pub timestamp: FileTime,
+    pub path: Option<PathBuf>,
+    pub timestamp: Option<FileTime>,
     pub sections: Vec<ObjSection>,
     /// Common BSS symbols
     pub common: Vec<ObjSymbol>,

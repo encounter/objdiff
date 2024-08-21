@@ -401,13 +401,17 @@ impl App {
 
         if let Some(result) = &diff_state.build {
             if let Some((obj, _)) = &result.first_obj {
-                if file_modified(&obj.path, obj.timestamp) {
-                    config.queue_reload = true;
+                if let (Some(path), Some(timestamp)) = (&obj.path, obj.timestamp) {
+                    if file_modified(path, timestamp) {
+                        config.queue_reload = true;
+                    }
                 }
             }
             if let Some((obj, _)) = &result.second_obj {
-                if file_modified(&obj.path, obj.timestamp) {
-                    config.queue_reload = true;
+                if let (Some(path), Some(timestamp)) = (&obj.path, obj.timestamp) {
+                    if file_modified(path, timestamp) {
+                        config.queue_reload = true;
+                    }
                 }
             }
         }

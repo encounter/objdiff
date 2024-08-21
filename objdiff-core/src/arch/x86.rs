@@ -32,7 +32,7 @@ impl ObjArch for ObjArchX86 {
         code: &[u8],
         _section_index: usize,
         relocations: &[ObjReloc],
-        line_info: &BTreeMap<u64, u64>,
+        line_info: &BTreeMap<u64, u32>,
         config: &DiffObjConfig,
     ) -> Result<ProcessCodeResult> {
         let mut result = ProcessCodeResult { ops: Vec::new(), insts: Vec::new() };

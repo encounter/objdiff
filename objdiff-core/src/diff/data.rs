@@ -1,7 +1,4 @@
-use std::{
-    cmp::{max, min, Ordering},
-    time::{Duration, Instant},
-};
+use std::cmp::{max, min, Ordering};
 
 use anyhow::{anyhow, Result};
 use similar::{capture_diff_slices_deadline, get_diff_ratio, Algorithm};
@@ -47,15 +44,13 @@ pub fn diff_data_section(
     left_section_diff: &ObjSectionDiff,
     right_section_diff: &ObjSectionDiff,
 ) -> Result<(ObjSectionDiff, ObjSectionDiff)> {
-    let deadline = Instant::now() + Duration::from_secs(5);
     let left_max =
         left.symbols.iter().map(|s| s.section_address + s.size).max().unwrap_or(0).min(left.size);
     let right_max =
         right.symbols.iter().map(|s| s.section_address + s.size).max().unwrap_or(0).min(right.size);
     let left_data = &left.data[..left_max as usize];
     let right_data = &right.data[..right_max as usize];
-    let ops =
-        capture_diff_slices_deadline(Algorithm::Patience, left_data, right_data, Some(deadline));
+    let ops = capture_diff_slices_deadline(Algorithm::Patience, left_data, right_data, None);
     let match_percent = get_diff_ratio(&ops, left_data.len(), right_data.len()) * 100.0;
 
     let mut left_diff = Vec::<ObjDataDiff>::new();
@@ -157,9 +152,7 @@ pub fn diff_data_symbol(
     let right_data = &right_section.data[right_symbol.section_address as usize
         ..(right_symbol.section_address + right_symbol.size) as usize];
 
-    let deadline = Instant::now() + Duration::from_secs(5);
-    let ops =
-        capture_diff_slices_deadline(Algorithm::Patience, left_data, right_data, Some(deadline));
+    let ops = capture_diff_slices_deadline(Algorithm::Patience, left_data, right_data, None);
     let match_percent = get_diff_ratio(&ops, left_data.len(), right_data.len()) * 100.0;
 
     Ok((
@@ -209,15 +202,9 @@ pub fn diff_bss_section(
     left_diff: &ObjSectionDiff,
     right_diff: &ObjSectionDiff,
 ) -> Result<(ObjSectionDiff, ObjSectionDiff)> {
-    let deadline = Instant::now() + Duration::from_secs(5);
     let left_sizes = left.symbols.iter().map(|s| (s.section_address, s.size)).collect::<Vec<_>>();
     let right_sizes = right.symbols.iter().map(|s| (s.section_address, s.size)).collect::<Vec<_>>();
-    let ops = capture_diff_slices_deadline(
-        Algorithm::Patience,
-        &left_sizes,
-        &right_sizes,
-        Some(deadline),
-    );
+    let ops = capture_diff_slices_deadline(Algorithm::Patience, &left_sizes, &right_sizes, None);
     let mut match_percent = get_diff_ratio(&ops, left_sizes.len(), right_sizes.len()) * 100.0;
 
     // Use the highest match percent between two options:

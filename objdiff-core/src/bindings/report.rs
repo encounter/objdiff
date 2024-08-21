@@ -69,6 +69,12 @@ impl Measures {
     }
 }
 
+impl From<&ReportItem> for ChangeItemInfo {
+    fn from(value: &ReportItem) -> Self {
+        Self { fuzzy_match_percent: value.fuzzy_match_percent, size: value.size }
+    }
+}
+
 /// Allows [collect](Iterator::collect) to be used on an iterator of [Measures].
 impl FromIterator<Measures> for Measures {
     fn from_iter<T>(iter: T) -> Self

@@ -1,2 +1,2 @@
-pub mod report;
+pub mod output;
 pub mod term;

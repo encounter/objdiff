@@ -1,4 +1,9 @@
-use std::{fs, io::stdout, path::PathBuf, str::FromStr};
+use std::{
+    fs,
+    io::stdout,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use anyhow::{bail, Context, Result};
 use argp::FromArgs;
@@ -14,6 +19,7 @@ use crossterm::{
 };
 use event::KeyModifiers;
 use objdiff_core::{
+    bindings::diff::DiffResult,
     config::{ProjectConfig, ProjectObject},
     diff,
     diff::{
@@ -28,10 +34,13 @@ use ratatui::{
     widgets::{Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
 };
 
-use crate::util::term::crossterm_panic_handler;
+use crate::util::{
+    output::{write_output, OutputFormat},
+    term::crossterm_panic_handler,
+};
 
 #[derive(FromArgs, PartialEq, Debug)]
-/// Diff two object files.
+/// Diff two object files. (Interactive or one-shot mode)
 #[argp(subcommand, name = "diff")]
 pub struct Args {
     #[argp(option, short = '1')]
@@ -49,101 +58,152 @@ pub struct Args {
     #[argp(switch, short = 'x')]
     /// Relax relocation diffs
     relax_reloc_diffs: bool,
+    #[argp(option, short = 'o')]
+    /// Output file (one-shot mode) ("-" for stdout)
+    output: Option<PathBuf>,
+    #[argp(option)]
+    /// Output format (json, json-pretty, proto) (default: json)
+    format: Option<String>,
     #[argp(positional)]
     /// Function symbol to diff
-    symbol: String,
+    symbol: Option<String>,
 }
 
 pub fn run(args: Args) -> Result<()> {
-    let (target_path, base_path, project_config) =
-        match (&args.target, &args.base, &args.project, &args.unit) {
-            (Some(t), Some(b), None, None) => (Some(t.clone()), Some(b.clone()), None),
-            (None, None, p, u) => {
-                let project = match p {
-                    Some(project) => project.clone(),
-                    _ => std::env::current_dir().context("Failed to get the current directory")?,
+    let (target_path, base_path, project_config) = match (
+        &args.target,
+        &args.base,
+        &args.project,
+        &args.unit,
+    ) {
+        (Some(t), Some(b), None, None) => (Some(t.clone()), Some(b.clone()), None),
+        (None, None, p, u) => {
+            let project = match p {
+                Some(project) => project.clone(),
+                _ => std::env::current_dir().context("Failed to get the current directory")?,
+            };
+            let Some((project_config, project_config_info)) =
+                objdiff_core::config::try_project_config(&project)
+            else {
+                bail!("Project config not found in {}", &project.display())
+            };
+            let mut project_config = project_config.with_context(|| {
+                format!("Reading project config {}", project_config_info.path.display())
+            })?;
+            let object = {
+                let resolve_paths = |o: &mut ProjectObject| {
+                    o.resolve_paths(
+                        &project,
+                        project_config.target_dir.as_deref(),
+                        project_config.base_dir.as_deref(),
+                    )
                 };
-                let Some((project_config, project_config_info)) =
-                    objdiff_core::config::try_project_config(&project)
-                else {
-                    bail!("Project config not found in {}", &project.display())
-                };
-                let mut project_config = project_config.with_context(|| {
-                    format!("Reading project config {}", project_config_info.path.display())
-                })?;
-                let object = {
-                    let resolve_paths = |o: &mut ProjectObject| {
-                        o.resolve_paths(
-                            &project,
-                            project_config.target_dir.as_deref(),
-                            project_config.base_dir.as_deref(),
-                        )
-                    };
-                    if let Some(u) = u {
-                        let unit_path =
-                            PathBuf::from_str(u).ok().and_then(|p| fs::canonicalize(p).ok());
+                if let Some(u) = u {
+                    let unit_path =
+                        PathBuf::from_str(u).ok().and_then(|p| fs::canonicalize(p).ok());
 
-                        let Some(object) = project_config.objects.iter_mut().find_map(|obj| {
-                            if obj.name.as_deref() == Some(u) {
-                                resolve_paths(obj);
-                                return Some(obj);
-                            }
-
-                            let up = unit_path.as_deref()?;
-
+                    let Some(object) = project_config.objects.iter_mut().find_map(|obj| {
+                        if obj.name.as_deref() == Some(u) {
                             resolve_paths(obj);
-
-                            if [&obj.base_path, &obj.target_path]
-                                .into_iter()
-                                .filter_map(|p| p.as_ref().and_then(|p| p.canonicalize().ok()))
-                                .any(|p| p == up)
-                            {
-                                return Some(obj);
-                            }
-
-                            None
-                        }) else {
-                            bail!("Unit not found: {}", u)
-                        };
-
-                        object
-                    } else {
-                        let mut idx = None;
-                        let mut count = 0usize;
-                        for (i, obj) in project_config.objects.iter_mut().enumerate() {
-                            resolve_paths(obj);
-
-                            if obj
-                                .target_path
-                                .as_deref()
-                                .map(|o| obj::read::has_function(o, &args.symbol))
-                                .transpose()?
-                                .unwrap_or(false)
-                            {
-                                idx = Some(i);
-                                count += 1;
-                                if count > 1 {
-                                    break;
-                                }
-                            }
+                            return Some(obj);
                         }
-                        match (count, idx) {
-                            (0, None) => bail!("Symbol not found: {}", &args.symbol),
-                            (1, Some(i)) => &mut project_config.objects[i],
-                            (2.., Some(_)) => bail!(
-                                "Multiple instances of {} were found, try specifying a unit",
-                                &args.symbol
-                            ),
-                            _ => unreachable!(),
+
+                        let up = unit_path.as_deref()?;
+
+                        resolve_paths(obj);
+
+                        if [&obj.base_path, &obj.target_path]
+                            .into_iter()
+                            .filter_map(|p| p.as_ref().and_then(|p| p.canonicalize().ok()))
+                            .any(|p| p == up)
+                        {
+                            return Some(obj);
+                        }
+
+                        None
+                    }) else {
+                        bail!("Unit not found: {}", u)
+                    };
+
+                    object
+                } else if let Some(symbol_name) = &args.symbol {
+                    let mut idx = None;
+                    let mut count = 0usize;
+                    for (i, obj) in project_config.objects.iter_mut().enumerate() {
+                        resolve_paths(obj);
+
+                        if obj
+                            .target_path
+                            .as_deref()
+                            .map(|o| obj::read::has_function(o, symbol_name))
+                            .transpose()?
+                            .unwrap_or(false)
+                        {
+                            idx = Some(i);
+                            count += 1;
+                            if count > 1 {
+                                break;
+                            }
                         }
                     }
-                };
-                let target_path = object.target_path.clone();
-                let base_path = object.base_path.clone();
-                (target_path, base_path, Some(project_config))
-            }
-            _ => bail!("Either target and base or project and unit must be specified"),
-        };
+                    match (count, idx) {
+                        (0, None) => bail!("Symbol not found: {}", symbol_name),
+                        (1, Some(i)) => &mut project_config.objects[i],
+                        (2.., Some(_)) => bail!(
+                            "Multiple instances of {} were found, try specifying a unit",
+                            symbol_name
+                        ),
+                        _ => unreachable!(),
+                    }
+                } else {
+                    bail!("Must specify one of: symbol, project and unit, target and base objects")
+                }
+            };
+            let target_path = object.target_path.clone();
+            let base_path = object.base_path.clone();
+            (target_path, base_path, Some(project_config))
+        }
+        _ => bail!("Either target and base or project and unit must be specified"),
+    };
+
+    if let Some(output) = &args.output {
+        run_oneshot(&args, output, target_path.as_deref(), base_path.as_deref())
+    } else {
+        run_interactive(args, target_path, base_path, project_config)
+    }
+}
+
+fn run_oneshot(
+    args: &Args,
+    output: &Path,
+    target_path: Option<&Path>,
+    base_path: Option<&Path>,
+) -> Result<()> {
+    let output_format = OutputFormat::from_option(args.format.as_deref())?;
+    let config = diff::DiffObjConfig {
+        relax_reloc_diffs: args.relax_reloc_diffs,
+        ..Default::default() // TODO
+    };
+    let target = target_path
+        .map(|p| obj::read::read(p, &config).with_context(|| format!("Loading {}", p.display())))
+        .transpose()?;
+    let base = base_path
+        .map(|p| obj::read::read(p, &config).with_context(|| format!("Loading {}", p.display())))
+        .transpose()?;
+    let result = diff::diff_objs(&config, target.as_ref(), base.as_ref(), None)?;
+    let left = target.as_ref().and_then(|o| result.left.as_ref().map(|d| (o, d)));
+    let right = base.as_ref().and_then(|o| result.right.as_ref().map(|d| (o, d)));
+    write_output(&DiffResult::new(left, right), Some(output), output_format)?;
+    Ok(())
+}
+
+fn run_interactive(
+    args: Args,
+    target_path: Option<PathBuf>,
+    base_path: Option<PathBuf>,
+    project_config: Option<ProjectConfig>,
+) -> Result<()> {
+    let Some(symbol_name) = &args.symbol else { bail!("Interactive mode requires a symbol name") };
     let time_format = time::format_description::parse_borrowed::<2>("[hour]:[minute]:[second]")
         .context("Failed to parse time format")?;
     let mut state = Box::new(FunctionDiffUi {
@@ -156,7 +216,7 @@ pub fn run(args: Args) -> Result<()> {
         scroll_state_y: ScrollbarState::default(),
         per_page: 0,
         num_rows: 0,
-        symbol_name: args.symbol.clone(),
+        symbol_name: symbol_name.clone(),
         target_path,
         base_path,
         project_config,
@@ -180,7 +240,7 @@ pub fn run(args: Args) -> Result<()> {
         stdout(),
         EnterAlternateScreen,
         EnableMouseCapture,
-        SetTitle(format!("{} - objdiff", args.symbol)),
+        SetTitle(format!("{} - objdiff", symbol_name)),
     )?;
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend)?;
@@ -814,18 +874,7 @@ impl FunctionDiffUi {
         let prev = self.right_obj.take();
         let config = diff::DiffObjConfig {
             relax_reloc_diffs: self.relax_reloc_diffs,
-            space_between_args: true,                // TODO
-            combine_data_sections: false,            // TODO
-            x86_formatter: Default::default(),       // TODO
-            mips_abi: Default::default(),            // TODO
-            mips_instr_category: Default::default(), // TODO
-            arm_arch_version: Default::default(),    // TODO
-            arm_unified_syntax: true,                // TODO
-            arm_av_registers: false,                 // TODO
-            arm_r9_usage: Default::default(),        // TODO
-            arm_sl_usage: false,                     // TODO
-            arm_fp_usage: false,                     // TODO
-            arm_ip_usage: false,                     // TODO
+            ..Default::default() // TODO
         };
         let target = self
             .target_path

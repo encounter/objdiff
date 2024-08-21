@@ -1,8 +1,4 @@
-use std::{
-    cmp::max,
-    collections::BTreeMap,
-    time::{Duration, Instant},
-};
+use std::{cmp::max, collections::BTreeMap};
 
 use anyhow::{anyhow, Result};
 use similar::{capture_diff_slices_deadline, Algorithm};
@@ -100,13 +96,8 @@ fn diff_instructions(
     left_code: &ProcessCodeResult,
     right_code: &ProcessCodeResult,
 ) -> Result<()> {
-    let deadline = Instant::now() + Duration::from_secs(5);
-    let ops = capture_diff_slices_deadline(
-        Algorithm::Patience,
-        &left_code.ops,
-        &right_code.ops,
-        Some(deadline),
-    );
+    let ops =
+        capture_diff_slices_deadline(Algorithm::Patience, &left_code.ops, &right_code.ops, None);
     if ops.is_empty() {
         left_diff.extend(
             left_code

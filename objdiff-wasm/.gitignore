@@ -1,0 +1,4 @@
+dist/
+gen/
+node_modules/
+pkg/

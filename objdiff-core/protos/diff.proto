@@ -1,0 +1,163 @@
+syntax = "proto3";
+
+package objdiff.diff;
+
+// A symbol
+message Symbol {
+  // Name of the symbol
+  string name = 1;
+  // Demangled name of the symbol
+  optional string demangled_name = 2;
+  // Symbol address
+  uint64 address = 3;
+  // Symbol size
+  uint64 size = 4;
+  // Bitmask of SymbolFlag
+  uint32 flags = 5;
+}
+
+// Symbol visibility flags
+enum SymbolFlag {
+  SYMBOL_NONE = 0;
+  SYMBOL_GLOBAL = 1;
+  SYMBOL_LOCAL = 2;
+  SYMBOL_WEAK = 3;
+  SYMBOL_COMMON = 4;
+  SYMBOL_HIDDEN = 5;
+}
+
+// A single parsed instruction
+message Instruction {
+  // Instruction address
+  uint64 address = 1;
+  // Instruction size
+  uint32 size = 2;
+  // Instruction opcode
+  uint32 opcode = 3;
+  // Instruction mnemonic
+  string mnemonic = 4;
+  // Instruction formatted string
+  string formatted = 5;
+  // Original (unsimplified) instruction string
+  optional string original = 6;
+  // Instruction arguments
+  repeated Argument arguments = 7;
+  // Instruction relocation
+  optional Relocation relocation = 8;
+  // Instruction branch destination
+  optional uint64 branch_dest = 9;
+  // Instruction line number
+  optional uint32 line_number = 10;
+}
+
+// An instruction argument
+message Argument {
+  oneof value {
+    // Plain text
+    string plain_text = 1;
+    // Value
+    ArgumentValue argument = 2;
+    // Relocation
+    ArgumentRelocation relocation = 3;
+    // Branch destination
+    uint64 branch_dest = 4;
+  }
+}
+
+// An instruction argument value
+message ArgumentValue {
+  oneof value {
+    // Signed integer
+    int64 signed = 1;
+    // Unsigned integer
+    uint64 unsigned = 2;
+    // Opaque value
+    string opaque = 3;
+  }
+}
+
+// Marker type for relocation arguments
+message ArgumentRelocation {
+}
+
+message Relocation {
+  uint32 type = 1;
+  string type_name = 2;
+  RelocationTarget target = 3;
+}
+
+message RelocationTarget {
+  Symbol symbol = 1;
+  int64 addend = 2;
+}
+
+message InstructionDiff {
+  DiffKind diff_kind = 1;
+  optional Instruction instruction = 2;
+  optional InstructionBranchFrom branch_from = 3;
+  optional InstructionBranchTo branch_to = 4;
+  repeated ArgumentDiff arg_diff = 5;
+}
+
+message ArgumentDiff {
+  optional uint32 diff_index = 1;
+}
+
+enum DiffKind {
+  DIFF_NONE = 0;
+  DIFF_REPLACE = 1;
+  DIFF_DELETE = 2;
+  DIFF_INSERT = 3;
+  DIFF_OP_MISMATCH = 4;
+  DIFF_ARG_MISMATCH = 5;
+}
+
+message InstructionBranchFrom {
+  repeated uint32 instruction_index = 1;
+  uint32 branch_index = 2;
+}
+
+message InstructionBranchTo {
+  uint32 instruction_index = 1;
+  uint32 branch_index = 2;
+}
+
+message FunctionDiff {
+  Symbol symbol = 1;
+  repeated InstructionDiff instructions = 2;
+  optional float match_percent = 3;
+}
+
+message DataDiff {
+  DiffKind kind = 1;
+  bytes data = 2;
+  // May be larger than data
+  uint64 size = 3;
+}
+
+message SectionDiff {
+  string name = 1;
+  SectionKind kind = 2;
+  uint64 size = 3;
+  uint64 address = 4;
+  repeated FunctionDiff functions = 5;
+  repeated DataDiff data = 6;
+  optional float match_percent = 7;
+}
+
+enum SectionKind {
+  SECTION_UNKNOWN = 0;
+  SECTION_TEXT = 1;
+  SECTION_DATA = 2;
+  SECTION_BSS = 3;
+  SECTION_COMMON = 4;
+}
+
+message ObjectDiff {
+  repeated SectionDiff sections = 1;
+}
+
+message DiffResult {
+  optional ObjectDiff left = 1;
+  optional ObjectDiff right = 2;
+}

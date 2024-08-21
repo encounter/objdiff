@@ -426,7 +426,7 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection]) -> Result<()> {
             };
             let end = start + size as u64;
             while reader.position() < end {
-                let line_number = read_u32(obj_file, &mut reader)? as u64;
+                let line_number = read_u32(obj_file, &mut reader)?;
                 let statement_pos = read_u16(obj_file, &mut reader)?;
                 if statement_pos != 0xFFFF {
                     log::warn!("Unhandled statement pos {}", statement_pos);
@@ -468,7 +468,7 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection]) -> Result<()> {
                 let mut rows = program.rows();
                 while let Some((_header, row)) = rows.next_row()? {
                     if let (Some(line), Some(lines)) = (row.line(), &mut lines) {
-                        lines.insert(row.address(), line.get());
+                        lines.insert(row.address(), line.get() as u32);
                     }
                     if row.end_sequence() {
                         // The next row is the start of a new sequence, which means we must
@@ -600,7 +600,14 @@ pub fn read(obj_path: &Path, config: &DiffObjConfig) -> Result<ObjInfo> {
         let timestamp = FileTime::from_last_modification_time(&file.metadata()?);
         (unsafe { memmap2::Mmap::map(&file) }?, timestamp)
     };
-    let obj_file = File::parse(&*data)?;
+    let mut obj = parse(&data, config)?;
+    obj.path = Some(obj_path.to_owned());
+    obj.timestamp = Some(timestamp);
+    Ok(obj)
+}
+
+pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<ObjInfo> {
+    let obj_file = File::parse(data)?;
     let arch = new_arch(&obj_file)?;
     let split_meta = split_meta(&obj_file)?;
     let mut sections = filter_sections(&obj_file, split_meta.as_ref())?;
@@ -616,7 +623,7 @@ pub fn read(obj_path: &Path, config: &DiffObjConfig) -> Result<ObjInfo> {
     line_info(&obj_file, &mut sections)?;
     let common = common_symbols(arch.as_ref(), &obj_file, split_meta.as_ref())?;
     let extab = exception_tables(&mut sections, &obj_file)?;
-    Ok(ObjInfo { arch, path: obj_path.to_owned(), timestamp, sections, common, extab, split_meta })
+    Ok(ObjInfo { arch, path: None, timestamp: None, sections, common, extab, split_meta })
 }
 
 pub fn has_function(obj_path: &Path, symbol_name: &str) -> Result<bool> {

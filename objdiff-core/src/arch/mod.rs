@@ -24,7 +24,7 @@ pub trait ObjArch: Send + Sync {
         code: &[u8],
         section_index: usize,
         relocations: &[ObjReloc],
-        line_info: &BTreeMap<u64, u64>,
+        line_info: &BTreeMap<u64, u32>,
         config: &DiffObjConfig,
     ) -> Result<ProcessCodeResult>;
 
