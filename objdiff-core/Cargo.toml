@@ -23,7 +23,7 @@ mips = ["any-arch", "rabbitizer"]
 ppc = ["any-arch", "cwdemangle", "cwextab", "ppc750cl"]
 x86 = ["any-arch", "cpp_demangle", "iced-x86", "msvc-demangler"]
 arm = ["any-arch", "cpp_demangle", "unarm", "arm-attr"]
-wasm = ["serde_json"]
+wasm = ["serde_json", "console_error_panic_hook", "console_log"]
 
 [dependencies]
 anyhow = "1.0.82"
@@ -40,6 +40,9 @@ serde = { version = "1", features = ["derive"] }
 similar = { version = "2.5.0", default-features = false }
 strum = { version = "0.26.2", features = ["derive"] }
 wasm-bindgen = "0.2.93"
+tsify-next = { version = "0.5.4", default-features = false, features = ["js"] }
+console_log = { version = "1.0.0", optional = true }
+console_error_panic_hook = { version = "0.1.7", optional = true }
 
 # config
 globset = { version = "0.4.14", features = ["serde1"], optional = true }

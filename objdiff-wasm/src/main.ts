@@ -2,61 +2,94 @@ import {ArgumentValue, DiffResult, InstructionDiff, RelocationTarget} from "../g
 import type {
     ArmArchVersion,
     ArmR9Usage,
-    DiffObjConfig as WasmDiffObjConfig,
+    DiffObjConfig,
     MipsAbi,
     MipsInstrCategory,
     X86Formatter
 } from '../pkg';
-import {InMessage, OutMessage} from './worker';
+import {AnyHandlerData, InMessage, OutMessage} from './worker';
 
 // Export wasm types
-export type DiffObjConfig = Omit<Partial<WasmDiffObjConfig>, 'free'>;
-export {ArmArchVersion, ArmR9Usage, MipsAbi, MipsInstrCategory, X86Formatter};
+export {ArmArchVersion, ArmR9Usage, MipsAbi, MipsInstrCategory, X86Formatter, DiffObjConfig};
 
 // Export protobuf types
 export * from '../gen/diff_pb';
 
-interface PromiseCallbacks {
+interface PromiseCallbacks<T> {
     start: number;
-    resolve: (value: unknown) => void;
-    reject: (reason?: unknown) => void;
+    resolve: (value: T | PromiseLike<T>) => void;
+    reject: (reason?: string) => void;
 }
 
 let workerInit = false;
-let workerCallbacks: PromiseCallbacks | null = null;
+let workerCallbacks: PromiseCallbacks<Worker>;
 const workerReady = new Promise<Worker>((resolve, reject) => {
     workerCallbacks = {start: performance.now(), resolve, reject};
 });
 
-export function initialize(workerUrl?: string | URL) {
+export async function initialize(data?: {
+    workerUrl?: string | URL,
+    wasmUrl?: string | URL, // Relative to worker URL
+}): Promise<Worker> {
     if (workerInit) {
-        return;
+        return workerReady;
     }
     workerInit = true;
-    const worker = new Worker(workerUrl || 'worker.js', {type: 'module'});
-    worker.onmessage = onMessage.bind(null, worker);
-    worker.onerror = (error) => {
-        console.error("Worker error", error);
-        workerCallbacks.reject(error);
+    let {workerUrl, wasmUrl} = data || {};
+    if (!workerUrl) {
+        try {
+            // Bundlers will convert this into an asset URL
+            workerUrl = new URL('./worker.js', import.meta.url);
+        } catch (_) {
+            workerUrl = 'worker.js';
+        }
+    }
+    if (!wasmUrl) {
+        try {
+            // Bundlers will convert this into an asset URL
+            wasmUrl = new URL('./objdiff_core_bg.wasm', import.meta.url);
+        } catch (_) {
+            wasmUrl = 'objdiff_core_bg.js';
+        }
+    }
+    const worker = new Worker(workerUrl, {
+        name: 'objdiff',
+        type: 'module',
+    });
+    worker.onmessage = onMessage;
+    worker.onerror = (event) => {
+        console.error("Worker error", event);
+        workerCallbacks.reject("Worker failed to initialize, wrong URL?");
     };
+    defer<void>({
+        type: 'init',
+        // URL can't be sent directly
+        wasmUrl: wasmUrl.toString(),
+    }, worker).then(() => {
+        workerCallbacks.resolve(worker);
+    }, (e) => {
+        workerCallbacks.reject(e);
+    });
+    return workerReady;
 }
 
 let globalMessageId = 0;
-const messageCallbacks = new Map<number, PromiseCallbacks>();
+const messageCallbacks = new Map<number, PromiseCallbacks<never>>();
 
-function onMessage(worker: Worker, event: MessageEvent<OutMessage>) {
+function onMessage(event: MessageEvent<OutMessage>) {
     switch (event.data.type) {
-        case 'ready':
-            workerCallbacks.resolve(worker);
-            break;
         case 'result': {
-            const {messageId, result} = event.data;
+            const {result, error, messageId} = event.data;
             const callbacks = messageCallbacks.get(messageId);
             if (callbacks) {
                 const end = performance.now();
                 console.debug(`Message ${messageId} took ${end - callbacks.start}ms`);
                 messageCallbacks.delete(messageId);
-                callbacks.resolve(result);
+                if (error != null) {
+                    callbacks.reject(error);
+                } else {
+                    callbacks.resolve(result as never);
+                }
             } else {
                 console.warn(`Unknown message ID ${messageId}`);
             }
@@ -65,11 +98,8 @@ function onMessage(worker: Worker, event: MessageEvent<OutMessage>) {
     }
 }
 
-async function defer<T>(message: Omit<InMessage, 'messageId'>): Promise<T> {
-    if (!workerInit) {
-        throw new Error('Worker not initialized');
-    }
-    const worker = await workerReady;
+async function defer<T>(message: AnyHandlerData, worker?: Worker): Promise<T> {
+    worker = worker || await initialize();
     const messageId = globalMessageId++;
     const promise = new Promise<T>((resolve, reject) => {
         messageCallbacks.set(messageId, {start: performance.now(), resolve, reject});
@@ -77,17 +107,17 @@ async function defer<T>(message: Omit<InMessage, 'messageId'>): Promise<T> {
     worker.postMessage({
         ...message,
         messageId
-    });
+    } as InMessage);
     return promise;
 }
 
 export async function runDiff(left: Uint8Array | undefined, right: Uint8Array | undefined, config?: DiffObjConfig): Promise<DiffResult> {
     const data = await defer<Uint8Array>({
-        type: 'run_diff',
+        type: 'run_diff_proto',
         left,
         right,
         config
-    } as InMessage);
+    });
     const parseStart = performance.now();
     const result = DiffResult.fromBinary(data, {readUnknownField: false});
     const end = performance.now();
@@ -148,11 +178,6 @@ export type DiffTextSpacing = DiffTextBase & {
     count: number,
 };
 
-// TypeScript workaround for oneof types
-export function oneof<T extends { oneofKind: string }>(type: T): T & { oneofKind: string } {
-    return type as T & { oneofKind: string };
-}
-
 // Native JavaScript implementation of objdiff_core::diff::display::display_diff
 export function displayDiff(diff: InstructionDiff, baseAddr: bigint, cb: (text: DiffText) => void) {
     const ins = diff.instruction;
@@ -173,7 +198,7 @@ export function displayDiff(diff: InstructionDiff, baseAddr: bigint, cb: (text: 
         if (i === 0) {
             cb({type: 'spacing', count: 1});
         }
-        const arg = oneof(ins.arguments[i].value);
+        const arg = ins.arguments[i].value;
         const diff_index = diff.arg_diff[i]?.diff_index;
         switch (arg.oneofKind) {
             case "plain_text":
@@ -184,7 +209,7 @@ export function displayDiff(diff: InstructionDiff, baseAddr: bigint, cb: (text: 
                 break;
             case "relocation": {
                 const reloc = ins.relocation!;
-                cb({type: 'symbol', target: reloc.target, diff_index});
+                cb({type: 'symbol', target: reloc.target!, diff_index});
                 break;
             }
             case "branch_dest":

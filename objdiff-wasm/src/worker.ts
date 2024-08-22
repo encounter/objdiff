@@ -1,81 +1,93 @@
-import wasmInit, {default_diff_obj_config, run_diff_proto} from '../pkg';
-import {DiffObjConfig} from "./main";
+import wasmInit, * as exports from '../pkg';
 
-self.postMessage({type: 'init'} as OutMessage);
-await wasmInit({});
-self.postMessage({type: 'ready'} as OutMessage);
-
-type ExtractParam<T> = {
-    [K in keyof T]: T[K] extends (arg1: infer U, ...args: any[]) => any ? U & { type: K } : never;
-}[keyof T];
-type HandlerData = ExtractParam<{
-    run_diff: typeof run_diff,
-}>;
-const handlers: {
-    [K in HandlerData['type']]: (data: Omit<HandlerData, 'type'>) => unknown
-} = {
-    'run_diff': run_diff,
+const handlers = {
+    init: init,
+    // run_diff_json: run_diff_json,
+    run_diff_proto: run_diff_proto,
+} as const;
+type ExtractData<T> = T extends (arg: infer U) => Promise<unknown> ? U : never;
+type HandlerData = {
+    [K in keyof typeof handlers]: { type: K } & ExtractData<typeof handlers[K]>;
 };
 
-function run_diff({left, right, config}: {
-    left: Uint8Array | undefined,
-    right: Uint8Array | undefined,
-    config?: DiffObjConfig
-}): Uint8Array {
-    const cfg = default_diff_obj_config();
-    if (config) {
-        for (const key in config) {
-            if (key in config) {
-                cfg[key] = config[key];
-            }
-        }
+let wasmReady: Promise<void> | null = null;
+
+async function init({wasmUrl}: { wasmUrl?: string }): Promise<void> {
+    if (wasmReady != null) {
+        throw new Error('Already initialized');
     }
-    return run_diff_proto(left, right, cfg);
+    wasmReady = wasmInit({module_or_path: wasmUrl})
+        .then(() => {
+        });
+    return wasmReady;
 }
 
-export type InMessage = HandlerData & { messageId: number };
+async function initIfNeeded() {
+    if (wasmReady == null) {
+        await init({});
+    }
+    return wasmReady;
+}
 
-export type OutMessage = ({
+// async function run_diff_json({left, right, config}: {
+//     left: Uint8Array | undefined,
+//     right: Uint8Array | undefined,
+//     config?: exports.DiffObjConfig,
+// }): Promise<string> {
+//     config = config || exports.default_diff_obj_config();
+//     return exports.run_diff_json(left, right, cfg);
+// }
+
+async function run_diff_proto({left, right, config}: {
+    left: Uint8Array | undefined,
+    right: Uint8Array | undefined,
+    config?: exports.DiffObjConfig,
+}): Promise<Uint8Array> {
+    config = config || {};
+    return exports.run_diff_proto(left, right, config);
+}
+
+export type AnyHandlerData = HandlerData[keyof HandlerData];
+export type InMessage = AnyHandlerData & { messageId: number };
+
+export type OutMessage = {
     type: 'result',
     result: unknown | null,
-    error: unknown | null,
-} | {
-    type: 'init',
-    msg: string
-} | {
-    type: 'ready',
-    msg: string
-}) & { messageId: number };
+    error: string | null,
+    messageId: number,
+};
 
-self.onmessage = async (event: MessageEvent<InMessage>) => {
+self.onmessage = (event: MessageEvent<InMessage>) => {
     const data = event.data;
-    const handler = handlers[data.type];
-    if (handler) {
-        try {
+    const messageId = data?.messageId;
+    (async () => {
+        if (!data) {
+            throw new Error('No data');
+        }
+        const handler = handlers[data.type];
+        if (handler) {
+            if (data.type !== 'init') {
+                await initIfNeeded();
+            }
             const start = performance.now();
-            const result = handler(data);
+            const result = await handler(data as never);
             const end = performance.now();
             console.debug(`Worker message ${data.messageId} took ${end - start}ms`);
             self.postMessage({
                 type: 'result',
                 result: result,
                 error: null,
-                messageId: data.messageId
-            });
-        } catch (error) {
-            self.postMessage({
-                type: 'result',
-                result: null,
-                error: error,
-                messageId: data.messageId
-            });
+                messageId,
+            } as OutMessage);
+        } else {
+            throw new Error(`No handler for ${data.type}`);
         }
-    } else {
+    })().catch(error => {
         self.postMessage({
             type: 'result',
             result: null,
-            error: `No handler for ${data.type}`,
-            messageId: data.messageId
-        });
-    }
+            error: error.toString(),
+            messageId,
+        } as OutMessage);
+    });
 };

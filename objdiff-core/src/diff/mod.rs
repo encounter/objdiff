@@ -1,7 +1,6 @@
 use std::collections::HashSet;
 
 use anyhow::Result;
-use wasm_bindgen::prelude::wasm_bindgen;
 
 use crate::{
     diff::{
@@ -18,7 +17,6 @@ pub mod code;
 pub mod data;
 pub mod display;
 
-#[wasm_bindgen]
 #[derive(
     Debug,
     Copy,
@@ -30,6 +28,7 @@ pub mod display;
     serde::Serialize,
     strum::VariantArray,
     strum::EnumMessage,
+    tsify_next::Tsify,
 )]
 pub enum X86Formatter {
     #[default]
@@ -43,7 +42,6 @@ pub enum X86Formatter {
     Masm,
 }
 
-#[wasm_bindgen]
 #[derive(
     Debug,
     Copy,
@@ -55,6 +53,7 @@ pub enum X86Formatter {
     serde::Serialize,
     strum::VariantArray,
     strum::EnumMessage,
+    tsify_next::Tsify,
 )]
 pub enum MipsAbi {
     #[default]
@@ -68,7 +67,6 @@ pub enum MipsAbi {
     N64,
 }
 
-#[wasm_bindgen]
 #[derive(
     Debug,
     Copy,
@@ -80,6 +78,7 @@ pub enum MipsAbi {
     serde::Serialize,
     strum::VariantArray,
     strum::EnumMessage,
+    tsify_next::Tsify,
 )]
 pub enum MipsInstrCategory {
     #[default]
@@ -97,7 +96,6 @@ pub enum MipsInstrCategory {
     R5900,
 }
 
-#[wasm_bindgen]
 #[derive(
     Debug,
     Copy,
@@ -109,6 +107,7 @@ pub enum MipsInstrCategory {
     serde::Serialize,
     strum::VariantArray,
     strum::EnumMessage,
+    tsify_next::Tsify,
 )]
 pub enum ArmArchVersion {
     #[default]
@@ -122,7 +121,6 @@ pub enum ArmArchVersion {
     V6K,
 }
 
-#[wasm_bindgen]
 #[derive(
     Debug,
     Copy,
@@ -134,6 +132,7 @@ pub enum ArmArchVersion {
     serde::Serialize,
     strum::VariantArray,
     strum::EnumMessage,
+    tsify_next::Tsify,
 )]
 pub enum ArmR9Usage {
     #[default]
@@ -154,8 +153,8 @@ pub enum ArmR9Usage {
 #[inline]
 const fn default_true() -> bool { true }
 
-#[wasm_bindgen]
-#[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize, tsify_next::Tsify)]
+#[tsify(from_wasm_abi)]
 #[serde(default)]
 pub struct DiffObjConfig {
     pub relax_reloc_diffs: bool,
@@ -206,9 +205,6 @@ impl DiffObjConfig {
         }
     }
 }
-
-#[wasm_bindgen]
-pub fn default_diff_obj_config() -> DiffObjConfig { Default::default() }
 
 #[derive(Debug, Clone)]
 pub struct ObjSectionDiff {
