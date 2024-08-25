@@ -150,9 +150,9 @@ impl ObjArch for ObjArchArm {
             object::Endianness::Big => unarm::Endian::Big,
         };
 
-        let parse_flags = ParseFlags { ual: config.arm_unified_syntax };
+        let parse_flags = ParseFlags { ual: config.arm_unified_syntax, version };
 
-        let mut parser = Parser::new(version, first_mapping, start_addr, endian, parse_flags, code);
+        let mut parser = Parser::new(first_mapping, start_addr, endian, parse_flags, code);
 
         let display_options = DisplayOptions {
             reg_names: RegNames {
@@ -168,7 +168,7 @@ impl ObjArch for ObjArchArm {
             },
         };
 
-        while let Some((address, op, ins)) = parser.next() {
+        while let Some((address, ins, parsed_ins)) = parser.next() {
             if let Some(next) = next_mapping {
                 let next_address = parser.address;
                 if next_address >= next.address {
@@ -190,12 +190,15 @@ impl ObjArch for ObjArchArm {
                     | RelocationFlags::Elf { r_type: elf::R_ARM_PC24 }
                     | RelocationFlags::Elf { r_type: elf::R_ARM_XPC25 }
                     | RelocationFlags::Elf { r_type: elf::R_ARM_CALL } => {
-                        reloc_arg =
-                            ins.args.iter().rposition(|a| matches!(a, Argument::BranchDest(_)));
+                        reloc_arg = parsed_ins
+                            .args
+                            .iter()
+                            .rposition(|a| matches!(a, Argument::BranchDest(_)));
                     }
                     // Data
                     RelocationFlags::Elf { r_type: elf::R_ARM_ABS32 } => {
-                        reloc_arg = ins.args.iter().rposition(|a| matches!(a, Argument::UImm(_)));
+                        reloc_arg =
+                            parsed_ins.args.iter().rposition(|a| matches!(a, Argument::UImm(_)));
                     }
                     _ => (),
                 }
@@ -204,20 +207,20 @@ impl ObjArch for ObjArchArm {
             let (args, branch_dest) = if reloc.is_some() && parser.mode == ParseMode::Data {
                 (vec![ObjInsArg::Reloc], None)
             } else {
-                push_args(&ins, config, reloc_arg, address, display_options)?
+                push_args(&parsed_ins, config, reloc_arg, address, display_options)?
             };
 
-            ops.push(op.id());
+            ops.push(ins.opcode_id());
             insts.push(ObjIns {
                 address: address as u64,
                 size: (parser.address - address) as u8,
-                op: op.id(),
-                mnemonic: ins.mnemonic.to_string(),
+                op: ins.opcode_id(),
+                mnemonic: parsed_ins.mnemonic.to_string(),
                 args,
                 reloc,
                 branch_dest,
                 line,
-                formatted: ins.display(display_options).to_string(),
+                formatted: parsed_ins.display(display_options).to_string(),
                 orig: None,
             });
         }
@@ -425,7 +428,7 @@ fn push_args(
                 | Argument::Shift(_)
                 | Argument::CpsrFlags(_)
                 | Argument::Endian(_) => args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                    arg.display(display_options).to_string().into(),
+                    arg.display(display_options, None).to_string().into(),
                 ))),
             }
         }
