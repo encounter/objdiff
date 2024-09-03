@@ -365,7 +365,7 @@ fn display_object(
     let selected = matches!(selected_obj, Some(obj) if obj.name == object_name);
     let color = if selected {
         appearance.emphasized_text_color
-    } else if let Some(complete) = object.complete {
+    } else if let Some(complete) = object.complete() {
         if complete {
             appearance.insert_color
         } else {
@@ -392,8 +392,8 @@ fn display_object(
             name: object_name.to_string(),
             target_path: object.target_path.clone(),
             base_path: object.base_path.clone(),
-            reverse_fn_order: object.reverse_fn_order,
-            complete: object.complete,
+            reverse_fn_order: object.reverse_fn_order(),
+            complete: object.complete(),
             scratch: object.scratch.clone(),
         });
     }
@@ -470,7 +470,7 @@ fn filter_node(
             if (search.is_empty() || name.to_ascii_lowercase().contains(search))
                 && (!filter_diffable
                     || (object.base_path.is_some() && object.target_path.is_some()))
-                && (!filter_incomplete || matches!(object.complete, None | Some(false)))
+                && (!filter_incomplete || matches!(object.complete(), None | Some(false)))
             {
                 Some(node.clone())
             } else {

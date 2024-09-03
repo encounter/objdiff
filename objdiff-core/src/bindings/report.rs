@@ -1,3 +1,5 @@
+use std::ops::AddAssign;
+
 use anyhow::{bail, Result};
 use prost::Message;
 use serde_json::error::Category;
@@ -6,18 +8,21 @@ use serde_json::error::Category;
 include!(concat!(env!("OUT_DIR"), "/objdiff.report.rs"));
 include!(concat!(env!("OUT_DIR"), "/objdiff.report.serde.rs"));
 
+pub const REPORT_VERSION: u32 = 1;
+
 impl Report {
     pub fn parse(data: &[u8]) -> Result<Self> {
         if data.is_empty() {
             bail!(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
         }
-        if data[0] == b'{' {
+        let report = if data[0] == b'{' {
             // Load as JSON
-            Self::from_json(data).map_err(anyhow::Error::new)
+            Self::from_json(data)?
         } else {
             // Load as binary protobuf
-            Self::decode(data).map_err(anyhow::Error::new)
-        }
+            Self::decode(data)?
+        };
+        Ok(report)
     }
 
     fn from_json(bytes: &[u8]) -> Result<Self, serde_json::Error> {
@@ -35,6 +40,81 @@ impl Report {
                     }
                 }
             }
+        }
+    }
+
+    pub fn migrate(&mut self) -> Result<()> {
+        if self.version == 0 {
+            self.migrate_v0()?;
+        }
+        if self.version != REPORT_VERSION {
+            bail!("Unsupported report version: {}", self.version);
+        }
+        Ok(())
+    }
+
+    fn migrate_v0(&mut self) -> Result<()> {
+        let Some(measures) = &mut self.measures else {
+            bail!("Missing measures in report");
+        };
+        for unit in &mut self.units {
+            let Some(unit_measures) = &mut unit.measures else {
+                bail!("Missing measures in report unit");
+            };
+            let Some(metadata) = &mut unit.metadata else {
+                bail!("Missing metadata in report unit");
+            };
+            if metadata.module_name.is_some() || metadata.module_id.is_some() {
+                metadata.progress_categories = vec!["modules".to_string()];
+            } else {
+                metadata.progress_categories = vec!["dol".to_string()];
+            }
+            if metadata.complete.unwrap_or(false) {
+                unit_measures.complete_code = unit_measures.total_code;
+                unit_measures.complete_data = unit_measures.total_data;
+                unit_measures.complete_code_percent = 100.0;
+                unit_measures.complete_data_percent = 100.0;
+            } else {
+                unit_measures.complete_code = 0;
+                unit_measures.complete_data = 0;
+                unit_measures.complete_code_percent = 0.0;
+                unit_measures.complete_data_percent = 0.0;
+            }
+            measures.complete_code += unit_measures.complete_code;
+            measures.complete_data += unit_measures.complete_data;
+        }
+        measures.calc_matched_percent();
+        self.version = 1;
+        Ok(())
+    }
+
+    pub fn calculate_progress_categories(&mut self) {
+        for unit in &self.units {
+            let Some(metadata) = unit.metadata.as_ref() else {
+                continue;
+            };
+            let Some(measures) = unit.measures.as_ref() else {
+                continue;
+            };
+            for category_id in &metadata.progress_categories {
+                let category = match self.categories.iter_mut().find(|c| &c.id == category_id) {
+                    Some(category) => category,
+                    None => {
+                        self.categories.push(ReportCategory {
+                            id: category_id.clone(),
+                            name: String::new(),
+                            measures: Some(Default::default()),
+                        });
+                        self.categories.last_mut().unwrap()
+                    }
+                };
+                *category.measures.get_or_insert_with(Default::default) += *measures;
+            }
+        }
+        for category in &mut self.categories {
+            let measures = category.measures.get_or_insert_with(Default::default);
+            measures.calc_fuzzy_match_percent();
+            measures.calc_matched_percent();
         }
     }
 }
@@ -66,6 +146,16 @@ impl Measures {
         } else {
             self.matched_functions as f32 / self.total_functions as f32 * 100.0
         };
+        self.complete_code_percent = if self.total_code == 0 {
+            100.0
+        } else {
+            self.complete_code as f32 / self.total_code as f32 * 100.0
+        };
+        self.complete_data_percent = if self.total_data == 0 {
+            100.0
+        } else {
+            self.complete_data as f32 / self.total_data as f32 * 100.0
+        };
     }
 }
 
@@ -75,19 +165,27 @@ impl From<&ReportItem> for ChangeItemInfo {
     }
 }
 
+impl AddAssign for Measures {
+    fn add_assign(&mut self, other: Self) {
+        self.fuzzy_match_percent += other.fuzzy_match_percent * other.total_code as f32;
+        self.total_code += other.total_code;
+        self.matched_code += other.matched_code;
+        self.total_data += other.total_data;
+        self.matched_data += other.matched_data;
+        self.total_functions += other.total_functions;
+        self.matched_functions += other.matched_functions;
+        self.complete_code += other.complete_code;
+        self.complete_data += other.complete_data;
+    }
+}
+
 /// Allows [collect](Iterator::collect) to be used on an iterator of [Measures].
 impl FromIterator<Measures> for Measures {
     fn from_iter<T>(iter: T) -> Self
     where T: IntoIterator<Item = Measures> {
         let mut measures = Measures::default();
         for other in iter {
-            measures.fuzzy_match_percent += other.fuzzy_match_percent * other.total_code as f32;
-            measures.total_code += other.total_code;
-            measures.matched_code += other.matched_code;
-            measures.total_data += other.total_data;
-            measures.matched_data += other.matched_data;
-            measures.total_functions += other.total_functions;
-            measures.matched_functions += other.matched_functions;
+            measures += other;
         }
         measures.calc_fuzzy_match_percent();
         measures.calc_matched_percent();
@@ -125,8 +223,10 @@ impl From<LegacyReport> for Report {
                 total_functions: value.total_functions,
                 matched_functions: value.matched_functions,
                 matched_functions_percent: value.matched_functions_percent,
+                ..Default::default()
             }),
-            units: value.units.into_iter().map(ReportUnit::from).collect(),
+            units: value.units.into_iter().map(ReportUnit::from).collect::<Vec<_>>(),
+            ..Default::default()
         }
     }
 }

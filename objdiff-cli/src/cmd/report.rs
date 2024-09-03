@@ -11,7 +11,8 @@ use argp::FromArgs;
 use objdiff_core::{
     bindings::report::{
         ChangeItem, ChangeItemInfo, ChangeUnit, Changes, ChangesInput, Measures, Report,
-        ReportItem, ReportItemMetadata, ReportUnit, ReportUnitMetadata,
+        ReportCategory, ReportItem, ReportItemMetadata, ReportUnit, ReportUnitMetadata,
+        REPORT_VERSION,
     },
     config::ProjectObject,
     diff, obj,
@@ -129,7 +130,17 @@ fn generate(args: GenerateArgs) -> Result<()> {
         units = vec.into_iter().flatten().collect();
     }
     let measures = units.iter().flat_map(|u| u.measures.into_iter()).collect();
-    let report = Report { measures: Some(measures), units };
+    let mut categories = Vec::new();
+    for category in &project.progress_categories {
+        categories.push(ReportCategory {
+            id: category.id.clone(),
+            name: category.name.clone(),
+            measures: Some(Default::default()),
+        });
+    }
+    let mut report =
+        Report { measures: Some(measures), units, version: REPORT_VERSION, categories };
+    report.calculate_progress_categories();
     let duration = start.elapsed();
     info!("Report generated in {}.{:03}s", duration.as_secs(), duration.subsec_millis());
     write_output(&report, args.output.as_deref(), output_format)?;
@@ -145,7 +156,7 @@ fn report_object(
 ) -> Result<Option<ReportUnit>> {
     object.resolve_paths(project_dir, target_dir, base_dir);
     match (&object.target_path, &object.base_path) {
-        (None, Some(_)) if object.complete != Some(true) => {
+        (None, Some(_)) if !object.complete().unwrap_or(false) => {
             warn!("Skipping object without target: {}", object.name());
             return Ok(None);
         }
@@ -173,13 +184,19 @@ fn report_object(
     let result = diff::diff_objs(&config, target.as_ref(), base.as_ref(), None)?;
 
     let metadata = ReportUnitMetadata {
-        complete: object.complete,
+        complete: object.complete(),
         module_name: target
             .as_ref()
             .and_then(|o| o.split_meta.as_ref())
             .and_then(|m| m.module_name.clone()),
         module_id: target.as_ref().and_then(|o| o.split_meta.as_ref()).and_then(|m| m.module_id),
-        source_path: None, // TODO
+        source_path: object.metadata.as_ref().and_then(|m| m.source_path.clone()),
+        progress_categories: object
+            .metadata
+            .as_ref()
+            .and_then(|m| m.progress_categories.clone())
+            .unwrap_or_default(),
+        auto_generated: object.metadata.as_ref().and_then(|m| m.auto_generated),
     };
     let mut measures = Measures::default();
     let mut sections = vec![];
@@ -191,7 +208,7 @@ fn report_object(
         let section_match_percent = section_diff.match_percent.unwrap_or_else(|| {
             // Support cases where we don't have a target object,
             // assume complete means 100% match
-            if object.complete == Some(true) {
+            if object.complete().unwrap_or(false) {
                 100.0
             } else {
                 0.0
@@ -233,7 +250,7 @@ fn report_object(
             let match_percent = symbol_diff.match_percent.unwrap_or_else(|| {
                 // Support cases where we don't have a target object,
                 // assume complete means 100% match
-                if object.complete == Some(true) {
+                if object.complete().unwrap_or(false) {
                     100.0
                 } else {
                     0.0
@@ -258,6 +275,10 @@ fn report_object(
             }
             measures.total_functions += 1;
         }
+    }
+    if metadata.complete.unwrap_or(false) {
+        measures.complete_code = measures.total_code;
+        measures.complete_data = measures.total_data;
     }
     measures.calc_fuzzy_match_percent();
     measures.calc_matched_percent();

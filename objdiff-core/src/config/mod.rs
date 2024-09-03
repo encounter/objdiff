@@ -31,6 +31,8 @@ pub struct ProjectConfig {
     pub watch_patterns: Option<Vec<Glob>>,
     #[serde(default, alias = "units")]
     pub objects: Vec<ProjectObject>,
+    #[serde(default)]
+    pub progress_categories: Vec<ProjectProgressCategory>,
 }
 
 #[derive(Default, Clone, serde::Deserialize)]
@@ -44,11 +46,37 @@ pub struct ProjectObject {
     #[serde(default)]
     pub base_path: Option<PathBuf>,
     #[serde(default)]
+    #[deprecated(note = "Use metadata.reverse_fn_order")]
     pub reverse_fn_order: Option<bool>,
     #[serde(default)]
+    #[deprecated(note = "Use metadata.complete")]
     pub complete: Option<bool>,
     #[serde(default)]
     pub scratch: Option<ScratchConfig>,
+    #[serde(default)]
+    pub metadata: Option<ProjectObjectMetadata>,
+}
+
+#[derive(Default, Clone, serde::Deserialize)]
+pub struct ProjectObjectMetadata {
+    #[serde(default)]
+    pub complete: Option<bool>,
+    #[serde(default)]
+    pub reverse_fn_order: Option<bool>,
+    #[serde(default)]
+    pub source_path: Option<String>,
+    #[serde(default)]
+    pub progress_categories: Option<Vec<String>>,
+    #[serde(default)]
+    pub auto_generated: Option<bool>,
+}
+
+#[derive(Default, Clone, serde::Deserialize)]
+pub struct ProjectProgressCategory {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
 }
 
 impl ProjectObject {
@@ -81,6 +109,16 @@ impl ProjectObject {
         } else if let Some(path) = &self.base_path {
             self.base_path = Some(project_dir.join(path));
         }
+    }
+
+    pub fn complete(&self) -> Option<bool> {
+        #[allow(deprecated)]
+        self.metadata.as_ref().and_then(|m| m.complete).or(self.complete)
+    }
+
+    pub fn reverse_fn_order(&self) -> Option<bool> {
+        #[allow(deprecated)]
+        self.metadata.as_ref().and_then(|m| m.reverse_fn_order).or(self.reverse_fn_order)
     }
 }
 

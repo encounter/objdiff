@@ -24,6 +24,14 @@ message Measures {
   uint32 matched_functions = 9;
   // Fully matched functions percent
   float matched_functions_percent = 10;
+  // Completed (or "linked") code size in bytes
+  uint64 complete_code = 11;
+  // Completed (or "linked") code percent
+  float complete_code_percent = 12;
+  // Completed (or "linked") data size in bytes
+  uint64 complete_data = 13;
+  // Completed (or "linked") data percent
+  float complete_data_percent = 14;
 }
 
 // Project progress report
@@ -32,6 +40,19 @@ message Report {
   Measures measures = 1;
   // Units within this report
   repeated ReportUnit units = 2;
+  // Report version
+  uint32 version = 3;
+  // Progress categories
+  repeated ReportCategory categories = 4;
+}
+
+message ReportCategory {
+  // The ID of the category
+  string id = 1;
+  // The name of the category
+  string name = 2;
+  // Progress info for this category
+  Measures measures = 3;
 }
 
 // A unit of the report (usually a translation unit)
@@ -58,6 +79,10 @@ message ReportUnitMetadata {
   optional uint32 module_id = 3;
   // The path to the source file of this unit
   optional string source_path = 4;
+  // Progress categories for this unit
+  repeated string progress_categories = 5;
+  // Whether this unit is automatically generated (not user-provided)
+  optional bool auto_generated = 6;
 }
 
 // A section or function within a unit

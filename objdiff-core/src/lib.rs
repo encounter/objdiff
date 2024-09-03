@@ -1,10 +1,11 @@
+#[cfg(feature = "any-arch")]
 pub mod arch;
+#[cfg(feature = "bindings")]
 pub mod bindings;
 #[cfg(feature = "config")]
 pub mod config;
+#[cfg(feature = "any-arch")]
 pub mod diff;
+#[cfg(feature = "any-arch")]
 pub mod obj;
 pub mod util;
-
-#[cfg(not(feature = "any-arch"))]
-compile_error!("At least one architecture feature must be enabled.");

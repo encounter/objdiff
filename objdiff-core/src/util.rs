@@ -9,7 +9,7 @@ use num_traits::PrimInt;
 use object::{Endian, Object};
 
 // https://stackoverflow.com/questions/44711012/how-do-i-format-a-signed-integer-to-a-sign-aware-hexadecimal-representation
-pub(crate) struct ReallySigned<N: PrimInt>(pub(crate) N);
+pub struct ReallySigned<N: PrimInt>(pub(crate) N);
 
 impl<N: PrimInt> LowerHex for ReallySigned<N> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
