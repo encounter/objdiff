@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "$id": "https://raw.githubusercontent.com/encounter/objdiff/main/config.schema.json",
+  "title": "objdiff configuration",
+  "description": "Configuration file for objdiff",
+  "type": "object",
+  "properties": {
+    "min_version": {
+      "type": "string",
+      "description": "Minimum version of objdiff required to load this configuration file.",
+      "examples": [
+        "1.0.0",
+        "2.0.0-beta.1"
+      ]
+    },
+    "custom_make": {
+      "type": "string",
+      "description": "By default, objdiff will use make to build the project.\nIf the project uses a different build system (e.g. ninja), specify it here.\nThe build command will be `[custom_make] [custom_args] path/to/object.o`.",
+      "examples": [
+        "make",
+        "ninja"
+      ],
+      "default": "make"
+    },
+    "custom_args": {
+      "type": "array",
+      "description": "Additional arguments to pass to the build command prior to the object path.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "target_dir": {
+      "type": "string",
+      "description": "Relative from the root of the project, this where the \"target\" or \"expected\" objects are located.\nThese are the intended result of the match.",
+      "deprecated": true
+    },
+    "base_dir": {
+      "type": "string",
+      "description": "Relative from the root of the project, this is where the \"base\" or \"actual\" objects are located.\nThese are objects built from the current source code.",
+      "deprecated": true
+    },
+    "build_target": {
+      "type": "boolean",
+      "description": "If true, objdiff will tell the build system to build the target objects before diffing (e.g. `make path/to/target.o`).\nThis is useful if the target objects are not built by default or can change based on project configuration or edits to assembly files.\nRequires the build system to be configured properly.",
+      "default": false
+    },
+    "build_base": {
+      "type": "boolean",
+      "description": "If true, objdiff will tell the build system to build the base objects before diffing (e.g. `make path/to/base.o`).\nIt's unlikely you'll want to disable this, unless you're using an external tool to rebuild the base object on source file changes.",
+      "default": true
+    },
+    "watch_patterns": {
+      "type": "array",
+      "description": "List of glob patterns to watch for changes in the project.\nIf any of these files change, objdiff will automatically rebuild the objects and re-compare them.\nSupported syntax: https://docs.rs/globset/latest/globset/#syntax",
+      "items": {
+        "type": "string"
+      },
+      "default": [
+        "*.c",
+        "*.cp",
+        "*.cpp",
+        "*.cxx",
+        "*.h",
+        "*.hp",
+        "*.hpp",
+        "*.hxx",
+        "*.s",
+        "*.S",
+        "*.asm",
+        "*.inc",
+        "*.py",
+        "*.yml",
+        "*.txt",
+        "*.json"
+      ]
+    },
+    "objects": {
+      "type": "array",
+      "description": "Use units instead.",
+      "deprecated": true,
+      "items": {
+        "$ref": "#/$defs/unit"
+      }
+    },
+    "units": {
+      "type": "array",
+      "description": "If specified, objdiff will display a list of objects in the sidebar for easy navigation.",
+      "items": {
+        "$ref": "#/$defs/unit"
+      }
+    },
+    "progress_categories": {
+      "type": "array",
+      "description": "Progress categories used for objdiff-cli report.",
+      "items": {
+        "$ref": "#/$defs/progress_category"
+      }
+    }
+  },
+  "$defs": {
+    "unit": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the object in the UI. If not specified, the object's path will be used."
+        },
+        "path": {
+          "type": "string",
+          "description": "Relative path to the object from the target_dir and base_dir.\nRequires target_dir and base_dir to be specified.",
+          "deprecated": true
+        },
+        "target_path": {
+          "type": "string",
+          "description": "Path to the target object from the project root.\nRequired if path is not specified."
+        },
+        "base_path": {
+          "type": "string",
+          "description": "Path to the base object from the project root.\nRequired if path is not specified."
+        },
+        "reverse_fn_order": {
+          "type": "boolean",
+          "description": "Displays function symbols in reversed order.\nUsed to support MWCC's -inline deferred option, which reverses the order of functions in the object file.",
+          "deprecated": true
+        },
+        "complete": {
+          "type": "boolean",
+          "description": "Marks the object as \"complete\" (or \"linked\") in the object list.\nThis is useful for marking objects that are fully decompiled. A value of `false` will mark the object as \"incomplete\".",
+          "deprecated": true
+        },
+        "scratch": {
+          "ref": "#/$defs/scratch"
+        },
+        "metadata": {
+          "ref": "#/$defs/metadata"
+        }
+      }
+    },
+    "scratch": {
+      "type": "object",
+      "description": "If present, objdiff will display a button to create a decomp.me scratch.",
+      "properties": {
+        "platform": {
+          "type": "string",
+          "description": "The decomp.me platform ID to use for the scratch.",
+          "examples": [
+            "gc_wii",
+            "n64"
+          ]
+        },
+        "compiler": {
+          "type": "string",
+          "description": "The decomp.me compiler ID to use for the scratch.",
+          "examples": [
+            "mwcc_242_81",
+            "ido7.1"
+          ]
+        },
+        "c_flags": {
+          "type": "string",
+          "description": "C flags to use for the scratch. Exclude any include paths."
+        },
+        "ctx_path": {
+          "type": "string",
+          "description": "Path to the context file to use for the scratch."
+        },
+        "build_ctx": {
+          "type": "boolean",
+          "description": "If true, objdiff will run the build command with the context file as an argument to generate it.",
+          "default": false
+        }
+      },
+      "required": [
+        "platform",
+        "compiler"
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "complete": {
+          "type": "boolean",
+          "description": "Marks the object as \"complete\" (or \"linked\") in the object list.\nThis is useful for marking objects that are fully decompiled. A value of `false` will mark the object as \"incomplete\"."
+        },
+        "reverse_fn_order": {
+          "type": "boolean",
+          "description": "Displays function symbols in reversed order.\nUsed to support MWCC's -inline deferred option, which reverses the order of functions in the object file."
+        },
+        "source_path": {
+          "type": "string",
+          "description": "Path to the source file that generated the object."
+        },
+        "progress_categories": {
+          "type": "array",
+          "description": "Progress categories used for objdiff-cli report.",
+          "items": {
+            "type": "string",
+            "description": "Unique identifier for the category. (See progress_categories)"
+          }
+        },
+        "auto_generated": {
+          "type": "boolean",
+          "description": "Hides the object from the object list by default, but still includes it in reports."
+        }
+      }
+    },
+    "progress_category": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the category."
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name of the category."
+        }
+      }
+    }
+  }
+}
