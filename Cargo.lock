@@ -2875,7 +2875,7 @@ dependencies = [
  "memmap2",
  "msvc-demangler",
  "num-traits",
- "object 0.35.0",
+ "object 0.36.4",
  "pbjson",
  "pbjson-build",
  "ppc750cl",
@@ -2950,9 +2950,9 @@ dependencies = [
 
 [[package]]
 name = "object"
-version = "0.35.0"
+version = "0.36.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8ec7ab813848ba4522158d5517a6093db1ded27575b070f4177b8d12b41db5e"
+checksum = "084f1a5821ac4c651660a94a7153d27ac9d8a53736203f58b31945ded098070a"
 dependencies = [
  "memchr",
 ]
