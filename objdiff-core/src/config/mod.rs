@@ -120,6 +120,10 @@ impl ProjectObject {
         #[allow(deprecated)]
         self.metadata.as_ref().and_then(|m| m.reverse_fn_order).or(self.reverse_fn_order)
     }
+
+    pub fn hidden(&self) -> bool {
+        self.metadata.as_ref().and_then(|m| m.auto_generated).unwrap_or(false)
+    }
 }
 
 #[derive(Default, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]

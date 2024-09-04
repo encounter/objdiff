@@ -1,7 +1,6 @@
 #[cfg(all(windows, feature = "wsl"))]
 use std::string::FromUtf16Error;
 use std::{
-    borrow::Cow,
     mem::take,
     path::{PathBuf, MAIN_SEPARATOR},
 };
@@ -50,6 +49,7 @@ pub struct ConfigViewState {
     pub object_search: String,
     pub filter_diffable: bool,
     pub filter_incomplete: bool,
+    pub show_hidden: bool,
     #[cfg(all(windows, feature = "wsl"))]
     pub available_wsl_distros: Option<Vec<String>>,
     pub file_dialog_state: FileDialogState,
@@ -283,20 +283,18 @@ pub fn config_ui(
                 root_open = Some(true);
                 node_open = NodeOpen::Object;
             }
-            if ui
-                .selectable_label(state.filter_diffable, "Diffable")
-                .on_hover_text_at_pointer("Only show objects with a source file")
-                .clicked()
-            {
-                state.filter_diffable = !state.filter_diffable;
+            let mut filters_text = RichText::new("Filter ⏷");
+            if state.filter_diffable || state.filter_incomplete || state.show_hidden {
+                filters_text = filters_text.color(appearance.replace_color);
             }
-            if ui
-                .selectable_label(state.filter_incomplete, "Incomplete")
-                .on_hover_text_at_pointer("Only show objects not marked complete")
-                .clicked()
-            {
-                state.filter_incomplete = !state.filter_incomplete;
-            }
+            egui::menu::menu_button(ui, filters_text, |ui| {
+                ui.checkbox(&mut state.filter_diffable, "Diffable")
+                    .on_hover_text_at_pointer("Only show objects with a source file");
+                ui.checkbox(&mut state.filter_incomplete, "Incomplete")
+                    .on_hover_text_at_pointer("Only show objects not marked complete");
+                ui.checkbox(&mut state.show_hidden, "Hidden")
+                    .on_hover_text_at_pointer("Show hidden (auto-generated) objects");
+            });
         });
         if state.object_search.is_empty() {
             if had_search {
@@ -315,27 +313,18 @@ pub fn config_ui(
         .open(root_open)
         .default_open(true)
         .show(ui, |ui| {
-            let mut nodes = Cow::Borrowed(object_nodes);
-            if !state.object_search.is_empty() || state.filter_diffable || state.filter_incomplete {
-                let search = state.object_search.to_ascii_lowercase();
-                nodes = Cow::Owned(
-                    object_nodes
-                        .iter()
-                        .filter_map(|node| {
-                            filter_node(
-                                node,
-                                &search,
-                                state.filter_diffable,
-                                state.filter_incomplete,
-                            )
-                        })
-                        .collect(),
-                );
-            }
-
+            let search = state.object_search.to_ascii_lowercase();
             ui.style_mut().wrap = Some(false);
-            for node in nodes.iter() {
-                display_node(ui, &mut new_selected_obj, node, appearance, node_open);
+            for node in object_nodes.iter().filter_map(|node| {
+                filter_node(
+                    node,
+                    &search,
+                    state.filter_diffable,
+                    state.filter_incomplete,
+                    state.show_hidden,
+                )
+            }) {
+                display_node(ui, &mut new_selected_obj, &node, appearance, node_open);
             }
         });
     }
@@ -464,6 +453,7 @@ fn filter_node(
     search: &str,
     filter_diffable: bool,
     filter_incomplete: bool,
+    show_hidden: bool,
 ) -> Option<ProjectObjectNode> {
     match node {
         ProjectObjectNode::File(name, object) => {
@@ -471,6 +461,7 @@ fn filter_node(
                 && (!filter_diffable
                     || (object.base_path.is_some() && object.target_path.is_some()))
                 && (!filter_incomplete || matches!(object.complete(), None | Some(false)))
+                && (show_hidden || !object.hidden())
             {
                 Some(node.clone())
             } else {
@@ -478,15 +469,11 @@ fn filter_node(
             }
         }
         ProjectObjectNode::Dir(name, children) => {
-            if (search.is_empty() || name.to_ascii_lowercase().contains(search))
-                && !filter_diffable
-                && !filter_incomplete
-            {
-                return Some(node.clone());
-            }
             let new_children = children
                 .iter()
-                .filter_map(|child| filter_node(child, search, filter_diffable, filter_incomplete))
+                .filter_map(|child| {
+                    filter_node(child, search, filter_diffable, filter_incomplete, show_hidden)
+                })
                 .collect::<Vec<_>>();
             if !new_children.is_empty() {
                 Some(ProjectObjectNode::Dir(name.clone(), new_children))
