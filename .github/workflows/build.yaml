@@ -203,6 +203,10 @@ jobs:
             target: x86_64-pc-windows-msvc
             name: windows-x86_64
             features: default
+          - platform: windows-latest
+            target: i686-pc-windows-msvc
+            name: windows-x86
+            features: default
           - platform: macos-latest
             target: x86_64-apple-darwin
             name: macos-x86_64
