@@ -34,7 +34,7 @@ flagset = "0.4.5"
 log = "0.4.21"
 memmap2 = "0.9.4"
 num-traits = "0.2.18"
-object = { version = "0.35.0", features = ["read_core", "std", "elf", "pe"], default-features = false }
+object = { version = "0.36.0", features = ["read_core", "std", "elf", "pe"], default-features = false }
 pbjson = { version = "0.7.0", optional = true }
 prost = { version = "0.13.1", optional = true }
 serde = { version = "1", features = ["derive"] }

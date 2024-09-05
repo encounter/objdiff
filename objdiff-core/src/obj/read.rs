@@ -1,12 +1,15 @@
-use std::{collections::HashSet, fs, io::Cursor, path::Path};
+use std::{collections::HashSet, fs, io::Cursor, mem::size_of, path::Path};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use cwextab::decode_extab;
 use filetime::FileTime;
 use flagset::Flags;
 use object::{
+    endian::LittleEndian as LE,
+    pe::{ImageAuxSymbolFunctionBeginEnd, ImageLinenumber},
+    read::coff::{CoffFile, CoffHeader, ImageSymbol},
     Architecture, BinaryFormat, File, Object, ObjectSection, ObjectSymbol, RelocationTarget,
-    SectionIndex, SectionKind, Symbol, SymbolKind, SymbolScope, SymbolSection,
+    SectionIndex, SectionKind, Symbol, SymbolIndex, SymbolKind, SymbolScope, SymbolSection,
 };
 
 use crate::{
@@ -401,7 +404,7 @@ fn relocations_by_section(
     Ok(relocations)
 }
 
-fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection]) -> Result<()> {
+fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection], obj_data: &[u8]) -> Result<()> {
     // DWARF 1.1
     if let Some(section) = obj_file.section_by_name(".line") {
         let data = section.uncompressed_data()?;
@@ -490,6 +493,121 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection]) -> Result<()> {
         }
     }
 
+    // COFF
+    if let File::Coff(coff) = obj_file {
+        line_info_coff(coff, sections, obj_data)?;
+    }
+
+    Ok(())
+}
+
+fn line_info_coff(coff: &CoffFile, sections: &mut [ObjSection], obj_data: &[u8]) -> Result<()> {
+    let symbol_table = coff.coff_header().symbols(obj_data)?;
+
+    // Enumerate over all sections.
+    for sect in coff.sections() {
+        let ptr_linenums = sect.coff_section().pointer_to_linenumbers.get(LE) as usize;
+        let num_linenums = sect.coff_section().number_of_linenumbers.get(LE) as usize;
+
+        // If we have no line number, skip this section.
+        if num_linenums == 0 {
+            continue;
+        }
+
+        // Find this section in our out_section. If it's not in out_section,
+        // skip it.
+        let Some(out_section) = sections.iter_mut().find(|s| s.orig_index == sect.index().0) else {
+            continue;
+        };
+
+        // Turn the line numbers into an ImageLinenumber slice.
+        let Some(linenums) =
+            &obj_data.get(ptr_linenums..ptr_linenums + num_linenums * size_of::<ImageLinenumber>())
+        else {
+            continue;
+        };
+        let Ok(linenums) = object::pod::slice_from_all_bytes::<ImageLinenumber>(linenums) else {
+            continue;
+        };
+
+        // In COFF, the line numbers are stored relative to the start of the
+        // function. Because of this, we need to know the line number where the
+        // function starts, so we can sum the two and get the line number
+        // relative to the start of the file.
+        //
+        // This variable stores the line number where the function currently
+        // being processed starts. It is set to None when we failed to find the
+        // line number of the start of the function.
+        let mut cur_fun_start_linenumber = None;
+        for linenum in linenums {
+            let line_number = linenum.linenumber.get(LE);
+            if line_number == 0 {
+                // Starting a new function. We need to find the line where that
+                // function is located in the file. To do this, we need to find
+                // the `.bf` symbol "associated" with this function. The .bf
+                // symbol will have a Function Begin/End Auxillary Record, which
+                // contains the line number of the start of the function.
+
+                // First, set cur_fun_start_linenumber to None. If we fail to
+                // find the start of the function, this will make sure the
+                // subsequent line numbers will be ignored until the next start
+                // of function.
+                cur_fun_start_linenumber = None;
+
+                // Get the symbol associated with this function. We'll need it
+                // for logging purposes, but also to acquire its Function
+                // Auxillary Record, which tells us where to find our .bf symbol.
+                let symtable_entry = linenum.symbol_table_index_or_virtual_address.get(LE);
+                let Ok(symbol) = symbol_table.symbol(SymbolIndex(symtable_entry as usize)) else {
+                    continue;
+                };
+                let Ok(aux_fun) = symbol_table.aux_function(SymbolIndex(symtable_entry as usize))
+                else {
+                    continue;
+                };
+
+                // Get the .bf symbol associated with this symbol. To do so, we
+                // look at the Function Auxillary Record's tag_index, which is
+                // an index in the symbol table pointing to our .bf symbol.
+                if aux_fun.tag_index.get(LE) == 0 {
+                    continue;
+                }
+                let Ok(bf_symbol) =
+                    symbol_table.symbol(SymbolIndex(aux_fun.tag_index.get(LE) as usize))
+                else {
+                    continue;
+                };
+                // Do some sanity checks that we are, indeed, looking at a .bf
+                // symbol.
+                if bf_symbol.name(symbol_table.strings()) != Ok(b".bf") {
+                    continue;
+                }
+                // Get the Function Begin/End Auxillary Record associated with
+                // our .bf symbol, where we'll fine the linenumber of the start
+                // of our function.
+                let Ok(bf_aux) = symbol_table.get::<ImageAuxSymbolFunctionBeginEnd>(
+                    SymbolIndex(aux_fun.tag_index.get(LE) as usize),
+                    1,
+                ) else {
+                    continue;
+                };
+                // Set cur_fun_start_linenumber so the following linenumber
+                // records will know at what line the current function start.
+                cur_fun_start_linenumber = Some(bf_aux.linenumber.get(LE) as u32);
+                // Let's also synthesize a line number record from the start of
+                // the function, as the linenumber records don't always cover it.
+                out_section.line_info.insert(
+                    sect.address() + symbol.value() as u64,
+                    bf_aux.linenumber.get(LE) as u32,
+                );
+            } else if let Some(cur_linenumber) = cur_fun_start_linenumber {
+                let vaddr = linenum.symbol_table_index_or_virtual_address.get(LE);
+                out_section
+                    .line_info
+                    .insert(sect.address() + vaddr as u64, cur_linenumber + line_number as u32);
+            }
+        }
+    }
     Ok(())
 }
 
@@ -620,7 +738,7 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<ObjInfo> {
     if config.combine_data_sections {
         combine_data_sections(&mut sections)?;
     }
-    line_info(&obj_file, &mut sections)?;
+    line_info(&obj_file, &mut sections, data)?;
     let common = common_symbols(arch.as_ref(), &obj_file, split_meta.as_ref())?;
     let extab = exception_tables(&mut sections, &obj_file)?;
     Ok(ObjInfo { arch, path: None, timestamp: None, sections, common, extab, split_meta })
