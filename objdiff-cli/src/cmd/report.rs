@@ -87,9 +87,10 @@ fn generate(args: GenerateArgs) -> Result<()> {
     let project_dir = args.project.as_deref().unwrap_or_else(|| Path::new("."));
     info!("Loading project {}", project_dir.display());
 
-    let config = objdiff_core::config::try_project_config(project_dir);
-    let Some((Ok(mut project), _)) = config else {
-        bail!("No project configuration found");
+    let mut project = match objdiff_core::config::try_project_config(project_dir) {
+        Some((Ok(config), _)) => config,
+        Some((Err(err), _)) => bail!("Failed to load project configuration: {}", err),
+        None => bail!("No project configuration found"),
     };
     info!(
         "Generating report for {} units (using {} threads)",
