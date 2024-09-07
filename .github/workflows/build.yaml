@@ -143,6 +143,11 @@ jobs:
             build: zigbuild
             features: default
           - platform: windows-latest
+            target: i686-pc-windows-msvc
+            name: windows-x86
+            build: build
+            features: default
+          - platform: windows-latest
             target: x86_64-pc-windows-msvc
             name: windows-x86_64
             build: build
@@ -202,10 +207,6 @@ jobs:
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
             name: windows-x86_64
-            features: default
-          - platform: windows-latest
-            target: i686-pc-windows-msvc
-            name: windows-x86
             features: default
           - platform: macos-latest
             target: x86_64-apple-darwin
