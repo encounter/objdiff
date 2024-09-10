@@ -167,13 +167,10 @@ $ cargo run --release
 Or using `cargo install`.
 
 ```shell
-$ cargo install --git https://github.com/encounter/objdiff.git objdiff-gui
-# or, for wgpu backend (recommended on macOS)
-$ cargo install --git https://github.com/encounter/objdiff.git objdiff-gui --features wgpu
-
-# then run objdiff
-$ objdiff
+$ cargo install --locked --git https://github.com/encounter/objdiff.git objdiff-gui objdiff-cli
 ```
+
+The binaries will be installed to `~/.cargo/bin` as `objdiff` and `objdiff-cli`.
 
 ## License
 

@@ -3285,8 +3285,9 @@ checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 
 [[package]]
 name = "ppc750cl"
-version = "0.3.0"
-source = "git+https://github.com/encounter/ppc750cl?rev=6cbd7d888c7082c2c860f66cbb9848d633f753ed#6cbd7d888c7082c2c860f66cbb9848d633f753ed"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b2a50eb2cbe906e0b9d06c91a8c3b3d359c4f636fedcdd293a10826eaf47c3a8"
 
 [[package]]
 name = "ppv-lite86"

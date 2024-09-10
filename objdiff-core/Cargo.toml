@@ -58,7 +58,7 @@ gimli = { version = "0.31", default-features = false, features = ["read-all"], o
 # ppc
 cwdemangle = { version = "1.0", optional = true }
 cwextab = { version = "0.2", optional = true }
-ppc750cl = { git = "https://github.com/encounter/ppc750cl", rev = "6cbd7d888c7082c2c860f66cbb9848d633f753ed", optional = true }
+ppc750cl = { version = "0.3", optional = true }
 
 # mips
 rabbitizer = { version = "1.12", optional = true }
