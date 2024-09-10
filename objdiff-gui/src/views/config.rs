@@ -314,7 +314,7 @@ pub fn config_ui(
         .default_open(true)
         .show(ui, |ui| {
             let search = state.object_search.to_ascii_lowercase();
-            ui.style_mut().wrap = Some(false);
+            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
             for node in object_nodes.iter().filter_map(|node| {
                 filter_node(
                     node,

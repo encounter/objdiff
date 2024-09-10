@@ -32,7 +32,7 @@ fn ins_hover_ui(
 ) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-        ui.style_mut().wrap = Some(false);
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
         let offset = ins.address - section.address;
         ui.label(format!(
@@ -89,7 +89,7 @@ fn ins_hover_ui(
 fn ins_context_menu(ui: &mut egui::Ui, section: &ObjSection, ins: &ObjIns, symbol: &ObjSymbol) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-        ui.style_mut().wrap = Some(false);
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
         if ui.button(format!("Copy \"{}\"", ins.formatted)).clicked() {
             ui.output_mut(|output| output.copied_text.clone_from(&ins.formatted));
@@ -364,6 +364,8 @@ pub fn function_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance
         Vec2 { x: available_width, y: 100.0 },
         Layout::left_to_right(Align::Min),
         |ui| {
+            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
+
             // Left column
             ui.allocate_ui_with_layout(
                 Vec2 { x: column_width, y: 100.0 },
@@ -393,18 +395,9 @@ pub fn function_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance
                         .demangled_symbol_name
                         .as_deref()
                         .unwrap_or(&selected_symbol.symbol_name);
-                    let mut job = LayoutJob::simple(
-                        name.to_string(),
-                        appearance.code_font.clone(),
-                        appearance.highlight_color,
-                        column_width,
-                    );
-                    job.wrap.break_anywhere = true;
-                    job.wrap.max_rows = 1;
-                    ui.label(job);
-
                     ui.scope(|ui| {
                         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+                        ui.colored_label(appearance.highlight_color, name);
                         ui.label("Diff target:");
                     });
                 },
@@ -426,7 +419,6 @@ pub fn function_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance
                         }
                         ui.scope(|ui| {
                             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-                            ui.style_mut().wrap = Some(false);
                             if state.build_running {
                                 ui.colored_label(appearance.replace_color, "Building…");
                             } else {

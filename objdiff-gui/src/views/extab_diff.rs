@@ -1,4 +1,4 @@
-use egui::{text::LayoutJob, Align, Layout, ScrollArea, Ui, Vec2};
+use egui::{Align, Layout, ScrollArea, Ui, Vec2};
 use egui_extras::{Size, StripBuilder};
 use objdiff_core::{
     diff::ObjDiff,
@@ -83,7 +83,7 @@ fn extab_ui(
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         ui.scope(|ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-            ui.style_mut().wrap = Some(false);
+            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
             let symbol = obj.and_then(|(obj, _)| find_symbol(obj, selected_symbol));
 
@@ -107,6 +107,8 @@ pub fn extab_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &
         Vec2 { x: available_width, y: 100.0 },
         Layout::left_to_right(Align::Min),
         |ui| {
+            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
+
             // Left column
             ui.allocate_ui_with_layout(
                 Vec2 { x: column_width, y: 100.0 },
@@ -124,18 +126,9 @@ pub fn extab_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &
                         .demangled_symbol_name
                         .as_deref()
                         .unwrap_or(&selected_symbol.symbol_name);
-                    let mut job = LayoutJob::simple(
-                        name.to_string(),
-                        appearance.code_font.clone(),
-                        appearance.highlight_color,
-                        column_width,
-                    );
-                    job.wrap.break_anywhere = true;
-                    job.wrap.max_rows = 1;
-                    ui.label(job);
-
                     ui.scope(|ui| {
                         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+                        ui.colored_label(appearance.highlight_color, name);
                         ui.label("Diff target:");
                     });
                 },
@@ -157,7 +150,6 @@ pub fn extab_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &
                         }
                         ui.scope(|ui| {
                             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-                            ui.style_mut().wrap = Some(false);
                             if state.build_running {
                                 ui.colored_label(appearance.replace_color, "Building…");
                             } else {

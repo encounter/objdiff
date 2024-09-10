@@ -14,18 +14,18 @@ publish = false
 build = "build.rs"
 
 [dependencies]
-anyhow = "1.0.82"
-argp = "0.3.0"
-crossterm = "0.27.0"
-enable-ansi-support = "0.2.1"
-memmap2 = "0.9.4"
+anyhow = "1.0"
+argp = "0.3"
+crossterm = "0.28"
+enable-ansi-support = "0.2"
+memmap2 = "0.9"
 objdiff-core = { path = "../objdiff-core", features = ["all"] }
-prost = "0.13.1"
-ratatui = "0.26.2"
-rayon = "1.10.0"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1.0.116"
-supports-color = "3.0.0"
-time = { version = "0.3.36", features = ["formatting", "local-offset"] }
-tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+prost = "0.13"
+ratatui = "0.28"
+rayon = "1.10"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+supports-color = "3.0"
+time = { version = "0.3", features = ["formatting", "local-offset"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

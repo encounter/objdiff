@@ -143,7 +143,7 @@ fn symbol_context_menu_ui(
 ) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-        ui.style_mut().wrap = Some(false);
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
         if let Some(name) = &symbol.demangled_name {
             if ui.button(format!("Copy \"{name}\"")).clicked() {
@@ -178,7 +178,7 @@ fn symbol_context_menu_ui(
 fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol, appearance: &Appearance) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-        ui.style_mut().wrap = Some(false);
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
         ui.colored_label(appearance.highlight_color, format!("Name: {}", symbol.name));
         ui.colored_label(appearance.highlight_color, format!("Address: {:x}", symbol.address));
@@ -331,7 +331,7 @@ fn symbol_list_ui(
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         ui.scope(|ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-            ui.style_mut().wrap = Some(false);
+            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
             if !obj.0.common.is_empty() {
                 CollapsingHeader::new(".comm").default_open(true).show(ui, |ui| {
@@ -438,7 +438,7 @@ fn build_log_ui(ui: &mut Ui, status: &BuildStatus, appearance: &Appearance) {
         });
         ui.scope(|ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-            ui.style_mut().wrap = Some(false);
+            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
             ui.label(&status.cmdline);
             ui.colored_label(appearance.replace_color, &status.stdout);
@@ -450,7 +450,7 @@ fn build_log_ui(ui: &mut Ui, status: &BuildStatus, appearance: &Appearance) {
 fn missing_obj_ui(ui: &mut Ui, appearance: &Appearance) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-        ui.style_mut().wrap = Some(false);
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
         ui.colored_label(appearance.replace_color, "No object configured");
     });
@@ -469,6 +469,8 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
         Vec2 { x: available_width, y: 100.0 },
         Layout::left_to_right(Align::Min),
         |ui| {
+            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
+
             // Left column
             ui.allocate_ui_with_layout(
                 Vec2 { x: column_width, y: 100.0 },
@@ -478,7 +480,6 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
 
                     ui.scope(|ui| {
                         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-                        ui.style_mut().wrap = Some(false);
 
                         ui.label("Build target:");
                         if result.first_status.success {
@@ -515,7 +516,6 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
 
                     ui.scope(|ui| {
                         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-                        ui.style_mut().wrap = Some(false);
 
                         ui.label("Build base:");
                         if result.second_status.success {

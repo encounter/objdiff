@@ -345,7 +345,7 @@ enum EventControlFlow {
 
 impl FunctionDiffUi {
     fn draw(&mut self, f: &mut Frame, result: &mut EventResult) {
-        let chunks = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).split(f.size());
+        let chunks = Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).split(f.area());
         let header_chunks = Layout::horizontal([
             Constraint::Fill(1),
             Constraint::Length(3),
@@ -415,7 +415,7 @@ impl FunctionDiffUi {
             get_symbol_diff(self.diff_result.left.as_ref(), self.left_sym),
         ) {
             let mut text = Text::default();
-            let rect = content_chunks[0].inner(&Margin::new(0, 1));
+            let rect = content_chunks[0].inner(Margin::new(0, 1));
             left_highlight = self.print_sym(
                 &mut text,
                 symbol,
@@ -437,7 +437,7 @@ impl FunctionDiffUi {
             get_symbol_diff(self.diff_result.right.as_ref(), self.right_sym),
         ) {
             let mut text = Text::default();
-            let rect = content_chunks[2].inner(&Margin::new(0, 1));
+            let rect = content_chunks[2].inner(Margin::new(0, 1));
             right_highlight = self.print_sym(
                 &mut text,
                 symbol,
@@ -452,7 +452,7 @@ impl FunctionDiffUi {
 
             // Render margin
             let mut text = Text::default();
-            let rect = content_chunks[1].inner(&Margin::new(1, 1));
+            let rect = content_chunks[1].inner(Margin::new(1, 1));
             self.print_margin(&mut text, symbol_diff, rect);
             margin_text = Some(text);
         }
@@ -465,7 +465,7 @@ impl FunctionDiffUi {
                 get_symbol_diff(self.diff_result.prev.as_ref(), self.prev_sym),
             ) {
                 let mut text = Text::default();
-                let rect = content_chunks[4].inner(&Margin::new(0, 1));
+                let rect = content_chunks[4].inner(Margin::new(0, 1));
                 self.print_sym(
                     &mut text,
                     symbol,
@@ -480,7 +480,7 @@ impl FunctionDiffUi {
 
                 // Render margin
                 let mut text = Text::default();
-                let rect = content_chunks[3].inner(&Margin::new(1, 1));
+                let rect = content_chunks[3].inner(Margin::new(1, 1));
                 self.print_margin(&mut text, symbol_diff, rect);
                 prev_margin_text = Some(text);
             }
@@ -498,18 +498,30 @@ impl FunctionDiffUi {
             // Render left column
             f.render_widget(
                 Paragraph::new(text)
-                    .block(Block::new().borders(Borders::TOP).gray().title("TARGET".bold()))
+                    .block(
+                        Block::new()
+                            .borders(Borders::TOP)
+                            .border_style(Style::new().fg(Color::Gray))
+                            .title_style(Style::new().bold())
+                            .title("TARGET"),
+                    )
                     .scroll((0, self.scroll_x as u16)),
                 content_chunks[0],
             );
         }
         if let Some(text) = margin_text {
-            f.render_widget(text, content_chunks[1].inner(&Margin::new(1, 1)));
+            f.render_widget(text, content_chunks[1].inner(Margin::new(1, 1)));
         }
         if let Some(text) = right_text {
             f.render_widget(
                 Paragraph::new(text)
-                    .block(Block::new().borders(Borders::TOP).gray().title("CURRENT".bold()))
+                    .block(
+                        Block::new()
+                            .borders(Borders::TOP)
+                            .border_style(Style::new().fg(Color::Gray))
+                            .title_style(Style::new().bold())
+                            .title("CURRENT"),
+                    )
                     .scroll((0, self.scroll_x as u16)),
                 content_chunks[2],
             );
@@ -517,9 +529,13 @@ impl FunctionDiffUi {
 
         if self.three_way {
             if let Some(text) = prev_margin_text {
-                f.render_widget(text, content_chunks[3].inner(&Margin::new(1, 1)));
+                f.render_widget(text, content_chunks[3].inner(Margin::new(1, 1)));
             }
-            let block = Block::new().borders(Borders::TOP).gray().title("SAVED".bold());
+            let block = Block::new()
+                .borders(Borders::TOP)
+                .border_style(Style::new().fg(Color::Gray))
+                .title_style(Style::new().bold())
+                .title("SAVED");
             if let Some(text) = prev_text {
                 f.render_widget(
                     Paragraph::new(text).block(block.clone()).scroll((0, self.scroll_x as u16)),
@@ -533,7 +549,7 @@ impl FunctionDiffUi {
         // Render scrollbars
         f.render_stateful_widget(
             Scrollbar::new(ScrollbarOrientation::VerticalRight).begin_symbol(None).end_symbol(None),
-            chunks[1].inner(&Margin::new(0, 1)),
+            chunks[1].inner(Margin::new(0, 1)),
             &mut self.scroll_state_y,
         );
         f.render_stateful_widget(
@@ -589,7 +605,7 @@ impl FunctionDiffUi {
             Constraint::Percentage(percent_y),
             Constraint::Percentage((100 - percent_y) / 2),
         ])
-        .split(f.size())[1];
+        .split(f.area())[1];
         let popup_rect = Layout::horizontal([
             Constraint::Percentage((100 - percent_x) / 2),
             Constraint::Percentage(percent_x),

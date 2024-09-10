@@ -1,10 +1,14 @@
 use anyhow::Result;
-use vergen::EmitBuilder;
+use vergen_gitcl::{BuildBuilder, CargoBuilder, Emitter, GitclBuilder};
 
 fn main() -> Result<()> {
     #[cfg(windows)]
     {
         winres::WindowsResource::new().set_icon("assets/icon.ico").compile()?;
     }
-    EmitBuilder::builder().fail_on_error().all_build().all_cargo().all_git().emit()
+    Emitter::default()
+        .add_instructions(&BuildBuilder::all_build()?)?
+        .add_instructions(&CargoBuilder::all_cargo()?)?
+        .add_instructions(&GitclBuilder::all_git()?)?
+        .emit()
 }

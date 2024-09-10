@@ -189,14 +189,14 @@ fn run_eframe(
         APP_NAME,
         native_options,
         Box::new(move |cc| {
-            Box::new(app::App::new(
+            Ok(Box::new(app::App::new(
                 cc,
                 utc_offset,
                 exec_path_clone,
                 app_path,
                 graphics_config,
                 graphics_config_path,
-            ))
+            )))
         }),
     )
 }

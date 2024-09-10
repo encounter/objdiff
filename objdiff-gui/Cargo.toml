@@ -24,38 +24,38 @@ wgpu = ["eframe/wgpu", "dep:wgpu"]
 wsl = []
 
 [dependencies]
-anyhow = "1.0.82"
-bytes = "1.6.0"
-cfg-if = "1.0.0"
-const_format = "0.2.32"
-cwdemangle = "1.0.0"
-cwextab = "0.2.3"
-dirs = "5.0.1"
-egui = "0.27.2"
-egui_extras = "0.27.2"
-filetime = "0.2.23"
-float-ord = "0.3.2"
-font-kit = "0.13.0"
-globset = { version = "0.4.14", features = ["serde1"] }
-log = "0.4.21"
-notify = { git = "https://github.com/encounter/notify", rev = "4c1783e8e041b5f69d4cf1750b9f07e335a0771e" }
+anyhow = "1.0"
+bytes = "1.7"
+cfg-if = "1.0"
+const_format = "0.2"
+cwdemangle = "1.0"
+cwextab = "0.2"
+dirs = "5.0"
+egui = "0.28"
+egui_extras = "0.28"
+filetime = "0.2"
+float-ord = "0.3"
+font-kit = "0.14"
+globset = { version = "0.4", features = ["serde1"] }
+log = "0.4"
+notify = { git = "https://github.com/notify-rs/notify", rev = "128bf6230c03d39dbb7f301ff7b20e594e34c3a2" }
 objdiff-core = { path = "../objdiff-core", features = ["all"] }
-png = "0.17.13"
-pollster = "0.3.0"
-regex = "1.10.5"
-rfd = { version = "0.14.1" } #, default-features = false, features = ['xdg-portal']
-rlwinmdec = "1.0.1"
-ron = "0.8.1"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1.0.116"
-shell-escape = "0.1.5"
-strum = { version = "0.26.2", features = ["derive"] }
-tempfile = "3.10.1"
-time = { version = "0.3.36", features = ["formatting", "local-offset"] }
+png = "0.17"
+pollster = "0.3"
+regex = "1.10"
+rfd = { version = "0.14" } #, default-features = false, features = ['xdg-portal']
+rlwinmdec = "1.0"
+ron = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+shell-escape = "0.1"
+strum = { version = "0.26", features = ["derive"] }
+tempfile = "3.12"
+time = { version = "0.3", features = ["formatting", "local-offset"] }
 
 # Keep version in sync with egui
 [dependencies.eframe]
-version = "0.27.2"
+version = "0.28"
 features = [
     "default_fonts",
     "persistence",
@@ -66,7 +66,7 @@ default-features = false
 
 # Keep version in sync with eframe
 [dependencies.wgpu]
-version = "0.19.1"
+version = "0.20"
 features = [
     "dx12",
     "metal",
@@ -77,23 +77,23 @@ default-features = false
 
 # For Linux static binaries, use rustls
 [target.'cfg(target_os = "linux")'.dependencies]
-reqwest = { version = "0.12.4", default-features = false, features = ["blocking", "json", "multipart", "rustls-tls"] }
-self_update = { version = "0.40.0", default-features = false, features = ["rustls"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "multipart", "rustls-tls"] }
+self_update = { version = "0.41", default-features = false, features = ["rustls"] }
 
 # For all other platforms, use native TLS
 [target.'cfg(not(target_os = "linux"))'.dependencies]
-reqwest = { version = "0.12.4", default-features = false, features = ["blocking", "json", "multipart", "default-tls"] }
-self_update = "0.40.0"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "multipart", "default-tls"] }
+self_update = "0.41"
 
 [target.'cfg(windows)'.dependencies]
-path-slash = "0.2.1"
-winapi = "0.3.9"
+path-slash = "0.2"
+winapi = "0.3"
 
 [target.'cfg(windows)'.build-dependencies]
-winres = "0.1.12"
+winres = "0.1"
 
 [target.'cfg(unix)'.dependencies]
-exec = "0.3.1"
+exec = "0.3"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -101,9 +101,9 @@ tracing-subscriber = "0.3"
 
 # web:
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-console_error_panic_hook = "0.1.7"
+console_error_panic_hook = "0.1"
 tracing-wasm = "0.2"
 
 [build-dependencies]
-anyhow = "1.0.82"
-vergen = { version = "8.3.1", features = ["build", "cargo", "git", "gitcl"] }
+anyhow = "1.0"
+vergen-gitcl = { version = "1.0", features = ["build", "cargo"] }

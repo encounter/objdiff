@@ -27,50 +27,50 @@ bindings = ["serde_json", "prost", "pbjson"]
 wasm = ["bindings", "console_error_panic_hook", "console_log"]
 
 [dependencies]
-anyhow = "1.0.82"
-byteorder = "1.5.0"
-filetime = "0.2.23"
-flagset = "0.4.5"
-log = "0.4.21"
-memmap2 = "0.9.4"
-num-traits = "0.2.18"
-object = { version = "0.36.0", features = ["read_core", "std", "elf", "pe"], default-features = false }
-pbjson = { version = "0.7.0", optional = true }
-prost = { version = "0.13.1", optional = true }
-serde = { version = "1", features = ["derive"] }
-similar = { version = "2.5.0", default-features = false }
-strum = { version = "0.26.2", features = ["derive"] }
-wasm-bindgen = "0.2.93"
-tsify-next = { version = "0.5.4", default-features = false, features = ["js"] }
-console_log = { version = "1.0.0", optional = true }
-console_error_panic_hook = { version = "0.1.7", optional = true }
+anyhow = "1.0"
+byteorder = "1.5"
+filetime = "0.2"
+flagset = "0.4"
+log = "0.4"
+memmap2 = "0.9"
+num-traits = "0.2"
+object = { version = "0.36", features = ["read_core", "std", "elf", "pe"], default-features = false }
+pbjson = { version = "0.7", optional = true }
+prost = { version = "0.13", optional = true }
+serde = { version = "1.0", features = ["derive"] }
+similar = { version = "2.6", default-features = false }
+strum = { version = "0.26", features = ["derive"] }
+wasm-bindgen = "0.2"
+tsify-next = { version = "0.5", default-features = false, features = ["js"] }
+console_log = { version = "1.0", optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
 
 # config
-globset = { version = "0.4.14", features = ["serde1"], optional = true }
-semver = { version = "1.0.22", optional = true }
-serde_json = { version = "1.0.116", optional = true }
-serde_yaml = { version = "0.9.34", optional = true }
+globset = { version = "0.4", features = ["serde1"], optional = true }
+semver = { version = "1.0", optional = true }
+serde_json = { version = "1.0", optional = true }
+serde_yaml = { version = "0.9", optional = true }
 
 # dwarf
-gimli = { version = "0.29.0", default-features = false, features = ["read-all"], optional = true }
+gimli = { version = "0.31", default-features = false, features = ["read-all"], optional = true }
 
 # ppc
-cwdemangle = { version = "1.0.0", optional = true }
-cwextab = { version = "0.2.3", optional = true }
+cwdemangle = { version = "1.0", optional = true }
+cwextab = { version = "0.2", optional = true }
 ppc750cl = { git = "https://github.com/encounter/ppc750cl", rev = "6cbd7d888c7082c2c860f66cbb9848d633f753ed", optional = true }
 
 # mips
-rabbitizer = { version = "1.11.0", optional = true }
+rabbitizer = { version = "1.12", optional = true }
 
 # x86
-cpp_demangle = { version = "0.4.3", optional = true }
-iced-x86 = { version = "1.21.0", default-features = false, features = ["std", "decoder", "intel", "gas", "masm", "nasm", "exhaustive_enums"], optional = true }
-msvc-demangler = { version = "0.10.0", optional = true }
+cpp_demangle = { version = "0.4", optional = true }
+iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "intel", "gas", "masm", "nasm", "exhaustive_enums"], optional = true }
+msvc-demangler = { version = "0.10", optional = true }
 
 # arm
-unarm = { version = "1.5.0", optional = true }
-arm-attr = { version = "0.1.1", optional = true }
+unarm = { version = "1.6", optional = true }
+arm-attr = { version = "0.1", optional = true }
 
 [build-dependencies]
-prost-build = "0.13.1"
-pbjson-build = "0.7.0"
+prost-build = "0.13"
+pbjson-build = "0.7"
