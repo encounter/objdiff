@@ -147,6 +147,17 @@ $ cargo run --release
 $ cargo run --release --features wgpu
 ```
 
+Or using `cargo install`.
+
+```shell
+$ cargo install --git https://github.com/encounter/objdiff.git objdiff-gui
+# or, for wgpu backend (recommended on macOS)
+$ cargo install --git https://github.com/encounter/objdiff.git objdiff-gui --features wgpu
+
+# then run objdiff
+$ objdiff
+```
+
 ## License
 
 Licensed under either of
