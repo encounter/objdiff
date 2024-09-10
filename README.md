@@ -6,6 +6,7 @@
 A local diffing tool for decompilation projects. Inspired by [decomp.me](https://decomp.me) and [asm-differ](https://github.com/simonlindholm/asm-differ).
 
 Features:
+
 - Compare entire object files: functions and data.
 - Built-in symbol demangling for C++. (CodeWarrior, Itanium & MSVC)
 - Automatic rebuild on source file changes.
@@ -14,12 +15,32 @@ Features:
 - Click to highlight all instances of values and registers.
 
 Supports:
+
 - PowerPC 750CL (GameCube, Wii)
 - MIPS (N64, PS1, PS2, PSP)
 - x86 (COFF only at the moment)
 - ARM (GBA, DS, 3DS)
 
 See [Usage](#usage) for more information.
+
+## Downloads
+
+To build from source, see [Building](#building).
+
+### GUI
+
+- [Windows (x86_64)](https://github.com/encounter/objdiff/releases/latest/download/objdiff-windows-x86_64.exe)
+- [Linux (x86_64)](https://github.com/encounter/objdiff/releases/latest/download/objdiff-linux-x86_64)
+- [macOS (arm64)](https://github.com/encounter/objdiff/releases/latest/download/objdiff-macos-arm64)
+- [macOS (x86_64)](https://github.com/encounter/objdiff/releases/latest/download/objdiff-macos-x86_64)
+
+For Linux and macOS, run `chmod +x objdiff-*` to make the binary executable.
+
+### CLI
+
+CLI binaries can be found on the [releases page](https://github.com/encounter/objdiff/releases).
+
+## Screenshots
 
 ![Symbol Screenshot](assets/screen-symbols.png)
 ![Diff Screenshot](assets/screen-diff.png)
@@ -141,16 +162,14 @@ Install Rust via [rustup](https://rustup.rs).
 $ git clone https://github.com/encounter/objdiff.git
 $ cd objdiff
 $ cargo run --release
-# or, for wgpu backend (recommended on macOS)
-$ cargo run --release --features wgpu
 ```
 
 ## License
 
 Licensed under either of
 
-* Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or <http://www.apache.org/licenses/LICENSE-2.0>)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
 
 at your option.
 
