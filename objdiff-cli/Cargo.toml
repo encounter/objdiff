@@ -1,11 +1,11 @@
 [package]
 name = "objdiff-cli"
-version = "2.0.0-beta.6"
-edition = "2021"
-rust-version = "1.70"
-authors = ["Luke Street <luke@street.dev>"]
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/encounter/objdiff"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
 readme = "../README.md"
 description = """
 A local diffing tool for decompilation projects.

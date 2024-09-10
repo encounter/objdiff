@@ -32,14 +32,12 @@ jobs:
           set -eou pipefail
           tag='${{github.ref}}'
           tag="${tag#refs/tags/}"
-          for file in */Cargo.toml; do
-            version=$(grep '^version' $file | head -1 | awk -F' = ' '{print $2}' | tr -d '"')
-            version="v$version"
-            if [ "$tag" != "$version" ]; then
-              echo "::error::Git tag doesn't match the Cargo version! ($tag != $version)"
-              exit 1
-            fi
-          done
+          version=$(grep '^version' Cargo.toml | head -1 | awk -F' = ' '{print $2}' | tr -d '"')
+          version="v$version"
+          if [ "$tag" != "$version" ]; then
+            echo "::error::Git tag doesn't match the Cargo version! ($tag != $version)"
+            exit 1
+          fi
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
