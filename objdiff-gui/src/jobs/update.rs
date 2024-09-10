@@ -36,7 +36,7 @@ fn run_update(
     let tmp_file = File::create(&tmp_path)?;
     self_update::Download::from_url(&asset.download_url)
         .set_header(reqwest::header::ACCEPT, "application/octet-stream".parse()?)
-        .download_to(&tmp_file)?;
+        .download_to(tmp_file)?;
 
     update_status(status, "Extracting release".to_string(), 2, 3, &cancel)?;
     let tmp_file = tmp_dir.path().join("replacement_tmp");
@@ -51,6 +51,7 @@ fn run_update(
         perms.set_mode(0o755);
         fs::set_permissions(&target_file, perms)?;
     }
+    tmp_dir.close()?;
 
     update_status(status, "Complete".to_string(), 3, 3, &cancel)?;
     Ok(Box::from(UpdateResult { exe_path: target_file }))
