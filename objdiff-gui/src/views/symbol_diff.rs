@@ -6,6 +6,7 @@ use egui::{
 };
 use egui_extras::{Size, StripBuilder};
 use objdiff_core::{
+    arch::ObjArch,
     diff::{ObjDiff, ObjSymbolDiff},
     obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags, SymbolRef},
 };
@@ -60,7 +61,6 @@ pub struct SymbolViewState {
     pub reverse_fn_order: bool,
     pub disable_reverse_fn_order: bool,
     pub show_hidden_symbols: bool,
-    pub queue_extab_decode: bool,
 }
 
 impl DiffViewState {
@@ -138,9 +138,11 @@ pub fn match_color_for_symbol(match_percent: f32, appearance: &Appearance) -> Co
 fn symbol_context_menu_ui(
     ui: &mut Ui,
     state: &mut SymbolViewState,
+    arch: &dyn ObjArch,
     symbol: &ObjSymbol,
     section: Option<&ObjSection>,
-) {
+) -> Option<View> {
+    let mut ret = None;
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
@@ -162,20 +164,22 @@ fn symbol_context_menu_ui(
             }
         }
         if let Some(section) = section {
-            if symbol.has_extab && ui.button("Decode exception table").clicked() {
-                state.queue_extab_decode = true;
+            let has_extab = arch.ppc().and_then(|ppc| ppc.extab_for_symbol(symbol)).is_some();
+            if has_extab && ui.button("Decode exception table").clicked() {
                 state.selected_symbol = Some(SymbolRefByName {
                     symbol_name: symbol.name.clone(),
                     demangled_symbol_name: symbol.demangled_name.clone(),
                     section_name: section.name.clone(),
                 });
+                ret = Some(View::ExtabDiff);
                 ui.close_menu();
             }
         }
     });
+    ret
 }
 
-fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol, appearance: &Appearance) {
+fn symbol_hover_ui(ui: &mut Ui, arch: &dyn ObjArch, symbol: &ObjSymbol, appearance: &Appearance) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
@@ -193,26 +197,24 @@ fn symbol_hover_ui(ui: &mut Ui, symbol: &ObjSymbol, appearance: &Appearance) {
         if let Some(address) = symbol.virtual_address {
             ui.colored_label(appearance.replace_color, format!("Virtual address: {:#x}", address));
         }
-        if symbol.has_extab {
-            if let (Some(extab_name), Some(extabindex_name)) =
-                (&symbol.extab_name, &symbol.extabindex_name)
-            {
-                ui.colored_label(
-                    appearance.highlight_color,
-                    format!("Extab Symbol: {}", extab_name),
-                );
-                ui.colored_label(
-                    appearance.highlight_color,
-                    format!("Extabindex Symbol: {}", extabindex_name),
-                );
-            }
+        if let Some(extab) = arch.ppc().and_then(|ppc| ppc.extab_for_symbol(symbol)) {
+            ui.colored_label(
+                appearance.highlight_color,
+                format!("extab symbol: {}", &extab.etb_symbol.name),
+            );
+            ui.colored_label(
+                appearance.highlight_color,
+                format!("extabindex symbol: {}", &extab.eti_symbol.name),
+            );
         }
     });
 }
 
 #[must_use]
+#[allow(clippy::too_many_arguments)]
 fn symbol_ui(
     ui: &mut Ui,
+    arch: &dyn ObjArch,
     symbol: &ObjSymbol,
     symbol_diff: &ObjSymbolDiff,
     section: Option<&ObjSection>,
@@ -245,6 +247,9 @@ fn symbol_ui(
         if symbol.flags.0.contains(ObjSymbolFlags::Weak) {
             write_text("w", appearance.text_color, &mut job, appearance.code_font.clone());
         }
+        if symbol.flags.0.contains(ObjSymbolFlags::HasExtra) {
+            write_text("e", appearance.text_color, &mut job, appearance.code_font.clone());
+        }
         if symbol.flags.0.contains(ObjSymbolFlags::Hidden) {
             write_text(
                 "h",
@@ -268,8 +273,10 @@ fn symbol_ui(
     write_text(name, appearance.highlight_color, &mut job, appearance.code_font.clone());
     let response = SelectableLabel::new(selected, job)
         .ui(ui)
-        .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, symbol, appearance));
-    response.context_menu(|ui| symbol_context_menu_ui(ui, state, symbol, section));
+        .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, arch, symbol, appearance));
+    response.context_menu(|ui| {
+        ret = ret.or(symbol_context_menu_ui(ui, state, arch, symbol, section));
+    });
     if response.clicked() {
         if let Some(section) = section {
             if section.kind == ObjSectionKind::Code {
@@ -299,13 +306,6 @@ fn symbol_ui(
             (None, None)
         };
     }
-
-    //If the decode extab context menu option was clicked, switch to the extab view
-    if state.queue_extab_decode {
-        ret = Some(View::ExtabDiff);
-        state.queue_extab_decode = false;
-    }
-
     ret
 }
 
@@ -328,6 +328,7 @@ fn symbol_list_ui(
     left: bool,
 ) -> Option<View> {
     let mut ret = None;
+    let arch = obj.0.arch.as_ref();
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         ui.scope(|ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
@@ -341,6 +342,7 @@ fn symbol_list_ui(
                         }
                         ret = ret.or(symbol_ui(
                             ui,
+                            arch,
                             symbol,
                             symbol_diff,
                             None,
@@ -391,6 +393,7 @@ fn symbol_list_ui(
                                 }
                                 ret = ret.or(symbol_ui(
                                     ui,
+                                    arch,
                                     symbol,
                                     symbol_diff,
                                     Some(section),
@@ -408,6 +411,7 @@ fn symbol_list_ui(
                                 }
                                 ret = ret.or(symbol_ui(
                                     ui,
+                                    arch,
                                     symbol,
                                     symbol_diff,
                                     Some(section),

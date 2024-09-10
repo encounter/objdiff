@@ -1,13 +1,17 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
-use anyhow::{bail, Result};
-use object::{elf, File, Relocation, RelocationFlags};
+use anyhow::{bail, ensure, Result};
+use cwextab::{decode_extab, ExceptionTableData};
+use object::{
+    elf, File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, RelocationTarget,
+    Symbol, SymbolKind,
+};
 use ppc750cl::{Argument, InsIter, GPR};
 
 use crate::{
     arch::{ObjArch, ProcessCodeResult},
     diff::DiffObjConfig,
-    obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
+    obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection, ObjSymbol},
 };
 
 // Relative relocation, can be Simm, Offset or BranchDest
@@ -22,10 +26,13 @@ fn is_rel_abs_arg(arg: &Argument) -> bool {
 
 fn is_offset_arg(arg: &Argument) -> bool { matches!(arg, Argument::Offset(_)) }
 
-pub struct ObjArchPpc {}
+pub struct ObjArchPpc {
+    /// Exception info
+    pub extab: Option<BTreeMap<usize, ExceptionInfo>>,
+}
 
 impl ObjArchPpc {
-    pub fn new(_file: &File) -> Result<Self> { Ok(Self {}) }
+    pub fn new(file: &File) -> Result<Self> { Ok(Self { extab: decode_exception_info(file)? }) }
 }
 
 impl ObjArch for ObjArchPpc {
@@ -178,6 +185,14 @@ impl ObjArch for ObjArchPpc {
             _ => Cow::Owned(format!("<{flags:?}>")),
         }
     }
+
+    fn ppc(&self) -> Option<&ObjArchPpc> { Some(self) }
+}
+
+impl ObjArchPpc {
+    pub fn extab_for_symbol(&self, symbol: &ObjSymbol) -> Option<&ExceptionInfo> {
+        symbol.original_index.and_then(|i| self.extab.as_ref()?.get(&i))
+    }
 }
 
 fn push_reloc(args: &mut Vec<ObjInsArg>, reloc: &ObjReloc) -> Result<()> {
@@ -207,4 +222,129 @@ fn push_reloc(args: &mut Vec<ObjInsArg>, reloc: &ObjReloc) -> Result<()> {
         flags => bail!("Unsupported PPC relocation kind: {flags:?}"),
     };
     Ok(())
+}
+
+#[derive(Debug, Clone)]
+pub struct ExtabSymbolRef {
+    pub original_index: usize,
+    pub name: String,
+    pub demangled_name: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExceptionInfo {
+    pub eti_symbol: ExtabSymbolRef,
+    pub etb_symbol: ExtabSymbolRef,
+    pub data: ExceptionTableData,
+    pub dtors: Vec<ExtabSymbolRef>,
+}
+
+fn decode_exception_info(file: &File<'_>) -> Result<Option<BTreeMap<usize, ExceptionInfo>>> {
+    let Some(extab_section) = file.section_by_name("extab") else {
+        return Ok(None);
+    };
+    let Some(extabindex_section) = file.section_by_name("extabindex") else {
+        return Ok(None);
+    };
+
+    let mut result = BTreeMap::new();
+    let extab_relocations = extab_section.relocations().collect::<BTreeMap<u64, Relocation>>();
+    let extabindex_relocations =
+        extabindex_section.relocations().collect::<BTreeMap<u64, Relocation>>();
+
+    for extabindex in file.symbols().filter(|symbol| {
+        symbol.section_index() == Some(extabindex_section.index())
+            && symbol.kind() == SymbolKind::Data
+    }) {
+        if extabindex.size() != 12 {
+            log::warn!("Invalid extabindex entry size {}", extabindex.size());
+            continue;
+        }
+
+        // Each extabindex entry has two relocations:
+        // - 0x0: The function that the exception table is for
+        // - 0x8: The relevant entry in extab section
+        let Some(extab_func_reloc) = extabindex_relocations.get(&extabindex.address()) else {
+            log::warn!("Failed to find function relocation for extabindex entry");
+            continue;
+        };
+        let Some(extab_reloc) = extabindex_relocations.get(&(extabindex.address() + 8)) else {
+            log::warn!("Failed to find extab relocation for extabindex entry");
+            continue;
+        };
+
+        // Resolve the function and extab symbols
+        let Some(extab_func) = relocation_symbol(file, extab_func_reloc)? else {
+            log::warn!("Failed to find function symbol for extabindex entry");
+            continue;
+        };
+        let extab_func_name = extab_func.name()?;
+        let Some(extab) = relocation_symbol(file, extab_reloc)? else {
+            log::warn!("Failed to find extab symbol for extabindex entry");
+            continue;
+        };
+
+        let extab_start_addr = extab.address() - extab_section.address();
+        let extab_end_addr = extab_start_addr + extab.size();
+
+        // All relocations in the extab section are dtors
+        let mut dtors: Vec<ExtabSymbolRef> = vec![];
+        for (_, reloc) in extab_relocations.range(extab_start_addr..extab_end_addr) {
+            let Some(symbol) = relocation_symbol(file, reloc)? else {
+                log::warn!("Failed to find symbol for extab relocation");
+                continue;
+            };
+            dtors.push(make_symbol_ref(&symbol)?);
+        }
+
+        // Decode the extab data
+        let Some(extab_data) = extab_section.data_range(extab_start_addr, extab.size())? else {
+            log::warn!("Failed to get extab data for function {}", extab_func_name);
+            continue;
+        };
+        let data = match decode_extab(extab_data) {
+            Some(decoded_data) => decoded_data,
+            None => {
+                log::warn!("Exception table decoding failed for function {}", extab_func_name);
+                return Ok(None);
+            }
+        };
+
+        //Add the new entry to the list
+        result.insert(extab_func.index().0, ExceptionInfo {
+            eti_symbol: make_symbol_ref(&extabindex)?,
+            etb_symbol: make_symbol_ref(&extab)?,
+            data,
+            dtors,
+        });
+    }
+
+    Ok(Some(result))
+}
+
+fn relocation_symbol<'data, 'file>(
+    file: &'file File<'data>,
+    relocation: &Relocation,
+) -> Result<Option<Symbol<'data, 'file>>> {
+    let addend = relocation.addend();
+    match relocation.target() {
+        RelocationTarget::Symbol(idx) => {
+            ensure!(addend == 0, "Symbol relocations must have zero addend");
+            Ok(Some(file.symbol_by_index(idx)?))
+        }
+        RelocationTarget::Section(idx) => {
+            ensure!(addend >= 0, "Section relocations must have non-negative addend");
+            let addend = addend as u64;
+            Ok(file
+                .symbols()
+                .find(|symbol| symbol.section_index() == Some(idx) && symbol.address() == addend))
+        }
+        target => bail!("Unsupported relocation target: {target:?}"),
+    }
+}
+
+fn make_symbol_ref(symbol: &Symbol) -> Result<ExtabSymbolRef> {
+    let name = symbol.name()?.to_string();
+    let demangled_name = cwdemangle::demangle(&name, &cwdemangle::DemangleOptions::default());
+    Ok(ExtabSymbolRef { original_index: symbol.index().0, name, demangled_name })
 }

@@ -1,8 +1,9 @@
 use egui::{Align, Layout, ScrollArea, Ui, Vec2};
 use egui_extras::{Size, StripBuilder};
 use objdiff_core::{
+    arch::ppc::ExceptionInfo,
     diff::ObjDiff,
-    obj::{ObjExtab, ObjInfo, ObjSymbol, SymbolRef},
+    obj::{ObjInfo, ObjSymbol, SymbolRef},
 };
 use time::format_description;
 
@@ -22,7 +23,7 @@ fn find_symbol(obj: &ObjInfo, selected_symbol: &SymbolRefByName) -> Option<Symbo
     None
 }
 
-fn decode_extab(extab: &ObjExtab) -> String {
+fn decode_extab(extab: &ExceptionInfo) -> String {
     let mut text = String::from("");
 
     let mut dtor_names: Vec<&str> = vec![];
@@ -42,18 +43,8 @@ fn decode_extab(extab: &ObjExtab) -> String {
     text
 }
 
-fn find_extab_entry(obj: &ObjInfo, symbol: &ObjSymbol) -> Option<ObjExtab> {
-    if let Some(extab_array) = &obj.extab {
-        for extab_entry in extab_array {
-            if extab_entry.func.name == symbol.name {
-                return Some(extab_entry.clone());
-            }
-        }
-    } else {
-        return None;
-    }
-
-    None
+fn find_extab_entry<'a>(obj: &'a ObjInfo, symbol: &ObjSymbol) -> Option<&'a ExceptionInfo> {
+    obj.arch.ppc().and_then(|ppc| ppc.extab_for_symbol(symbol))
 }
 
 fn extab_text_ui(
@@ -65,7 +56,7 @@ fn extab_text_ui(
     let (_section, symbol) = obj.0.section_symbol(symbol_ref);
 
     if let Some(extab_entry) = find_extab_entry(&obj.0, symbol) {
-        let text = decode_extab(&extab_entry);
+        let text = decode_extab(extab_entry);
         ui.colored_label(appearance.replace_color, &text);
         return Some(());
     }

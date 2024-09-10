@@ -41,6 +41,10 @@ pub trait ObjArch: Send + Sync {
     fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str>;
 
     fn symbol_address(&self, symbol: &Symbol) -> u64 { symbol.address() }
+
+    // Downcast methods
+    #[cfg(feature = "ppc")]
+    fn ppc(&self) -> Option<&ppc::ObjArchPpc> { None }
 }
 
 pub struct ProcessCodeResult {
@@ -48,7 +52,7 @@ pub struct ProcessCodeResult {
     pub insts: Vec<ObjIns>,
 }
 
-pub fn new_arch(object: &object::File) -> Result<Box<dyn ObjArch>> {
+pub fn new_arch(object: &File) -> Result<Box<dyn ObjArch>> {
     Ok(match object.architecture() {
         #[cfg(feature = "ppc")]
         Architecture::PowerPc => Box::new(ppc::ObjArchPpc::new(object)?),

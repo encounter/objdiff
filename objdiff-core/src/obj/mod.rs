@@ -3,7 +3,6 @@ pub mod split_meta;
 
 use std::{borrow::Cow, collections::BTreeMap, fmt, path::PathBuf};
 
-use cwextab::*;
 use filetime::FileTime;
 use flagset::{flags, FlagSet};
 use object::RelocationFlags;
@@ -24,6 +23,9 @@ flags! {
         Weak,
         Common,
         Hidden,
+        /// Has extra data associated with the symbol
+        /// (e.g. exception table entry)
+        HasExtra,
     }
 }
 #[derive(Debug, Copy, Clone, Default)]
@@ -114,9 +116,6 @@ pub struct ObjIns {
 pub struct ObjSymbol {
     pub name: String,
     pub demangled_name: Option<String>,
-    pub has_extab: bool,
-    pub extab_name: Option<String>,
-    pub extabindex_name: Option<String>,
     pub address: u64,
     pub section_address: u64,
     pub size: u64,
@@ -125,13 +124,8 @@ pub struct ObjSymbol {
     pub addend: i64,
     /// Original virtual address (from .note.split section)
     pub virtual_address: Option<u64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ObjExtab {
-    pub func: ObjSymbol,
-    pub data: ExceptionTableData,
-    pub dtors: Vec<ObjSymbol>,
+    /// Original index in object symbol table
+    pub original_index: Option<usize>,
 }
 
 pub struct ObjInfo {
@@ -141,8 +135,6 @@ pub struct ObjInfo {
     pub sections: Vec<ObjSection>,
     /// Common BSS symbols
     pub common: Vec<ObjSymbol>,
-    /// Exception tables
-    pub extab: Option<Vec<ObjExtab>>,
     /// Split object metadata (.note.split section)
     pub split_meta: Option<SplitMeta>,
 }
