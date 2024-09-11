@@ -7,7 +7,6 @@ use std::{
 
 #[cfg(all(windows, feature = "wsl"))]
 use anyhow::{Context, Result};
-use const_format::formatcp;
 use egui::{
     output::OpenUrl, text::LayoutJob, CollapsingHeader, FontFamily, FontId, RichText,
     SelectableLabel, TextFormat, Widget,
@@ -17,7 +16,6 @@ use objdiff_core::{
     config::{ProjectObject, DEFAULT_WATCH_PATTERNS},
     diff::{ArmArchVersion, ArmR9Usage, MipsAbi, MipsInstrCategory, X86Formatter},
 };
-use self_update::cargo_crate_version;
 use strum::{EnumMessage, VariantArray};
 
 use crate::{
