@@ -1,14 +1,12 @@
 use anyhow::Result;
-use vergen_gitcl::{BuildBuilder, CargoBuilder, Emitter, GitclBuilder};
 
 fn main() -> Result<()> {
     #[cfg(windows)]
     {
-        winres::WindowsResource::new().set_icon("assets/icon.ico").compile()?;
+        let mut res = tauri_winres::WindowsResource::new();
+        res.set_icon("assets/icon.ico");
+        res.set_language(0x0409); // US English
+        res.compile()?;
     }
-    Emitter::default()
-        .add_instructions(&BuildBuilder::all_build()?)?
-        .add_instructions(&CargoBuilder::all_cargo()?)?
-        .add_instructions(&GitclBuilder::all_git()?)?
-        .emit()
+    Ok(())
 }

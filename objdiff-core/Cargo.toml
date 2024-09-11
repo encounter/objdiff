@@ -27,6 +27,9 @@ arm = ["any-arch", "cpp_demangle", "unarm", "arm-attr"]
 bindings = ["serde_json", "prost", "pbjson"]
 wasm = ["bindings", "console_error_panic_hook", "console_log"]
 
+[package.metadata.docs.rs]
+features = ["all"]
+
 [dependencies]
 anyhow = "1.0"
 byteorder = "1.5"

@@ -89,9 +89,6 @@ self_update = "0.41"
 path-slash = "0.2"
 winapi = "0.3"
 
-[target.'cfg(windows)'.build-dependencies]
-winres = "0.1"
-
 [target.'cfg(unix)'.dependencies]
 exec = "0.3"
 
@@ -106,4 +103,6 @@ tracing-wasm = "0.2"
 
 [build-dependencies]
 anyhow = "1.0"
-vergen-gitcl = { version = "1.0", features = ["build", "cargo"] }
+
+[target.'cfg(windows)'.build-dependencies]
+tauri-winres = "0.1"

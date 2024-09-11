@@ -31,10 +31,9 @@ where T: FromArgs
             Ok(v) => {
                 if v.version {
                     println!(
-                        "{} {} {}",
+                        "{} {}",
                         command_name.first().unwrap_or(&""),
                         env!("CARGO_PKG_VERSION"),
-                        env!("GIT_COMMIT_SHA"),
                     );
                     std::process::exit(0);
                 } else {

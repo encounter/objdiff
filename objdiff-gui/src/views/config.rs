@@ -190,12 +190,7 @@ pub fn config_ui(
     if ui.add_enabled(!state.check_update_running, egui::Button::new("Check now")).clicked() {
         state.queue_check_update = true;
     }
-    ui.label(format!("Current version: {}", cargo_crate_version!())).on_hover_ui_at_pointer(|ui| {
-        ui.label(formatcp!("Git branch: {}", env!("VERGEN_GIT_BRANCH")));
-        ui.label(formatcp!("Git commit: {}", env!("VERGEN_GIT_SHA")));
-        ui.label(formatcp!("Build target: {}", env!("VERGEN_CARGO_TARGET_TRIPLE")));
-        ui.label(formatcp!("Debug: {}", env!("VERGEN_CARGO_DEBUG")));
-    });
+    ui.label(format!("Current version: {}", env!("CARGO_PKG_VERSION")));
     if let Some(result) = &state.check_update {
         ui.label(format!("Latest version: {}", result.latest_release.version));
         if result.update_available {
