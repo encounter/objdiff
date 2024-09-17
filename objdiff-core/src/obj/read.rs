@@ -644,7 +644,7 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<ObjInfo> {
         for symbol in section.symbols.iter_mut().rev() {
             if name_counts[&symbol.name] > 1 {
                 name_counts.entry(symbol.name.clone()).and_modify(|i| *i -= 1);
-                symbol.name = format!("{} {}", &symbol.name, name_counts[&symbol.name]);
+                symbol.name = format!("{} ({})", &symbol.name, name_counts[&symbol.name]);
             }
         }
     }
