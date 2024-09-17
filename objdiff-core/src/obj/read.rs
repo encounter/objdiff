@@ -1,4 +1,4 @@
-use std::{collections::HashSet, fs, io::Cursor, mem::size_of, path::Path};
+use std::{collections::{HashMap, HashSet}, fs, io::Cursor, mem::size_of, path::Path};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use filetime::FileTime;
@@ -626,6 +626,27 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<ObjInfo> {
             symbols_by_section(arch.as_ref(), &obj_file, section, split_meta.as_ref())?;
         section.relocations =
             relocations_by_section(arch.as_ref(), &obj_file, section, split_meta.as_ref())?;
+    }
+    // The dummy symbols all have the same name, which means that only the first one can be
+    // compared
+    let all_names = sections
+        .iter()
+        .flat_map(|section| section.symbols.iter().map(|symbol| symbol.name.clone()));
+    let mut name_counts: HashMap<String, usize> = HashMap::new();
+    for name in all_names {
+        name_counts.entry(name).and_modify(|i| *i += 1).or_insert(1);
+    }
+    // Reversing the iterator here means the symbol sections will be given in the expected order
+    // since they're assigned from the count down to prevent
+    // having to use another hashmap which counts up
+    // TODO what about reverse_fn_order?
+    for section in sections.iter_mut().rev() {
+        for symbol in section.symbols.iter_mut().rev() {
+            if name_counts[&symbol.name] > 1 {
+                name_counts.entry(symbol.name.clone()).and_modify(|i| *i -= 1);
+                symbol.name = format!("{} {}", &symbol.name, name_counts[&symbol.name]);
+            }
+        }
     }
     if config.combine_data_sections {
         combine_data_sections(&mut sections)?;
