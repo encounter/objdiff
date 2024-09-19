@@ -80,7 +80,7 @@ fn ins_hover_ui(
                     format!("Size: {:x}", reloc.target.size),
                 );
                 if let Some(s) = arch
-                    .guess_data_type(&ins)
+                    .guess_data_type(ins)
                     .and_then(|ty| arch.display_data_type(ty, &reloc.target.bytes))
                 {
                     ui.colored_label(appearance.highlight_color, s);
