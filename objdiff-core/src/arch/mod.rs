@@ -1,11 +1,13 @@
-use std::{borrow::Cow, collections::BTreeMap};
+use std::{borrow::Cow, collections::BTreeMap, ffi::CStr};
 
 use anyhow::{bail, Result};
+use byteorder::ByteOrder;
 use object::{Architecture, File, Object, ObjectSymbol, Relocation, RelocationFlags, Symbol};
 
 use crate::{
     diff::DiffObjConfig,
     obj::{ObjIns, ObjReloc, ObjSection},
+    util::ReallySigned,
 };
 
 #[cfg(feature = "arm")]
@@ -16,6 +18,97 @@ pub mod mips;
 pub mod ppc;
 #[cfg(feature = "x86")]
 pub mod x86;
+
+/// Represents the type of data associated with an instruction
+pub enum DataType {
+    Int8,
+    Int16,
+    Int32,
+    Int64,
+    Int128,
+    Float,
+    Double,
+    Bytes,
+    String,
+}
+
+impl DataType {
+    pub fn display_bytes<Endian: ByteOrder>(&self, bytes: &[u8]) -> Option<String> {
+        if self.required_len().is_some_and(|l| bytes.len() < l) {
+            return None;
+        }
+
+        match self {
+            DataType::Int8 => {
+                let i = i8::from_ne_bytes(bytes.try_into().unwrap());
+                if i < 0 {
+                    format!("Int8: {:#x} ({:#x})", i, ReallySigned(i))
+                } else {
+                    format!("Int8: {:#x}", i)
+                }
+            }
+            DataType::Int16 => {
+                let i = Endian::read_i16(bytes);
+                if i < 0 {
+                    format!("Int16: {:#x} ({:#x})", i, ReallySigned(i))
+                } else {
+                    format!("Int16: {:#x}", i)
+                }
+            }
+            DataType::Int32 => {
+                let i = Endian::read_i32(bytes);
+                if i < 0 {
+                    format!("Int32: {:#x} ({:#x})", i, ReallySigned(i))
+                } else {
+                    format!("Int32: {:#x}", i)
+                }
+            }
+            DataType::Int64 => {
+                let i = Endian::read_i64(bytes);
+                if i < 0 {
+                    format!("Int64: {:#x} ({:#x})", i, ReallySigned(i))
+                } else {
+                    format!("Int64: {:#x}", i)
+                }
+            }
+            DataType::Int128 => {
+                let i = Endian::read_i128(bytes);
+                if i < 0 {
+                    format!("Int128: {:#x} ({:#x})", i, ReallySigned(i))
+                } else {
+                    format!("Int128: {:#x}", i)
+                }
+            }
+            DataType::Float => {
+                format!("Float: {}", Endian::read_f32(bytes))
+            }
+            DataType::Double => {
+                format!("Double: {}", Endian::read_f64(bytes))
+            }
+            DataType::Bytes => {
+                format!("Bytes: {:#?}", bytes)
+            }
+            DataType::String => {
+                format!("String: {:?}", CStr::from_bytes_until_nul(bytes).ok()?)
+            }
+        }
+        .into()
+    }
+
+    fn required_len(&self) -> Option<usize> {
+        match self {
+            DataType::Int8 => Some(1),
+            DataType::Int16 => Some(2),
+            DataType::Int32 => Some(4),
+            DataType::Int64 => Some(8),
+            DataType::Int128 => Some(16),
+            DataType::Float => Some(4),
+            DataType::Double => Some(8),
+            DataType::Bytes => None,
+            DataType::String => None,
+        }
+    }
+}
 
 pub trait ObjArch: Send + Sync {
     fn process_code(
@@ -41,6 +134,12 @@ pub trait ObjArch: Send + Sync {
     fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str>;
 
     fn symbol_address(&self, symbol: &Symbol) -> u64 { symbol.address() }
+
+    fn guess_data_type(&self, _instruction: &ObjIns) -> Option<DataType> { None }
+
+    fn display_data_type(&self, _ty: DataType, bytes: &[u8]) -> Option<String> {
+        Some(format!("Bytes: {:#x?}", bytes))
+    }
 
     // Downcast methods
     #[cfg(feature = "ppc")]

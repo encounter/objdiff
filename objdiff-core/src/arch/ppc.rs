@@ -1,6 +1,7 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
 use anyhow::{bail, ensure, Result};
+use byteorder::BigEndian;
 use cwextab::{decode_extab, ExceptionTableData};
 use object::{
     elf, File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, RelocationTarget,
@@ -9,7 +10,7 @@ use object::{
 use ppc750cl::{Argument, InsIter, GPR};
 
 use crate::{
-    arch::{ObjArch, ProcessCodeResult},
+    arch::{DataType, ObjArch, ProcessCodeResult},
     diff::DiffObjConfig,
     obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection, ObjSymbol},
 };
@@ -184,6 +185,34 @@ impl ObjArch for ObjArchPpc {
             },
             _ => Cow::Owned(format!("<{flags:?}>")),
         }
+    }
+
+    fn guess_data_type(&self, instruction: &ObjIns) -> Option<super::DataType> {
+        // Always shows the first string of the table. Not ideal, but it's really hard to find
+        // the actual string being referenced.
+        if instruction.reloc.as_ref().is_some_and(|r| r.target.name.starts_with("@stringBase")) {
+            return Some(DataType::String);
+        }
+
+        match instruction.mnemonic.as_str() {
+            "lbz" | "lbzu" | "lbzux" | "lbzx" => Some(DataType::Int8),
+            "lhz" | "lhzu" | "lhzux" | "lhzx" => Some(DataType::Int16),
+            "lha" | "lhau" | "lhaux" | "lhax" => Some(DataType::Int16),
+            "lwz" | "lwzu" | "lwzux" | "lwzx" => Some(DataType::Int32),
+            "lfs" | "lfsu" | "lfsux" | "lfsx" => Some(DataType::Float),
+            "lfd" | "lfdu" | "lfdux" | "lfdx" => Some(DataType::Double),
+
+            "stb" | "stbu" | "stbux" | "stbx" => Some(DataType::Int8),
+            "sth" | "sthu" | "sthux" | "sthx" => Some(DataType::Int16),
+            "stw" | "stwu" | "stwux" | "stwx" => Some(DataType::Int32),
+            "stfs" | "stfsu" | "stfsux" | "stfsx" => Some(DataType::Float),
+            "stfd" | "stfdu" | "stfdux" | "stfdx" => Some(DataType::Double),
+            _ => None,
+        }
+    }
+
+    fn display_data_type(&self, ty: DataType, bytes: &[u8]) -> Option<String> {
+        ty.display_bytes::<BigEndian>(bytes)
     }
 
     fn ppc(&self) -> Option<&ObjArchPpc> { Some(self) }

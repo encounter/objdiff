@@ -78,6 +78,16 @@ fn to_obj_symbol(
     let virtual_address = split_meta
         .and_then(|m| m.virtual_addresses.as_ref())
         .and_then(|v| v.get(symbol.index().0).cloned());
+
+    let bytes = symbol
+        .section_index()
+        .and_then(|idx| obj_file.section_by_index(idx).ok())
+        .and_then(|section| section.data().ok())
+        .and_then(|data| {
+            data.get(section_address as usize..(section_address + symbol.size()) as usize)
+        })
+        .unwrap_or(&[]);
+
     Ok(ObjSymbol {
         name: name.to_string(),
         demangled_name,
@@ -89,6 +99,7 @@ fn to_obj_symbol(
         addend,
         virtual_address,
         original_index: Some(symbol.index().0),
+        bytes: bytes.to_vec(),
     })
 }
 
@@ -179,6 +190,7 @@ fn symbols_by_section(
             addend: 0,
             virtual_address: None,
             original_index: None,
+            bytes: Vec::new(),
         });
     }
     Ok(result)
@@ -239,6 +251,7 @@ fn find_section_symbol(
         addend: offset_addr as i64,
         virtual_address: None,
         original_index: None,
+        bytes: Vec::new(),
     })
 }
 
@@ -521,6 +534,7 @@ fn update_combined_symbol(symbol: ObjSymbol, address_change: i64) -> Result<ObjS
             None
         },
         original_index: symbol.original_index,
+        bytes: symbol.bytes,
     })
 }
 
