@@ -305,8 +305,11 @@ fn decode_exception_info(file: &File<'_>) -> Result<Option<BTreeMap<usize, Excep
         let data = match decode_extab(extab_data) {
             Ok(decoded_data) => decoded_data,
             Err(e) => {
-                log::warn!("Exception table decoding failed for function {}, reason: {}",
-                extab_func_name, e.to_string());
+                log::warn!(
+                    "Exception table decoding failed for function {}, reason: {}",
+                    extab_func_name,
+                    e.to_string()
+                );
                 return Ok(None);
             }
         };
