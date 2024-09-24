@@ -7,7 +7,7 @@ use object::{
     elf, File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, RelocationTarget,
     Symbol, SymbolKind,
 };
-use ppc750cl::{Argument, InsIter, GPR};
+use ppc750cl::{Argument, InsIter, Opcode, GPR};
 
 use crate::{
     arch::{DataType, ObjArch, ProcessCodeResult},
@@ -194,19 +194,21 @@ impl ObjArch for ObjArchPpc {
             return Some(DataType::String);
         }
 
-        match instruction.mnemonic.as_str() {
-            "lbz" | "lbzu" | "lbzux" | "lbzx" => Some(DataType::Int8),
-            "lhz" | "lhzu" | "lhzux" | "lhzx" => Some(DataType::Int16),
-            "lha" | "lhau" | "lhaux" | "lhax" => Some(DataType::Int16),
-            "lwz" | "lwzu" | "lwzux" | "lwzx" => Some(DataType::Int32),
-            "lfs" | "lfsu" | "lfsux" | "lfsx" => Some(DataType::Float),
-            "lfd" | "lfdu" | "lfdux" | "lfdx" => Some(DataType::Double),
+        // SAFETY: ppc750cl::Opcode is repr(u8) and op is originally obtained on PPC from casting
+        // an Opcode to a u8 so we know it's a valid value for Opcode.
+        match unsafe { std::mem::transmute::<u8, Opcode>(instruction.op as u8) } {
+            Opcode::Lbz | Opcode::Lbzu | Opcode::Lbzux | Opcode::Lbzx => Some(DataType::Int8),
+            Opcode::Lhz | Opcode::Lhzu | Opcode::Lhzux | Opcode::Lhzx => Some(DataType::Int16),
+            Opcode::Lha | Opcode::Lhau | Opcode::Lhaux | Opcode::Lhax => Some(DataType::Int16),
+            Opcode::Lwz | Opcode::Lwzu | Opcode::Lwzux | Opcode::Lwzx => Some(DataType::Int32),
+            Opcode::Lfs | Opcode::Lfsu | Opcode::Lfsux | Opcode::Lfsx => Some(DataType::Float),
+            Opcode::Lfd | Opcode::Lfdu | Opcode::Lfdux | Opcode::Lfdx => Some(DataType::Double),
 
-            "stb" | "stbu" | "stbux" | "stbx" => Some(DataType::Int8),
-            "sth" | "sthu" | "sthux" | "sthx" => Some(DataType::Int16),
-            "stw" | "stwu" | "stwux" | "stwx" => Some(DataType::Int32),
-            "stfs" | "stfsu" | "stfsux" | "stfsx" => Some(DataType::Float),
-            "stfd" | "stfdu" | "stfdux" | "stfdx" => Some(DataType::Double),
+            Opcode::Stb | Opcode::Stbu | Opcode::Stbux | Opcode::Stbx => Some(DataType::Int8),
+            Opcode::Sth | Opcode::Sthu | Opcode::Sthux | Opcode::Sthx => Some(DataType::Int16),
+            Opcode::Stw | Opcode::Stwu | Opcode::Stwux | Opcode::Stwx => Some(DataType::Int32),
+            Opcode::Stfs | Opcode::Stfsu | Opcode::Stfsux | Opcode::Stfsx => Some(DataType::Float),
+            Opcode::Stfd | Opcode::Stfdu | Opcode::Stfdux | Opcode::Stfdx => Some(DataType::Double),
             _ => None,
         }
     }
