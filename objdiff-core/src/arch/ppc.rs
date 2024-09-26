@@ -1,15 +1,16 @@
 use std::{borrow::Cow, collections::BTreeMap};
 
 use anyhow::{bail, ensure, Result};
+use byteorder::BigEndian;
 use cwextab::{decode_extab, ExceptionTableData};
 use object::{
     elf, File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, RelocationTarget,
     Symbol, SymbolKind,
 };
-use ppc750cl::{Argument, InsIter, GPR};
+use ppc750cl::{Argument, InsIter, Opcode, GPR};
 
 use crate::{
-    arch::{ObjArch, ProcessCodeResult},
+    arch::{DataType, ObjArch, ProcessCodeResult},
     diff::DiffObjConfig,
     obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection, ObjSymbol},
 };
@@ -184,6 +185,36 @@ impl ObjArch for ObjArchPpc {
             },
             _ => Cow::Owned(format!("<{flags:?}>")),
         }
+    }
+
+    fn guess_data_type(&self, instruction: &ObjIns) -> Option<super::DataType> {
+        // Always shows the first string of the table. Not ideal, but it's really hard to find
+        // the actual string being referenced.
+        if instruction.reloc.as_ref().is_some_and(|r| r.target.name.starts_with("@stringBase")) {
+            return Some(DataType::String);
+        }
+
+        // SAFETY: ppc750cl::Opcode is repr(u8) and op is originally obtained on PPC from casting
+        // an Opcode to a u8 so we know it's a valid value for Opcode.
+        match unsafe { std::mem::transmute::<u8, Opcode>(instruction.op as u8) } {
+            Opcode::Lbz | Opcode::Lbzu | Opcode::Lbzux | Opcode::Lbzx => Some(DataType::Int8),
+            Opcode::Lhz | Opcode::Lhzu | Opcode::Lhzux | Opcode::Lhzx => Some(DataType::Int16),
+            Opcode::Lha | Opcode::Lhau | Opcode::Lhaux | Opcode::Lhax => Some(DataType::Int16),
+            Opcode::Lwz | Opcode::Lwzu | Opcode::Lwzux | Opcode::Lwzx => Some(DataType::Int32),
+            Opcode::Lfs | Opcode::Lfsu | Opcode::Lfsux | Opcode::Lfsx => Some(DataType::Float),
+            Opcode::Lfd | Opcode::Lfdu | Opcode::Lfdux | Opcode::Lfdx => Some(DataType::Double),
+
+            Opcode::Stb | Opcode::Stbu | Opcode::Stbux | Opcode::Stbx => Some(DataType::Int8),
+            Opcode::Sth | Opcode::Sthu | Opcode::Sthux | Opcode::Sthx => Some(DataType::Int16),
+            Opcode::Stw | Opcode::Stwu | Opcode::Stwux | Opcode::Stwx => Some(DataType::Int32),
+            Opcode::Stfs | Opcode::Stfsu | Opcode::Stfsux | Opcode::Stfsx => Some(DataType::Float),
+            Opcode::Stfd | Opcode::Stfdu | Opcode::Stfdux | Opcode::Stfdx => Some(DataType::Double),
+            _ => None,
+        }
+    }
+
+    fn display_data_type(&self, ty: DataType, bytes: &[u8]) -> Option<String> {
+        ty.display_bytes::<BigEndian>(bytes)
     }
 
     fn ppc(&self) -> Option<&ObjArchPpc> { Some(self) }

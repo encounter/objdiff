@@ -126,6 +126,7 @@ pub struct ObjSymbol {
     pub virtual_address: Option<u64>,
     /// Original index in object symbol table
     pub original_index: Option<usize>,
+    pub bytes: Vec<u8>,
 }
 
 pub struct ObjInfo {
