@@ -237,7 +237,7 @@ fn report_object(
         }
 
         for (symbol, symbol_diff) in section.symbols.iter().zip(&section_diff.symbols) {
-            if symbol.size == 0 {
+            if symbol.size == 0 || symbol.flags.0.contains(ObjSymbolFlags::Hidden) {
                 continue;
             }
             if let Some(existing_functions) = &mut existing_functions {
