@@ -1,6 +1,6 @@
 use std::default::Default;
 
-use egui::{epaint::color, text::LayoutJob, Align, Label, Layout, Response, Sense, Vec2, Widget};
+use egui::{text::LayoutJob, Align, Label, Layout, Response, Sense, Vec2, Widget};
 use egui_extras::{Column, TableBuilder, TableRow};
 use objdiff_core::{
     arch::ObjArch,
@@ -25,19 +25,19 @@ enum ColumnId {
 
 #[derive(Default)]
 pub struct FunctionViewState {
-    pub left_highlight: HighlightKind,
-    pub right_highlight: HighlightKind,
+    left_highlight: HighlightKind,
+    right_highlight: HighlightKind,
 }
 
 impl FunctionViewState {
-    pub fn highlight(&self, column: ColumnId) -> &HighlightKind {
+    fn highlight(&self, column: ColumnId) -> &HighlightKind {
         match column {
             ColumnId::Left => &self.left_highlight,
             ColumnId::Right => &self.right_highlight,
         }
     }
 
-    pub fn set_highlight(&mut self, column: ColumnId, highlight: HighlightKind) {
+    fn set_highlight(&mut self, column: ColumnId, highlight: HighlightKind) {
         match column {
             ColumnId::Left => {
                 if highlight == self.left_highlight {
@@ -218,6 +218,7 @@ fn find_symbol(obj: &ObjInfo, selected_symbol: &SymbolRefByName) -> Option<Symbo
     None
 }
 
+#[allow(clippy::too_many_arguments)]
 fn diff_text_ui(
     ui: &mut egui::Ui,
     text: DiffText<'_>,
