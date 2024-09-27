@@ -117,6 +117,72 @@ impl Report {
             measures.calc_matched_percent();
         }
     }
+
+    /// Split the report into multiple reports based on progress categories.
+    /// Assumes progress categories are in the format `version`, `version.category`.
+    /// This is a hack for projects that generate all versions in a single report.
+    pub fn split(self) -> Vec<(String, Report)> {
+        let mut reports = Vec::new();
+        // Map units to Option to allow taking ownership
+        let mut units = self.units.into_iter().map(Some).collect::<Vec<_>>();
+        for category in &self.categories {
+            if category.id.contains(".") {
+                // Skip subcategories
+                continue;
+            }
+            fn is_sub_category(id: &str, parent: &str, sep: char) -> bool {
+                id.starts_with(parent)
+                    && id.get(parent.len()..).map_or(false, |s| s.starts_with(sep))
+            }
+            let mut sub_categories = self
+                .categories
+                .iter()
+                .filter(|c| is_sub_category(&c.id, &category.id, '.'))
+                .cloned()
+                .collect::<Vec<_>>();
+            // Remove category prefix
+            for sub_category in &mut sub_categories {
+                sub_category.id = sub_category.id[category.id.len() + 1..].to_string();
+            }
+            let mut sub_units = units
+                .iter_mut()
+                .filter_map(|opt| {
+                    let unit = opt.as_mut()?;
+                    let metadata = unit.metadata.as_ref()?;
+                    if metadata.progress_categories.contains(&category.id) {
+                        opt.take()
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            for sub_unit in &mut sub_units {
+                // Remove leading version/ from unit name
+                if let Some(name) =
+                    sub_unit.name.strip_prefix(&category.id).and_then(|s| s.strip_prefix('/'))
+                {
+                    sub_unit.name = name.to_string();
+                }
+                // Filter progress categories
+                let Some(metadata) = sub_unit.metadata.as_mut() else {
+                    continue;
+                };
+                metadata.progress_categories = metadata
+                    .progress_categories
+                    .iter()
+                    .filter(|c| is_sub_category(c, &category.id, '.'))
+                    .map(|c| c[category.id.len() + 1..].to_string())
+                    .collect();
+            }
+            reports.push((category.id.clone(), Report {
+                measures: category.measures,
+                units: sub_units,
+                version: self.version,
+                categories: sub_categories,
+            }));
+        }
+        reports
+    }
 }
 
 impl Measures {
