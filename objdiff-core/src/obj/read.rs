@@ -1,4 +1,10 @@
-use std::{collections::HashSet, fs, io::Cursor, mem::size_of, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    io::Cursor,
+    mem::size_of,
+    path::Path,
+};
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
 use filetime::FileTime;
@@ -147,6 +153,7 @@ fn symbols_by_section(
     obj_file: &File<'_>,
     section: &ObjSection,
     split_meta: Option<&SplitMeta>,
+    name_counts: &mut HashMap<String, u32>,
 ) -> Result<Vec<ObjSymbol>> {
     let mut result = Vec::<ObjSymbol>::new();
     for symbol in obj_file.symbols() {
@@ -179,8 +186,14 @@ fn symbols_by_section(
     }
     if result.is_empty() {
         // Dummy symbol for empty sections
+        *name_counts.entry(section.name.clone()).or_insert(0) += 1;
+        let current_count: u32 = *name_counts.get(&section.name).unwrap();
         result.push(ObjSymbol {
-            name: format!("[{}]", section.name),
+            name: if current_count > 1 {
+                format!("[{} ({})]", section.name, current_count)
+            } else {
+                format!("[{}]", section.name)
+            },
             demangled_name: None,
             address: 0,
             section_address: 0,
@@ -635,9 +648,15 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<ObjInfo> {
     let arch = new_arch(&obj_file)?;
     let split_meta = split_meta(&obj_file)?;
     let mut sections = filter_sections(&obj_file, split_meta.as_ref())?;
+    let mut name_counts: HashMap<String, u32> = HashMap::new();
     for section in &mut sections {
-        section.symbols =
-            symbols_by_section(arch.as_ref(), &obj_file, section, split_meta.as_ref())?;
+        section.symbols = symbols_by_section(
+            arch.as_ref(),
+            &obj_file,
+            section,
+            split_meta.as_ref(),
+            &mut name_counts,
+        )?;
         section.relocations =
             relocations_by_section(arch.as_ref(), &obj_file, section, split_meta.as_ref())?;
     }
