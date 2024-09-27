@@ -194,9 +194,7 @@ impl ObjArch for ObjArchPpc {
             return Some(DataType::String);
         }
 
-        // SAFETY: ppc750cl::Opcode is repr(u8) and op is originally obtained on PPC from casting
-        // an Opcode to a u8 so we know it's a valid value for Opcode.
-        match unsafe { std::mem::transmute::<u8, Opcode>(instruction.op as u8) } {
+        match Opcode::from(instruction.op as u8) {
             Opcode::Lbz | Opcode::Lbzu | Opcode::Lbzux | Opcode::Lbzx => Some(DataType::Int8),
             Opcode::Lhz | Opcode::Lhzu | Opcode::Lhzux | Opcode::Lhzx => Some(DataType::Int16),
             Opcode::Lha | Opcode::Lhau | Opcode::Lhaux | Opcode::Lhax => Some(DataType::Int16),
