@@ -381,7 +381,7 @@ fn symbol_list_ui(
                     );
                 }
                 CollapsingHeader::new(header)
-                    .id_source(Id::new(section.name.clone()).with(section.orig_index))
+                    .id_salt(Id::new(section.name.clone()).with(section.orig_index))
                     .default_open(true)
                     .show(ui, |ui| {
                         if section.kind == ObjSectionKind::Code && state.reverse_fn_order {

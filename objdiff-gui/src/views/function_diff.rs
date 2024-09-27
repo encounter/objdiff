@@ -272,6 +272,7 @@ fn asm_row_ui(
     response_cb: impl Fn(Response) -> Response,
 ) {
     ui.spacing_mut().item_spacing.x = 0.0;
+    ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
     if ins_diff.kind != ObjInsDiffKind::None {
         ui.painter().rect_filled(ui.available_rect_before_wrap(), 0.0, ui.visuals().faint_bg_color);
     }

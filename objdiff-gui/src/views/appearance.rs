@@ -11,7 +11,7 @@ pub struct Appearance {
     pub ui_font: FontId,
     pub code_font: FontId,
     pub diff_colors: Vec<Color32>,
-    pub theme: eframe::Theme,
+    pub theme: egui::Theme,
 
     // Applied by theme
     #[serde(skip)]
@@ -56,7 +56,7 @@ impl Default for Appearance {
             ui_font: DEFAULT_UI_FONT,
             code_font: DEFAULT_CODE_FONT,
             diff_colors: DEFAULT_COLOR_ROTATION.to_vec(),
-            theme: eframe::Theme::Dark,
+            theme: egui::Theme::Dark,
             text_color: Color32::GRAY,
             emphasized_text_color: Color32::LIGHT_GRAY,
             deemphasized_text_color: Color32::DARK_GRAY,
@@ -98,7 +98,7 @@ impl Appearance {
         });
         style.text_styles.insert(TextStyle::Monospace, self.code_font.clone());
         match self.theme {
-            eframe::Theme::Dark => {
+            egui::Theme::Dark => {
                 style.visuals = egui::Visuals::dark();
                 self.text_color = Color32::GRAY;
                 self.emphasized_text_color = Color32::LIGHT_GRAY;
@@ -108,7 +108,7 @@ impl Appearance {
                 self.insert_color = Color32::GREEN;
                 self.delete_color = Color32::from_rgb(200, 40, 41);
             }
-            eframe::Theme::Light => {
+            egui::Theme::Light => {
                 style.visuals = egui::Visuals::light();
                 self.text_color = Color32::GRAY;
                 self.emphasized_text_color = Color32::DARK_GRAY;
@@ -274,8 +274,8 @@ pub fn appearance_window(ctx: &egui::Context, show: &mut bool, appearance: &mut 
         egui::ComboBox::from_label("Theme")
             .selected_text(format!("{:?}", appearance.theme))
             .show_ui(ui, |ui| {
-                ui.selectable_value(&mut appearance.theme, eframe::Theme::Dark, "Dark");
-                ui.selectable_value(&mut appearance.theme, eframe::Theme::Light, "Light");
+                ui.selectable_value(&mut appearance.theme, egui::Theme::Dark, "Dark");
+                ui.selectable_value(&mut appearance.theme, egui::Theme::Light, "Light");
             });
         ui.separator();
         appearance.next_ui_font =

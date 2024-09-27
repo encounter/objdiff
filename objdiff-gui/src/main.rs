@@ -18,6 +18,7 @@ use std::{
 use anyhow::{ensure, Result};
 use cfg_if::cfg_if;
 use time::UtcOffset;
+use tracing_subscriber::EnvFilter;
 
 use crate::views::graphics::{load_graphics_config, GraphicsBackend, GraphicsConfig};
 
@@ -39,7 +40,16 @@ const APP_NAME: &str = "objdiff";
 #[cfg(not(target_arch = "wasm32"))]
 fn main() -> ExitCode {
     // Log to stdout (if you run with `RUST_LOG=debug`).
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::builder()
+                // Default to info level
+                .with_default_directive(tracing_subscriber::filter::LevelFilter::INFO.into())
+                .from_env_lossy()
+                // This module is noisy at info level
+                .add_directive("wgpu_core::device::resource=warn".parse().unwrap()),
+        )
+        .init();
 
     // Because localtime_r is unsound in multithreaded apps,
     // we must call this before initializing eframe.
@@ -48,8 +58,7 @@ fn main() -> ExitCode {
 
     let app_path = std::env::current_exe().ok();
     let exec_path: Rc<Mutex<Option<PathBuf>>> = Rc::new(Mutex::new(None));
-    let mut native_options =
-        eframe::NativeOptions { follow_system_theme: false, ..Default::default() };
+    let mut native_options = eframe::NativeOptions::default();
     match load_icon() {
         Ok(data) => {
             native_options.viewport.icon = Some(Arc::new(data));
