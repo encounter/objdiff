@@ -1,6 +1,6 @@
 use std::default::Default;
 
-use egui::{text::LayoutJob, Align, Label, Layout, Response, Sense, Vec2, Widget};
+use egui::{epaint::color, text::LayoutJob, Align, Label, Layout, Response, Sense, Vec2, Widget};
 use egui_extras::{Column, TableBuilder, TableRow};
 use objdiff_core::{
     arch::ObjArch,
@@ -17,9 +17,54 @@ use crate::views::{
     symbol_diff::{match_color_for_symbol, DiffViewState, SymbolRefByName, View},
 };
 
+#[derive(Copy, Clone, Eq, PartialEq)]
+enum ColumnId {
+    Left,
+    Right,
+}
+
 #[derive(Default)]
 pub struct FunctionViewState {
-    pub highlight: HighlightKind,
+    pub left_highlight: HighlightKind,
+    pub right_highlight: HighlightKind,
+}
+
+impl FunctionViewState {
+    pub fn highlight(&self, column: ColumnId) -> &HighlightKind {
+        match column {
+            ColumnId::Left => &self.left_highlight,
+            ColumnId::Right => &self.right_highlight,
+        }
+    }
+
+    pub fn set_highlight(&mut self, column: ColumnId, highlight: HighlightKind) {
+        match column {
+            ColumnId::Left => {
+                if highlight == self.left_highlight {
+                    if highlight == self.right_highlight {
+                        self.left_highlight = HighlightKind::None;
+                        self.right_highlight = HighlightKind::None;
+                    } else {
+                        self.right_highlight = self.left_highlight.clone();
+                    }
+                } else {
+                    self.left_highlight = highlight;
+                }
+            }
+            ColumnId::Right => {
+                if highlight == self.right_highlight {
+                    if highlight == self.left_highlight {
+                        self.left_highlight = HighlightKind::None;
+                        self.right_highlight = HighlightKind::None;
+                    } else {
+                        self.left_highlight = self.right_highlight.clone();
+                    }
+                } else {
+                    self.right_highlight = highlight;
+                }
+            }
+        }
+    }
 }
 
 fn ins_hover_ui(
@@ -179,6 +224,7 @@ fn diff_text_ui(
     ins_diff: &ObjInsDiff,
     appearance: &Appearance,
     ins_view_state: &mut FunctionViewState,
+    column: ColumnId,
     space_width: f32,
     response_cb: impl Fn(Response) -> Response,
 ) {
@@ -243,7 +289,7 @@ fn diff_text_ui(
     }
 
     let len = label_text.len();
-    let highlight = ins_view_state.highlight == text;
+    let highlight = *ins_view_state.highlight(column) == text;
     let mut response = Label::new(LayoutJob::single_section(
         label_text,
         appearance.code_text_format(base_color, highlight),
@@ -252,11 +298,7 @@ fn diff_text_ui(
     .ui(ui);
     response = response_cb(response);
     if response.clicked() {
-        if highlight {
-            ins_view_state.highlight = HighlightKind::None;
-        } else {
-            ins_view_state.highlight = text.into();
-        }
+        ins_view_state.set_highlight(column, text.into());
     }
     if len < pad_to {
         ui.add_space((pad_to - len) as f32 * space_width);
@@ -269,6 +311,7 @@ fn asm_row_ui(
     symbol: &ObjSymbol,
     appearance: &Appearance,
     ins_view_state: &mut FunctionViewState,
+    column: ColumnId,
     response_cb: impl Fn(Response) -> Response,
 ) {
     ui.spacing_mut().item_spacing.x = 0.0;
@@ -278,7 +321,16 @@ fn asm_row_ui(
     }
     let space_width = ui.fonts(|f| f.glyph_width(&appearance.code_font, ' '));
     display_diff(ins_diff, symbol.address, |text| {
-        diff_text_ui(ui, text, ins_diff, appearance, ins_view_state, space_width, &response_cb);
+        diff_text_ui(
+            ui,
+            text,
+            ins_diff,
+            appearance,
+            ins_view_state,
+            column,
+            space_width,
+            &response_cb,
+        );
         Ok::<_, ()>(())
     })
     .unwrap();
@@ -290,6 +342,7 @@ fn asm_col_ui(
     symbol_ref: SymbolRef,
     appearance: &Appearance,
     ins_view_state: &mut FunctionViewState,
+    column: ColumnId,
 ) {
     let (section, symbol) = obj.0.section_symbol(symbol_ref);
     let section = section.unwrap();
@@ -305,7 +358,7 @@ fn asm_col_ui(
         }
     };
     let (_, response) = row.col(|ui| {
-        asm_row_ui(ui, ins_diff, symbol, appearance, ins_view_state, response_cb);
+        asm_row_ui(ui, ins_diff, symbol, appearance, ins_view_state, column, response_cb);
     });
     response_cb(response);
 }
@@ -344,12 +397,26 @@ fn asm_table_ui(
     table.body(|body| {
         body.rows(appearance.code_font.size, instructions_len, |mut row| {
             if let (Some(left_obj), Some(left_symbol_ref)) = (left_obj, left_symbol) {
-                asm_col_ui(&mut row, left_obj, left_symbol_ref, appearance, ins_view_state);
+                asm_col_ui(
+                    &mut row,
+                    left_obj,
+                    left_symbol_ref,
+                    appearance,
+                    ins_view_state,
+                    ColumnId::Left,
+                );
             } else {
                 empty_col_ui(&mut row);
             }
             if let (Some(right_obj), Some(right_symbol_ref)) = (right_obj, right_symbol) {
-                asm_col_ui(&mut row, right_obj, right_symbol_ref, appearance, ins_view_state);
+                asm_col_ui(
+                    &mut row,
+                    right_obj,
+                    right_symbol_ref,
+                    appearance,
+                    ins_view_state,
+                    ColumnId::Right,
+                );
             } else {
                 empty_col_ui(&mut row);
             }
