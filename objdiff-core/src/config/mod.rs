@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::Read,
+    io::{BufReader, Read},
     path::{Path, PathBuf},
 };
 
@@ -156,7 +156,7 @@ pub struct ProjectConfigInfo {
 pub fn try_project_config(dir: &Path) -> Option<(Result<ProjectConfig>, ProjectConfigInfo)> {
     for filename in CONFIG_FILENAMES.iter() {
         let config_path = dir.join(filename);
-        let Ok(mut file) = File::open(&config_path) else {
+        let Ok(file) = File::open(&config_path) else {
             continue;
         };
         let metadata = file.metadata();
@@ -165,9 +165,10 @@ pub fn try_project_config(dir: &Path) -> Option<(Result<ProjectConfig>, ProjectC
                 continue;
             }
             let ts = FileTime::from_last_modification_time(&metadata);
+            let mut reader = BufReader::new(file);
             let mut result = match filename.contains("json") {
-                true => read_json_config(&mut file),
-                false => read_yml_config(&mut file),
+                true => read_json_config(&mut reader),
+                false => read_yml_config(&mut reader),
             };
             if let Ok(config) = &result {
                 // Validate min_version if present

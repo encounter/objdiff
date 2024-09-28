@@ -1,5 +1,6 @@
 use std::{
     fs::File,
+    io::{BufReader, BufWriter},
     path::{Path, PathBuf},
 };
 
@@ -46,13 +47,13 @@ pub fn load_graphics_config(path: &Path) -> Result<Option<GraphicsConfig>> {
     if !path.exists() {
         return Ok(None);
     }
-    let file = File::open(path)?;
+    let file = BufReader::new(File::open(path)?);
     let config: GraphicsConfig = ron::de::from_reader(file)?;
     Ok(Some(config))
 }
 
 pub fn save_graphics_config(path: &Path, config: &GraphicsConfig) -> Result<()> {
-    let file = File::create(path)?;
+    let file = BufWriter::new(File::create(path)?);
     ron::ser::to_writer(file, config)?;
     Ok(())
 }
