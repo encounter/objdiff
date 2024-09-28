@@ -19,7 +19,7 @@ use objdiff_core::{
 use strum::{EnumMessage, VariantArray};
 
 use crate::{
-    app::{AppConfig, AppConfigRef, ObjectConfig},
+    app::{AppConfig, AppState, AppStateRef, ObjectConfig},
     config::ProjectObjectNode,
     jobs::{
         check_update::{start_check_update, CheckUpdateResult},
@@ -54,7 +54,7 @@ pub struct ConfigViewState {
 }
 
 impl ConfigViewState {
-    pub fn pre_update(&mut self, jobs: &mut JobQueue, config: &AppConfigRef) {
+    pub fn pre_update(&mut self, jobs: &mut JobQueue, state: &AppStateRef) {
         jobs.results.retain_mut(|result| {
             if let JobResult::CheckUpdate(result) = result {
                 self.check_update = take(result);
@@ -71,21 +71,21 @@ impl ConfigViewState {
         match self.file_dialog_state.poll() {
             FileDialogResult::None => {}
             FileDialogResult::ProjectDir(path) => {
-                let mut guard = config.write().unwrap();
+                let mut guard = state.write().unwrap();
                 guard.set_project_dir(path.to_path_buf());
             }
             FileDialogResult::TargetDir(path) => {
-                let mut guard = config.write().unwrap();
+                let mut guard = state.write().unwrap();
                 guard.set_target_obj_dir(path.to_path_buf());
             }
             FileDialogResult::BaseDir(path) => {
-                let mut guard = config.write().unwrap();
+                let mut guard = state.write().unwrap();
                 guard.set_base_obj_dir(path.to_path_buf());
             }
             FileDialogResult::Object(path) => {
-                let mut guard = config.write().unwrap();
+                let mut guard = state.write().unwrap();
                 if let (Some(base_dir), Some(target_dir)) =
-                    (&guard.base_obj_dir, &guard.target_obj_dir)
+                    (&guard.config.base_obj_dir, &guard.config.target_obj_dir)
                 {
                     if let Ok(obj_path) = path.strip_prefix(base_dir) {
                         let target_path = target_dir.join(obj_path);
@@ -113,11 +113,11 @@ impl ConfigViewState {
         }
     }
 
-    pub fn post_update(&mut self, ctx: &egui::Context, jobs: &mut JobQueue, config: &AppConfigRef) {
+    pub fn post_update(&mut self, ctx: &egui::Context, jobs: &mut JobQueue, state: &AppStateRef) {
         if self.queue_build {
             self.queue_build = false;
-            if let Ok(mut config) = config.write() {
-                config.queue_build = true;
+            if let Ok(mut state) = state.write() {
+                state.queue_build = true;
             }
         }
 
@@ -167,42 +167,40 @@ fn fetch_wsl2_distros() -> Vec<String> {
 
 pub fn config_ui(
     ui: &mut egui::Ui,
-    config: &AppConfigRef,
+    state: &AppStateRef,
     show_config_window: &mut bool,
-    state: &mut ConfigViewState,
+    config_state: &mut ConfigViewState,
     appearance: &Appearance,
 ) {
-    let mut config_guard = config.write().unwrap();
-    let AppConfig {
-        target_obj_dir,
-        base_obj_dir,
-        selected_obj,
-        auto_update_check,
+    let mut state_guard = state.write().unwrap();
+    let AppState {
+        config: AppConfig { target_obj_dir, base_obj_dir, selected_obj, auto_update_check, .. },
         objects,
         object_nodes,
         ..
-    } = &mut *config_guard;
+    } = &mut *state_guard;
 
     ui.heading("Updates");
     ui.checkbox(auto_update_check, "Check for updates on startup");
-    if ui.add_enabled(!state.check_update_running, egui::Button::new("Check now")).clicked() {
-        state.queue_check_update = true;
+    if ui.add_enabled(!config_state.check_update_running, egui::Button::new("Check now")).clicked()
+    {
+        config_state.queue_check_update = true;
     }
     ui.label(format!("Current version: {}", env!("CARGO_PKG_VERSION")));
-    if let Some(result) = &state.check_update {
+    if let Some(result) = &config_state.check_update {
         ui.label(format!("Latest version: {}", result.latest_release.version));
         if result.update_available {
             ui.colored_label(appearance.insert_color, "Update available");
             ui.horizontal(|ui| {
                 if let Some(bin_name) = &result.found_binary {
                     if ui
-                        .add_enabled(!state.update_running, egui::Button::new("Automatic"))
+                        .add_enabled(!config_state.update_running, egui::Button::new("Automatic"))
                         .on_hover_text_at_pointer(
                             "Automatically download and replace the current build",
                         )
                         .clicked()
                     {
-                        state.queue_update = Some(bin_name.clone());
+                        config_state.queue_update = Some(bin_name.clone());
                     }
                 }
                 if ui
@@ -231,7 +229,7 @@ pub fn config_ui(
     if objects.is_empty() {
         if let (Some(_base_dir), Some(target_dir)) = (base_obj_dir, target_obj_dir) {
             if ui.button("Select object").clicked() {
-                state.file_dialog_state.queue(
+                config_state.file_dialog_state.queue(
                     || {
                         Box::pin(
                             rfd::AsyncFileDialog::new()
@@ -254,8 +252,8 @@ pub fn config_ui(
             ui.colored_label(appearance.delete_color, "Missing project settings");
         }
     } else {
-        let had_search = !state.object_search.is_empty();
-        egui::TextEdit::singleline(&mut state.object_search).hint_text("Filter").ui(ui);
+        let had_search = !config_state.object_search.is_empty();
+        egui::TextEdit::singleline(&mut config_state.object_search).hint_text("Filter").ui(ui);
 
         let mut root_open = None;
         let mut node_open = NodeOpen::Default;
@@ -277,19 +275,22 @@ pub fn config_ui(
                 node_open = NodeOpen::Object;
             }
             let mut filters_text = RichText::new("Filter ⏷");
-            if state.filter_diffable || state.filter_incomplete || state.show_hidden {
+            if config_state.filter_diffable
+                || config_state.filter_incomplete
+                || config_state.show_hidden
+            {
                 filters_text = filters_text.color(appearance.replace_color);
             }
             egui::menu::menu_button(ui, filters_text, |ui| {
-                ui.checkbox(&mut state.filter_diffable, "Diffable")
+                ui.checkbox(&mut config_state.filter_diffable, "Diffable")
                     .on_hover_text_at_pointer("Only show objects with a source file");
-                ui.checkbox(&mut state.filter_incomplete, "Incomplete")
+                ui.checkbox(&mut config_state.filter_incomplete, "Incomplete")
                     .on_hover_text_at_pointer("Only show objects not marked complete");
-                ui.checkbox(&mut state.show_hidden, "Hidden")
+                ui.checkbox(&mut config_state.show_hidden, "Hidden")
                     .on_hover_text_at_pointer("Show hidden (auto-generated) objects");
             });
         });
-        if state.object_search.is_empty() {
+        if config_state.object_search.is_empty() {
             if had_search {
                 root_open = Some(true);
                 node_open = NodeOpen::Object;
@@ -306,15 +307,15 @@ pub fn config_ui(
         .open(root_open)
         .default_open(true)
         .show(ui, |ui| {
-            let search = state.object_search.to_ascii_lowercase();
+            let search = config_state.object_search.to_ascii_lowercase();
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
             for node in object_nodes.iter().filter_map(|node| {
                 filter_node(
                     node,
                     &search,
-                    state.filter_diffable,
-                    state.filter_incomplete,
-                    state.show_hidden,
+                    config_state.filter_diffable,
+                    config_state.filter_incomplete,
+                    config_state.show_hidden,
                 )
             }) {
                 display_node(ui, &mut new_selected_obj, &node, appearance, node_open);
@@ -324,13 +325,13 @@ pub fn config_ui(
     if new_selected_obj != *selected_obj {
         if let Some(obj) = new_selected_obj {
             // Will set obj_changed, which will trigger a rebuild
-            config_guard.set_selected_obj(obj);
+            state_guard.set_selected_obj(obj);
         }
     }
-    if config_guard.selected_obj.is_some()
-        && ui.add_enabled(!state.build_running, egui::Button::new("Build")).clicked()
+    if state_guard.config.selected_obj.is_some()
+        && ui.add_enabled(!config_state.build_running, egui::Button::new("Build")).clicked()
     {
-        state.queue_build = true;
+        config_state.queue_build = true;
     }
 
     ui.separator();
@@ -523,33 +524,33 @@ fn pick_folder_ui(
 
 pub fn project_window(
     ctx: &egui::Context,
-    config: &AppConfigRef,
+    state: &AppStateRef,
     show: &mut bool,
-    state: &mut ConfigViewState,
+    config_state: &mut ConfigViewState,
     appearance: &Appearance,
 ) {
-    let mut config_guard = config.write().unwrap();
+    let mut state_guard = state.write().unwrap();
 
     egui::Window::new("Project").open(show).show(ctx, |ui| {
-        split_obj_config_ui(ui, &mut config_guard, state, appearance);
+        split_obj_config_ui(ui, &mut state_guard, config_state, appearance);
     });
 
-    if let Some(error) = &state.load_error {
+    if let Some(error) = &config_state.load_error {
         let mut open = true;
         egui::Window::new("Error").open(&mut open).show(ctx, |ui| {
             ui.label("Failed to load project config:");
             ui.colored_label(appearance.delete_color, error);
         });
         if !open {
-            state.load_error = None;
+            config_state.load_error = None;
         }
     }
 }
 
 fn split_obj_config_ui(
     ui: &mut egui::Ui,
-    config: &mut AppConfig,
-    state: &mut ConfigViewState,
+    state: &mut AppState,
+    config_state: &mut ConfigViewState,
     appearance: &Appearance,
 ) {
     let text_format = TextFormat::simple(appearance.ui_font.clone(), appearance.text_color);
@@ -560,7 +561,7 @@ fn split_obj_config_ui(
 
     let response = pick_folder_ui(
         ui,
-        &config.project_dir,
+        &state.config.project_dir,
         "Project directory",
         |ui| {
             let mut job = LayoutJob::default();
@@ -576,7 +577,7 @@ fn split_obj_config_ui(
         true,
     );
     if response.clicked() {
-        state.file_dialog_state.queue(
+        config_state.file_dialog_state.queue(
             || Box::pin(rfd::AsyncFileDialog::new().pick_folder()),
             FileDialogResult::ProjectDir,
         );
@@ -605,33 +606,35 @@ fn split_obj_config_ui(
             ui.label(job);
         });
     });
-    let mut custom_make_str = config.custom_make.clone().unwrap_or_default();
+    let mut custom_make_str = state.config.custom_make.clone().unwrap_or_default();
     if ui
         .add_enabled(
-            config.project_config_info.is_none(),
+            state.project_config_info.is_none(),
             egui::TextEdit::singleline(&mut custom_make_str).hint_text("make"),
         )
         .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
         .changed()
     {
         if custom_make_str.is_empty() {
-            config.custom_make = None;
+            state.config.custom_make = None;
         } else {
-            config.custom_make = Some(custom_make_str);
+            state.config.custom_make = Some(custom_make_str);
         }
     }
     #[cfg(all(windows, feature = "wsl"))]
     {
-        if state.available_wsl_distros.is_none() {
-            state.available_wsl_distros = Some(fetch_wsl2_distros());
+        if config_state.available_wsl_distros.is_none() {
+            config_state.available_wsl_distros = Some(fetch_wsl2_distros());
         }
         egui::ComboBox::from_label("Run in WSL2")
-            .selected_text(config.selected_wsl_distro.as_ref().unwrap_or(&"Disabled".to_string()))
+            .selected_text(
+                state.config.selected_wsl_distro.as_ref().unwrap_or(&"Disabled".to_string()),
+            )
             .show_ui(ui, |ui| {
-                ui.selectable_value(&mut config.selected_wsl_distro, None, "Disabled");
-                for distro in state.available_wsl_distros.as_ref().unwrap() {
+                ui.selectable_value(&mut state.config.selected_wsl_distro, None, "Disabled");
+                for distro in config_state.available_wsl_distros.as_ref().unwrap() {
                     ui.selectable_value(
-                        &mut config.selected_wsl_distro,
+                        &mut state.config.selected_wsl_distro,
                         Some(distro.clone()),
                         distro,
                     );
@@ -640,10 +643,10 @@ fn split_obj_config_ui(
     }
     ui.separator();
 
-    if let Some(project_dir) = config.project_dir.clone() {
+    if let Some(project_dir) = state.config.project_dir.clone() {
         let response = pick_folder_ui(
             ui,
-            &config.target_obj_dir,
+            &state.config.target_obj_dir,
             "Target build directory",
             |ui| {
                 let mut job = LayoutJob::default();
@@ -660,17 +663,17 @@ fn split_obj_config_ui(
                 ui.label(job);
             },
             appearance,
-            config.project_config_info.is_none(),
+            state.project_config_info.is_none(),
         );
         if response.clicked() {
-            state.file_dialog_state.queue(
+            config_state.file_dialog_state.queue(
                 || Box::pin(rfd::AsyncFileDialog::new().set_directory(&project_dir).pick_folder()),
                 FileDialogResult::TargetDir,
             );
         }
         ui.add_enabled(
-            config.project_config_info.is_none(),
-            egui::Checkbox::new(&mut config.build_target, "Build target objects"),
+            state.project_config_info.is_none(),
+            egui::Checkbox::new(&mut state.config.build_target, "Build target objects"),
         )
         .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
         .on_hover_ui(|ui| {
@@ -704,7 +707,7 @@ fn split_obj_config_ui(
 
         let response = pick_folder_ui(
             ui,
-            &config.base_obj_dir,
+            &state.config.base_obj_dir,
             "Base build directory",
             |ui| {
                 let mut job = LayoutJob::default();
@@ -716,17 +719,17 @@ fn split_obj_config_ui(
                 ui.label(job);
             },
             appearance,
-            config.project_config_info.is_none(),
+            state.project_config_info.is_none(),
         );
         if response.clicked() {
-            state.file_dialog_state.queue(
+            config_state.file_dialog_state.queue(
                 || Box::pin(rfd::AsyncFileDialog::new().set_directory(&project_dir).pick_folder()),
                 FileDialogResult::BaseDir,
             );
         }
         ui.add_enabled(
-            config.project_config_info.is_none(),
-            egui::Checkbox::new(&mut config.build_base, "Build base objects"),
+            state.project_config_info.is_none(),
+            egui::Checkbox::new(&mut state.config.build_base, "Build base objects"),
         )
         .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
         .on_hover_ui(|ui| {
@@ -757,7 +760,7 @@ fn split_obj_config_ui(
 
     subheading(ui, "Watch settings", appearance);
     let response =
-        ui.checkbox(&mut config.rebuild_on_changes, "Rebuild on changes").on_hover_ui(|ui| {
+        ui.checkbox(&mut state.config.rebuild_on_changes, "Rebuild on changes").on_hover_ui(|ui| {
             let mut job = LayoutJob::default();
             job.append(
                 "Automatically re-run the build & diff when files change.",
@@ -767,23 +770,23 @@ fn split_obj_config_ui(
             ui.label(job);
         });
     if response.changed() {
-        config.watcher_change = true;
+        state.watcher_change = true;
     };
 
     ui.horizontal(|ui| {
         ui.label(RichText::new("File patterns").color(appearance.text_color));
         if ui
-            .add_enabled(config.project_config_info.is_none(), egui::Button::new("Reset"))
+            .add_enabled(state.project_config_info.is_none(), egui::Button::new("Reset"))
             .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
             .clicked()
         {
-            config.watch_patterns =
+            state.config.watch_patterns =
                 DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect();
-            config.watcher_change = true;
+            state.watcher_change = true;
         }
     });
     let mut remove_at: Option<usize> = None;
-    for (idx, glob) in config.watch_patterns.iter().enumerate() {
+    for (idx, glob) in state.config.watch_patterns.iter().enumerate() {
         ui.horizontal(|ui| {
             ui.label(
                 RichText::new(format!("{}", glob))
@@ -791,7 +794,7 @@ fn split_obj_config_ui(
                     .family(FontFamily::Monospace),
             );
             if ui
-                .add_enabled(config.project_config_info.is_none(), egui::Button::new("-").small())
+                .add_enabled(state.project_config_info.is_none(), egui::Button::new("-").small())
                 .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
                 .clicked()
             {
@@ -800,24 +803,24 @@ fn split_obj_config_ui(
         });
     }
     if let Some(idx) = remove_at {
-        config.watch_patterns.remove(idx);
-        config.watcher_change = true;
+        state.config.watch_patterns.remove(idx);
+        state.watcher_change = true;
     }
     ui.horizontal(|ui| {
         ui.add_enabled(
-            config.project_config_info.is_none(),
-            egui::TextEdit::singleline(&mut state.watch_pattern_text).desired_width(100.0),
+            state.project_config_info.is_none(),
+            egui::TextEdit::singleline(&mut config_state.watch_pattern_text).desired_width(100.0),
         )
         .on_disabled_hover_text(CONFIG_DISABLED_TEXT);
         if ui
-            .add_enabled(config.project_config_info.is_none(), egui::Button::new("+").small())
+            .add_enabled(state.project_config_info.is_none(), egui::Button::new("+").small())
             .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
             .clicked()
         {
-            if let Ok(glob) = Glob::new(&state.watch_pattern_text) {
-                config.watch_patterns.push(glob);
-                config.watcher_change = true;
-                state.watch_pattern_text.clear();
+            if let Ok(glob) = Glob::new(&config_state.watch_pattern_text) {
+                state.config.watch_patterns.push(glob);
+                state.watcher_change = true;
+                config_state.watch_pattern_text.clear();
             }
         }
     });
@@ -825,131 +828,131 @@ fn split_obj_config_ui(
 
 pub fn arch_config_window(
     ctx: &egui::Context,
-    config: &AppConfigRef,
+    state: &AppStateRef,
     show: &mut bool,
     appearance: &Appearance,
 ) {
-    let mut config_guard = config.write().unwrap();
+    let mut state_guard = state.write().unwrap();
     egui::Window::new("Arch Settings").open(show).show(ctx, |ui| {
-        arch_config_ui(ui, &mut config_guard, appearance);
+        arch_config_ui(ui, &mut state_guard, appearance);
     });
 }
 
-fn arch_config_ui(ui: &mut egui::Ui, config: &mut AppConfig, _appearance: &Appearance) {
+fn arch_config_ui(ui: &mut egui::Ui, state: &mut AppState, _appearance: &Appearance) {
     ui.heading("x86");
     egui::ComboBox::new("x86_formatter", "Format")
-        .selected_text(config.diff_obj_config.x86_formatter.get_message().unwrap())
+        .selected_text(state.config.diff_obj_config.x86_formatter.get_message().unwrap())
         .show_ui(ui, |ui| {
             for &formatter in X86Formatter::VARIANTS {
                 if ui
                     .selectable_label(
-                        config.diff_obj_config.x86_formatter == formatter,
+                        state.config.diff_obj_config.x86_formatter == formatter,
                         formatter.get_message().unwrap(),
                     )
                     .clicked()
                 {
-                    config.diff_obj_config.x86_formatter = formatter;
-                    config.queue_reload = true;
+                    state.config.diff_obj_config.x86_formatter = formatter;
+                    state.queue_reload = true;
                 }
             }
         });
     ui.separator();
     ui.heading("MIPS");
     egui::ComboBox::new("mips_abi", "ABI")
-        .selected_text(config.diff_obj_config.mips_abi.get_message().unwrap())
+        .selected_text(state.config.diff_obj_config.mips_abi.get_message().unwrap())
         .show_ui(ui, |ui| {
             for &abi in MipsAbi::VARIANTS {
                 if ui
                     .selectable_label(
-                        config.diff_obj_config.mips_abi == abi,
+                        state.config.diff_obj_config.mips_abi == abi,
                         abi.get_message().unwrap(),
                     )
                     .clicked()
                 {
-                    config.diff_obj_config.mips_abi = abi;
-                    config.queue_reload = true;
+                    state.config.diff_obj_config.mips_abi = abi;
+                    state.queue_reload = true;
                 }
             }
         });
     egui::ComboBox::new("mips_instr_category", "Instruction Category")
-        .selected_text(config.diff_obj_config.mips_instr_category.get_message().unwrap())
+        .selected_text(state.config.diff_obj_config.mips_instr_category.get_message().unwrap())
         .show_ui(ui, |ui| {
             for &category in MipsInstrCategory::VARIANTS {
                 if ui
                     .selectable_label(
-                        config.diff_obj_config.mips_instr_category == category,
+                        state.config.diff_obj_config.mips_instr_category == category,
                         category.get_message().unwrap(),
                     )
                     .clicked()
                 {
-                    config.diff_obj_config.mips_instr_category = category;
-                    config.queue_reload = true;
+                    state.config.diff_obj_config.mips_instr_category = category;
+                    state.queue_reload = true;
                 }
             }
         });
     ui.separator();
     ui.heading("ARM");
     egui::ComboBox::new("arm_arch_version", "Architecture Version")
-        .selected_text(config.diff_obj_config.arm_arch_version.get_message().unwrap())
+        .selected_text(state.config.diff_obj_config.arm_arch_version.get_message().unwrap())
         .show_ui(ui, |ui| {
             for &version in ArmArchVersion::VARIANTS {
                 if ui
                     .selectable_label(
-                        config.diff_obj_config.arm_arch_version == version,
+                        state.config.diff_obj_config.arm_arch_version == version,
                         version.get_message().unwrap(),
                     )
                     .clicked()
                 {
-                    config.diff_obj_config.arm_arch_version = version;
-                    config.queue_reload = true;
+                    state.config.diff_obj_config.arm_arch_version = version;
+                    state.queue_reload = true;
                 }
             }
         });
     let response = ui
-        .checkbox(&mut config.diff_obj_config.arm_unified_syntax, "Unified syntax")
+        .checkbox(&mut state.config.diff_obj_config.arm_unified_syntax, "Unified syntax")
         .on_hover_text("Disassemble as unified assembly language (UAL).");
     if response.changed() {
-        config.queue_reload = true;
+        state.queue_reload = true;
     }
     let response = ui
-        .checkbox(&mut config.diff_obj_config.arm_av_registers, "Use A/V registers")
+        .checkbox(&mut state.config.diff_obj_config.arm_av_registers, "Use A/V registers")
         .on_hover_text("Display R0-R3 as A1-A4 and R4-R11 as V1-V8");
     if response.changed() {
-        config.queue_reload = true;
+        state.queue_reload = true;
     }
     egui::ComboBox::new("arm_r9_usage", "Display R9 as")
-        .selected_text(config.diff_obj_config.arm_r9_usage.get_message().unwrap())
+        .selected_text(state.config.diff_obj_config.arm_r9_usage.get_message().unwrap())
         .show_ui(ui, |ui| {
             for &usage in ArmR9Usage::VARIANTS {
                 if ui
                     .selectable_label(
-                        config.diff_obj_config.arm_r9_usage == usage,
+                        state.config.diff_obj_config.arm_r9_usage == usage,
                         usage.get_message().unwrap(),
                     )
                     .on_hover_text(usage.get_detailed_message().unwrap())
                     .clicked()
                 {
-                    config.diff_obj_config.arm_r9_usage = usage;
-                    config.queue_reload = true;
+                    state.config.diff_obj_config.arm_r9_usage = usage;
+                    state.queue_reload = true;
                 }
             }
         });
     let response = ui
-        .checkbox(&mut config.diff_obj_config.arm_sl_usage, "Display R10 as SL")
+        .checkbox(&mut state.config.diff_obj_config.arm_sl_usage, "Display R10 as SL")
         .on_hover_text("Used for explicit stack limits.");
     if response.changed() {
-        config.queue_reload = true;
+        state.queue_reload = true;
     }
     let response = ui
-        .checkbox(&mut config.diff_obj_config.arm_fp_usage, "Display R11 as FP")
+        .checkbox(&mut state.config.diff_obj_config.arm_fp_usage, "Display R11 as FP")
         .on_hover_text("Used for frame pointers.");
     if response.changed() {
-        config.queue_reload = true;
+        state.queue_reload = true;
     }
     let response = ui
-        .checkbox(&mut config.diff_obj_config.arm_ip_usage, "Display R12 as IP")
+        .checkbox(&mut state.config.diff_obj_config.arm_ip_usage, "Display R12 as IP")
         .on_hover_text("Used for interworking and long branches.");
     if response.changed() {
-        config.queue_reload = true;
+        state.queue_reload = true;
     }
 }

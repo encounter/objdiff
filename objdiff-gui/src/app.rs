@@ -7,6 +7,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex, RwLock,
     },
+    time::Instant,
 };
 
 use filetime::FileTime;
@@ -82,6 +83,36 @@ fn default_watch_patterns() -> Vec<Glob> {
     DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect()
 }
 
+pub struct AppState {
+    pub config: AppConfig,
+    pub objects: Vec<ProjectObject>,
+    pub object_nodes: Vec<ProjectObjectNode>,
+    pub watcher_change: bool,
+    pub config_change: bool,
+    pub obj_change: bool,
+    pub queue_build: bool,
+    pub queue_reload: bool,
+    pub project_config_info: Option<ProjectConfigInfo>,
+    pub last_mod_check: Instant,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            config: Default::default(),
+            objects: vec![],
+            object_nodes: vec![],
+            watcher_change: false,
+            config_change: false,
+            obj_change: false,
+            queue_build: false,
+            queue_reload: false,
+            project_config_info: None,
+            last_mod_check: Instant::now(),
+        }
+    }
+}
+
 #[derive(Clone, serde::Deserialize, serde::Serialize)]
 pub struct AppConfig {
     // TODO: https://github.com/ron-rs/ron/pull/455
@@ -116,23 +147,6 @@ pub struct AppConfig {
     pub recent_projects: Vec<PathBuf>,
     #[serde(default)]
     pub diff_obj_config: DiffObjConfig,
-
-    #[serde(skip)]
-    pub objects: Vec<ProjectObject>,
-    #[serde(skip)]
-    pub object_nodes: Vec<ProjectObjectNode>,
-    #[serde(skip)]
-    pub watcher_change: bool,
-    #[serde(skip)]
-    pub config_change: bool,
-    #[serde(skip)]
-    pub obj_change: bool,
-    #[serde(skip)]
-    pub queue_build: bool,
-    #[serde(skip)]
-    pub queue_reload: bool,
-    #[serde(skip)]
-    pub project_config_info: Option<ProjectConfigInfo>,
 }
 
 impl Default for AppConfig {
@@ -153,30 +167,22 @@ impl Default for AppConfig {
             watch_patterns: DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect(),
             recent_projects: vec![],
             diff_obj_config: Default::default(),
-            objects: vec![],
-            object_nodes: vec![],
-            watcher_change: false,
-            config_change: false,
-            obj_change: false,
-            queue_build: false,
-            queue_reload: false,
-            project_config_info: None,
         }
     }
 }
 
-impl AppConfig {
+impl AppState {
     pub fn set_project_dir(&mut self, path: PathBuf) {
-        self.recent_projects.retain(|p| p != &path);
-        if self.recent_projects.len() > 9 {
-            self.recent_projects.truncate(9);
+        self.config.recent_projects.retain(|p| p != &path);
+        if self.config.recent_projects.len() > 9 {
+            self.config.recent_projects.truncate(9);
         }
-        self.recent_projects.insert(0, path.clone());
-        self.project_dir = Some(path);
-        self.target_obj_dir = None;
-        self.base_obj_dir = None;
-        self.selected_obj = None;
-        self.build_target = false;
+        self.config.recent_projects.insert(0, path.clone());
+        self.config.project_dir = Some(path);
+        self.config.target_obj_dir = None;
+        self.config.base_obj_dir = None;
+        self.config.selected_obj = None;
+        self.config.build_target = false;
         self.objects.clear();
         self.object_nodes.clear();
         self.watcher_change = true;
@@ -187,33 +193,33 @@ impl AppConfig {
     }
 
     pub fn set_target_obj_dir(&mut self, path: PathBuf) {
-        self.target_obj_dir = Some(path);
-        self.selected_obj = None;
+        self.config.target_obj_dir = Some(path);
+        self.config.selected_obj = None;
         self.obj_change = true;
         self.queue_build = false;
     }
 
     pub fn set_base_obj_dir(&mut self, path: PathBuf) {
-        self.base_obj_dir = Some(path);
-        self.selected_obj = None;
+        self.config.base_obj_dir = Some(path);
+        self.config.selected_obj = None;
         self.obj_change = true;
         self.queue_build = false;
     }
 
     pub fn set_selected_obj(&mut self, object: ObjectConfig) {
-        self.selected_obj = Some(object);
+        self.config.selected_obj = Some(object);
         self.obj_change = true;
         self.queue_build = false;
     }
 }
 
-pub type AppConfigRef = Arc<RwLock<AppConfig>>;
+pub type AppStateRef = Arc<RwLock<AppState>>;
 
 #[derive(Default)]
 pub struct App {
     appearance: Appearance,
     view_state: ViewState,
-    config: AppConfigRef,
+    state: AppStateRef,
     modified: Arc<AtomicBool>,
     watcher: Option<notify::RecommendedWatcher>,
     app_path: Option<PathBuf>,
@@ -241,16 +247,17 @@ impl App {
             if let Some(appearance) = eframe::get_value::<Appearance>(storage, APPEARANCE_KEY) {
                 app.appearance = appearance;
             }
-            if let Some(mut config) = deserialize_config(storage) {
-                if config.project_dir.is_some() {
-                    config.config_change = true;
-                    config.watcher_change = true;
+            if let Some(config) = deserialize_config(storage) {
+                let mut state = AppState { config, ..Default::default() };
+                if state.config.project_dir.is_some() {
+                    state.config_change = true;
+                    state.watcher_change = true;
                 }
-                if config.selected_obj.is_some() {
-                    config.queue_build = true;
+                if state.config.selected_obj.is_some() {
+                    state.queue_build = true;
                 }
-                app.view_state.config_state.queue_check_update = config.auto_update_check;
-                app.config = Arc::new(RwLock::new(config));
+                app.view_state.config_state.queue_check_update = state.config.auto_update_check;
+                app.state = Arc::new(RwLock::new(state));
             }
         }
         app.appearance.init_fonts(&cc.egui_ctx);
@@ -336,8 +343,8 @@ impl App {
         jobs.results.append(&mut results);
         jobs.clear_finished();
 
-        diff_state.pre_update(jobs, &self.config);
-        config_state.pre_update(jobs, &self.config);
+        diff_state.pre_update(jobs, &self.state);
+        config_state.pre_update(jobs, &self.state);
         debug_assert!(jobs.results.is_empty());
     }
 
@@ -345,23 +352,23 @@ impl App {
         self.appearance.post_update(ctx);
 
         let ViewState { jobs, diff_state, config_state, graphics_state, .. } = &mut self.view_state;
-        config_state.post_update(ctx, jobs, &self.config);
-        diff_state.post_update(ctx, jobs, &self.config);
+        config_state.post_update(ctx, jobs, &self.state);
+        diff_state.post_update(ctx, jobs, &self.state);
 
-        let Ok(mut config) = self.config.write() else {
+        let Ok(mut state) = self.state.write() else {
             return;
         };
-        let config = &mut *config;
+        let state = &mut *state;
 
-        if let Some(info) = &config.project_config_info {
+        if let Some(info) = &state.project_config_info {
             if file_modified(&info.path, info.timestamp) {
-                config.config_change = true;
+                state.config_change = true;
             }
         }
 
-        if config.config_change {
-            config.config_change = false;
-            match load_project_config(config) {
+        if state.config_change {
+            state.config_change = false;
+            match load_project_config(state) {
                 Ok(()) => config_state.load_error = None,
                 Err(e) => {
                     log::error!("Failed to load project config: {e}");
@@ -370,47 +377,50 @@ impl App {
             }
         }
 
-        if config.watcher_change {
+        if state.watcher_change {
             drop(self.watcher.take());
 
-            if let Some(project_dir) = &config.project_dir {
-                match build_globset(&config.watch_patterns).map_err(anyhow::Error::new).and_then(
-                    |globset| {
+            if let Some(project_dir) = &state.config.project_dir {
+                match build_globset(&state.config.watch_patterns)
+                    .map_err(anyhow::Error::new)
+                    .and_then(|globset| {
                         create_watcher(ctx.clone(), self.modified.clone(), project_dir, globset)
                             .map_err(anyhow::Error::new)
-                    },
-                ) {
+                    }) {
                     Ok(watcher) => self.watcher = Some(watcher),
                     Err(e) => log::error!("Failed to create watcher: {e}"),
                 }
-                config.watcher_change = false;
+                state.watcher_change = false;
             }
         }
 
-        if config.obj_change {
+        if state.obj_change {
             *diff_state = Default::default();
-            if config.selected_obj.is_some() {
-                config.queue_build = true;
+            if state.config.selected_obj.is_some() {
+                state.queue_build = true;
             }
-            config.obj_change = false;
+            state.obj_change = false;
         }
 
-        if self.modified.swap(false, Ordering::Relaxed) && config.rebuild_on_changes {
-            config.queue_build = true;
+        if self.modified.swap(false, Ordering::Relaxed) && state.config.rebuild_on_changes {
+            state.queue_build = true;
         }
 
         if let Some(result) = &diff_state.build {
-            if let Some((obj, _)) = &result.first_obj {
-                if let (Some(path), Some(timestamp)) = (&obj.path, obj.timestamp) {
-                    if file_modified(path, timestamp) {
-                        config.queue_reload = true;
+            if state.last_mod_check.elapsed().as_millis() >= 500 {
+                state.last_mod_check = Instant::now();
+                if let Some((obj, _)) = &result.first_obj {
+                    if let (Some(path), Some(timestamp)) = (&obj.path, obj.timestamp) {
+                        if file_modified(path, timestamp) {
+                            state.queue_reload = true;
+                        }
                     }
                 }
-            }
-            if let Some((obj, _)) = &result.second_obj {
-                if let (Some(path), Some(timestamp)) = (&obj.path, obj.timestamp) {
-                    if file_modified(path, timestamp) {
-                        config.queue_reload = true;
+                if let Some((obj, _)) = &result.second_obj {
+                    if let (Some(path), Some(timestamp)) = (&obj.path, obj.timestamp) {
+                        if file_modified(path, timestamp) {
+                            state.queue_reload = true;
+                        }
                     }
                 }
             }
@@ -418,17 +428,20 @@ impl App {
 
         // Don't clear `queue_build` if a build is running. A file may have been modified during
         // the build, so we'll start another build after the current one finishes.
-        if config.queue_build && config.selected_obj.is_some() && !jobs.is_running(Job::ObjDiff) {
-            jobs.push(start_build(ctx, ObjDiffConfig::from_config(config)));
-            config.queue_build = false;
-            config.queue_reload = false;
-        } else if config.queue_reload && !jobs.is_running(Job::ObjDiff) {
-            let mut diff_config = ObjDiffConfig::from_config(config);
+        if state.queue_build
+            && state.config.selected_obj.is_some()
+            && !jobs.is_running(Job::ObjDiff)
+        {
+            jobs.push(start_build(ctx, ObjDiffConfig::from_config(&state.config)));
+            state.queue_build = false;
+            state.queue_reload = false;
+        } else if state.queue_reload && !jobs.is_running(Job::ObjDiff) {
+            let mut diff_config = ObjDiffConfig::from_config(&state.config);
             // Don't build, just reload the current files
             diff_config.build_base = false;
             diff_config.build_target = false;
             jobs.push(start_build(ctx, diff_config));
-            config.queue_reload = false;
+            state.queue_reload = false;
         }
 
         if graphics_state.should_relaunch {
@@ -453,7 +466,7 @@ impl eframe::App for App {
 
         self.pre_update(ctx);
 
-        let Self { config, appearance, view_state, .. } = self;
+        let Self { state, appearance, view_state, .. } = self;
         let ViewState {
             jobs,
             config_state,
@@ -485,8 +498,8 @@ impl eframe::App for App {
                         *show_project_config = !*show_project_config;
                         ui.close_menu();
                     }
-                    let recent_projects = if let Ok(guard) = config.read() {
-                        guard.recent_projects.clone()
+                    let recent_projects = if let Ok(guard) = state.read() {
+                        guard.config.recent_projects.clone()
                     } else {
                         vec![]
                     };
@@ -495,12 +508,12 @@ impl eframe::App for App {
                     } else {
                         ui.menu_button("Recent Projects…", |ui| {
                             if ui.button("Clear").clicked() {
-                                config.write().unwrap().recent_projects.clear();
+                                state.write().unwrap().config.recent_projects.clear();
                             };
                             ui.separator();
                             for path in recent_projects {
                                 if ui.button(format!("{}", path.display())).clicked() {
-                                    config.write().unwrap().set_project_dir(path);
+                                    state.write().unwrap().set_project_dir(path);
                                     ui.close_menu();
                                 }
                             }
@@ -533,12 +546,12 @@ impl eframe::App for App {
                         *show_arch_config = !*show_arch_config;
                         ui.close_menu();
                     }
-                    let mut config = config.write().unwrap();
+                    let mut state = state.write().unwrap();
                     let response = ui
-                        .checkbox(&mut config.rebuild_on_changes, "Rebuild on changes")
+                        .checkbox(&mut state.config.rebuild_on_changes, "Rebuild on changes")
                         .on_hover_text("Automatically re-run the build & diff when files change.");
                     if response.changed() {
-                        config.watcher_change = true;
+                        state.watcher_change = true;
                     };
                     ui.add_enabled(
                         !diff_state.symbol_state.disable_reverse_fn_order,
@@ -554,7 +567,7 @@ impl eframe::App for App {
                     );
                     if ui
                         .checkbox(
-                            &mut config.diff_obj_config.relax_reloc_diffs,
+                            &mut state.config.diff_obj_config.relax_reloc_diffs,
                             "Relax relocation diffs",
                         )
                         .on_hover_text(
@@ -562,26 +575,26 @@ impl eframe::App for App {
                         )
                         .changed()
                     {
-                        config.queue_reload = true;
+                        state.queue_reload = true;
                     }
                     if ui
                         .checkbox(
-                            &mut config.diff_obj_config.space_between_args,
+                            &mut state.config.diff_obj_config.space_between_args,
                             "Space between args",
                         )
                         .changed()
                     {
-                        config.queue_reload = true;
+                        state.queue_reload = true;
                     }
                     if ui
                         .checkbox(
-                            &mut config.diff_obj_config.combine_data_sections,
+                            &mut state.config.diff_obj_config.combine_data_sections,
                             "Combine data sections",
                         )
                         .on_hover_text("Combines data sections with equal names.")
                         .changed()
                     {
-                        config.queue_reload = true;
+                        state.queue_reload = true;
                     }
                 });
             });
@@ -603,7 +616,7 @@ impl eframe::App for App {
         } else {
             egui::SidePanel::left("side_panel").show(ctx, |ui| {
                 egui::ScrollArea::both().show(ui, |ui| {
-                    config_ui(ui, config, show_project_config, config_state, appearance);
+                    config_ui(ui, state, show_project_config, config_state, appearance);
                     jobs_ui(ui, jobs, appearance);
                 });
             });
@@ -613,11 +626,11 @@ impl eframe::App for App {
             });
         }
 
-        project_window(ctx, config, show_project_config, config_state, appearance);
+        project_window(ctx, state, show_project_config, config_state, appearance);
         appearance_window(ctx, show_appearance_config, appearance);
         demangle_window(ctx, show_demangle, demangle_state, appearance);
         rlwinm_decode_window(ctx, show_rlwinm_decode, rlwinm_decode_state, appearance);
-        arch_config_window(ctx, config, show_arch_config, appearance);
+        arch_config_window(ctx, state, show_arch_config, appearance);
         debug_window(ctx, show_debug, frame_history, appearance);
         graphics_window(ctx, show_graphics, frame_history, graphics_state, appearance);
 
@@ -626,8 +639,8 @@ impl eframe::App for App {
 
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        if let Ok(config) = self.config.read() {
-            eframe::set_value(storage, CONFIG_KEY, &*config);
+        if let Ok(state) = self.state.read() {
+            eframe::set_value(storage, CONFIG_KEY, &state.config);
         }
         eframe::set_value(storage, APPEARANCE_KEY, &self.appearance);
     }

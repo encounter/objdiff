@@ -4,7 +4,7 @@ use anyhow::Result;
 use globset::Glob;
 use objdiff_core::config::{try_project_config, ProjectObject, DEFAULT_WATCH_PATTERNS};
 
-use crate::app::AppConfig;
+use crate::app::AppState;
 
 #[derive(Clone)]
 pub enum ProjectObjectNode {
@@ -64,30 +64,30 @@ fn build_nodes(
     nodes
 }
 
-pub fn load_project_config(config: &mut AppConfig) -> Result<()> {
-    let Some(project_dir) = &config.project_dir else {
+pub fn load_project_config(state: &mut AppState) -> Result<()> {
+    let Some(project_dir) = &state.config.project_dir else {
         return Ok(());
     };
     if let Some((result, info)) = try_project_config(project_dir) {
         let project_config = result?;
-        config.custom_make = project_config.custom_make;
-        config.custom_args = project_config.custom_args;
-        config.target_obj_dir = project_config.target_dir.map(|p| project_dir.join(p));
-        config.base_obj_dir = project_config.base_dir.map(|p| project_dir.join(p));
-        config.build_base = project_config.build_base;
-        config.build_target = project_config.build_target;
-        config.watch_patterns = project_config.watch_patterns.unwrap_or_else(|| {
+        state.config.custom_make = project_config.custom_make;
+        state.config.custom_args = project_config.custom_args;
+        state.config.target_obj_dir = project_config.target_dir.map(|p| project_dir.join(p));
+        state.config.base_obj_dir = project_config.base_dir.map(|p| project_dir.join(p));
+        state.config.build_base = project_config.build_base;
+        state.config.build_target = project_config.build_target;
+        state.config.watch_patterns = project_config.watch_patterns.unwrap_or_else(|| {
             DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect()
         });
-        config.watcher_change = true;
-        config.objects = project_config.objects;
-        config.object_nodes = build_nodes(
-            &config.objects,
+        state.watcher_change = true;
+        state.objects = project_config.objects;
+        state.object_nodes = build_nodes(
+            &state.objects,
             project_dir,
-            config.target_obj_dir.as_deref(),
-            config.base_obj_dir.as_deref(),
+            state.config.target_obj_dir.as_deref(),
+            state.config.base_obj_dir.as_deref(),
         );
-        config.project_config_info = Some(info);
+        state.project_config_info = Some(info);
     }
     Ok(())
 }

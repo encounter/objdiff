@@ -13,7 +13,7 @@ use objdiff_core::{
 use regex::{Regex, RegexBuilder};
 
 use crate::{
-    app::AppConfigRef,
+    app::AppStateRef,
     jobs::{
         create_scratch::{start_create_scratch, CreateScratchConfig, CreateScratchResult},
         objdiff::{BuildStatus, ObjDiffResult},
@@ -64,7 +64,7 @@ pub struct SymbolViewState {
 }
 
 impl DiffViewState {
-    pub fn pre_update(&mut self, jobs: &mut JobQueue, config: &AppConfigRef) {
+    pub fn pre_update(&mut self, jobs: &mut JobQueue, state: &AppStateRef) {
         jobs.results.retain_mut(|result| match result {
             JobResult::ObjDiff(result) => {
                 self.build = take(result);
@@ -80,26 +80,26 @@ impl DiffViewState {
         self.scratch_running = jobs.is_running(Job::CreateScratch);
 
         self.symbol_state.disable_reverse_fn_order = false;
-        if let Ok(config) = config.read() {
-            if let Some(obj_config) = &config.selected_obj {
+        if let Ok(state) = state.read() {
+            if let Some(obj_config) = &state.config.selected_obj {
                 if let Some(value) = obj_config.reverse_fn_order {
                     self.symbol_state.reverse_fn_order = value;
                     self.symbol_state.disable_reverse_fn_order = true;
                 }
             }
-            self.scratch_available = CreateScratchConfig::is_available(&config);
+            self.scratch_available = CreateScratchConfig::is_available(&state.config);
         }
     }
 
-    pub fn post_update(&mut self, ctx: &egui::Context, jobs: &mut JobQueue, config: &AppConfigRef) {
+    pub fn post_update(&mut self, ctx: &egui::Context, jobs: &mut JobQueue, state: &AppStateRef) {
         if let Some(result) = take(&mut self.scratch) {
             ctx.output_mut(|o| o.open_url = Some(OpenUrl::new_tab(result.scratch_url)));
         }
 
         if self.queue_build {
             self.queue_build = false;
-            if let Ok(mut config) = config.write() {
-                config.queue_build = true;
+            if let Ok(mut state) = state.write() {
+                state.queue_build = true;
             }
         }
 
@@ -108,8 +108,8 @@ impl DiffViewState {
             if let Some(function_name) =
                 self.symbol_state.selected_symbol.as_ref().map(|sym| sym.symbol_name.clone())
             {
-                if let Ok(config) = config.read() {
-                    match CreateScratchConfig::from_config(&config, function_name) {
+                if let Ok(state) = state.read() {
+                    match CreateScratchConfig::from_config(&state.config, function_name) {
                         Ok(config) => {
                             jobs.push_once(Job::CreateScratch, || {
                                 start_create_scratch(ctx, config)
