@@ -58,7 +58,10 @@ fn main() -> ExitCode {
 
     let app_path = std::env::current_exe().ok();
     let exec_path: Rc<Mutex<Option<PathBuf>>> = Rc::new(Mutex::new(None));
-    let mut native_options = eframe::NativeOptions::default();
+    let mut native_options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default().with_app_id(APP_NAME),
+        ..Default::default()
+    };
     match load_icon() {
         Ok(data) => {
             native_options.viewport.icon = Some(Arc::new(data));
