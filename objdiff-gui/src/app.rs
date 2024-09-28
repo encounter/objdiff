@@ -40,7 +40,7 @@ use crate::{
         frame_history::FrameHistory,
         function_diff::function_diff_ui,
         graphics::{graphics_window, GraphicsConfig, GraphicsViewState},
-        jobs::jobs_ui,
+        jobs::{jobs_menu_ui, jobs_window},
         rlwinm::{rlwinm_decode_window, RlwinmDecodeViewState},
         symbol_diff::{symbol_diff_ui, DiffViewState, View},
     },
@@ -62,6 +62,7 @@ pub struct ViewState {
     pub show_arch_config: bool,
     pub show_debug: bool,
     pub show_graphics: bool,
+    pub show_jobs: bool,
 }
 
 /// The configuration for a single object file.
@@ -483,6 +484,7 @@ impl eframe::App for App {
             show_arch_config,
             show_debug,
             show_graphics,
+            show_jobs,
         } = view_state;
 
         frame_history.on_new_frame(ctx.input(|i| i.time), frame.info().cpu_usage);
@@ -598,6 +600,10 @@ impl eframe::App for App {
                         state.queue_reload = true;
                     }
                 });
+                ui.separator();
+                if jobs_menu_ui(ui, jobs, appearance) {
+                    *show_jobs = !*show_jobs;
+                }
             });
         });
 
@@ -618,7 +624,6 @@ impl eframe::App for App {
             egui::SidePanel::left("side_panel").show(ctx, |ui| {
                 egui::ScrollArea::both().show(ui, |ui| {
                     config_ui(ui, state, show_project_config, config_state, appearance);
-                    jobs_ui(ui, jobs, appearance);
                 });
             });
 
@@ -634,6 +639,7 @@ impl eframe::App for App {
         arch_config_window(ctx, state, show_arch_config, appearance);
         debug_window(ctx, show_debug, frame_history, appearance);
         graphics_window(ctx, show_graphics, frame_history, graphics_state, appearance);
+        jobs_window(ctx, show_jobs, jobs, appearance);
 
         self.post_update(ctx);
     }

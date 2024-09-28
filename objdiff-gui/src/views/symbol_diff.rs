@@ -452,7 +452,7 @@ fn symbol_list_ui(
 fn build_log_ui(ui: &mut Ui, status: &BuildStatus, appearance: &Appearance) {
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         ui.horizontal(|ui| {
-            if ui.button("Copy command").clicked() {
+            if !status.cmdline.is_empty() && ui.button("Copy command").clicked() {
                 ui.output_mut(|output| output.copied_text.clone_from(&status.cmdline));
             }
             if ui.button("Copy log").clicked() {
@@ -465,9 +465,15 @@ fn build_log_ui(ui: &mut Ui, status: &BuildStatus, appearance: &Appearance) {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
-            ui.label(&status.cmdline);
-            ui.colored_label(appearance.replace_color, &status.stdout);
-            ui.colored_label(appearance.delete_color, &status.stderr);
+            if !status.cmdline.is_empty() {
+                ui.label(&status.cmdline);
+            }
+            if !status.stdout.is_empty() {
+                ui.colored_label(appearance.replace_color, &status.stdout);
+            }
+            if !status.stderr.is_empty() {
+                ui.colored_label(appearance.delete_color, &status.stderr);
+            }
         });
     });
 }

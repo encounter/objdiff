@@ -85,10 +85,13 @@ impl JobQueue {
     /// Clears all finished jobs.
     pub fn clear_finished(&mut self) {
         self.jobs.retain(|job| {
-            !(job.should_remove
-                && job.handle.is_none()
-                && job.context.status.read().unwrap().error.is_none())
+            !(job.handle.is_none() && job.context.status.read().unwrap().error.is_none())
         });
+    }
+
+    /// Clears all errored jobs.
+    pub fn clear_errored(&mut self) {
+        self.jobs.retain(|job| job.context.status.read().unwrap().error.is_none());
     }
 
     /// Removes a job from the queue given its ID.
@@ -107,7 +110,6 @@ pub struct JobState {
     pub handle: Option<JoinHandle<JobResult>>,
     pub context: JobContext,
     pub cancel: Sender<()>,
-    pub should_remove: bool,
 }
 
 #[derive(Default)]
@@ -163,7 +165,7 @@ fn start_job(
     });
     let id = JOB_ID.fetch_add(1, Ordering::Relaxed);
     log::info!("Started job {}", id);
-    JobState { id, kind, handle: Some(handle), context, cancel: tx, should_remove: true }
+    JobState { id, kind, handle: Some(handle), context, cancel: tx }
 }
 
 fn update_status(

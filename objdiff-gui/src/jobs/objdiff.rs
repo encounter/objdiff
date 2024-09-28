@@ -4,7 +4,7 @@ use std::{
     sync::mpsc::Receiver,
 };
 
-use anyhow::{anyhow, Context, Error, Result};
+use anyhow::{anyhow, Error, Result};
 use objdiff_core::{
     diff::{diff_objs, DiffObjConfig, ObjDiff},
     obj::{read, ObjInfo},
@@ -189,36 +189,46 @@ fn run_build(
         None
     };
 
-    let mut total = 3;
+    let mut total = 1;
     if config.build_target && target_path_rel.is_some() {
         total += 1;
     }
     if config.build_base && base_path_rel.is_some() {
         total += 1;
     }
-    let first_status = match target_path_rel {
+    if target_path_rel.is_some() {
+        total += 1;
+    }
+    if base_path_rel.is_some() {
+        total += 1;
+    }
+
+    let mut step_idx = 0;
+    let mut first_status = match target_path_rel {
         Some(target_path_rel) if config.build_target => {
             update_status(
                 context,
                 format!("Building target {}", target_path_rel.display()),
-                0,
+                step_idx,
                 total,
                 &cancel,
             )?;
+            step_idx += 1;
             run_make(&config.build_config, target_path_rel)
         }
         _ => BuildStatus::default(),
     };
 
-    let second_status = match base_path_rel {
+    let mut second_status = match base_path_rel {
         Some(base_path_rel) if config.build_base => {
             update_status(
                 context,
                 format!("Building base {}", base_path_rel.display()),
-                0,
+                step_idx,
                 total,
                 &cancel,
             )?;
+            step_idx += 1;
             run_make(&config.build_config, base_path_rel)
         }
         _ => BuildStatus::default(),
@@ -226,44 +236,71 @@ fn run_build(
 
     let time = OffsetDateTime::now_utc();
 
-    let first_obj =
-        match &obj_config.target_path {
-            Some(target_path) if first_status.success => {
-                update_status(
-                    context,
-                    format!("Loading target {}", target_path_rel.unwrap().display()),
-                    2,
-                    total,
-                    &cancel,
-                )?;
-                Some(read::read(target_path, &config.diff_obj_config).with_context(|| {
-                    format!("Failed to read object '{}'", target_path.display())
-                })?)
+    let first_obj = match &obj_config.target_path {
+        Some(target_path) if first_status.success => {
+            update_status(
+                context,
+                format!("Loading target {}", target_path_rel.unwrap().display()),
+                step_idx,
+                total,
+                &cancel,
+            )?;
+            step_idx += 1;
+            match read::read(target_path, &config.diff_obj_config) {
+                Ok(obj) => Some(obj),
+                Err(e) => {
+                    first_status = BuildStatus {
+                        success: false,
+                        stdout: format!("Loading object '{}'", target_path.display()),
+                        stderr: format!("{:#}", e),
+                        ..Default::default()
+                    };
+                    None
+                }
             }
-            _ => None,
-        };
+        }
+        Some(_) => {
+            step_idx += 1;
+            None
+        }
+        _ => None,
+    };
 
     let second_obj = match &obj_config.base_path {
         Some(base_path) if second_status.success => {
             update_status(
                 context,
                 format!("Loading base {}", base_path_rel.unwrap().display()),
-                3,
+                step_idx,
                 total,
                 &cancel,
             )?;
-            Some(
-                read::read(base_path, &config.diff_obj_config)
-                    .with_context(|| format!("Failed to read object '{}'", base_path.display()))?,
-            )
+            step_idx += 1;
+            match read::read(base_path, &config.diff_obj_config) {
+                Ok(obj) => Some(obj),
+                Err(e) => {
+                    second_status = BuildStatus {
+                        success: false,
+                        stdout: format!("Loading object '{}'", base_path.display()),
+                        stderr: format!("{:#}", e),
+                        ..Default::default()
+                    };
+                    None
+                }
+            }
+        }
+        Some(_) => {
+            step_idx += 1;
+            None
         }
         _ => None,
     };
 
-    update_status(context, "Performing diff".to_string(), 4, total, &cancel)?;
+    update_status(context, "Performing diff".to_string(), step_idx, total, &cancel)?;
+    step_idx += 1;
     let result = diff_objs(&config.diff_obj_config, first_obj.as_ref(), second_obj.as_ref(), None)?;
 
-    update_status(context, "Complete".to_string(), total, total, &cancel)?;
+    update_status(context, "Complete".to_string(), step_idx, total, &cancel)?;
     Ok(Box::new(ObjDiffResult {
         first_status,
         second_status,
@@ -274,7 +311,7 @@ fn run_build(
 }
 
 pub fn start_build(ctx: &egui::Context, config: ObjDiffConfig) -> JobState {
-    start_job(ctx, "Object diff", Job::ObjDiff, move |context, cancel| {
+    start_job(ctx, "Build", Job::ObjDiff, move |context, cancel| {
         run_build(&context, cancel, config).map(|result| JobResult::ObjDiff(Some(result)))
     })
 }
