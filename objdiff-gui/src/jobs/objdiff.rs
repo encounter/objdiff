@@ -1,7 +1,6 @@
 use std::{
     path::{Path, PathBuf},
     process::Command,
-    str::from_utf8,
     sync::mpsc::Receiver,
 };
 
@@ -91,13 +90,6 @@ pub(crate) fn run_make(config: &BuildConfig, arg: &Path) -> BuildStatus {
             ..Default::default()
         };
     };
-    match run_make_cmd(config, cwd, arg) {
-        Ok(status) => status,
-        Err(e) => BuildStatus { success: false, stderr: e.to_string(), ..Default::default() },
-    }
-}
-
-fn run_make_cmd(config: &BuildConfig, cwd: &Path, arg: &Path) -> Result<BuildStatus> {
     let make = config.custom_make.as_deref().unwrap_or("make");
     let make_args = config.custom_args.as_deref().unwrap_or(&[]);
     #[cfg(not(windows))]
@@ -144,15 +136,23 @@ fn run_make_cmd(config: &BuildConfig, cwd: &Path, arg: &Path) -> Result<BuildSta
         cmdline.push(' ');
         cmdline.push_str(shell_escape::escape(arg.to_string_lossy()).as_ref());
     }
-    let output = command.output().map_err(|e| anyhow!("Failed to execute build: {e}"))?;
-    let stdout = from_utf8(&output.stdout).context("Failed to process stdout")?;
-    let stderr = from_utf8(&output.stderr).context("Failed to process stderr")?;
-    Ok(BuildStatus {
-        success: output.status.code().unwrap_or(-1) == 0,
-        cmdline,
-        stdout: stdout.to_string(),
-        stderr: stderr.to_string(),
-    })
+    let output = match command.output() {
+        Ok(output) => output,
+        Err(e) => {
+            return BuildStatus {
+                success: false,
+                cmdline,
+                stdout: Default::default(),
+                stderr: e.to_string(),
+            };
+        }
+    };
+    // Try from_utf8 first to avoid copying the buffer if it's valid, then fall back to from_utf8_lossy
+    let stdout = String::from_utf8(output.stdout)
+        .unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned());
+    let stderr = String::from_utf8(output.stderr)
+        .unwrap_or_else(|e| String::from_utf8_lossy(e.as_bytes()).into_owned());
+    BuildStatus { success: output.status.success(), cmdline, stdout, stderr }
 }
 
 fn run_build(
