@@ -124,6 +124,10 @@ impl ProjectObject {
     pub fn hidden(&self) -> bool {
         self.metadata.as_ref().and_then(|m| m.auto_generated).unwrap_or(false)
     }
+
+    pub fn source_path(&self) -> Option<&String> {
+        self.metadata.as_ref().and_then(|m| m.source_path.as_ref())
+    }
 }
 
 #[derive(Default, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]

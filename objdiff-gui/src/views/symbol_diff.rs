@@ -52,6 +52,8 @@ pub struct DiffViewState {
     pub scratch_available: bool,
     pub queue_scratch: bool,
     pub scratch_running: bool,
+    pub source_path_available: bool,
+    pub queue_open_source_path: bool,
 }
 
 #[derive(Default)]
@@ -86,6 +88,9 @@ impl DiffViewState {
                     self.symbol_state.reverse_fn_order = value;
                     self.symbol_state.disable_reverse_fn_order = true;
                 }
+                self.source_path_available = obj_config.source_path.is_some();
+            } else {
+                self.source_path_available = false;
             }
             self.scratch_available = CreateScratchConfig::is_available(&state.config);
         }
@@ -119,6 +124,22 @@ impl DiffViewState {
                             log::error!("Failed to create scratch config: {err}");
                         }
                     }
+                }
+            }
+        }
+
+        if self.queue_open_source_path {
+            self.queue_open_source_path = false;
+            if let Ok(state) = state.read() {
+                if let (Some(project_dir), Some(source_path)) = (
+                    &state.config.project_dir,
+                    state.config.selected_obj.as_ref().and_then(|obj| obj.source_path.as_ref()),
+                ) {
+                    let source_path = project_dir.join(source_path);
+                    log::info!("Opening file {}", source_path.display());
+                    open::that_detached(source_path).unwrap_or_else(|err| {
+                        log::error!("Failed to open source file: {err}");
+                    });
                 }
             }
         }
@@ -518,10 +539,27 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                 |ui| {
                     ui.set_width(column_width);
 
+                    ui.horizontal(|ui| {
+                        ui.scope(|ui| {
+                            ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+                            ui.label("Build base:");
+                        });
+                        ui.separator();
+                        if ui
+                            .add_enabled(
+                                state.source_path_available,
+                                egui::Button::new("🖹 Source file"),
+                            )
+                            .on_hover_text_at_pointer("Open the source file in the default editor")
+                            .on_disabled_hover_text("Source file metadata missing")
+                            .clicked()
+                        {
+                            state.queue_open_source_path = true;
+                        }
+                    });
+
                     ui.scope(|ui| {
                         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-
-                        ui.label("Build base:");
                         if result.second_status.success {
                             if result.second_obj.is_none() {
                                 ui.colored_label(appearance.replace_color, "Missing");

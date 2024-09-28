@@ -61,6 +61,7 @@ impl ObjectConfigV0 {
             reverse_fn_order: self.reverse_fn_order,
             complete: None,
             scratch: None,
+            source_path: None,
         }
     }
 }

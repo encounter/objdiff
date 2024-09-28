@@ -73,6 +73,7 @@ pub struct ObjectConfig {
     pub reverse_fn_order: Option<bool>,
     pub complete: Option<bool>,
     pub scratch: Option<ScratchConfig>,
+    pub source_path: Option<String>,
 }
 
 #[inline]

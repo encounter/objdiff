@@ -40,6 +40,7 @@ globset = { version = "0.4", features = ["serde1"] }
 log = "0.4"
 notify = { git = "https://github.com/notify-rs/notify", rev = "128bf6230c03d39dbb7f301ff7b20e594e34c3a2" }
 objdiff-core = { path = "../objdiff-core", features = ["all"] }
+open = "5.3"
 png = "0.17"
 pollster = "0.3"
 regex = "1.10"

@@ -509,6 +509,18 @@ pub fn function_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance
                                 );
                             }
                         });
+                        ui.separator();
+                        if ui
+                            .add_enabled(
+                                state.source_path_available,
+                                egui::Button::new("🖹 Source file"),
+                            )
+                            .on_hover_text_at_pointer("Open the source file in the default editor")
+                            .on_disabled_hover_text("Source file metadata missing")
+                            .clicked()
+                        {
+                            state.queue_open_source_path = true;
+                        }
                     });
 
                     ui.scope(|ui| {

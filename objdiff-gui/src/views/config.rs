@@ -2,7 +2,7 @@
 use std::string::FromUtf16Error;
 use std::{
     mem::take,
-    path::{PathBuf, MAIN_SEPARATOR},
+    path::{Path, PathBuf, MAIN_SEPARATOR},
 };
 
 #[cfg(all(windows, feature = "wsl"))]
@@ -96,6 +96,7 @@ impl ConfigViewState {
                             reverse_fn_order: None,
                             complete: None,
                             scratch: None,
+                            source_path: None,
                         });
                     } else if let Ok(obj_path) = path.strip_prefix(target_dir) {
                         let base_path = base_dir.join(obj_path);
@@ -106,6 +107,7 @@ impl ConfigViewState {
                             reverse_fn_order: None,
                             complete: None,
                             scratch: None,
+                            source_path: None,
                         });
                     }
                 }
@@ -174,7 +176,10 @@ pub fn config_ui(
 ) {
     let mut state_guard = state.write().unwrap();
     let AppState {
-        config: AppConfig { target_obj_dir, base_obj_dir, selected_obj, auto_update_check, .. },
+        config:
+            AppConfig {
+                project_dir, target_obj_dir, base_obj_dir, selected_obj, auto_update_check, ..
+            },
         objects,
         object_nodes,
         ..
@@ -318,7 +323,14 @@ pub fn config_ui(
                     config_state.show_hidden,
                 )
             }) {
-                display_node(ui, &mut new_selected_obj, &node, appearance, node_open);
+                display_node(
+                    ui,
+                    &mut new_selected_obj,
+                    project_dir.as_deref(),
+                    &node,
+                    appearance,
+                    node_open,
+                );
             }
         });
     }
@@ -333,13 +345,12 @@ pub fn config_ui(
     {
         config_state.queue_build = true;
     }
-
-    ui.separator();
 }
 
 fn display_object(
     ui: &mut egui::Ui,
     selected_obj: &mut Option<ObjectConfig>,
+    project_dir: Option<&Path>,
     name: &str,
     object: &ProjectObject,
     appearance: &Appearance,
@@ -357,7 +368,7 @@ fn display_object(
     } else {
         appearance.text_color
     };
-    let clicked = SelectableLabel::new(
+    let response = SelectableLabel::new(
         selected,
         RichText::new(name)
             .font(FontId {
@@ -366,11 +377,13 @@ fn display_object(
             })
             .color(color),
     )
-    .ui(ui)
-    .clicked();
+    .ui(ui);
+    if get_source_path(project_dir, object).is_some() {
+        response.context_menu(|ui| object_context_ui(ui, object, project_dir));
+    }
     // Always recreate ObjectConfig if selected, in case the project config changed.
     // ObjectConfig is compared using equality, so this won't unnecessarily trigger a rebuild.
-    if selected || clicked {
+    if selected || response.clicked() {
         *selected_obj = Some(ObjectConfig {
             name: object_name.to_string(),
             target_path: object.target_path.clone(),
@@ -378,7 +391,28 @@ fn display_object(
             reverse_fn_order: object.reverse_fn_order(),
             complete: object.complete(),
             scratch: object.scratch.clone(),
+            source_path: object.source_path().cloned(),
         });
+    }
+}
+
+fn get_source_path(project_dir: Option<&Path>, object: &ProjectObject) -> Option<PathBuf> {
+    project_dir.and_then(|dir| object.source_path().map(|path| dir.join(path)))
+}
+
+fn object_context_ui(ui: &mut egui::Ui, object: &ProjectObject, project_dir: Option<&Path>) {
+    if let Some(source_path) = get_source_path(project_dir, object) {
+        if ui
+            .button("Open source file")
+            .on_hover_text("Open the source file in the default editor")
+            .clicked()
+        {
+            log::info!("Opening file {}", source_path.display());
+            if let Err(e) = open::that_detached(&source_path) {
+                log::error!("Failed to open source file: {e}");
+            }
+            ui.close_menu();
+        }
     }
 }
 
@@ -394,13 +428,14 @@ enum NodeOpen {
 fn display_node(
     ui: &mut egui::Ui,
     selected_obj: &mut Option<ObjectConfig>,
+    project_dir: Option<&Path>,
     node: &ProjectObjectNode,
     appearance: &Appearance,
     node_open: NodeOpen,
 ) {
     match node {
         ProjectObjectNode::File(name, object) => {
-            display_object(ui, selected_obj, name, object, appearance);
+            display_object(ui, selected_obj, project_dir, name, object, appearance);
         }
         ProjectObjectNode::Dir(name, children) => {
             let contains_obj = selected_obj.as_ref().map(|path| contains_node(node, path));
@@ -426,7 +461,7 @@ fn display_node(
             .open(open)
             .show(ui, |ui| {
                 for node in children {
-                    display_node(ui, selected_obj, node, appearance, node_open);
+                    display_node(ui, selected_obj, project_dir, node, appearance, node_open);
                 }
             });
         }
