@@ -110,11 +110,6 @@ jobs:
             name: linux-aarch64
             build: zigbuild
             features: default
-          - platform: ubuntu-latest
-            target: armv7-unknown-linux-musleabi
-            name: linux-armv7l
-            build: zigbuild
-            features: default
           - platform: windows-latest
             target: i686-pc-windows-msvc
             name: windows-x86
