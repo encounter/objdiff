@@ -2,6 +2,12 @@ mod argp_version;
 mod cmd;
 mod util;
 
+// musl's allocator is very slow, so use mimalloc when targeting musl.
+// Otherwise, use the system allocator to avoid extra code size.
+#[cfg(target_env = "musl")]
+#[global_allocator]
+static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use std::{env, ffi::OsStr, fmt::Display, path::PathBuf, str::FromStr};
 
 use anyhow::{Error, Result};
