@@ -199,7 +199,7 @@ fn report_object(
             .unwrap_or_default(),
         auto_generated: object.metadata.as_ref().and_then(|m| m.auto_generated),
     };
-    let mut measures = Measures::default();
+    let mut measures = Measures { total_units: 1, ..Default::default() };
     let mut sections = vec![];
     let mut functions = vec![];
 
@@ -280,6 +280,7 @@ fn report_object(
     if metadata.complete.unwrap_or(false) {
         measures.complete_code = measures.total_code;
         measures.complete_data = measures.total_data;
+        measures.complete_units = 1;
     }
     measures.calc_fuzzy_match_percent();
     measures.calc_matched_percent();

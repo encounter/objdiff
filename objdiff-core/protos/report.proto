@@ -32,6 +32,10 @@ message Measures {
   uint64 complete_data = 13;
   // Completed (or "linked") data percent
   float complete_data_percent = 14;
+  // Total number of units
+  uint32 total_units = 15;
+  // Completed (or "linked") units
+  uint32 complete_units = 16;
 }
 
 // Project progress report

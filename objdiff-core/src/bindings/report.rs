@@ -8,9 +8,10 @@ use serde_json::error::Category;
 include!(concat!(env!("OUT_DIR"), "/objdiff.report.rs"));
 include!(concat!(env!("OUT_DIR"), "/objdiff.report.serde.rs"));
 
-pub const REPORT_VERSION: u32 = 1;
+pub const REPORT_VERSION: u32 = 2;
 
 impl Report {
+    /// Attempts to parse the report as binary protobuf or JSON.
     pub fn parse(data: &[u8]) -> Result<Self> {
         if data.is_empty() {
             bail!(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
@@ -25,6 +26,7 @@ impl Report {
         Ok(report)
     }
 
+    /// Attempts to parse the report as JSON, migrating from the legacy report format if necessary.
     fn from_json(bytes: &[u8]) -> Result<Self, serde_json::Error> {
         match serde_json::from_slice::<Self>(bytes) {
             Ok(report) => Ok(report),
@@ -43,9 +45,14 @@ impl Report {
         }
     }
 
+    /// Migrates the report to the latest version.
+    /// Fails if the report version is newer than supported.
     pub fn migrate(&mut self) -> Result<()> {
         if self.version == 0 {
             self.migrate_v0()?;
+        }
+        if self.version == 1 {
+            self.migrate_v1()?;
         }
         if self.version != REPORT_VERSION {
             bail!("Unsupported report version: {}", self.version);
@@ -53,6 +60,8 @@ impl Report {
         Ok(())
     }
 
+    /// Adds `complete_code`, `complete_data`, `complete_code_percent`, and `complete_data_percent`
+    /// to measures, and sets `progress_categories` in unit metadata.
     fn migrate_v0(&mut self) -> Result<()> {
         let Some(measures) = &mut self.measures else {
             bail!("Missing measures in report");
@@ -61,15 +70,16 @@ impl Report {
             let Some(unit_measures) = &mut unit.measures else {
                 bail!("Missing measures in report unit");
             };
-            let Some(metadata) = &mut unit.metadata else {
-                bail!("Missing metadata in report unit");
+            let mut complete = false;
+            if let Some(metadata) = &mut unit.metadata {
+                if metadata.module_name.is_some() || metadata.module_id.is_some() {
+                    metadata.progress_categories = vec!["modules".to_string()];
+                } else {
+                    metadata.progress_categories = vec!["dol".to_string()];
+                }
+                complete = metadata.complete.unwrap_or(false);
             };
-            if metadata.module_name.is_some() || metadata.module_id.is_some() {
-                metadata.progress_categories = vec!["modules".to_string()];
-            } else {
-                metadata.progress_categories = vec!["dol".to_string()];
-            }
-            if metadata.complete.unwrap_or(false) {
+            if complete {
                 unit_measures.complete_code = unit_measures.total_code;
                 unit_measures.complete_data = unit_measures.total_data;
                 unit_measures.complete_code_percent = 100.0;
@@ -84,10 +94,42 @@ impl Report {
             measures.complete_data += unit_measures.complete_data;
         }
         measures.calc_matched_percent();
+        self.calculate_progress_categories();
         self.version = 1;
         Ok(())
     }
 
+    /// Adds `total_units` and `complete_units` to measures.
+    fn migrate_v1(&mut self) -> Result<()> {
+        let Some(total_measures) = &mut self.measures else {
+            bail!("Missing measures in report");
+        };
+        for unit in &mut self.units {
+            let Some(measures) = &mut unit.measures else {
+                bail!("Missing measures in report unit");
+            };
+            let complete = unit.metadata.as_ref().and_then(|m| m.complete).unwrap_or(false) as u32;
+            let progress_categories =
+                unit.metadata.as_ref().map(|m| m.progress_categories.as_slice()).unwrap_or(&[]);
+            measures.total_units = 1;
+            measures.complete_units = complete;
+            total_measures.total_units += 1;
+            total_measures.complete_units += complete;
+            for id in progress_categories {
+                if let Some(category) = self.categories.iter_mut().find(|c| &c.id == id) {
+                    let Some(measures) = &mut category.measures else {
+                        bail!("Missing measures in category");
+                    };
+                    measures.total_units += 1;
+                    measures.complete_units += complete;
+                }
+            }
+        }
+        self.version = 2;
+        Ok(())
+    }
+
+    /// Calculate progress categories based on unit metadata.
     pub fn calculate_progress_categories(&mut self) {
         for unit in &self.units {
             let Some(metadata) = unit.metadata.as_ref() else {
@@ -242,6 +284,8 @@ impl AddAssign for Measures {
         self.matched_functions += other.matched_functions;
         self.complete_code += other.complete_code;
         self.complete_data += other.complete_data;
+        self.total_units += other.total_units;
+        self.complete_units += other.complete_units;
     }
 }
 
