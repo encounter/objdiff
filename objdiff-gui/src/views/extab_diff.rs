@@ -26,17 +26,17 @@ fn find_symbol(obj: &ObjInfo, selected_symbol: &SymbolRefByName) -> Option<Symbo
 fn decode_extab(extab: &ExceptionInfo) -> String {
     let mut text = String::from("");
 
-    let mut dtor_names: Vec<&str> = vec![];
+    let mut dtor_names: Vec<String> = vec![];
     for dtor in &extab.dtors {
         //For each function name, use the demangled name by default,
         //and if not available fallback to the original name
-        let name = match &dtor.demangled_name {
-            Some(demangled_name) => demangled_name,
-            None => &dtor.name,
+        let name: String = match &dtor.demangled_name {
+            Some(demangled_name) => demangled_name.to_string(),
+            None => dtor.name.clone(),
         };
-        dtor_names.push(name.as_str());
+        dtor_names.push(name);
     }
-    if let Some(decoded) = extab.data.to_string(&dtor_names) {
+    if let Some(decoded) = extab.data.to_string(dtor_names) {
         text += decoded.as_str();
     }
 
