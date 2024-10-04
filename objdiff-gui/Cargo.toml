@@ -43,7 +43,7 @@ objdiff-core = { path = "../objdiff-core", features = ["all"] }
 open = "5.3"
 png = "0.17"
 pollster = "0.3"
-regex = "1.10"
+regex = "1.11"
 rfd = { version = "0.15" } #, default-features = false, features = ['xdg-portal']
 rlwinmdec = "1.0"
 ron = "0.8"
@@ -51,7 +51,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 shell-escape = "0.1"
 strum = { version = "0.26", features = ["derive"] }
-tempfile = "3.12"
+tempfile = "3.13"
 time = { version = "0.3", features = ["formatting", "local-offset"] }
 
 # Keep version in sync with egui
