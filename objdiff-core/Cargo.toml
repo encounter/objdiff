@@ -155,7 +155,7 @@ cwextab = { version = "1.0", optional = true, git = "https://github.com/encounte
 ppc750cl = { version = "0.3", optional = true }
 
 # mips
-rabbitizer = { version = "1.12", optional = true }
+rabbitizer = { git = "https://github.com/Decompollaborate/rabbitizer.git", branch = "🦀", default-features = false, optional = true }
 
 # x86
 cpp_demangle = { version = "0.4", default-features = false, features = ["alloc"], optional = true }
