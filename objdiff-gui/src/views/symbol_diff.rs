@@ -284,7 +284,7 @@ fn symbol_ui(
     if let Some(match_percent) = symbol_diff.match_percent {
         write_text("(", appearance.text_color, &mut job, appearance.code_font.clone());
         write_text(
-            &format!("{match_percent:.0}%"),
+            &format!("{:.0}%", match_percent.floor()),
             match_color_for_symbol(match_percent, appearance),
             &mut job,
             appearance.code_font.clone(),
@@ -389,7 +389,7 @@ fn symbol_list_ui(
                         appearance.code_font.clone(),
                     );
                     write_text(
-                        &format!("{match_percent:.0}%"),
+                        &format!("{:.0}%", match_percent.floor()),
                         match_color_for_symbol(match_percent, appearance),
                         &mut header,
                         appearance.code_font.clone(),

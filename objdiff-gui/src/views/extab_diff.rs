@@ -172,7 +172,7 @@ pub fn extab_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &
                         {
                             ui.colored_label(
                                 match_color_for_symbol(match_percent, appearance),
-                                format!("{match_percent:.0}%"),
+                                format!("{:.0}%", match_percent.floor()),
                             );
                         } else {
                             ui.colored_label(appearance.replace_color, "Missing");
