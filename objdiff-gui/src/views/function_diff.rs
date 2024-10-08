@@ -65,6 +65,11 @@ impl FunctionViewState {
             }
         }
     }
+
+    fn clear_highlight(&mut self) {
+        self.left_highlight = HighlightKind::None;
+        self.right_highlight = HighlightKind::None;
+    }
 }
 
 fn ins_hover_ui(
@@ -397,6 +402,7 @@ fn asm_table_ui(
     };
     table.body(|body| {
         body.rows(appearance.code_font.size, instructions_len, |mut row| {
+            row.set_hovered(false); // Disable row hover effect
             if let (Some(left_obj), Some(left_symbol_ref)) = (left_obj, left_symbol) {
                 asm_col_ui(
                     &mut row,
@@ -420,6 +426,9 @@ fn asm_table_ui(
                 );
             } else {
                 empty_col_ui(&mut row);
+            }
+            if row.response().clicked() {
+                ins_view_state.clear_highlight();
             }
         });
     });
@@ -559,7 +568,8 @@ pub fn function_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance
         .columns(Column::exact(column_width).clip(true), 2)
         .resizable(false)
         .auto_shrink([false, false])
-        .min_scrolled_height(available_height);
+        .min_scrolled_height(available_height)
+        .sense(Sense::click());
     asm_table_ui(
         table,
         result.first_obj.as_ref(),
