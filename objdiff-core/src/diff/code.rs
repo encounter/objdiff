@@ -211,7 +211,7 @@ fn arg_eq(
     left_diff: &ObjInsDiff,
     right_diff: &ObjInsDiff,
 ) -> bool {
-    return match left {
+    match left {
         ObjInsArg::PlainText(l) => match right {
             ObjInsArg::PlainText(r) => l == r,
             _ => false,
@@ -236,7 +236,7 @@ fn arg_eq(
             left_diff.branch_to.as_ref().map(|b| b.ins_idx)
                 == right_diff.branch_to.as_ref().map(|b| b.ins_idx)
         }
-    };
+    }
 }
 
 #[derive(Default)]

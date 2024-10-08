@@ -303,7 +303,7 @@ fn find_function(obj: &ObjInfo, name: &str) -> Option<SymbolRef> {
     None
 }
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 struct FunctionDiffUi {
     relax_reloc_diffs: bool,
     left_highlight: HighlightKind,
@@ -758,7 +758,7 @@ impl FunctionDiffUi {
         self.scroll_y += self.per_page / if half { 2 } else { 1 };
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     fn print_sym(
         &self,
         out: &mut Text<'static>,

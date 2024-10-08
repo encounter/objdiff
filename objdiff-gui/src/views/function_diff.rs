@@ -1,27 +1,27 @@
 use std::default::Default;
 
-use egui::{text::LayoutJob, Align, Label, Layout, Response, Sense, Vec2, Widget};
-use egui_extras::{Column, TableBuilder, TableRow};
+use egui::{text::LayoutJob, Id, Label, Response, RichText, Sense, Widget};
+use egui_extras::TableRow;
 use objdiff_core::{
     arch::ObjArch,
     diff::{
         display::{display_diff, DiffText, HighlightKind},
         ObjDiff, ObjInsDiff, ObjInsDiffKind,
     },
-    obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjSection, ObjSymbol, SymbolRef},
+    obj::{
+        ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjSection, ObjSymbol, ObjSymbolKind, SymbolRef,
+    },
 };
 use time::format_description;
 
 use crate::views::{
     appearance::Appearance,
-    symbol_diff::{match_color_for_symbol, DiffViewState, SymbolRefByName, View},
+    column_layout::{render_header, render_strips, render_table},
+    symbol_diff::{
+        match_color_for_symbol, symbol_list_ui, DiffViewState, SymbolDiffContext, SymbolFilter,
+        SymbolOverrideAction, SymbolRefByName, SymbolUiResult, SymbolViewState, View,
+    },
 };
-
-#[derive(Copy, Clone, Eq, PartialEq)]
-enum ColumnId {
-    Left,
-    Right,
-}
 
 #[derive(Default)]
 pub struct FunctionViewState {
@@ -30,16 +30,17 @@ pub struct FunctionViewState {
 }
 
 impl FunctionViewState {
-    fn highlight(&self, column: ColumnId) -> &HighlightKind {
+    fn highlight(&self, column: usize) -> &HighlightKind {
         match column {
-            ColumnId::Left => &self.left_highlight,
-            ColumnId::Right => &self.right_highlight,
+            0 => &self.left_highlight,
+            1 => &self.right_highlight,
+            _ => &HighlightKind::None,
         }
     }
 
-    fn set_highlight(&mut self, column: ColumnId, highlight: HighlightKind) {
+    fn set_highlight(&mut self, column: usize, highlight: HighlightKind) {
         match column {
-            ColumnId::Left => {
+            0 => {
                 if highlight == self.left_highlight {
                     if highlight == self.right_highlight {
                         self.left_highlight = HighlightKind::None;
@@ -51,7 +52,7 @@ impl FunctionViewState {
                     self.left_highlight = highlight;
                 }
             }
-            ColumnId::Right => {
+            1 => {
                 if highlight == self.right_highlight {
                     if highlight == self.left_highlight {
                         self.left_highlight = HighlightKind::None;
@@ -63,6 +64,7 @@ impl FunctionViewState {
                     self.right_highlight = highlight;
                 }
             }
+            _ => {}
         }
     }
 
@@ -223,14 +225,14 @@ fn find_symbol(obj: &ObjInfo, selected_symbol: &SymbolRefByName) -> Option<Symbo
     None
 }
 
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn diff_text_ui(
     ui: &mut egui::Ui,
     text: DiffText<'_>,
     ins_diff: &ObjInsDiff,
     appearance: &Appearance,
     ins_view_state: &mut FunctionViewState,
-    column: ColumnId,
+    column: usize,
     space_width: f32,
     response_cb: impl Fn(Response) -> Response,
 ) {
@@ -317,7 +319,7 @@ fn asm_row_ui(
     symbol: &ObjSymbol,
     appearance: &Appearance,
     ins_view_state: &mut FunctionViewState,
-    column: ColumnId,
+    column: usize,
     response_cb: impl Fn(Response) -> Response,
 ) {
     ui.spacing_mut().item_spacing.x = 0.0;
@@ -344,20 +346,22 @@ fn asm_row_ui(
 
 fn asm_col_ui(
     row: &mut TableRow<'_, '_>,
-    obj: &(ObjInfo, ObjDiff),
-    symbol_ref: SymbolRef,
+    ctx: FunctionDiffContext<'_>,
     appearance: &Appearance,
     ins_view_state: &mut FunctionViewState,
-    column: ColumnId,
+    column: usize,
 ) {
-    let (section, symbol) = obj.0.section_symbol(symbol_ref);
+    let Some(symbol_ref) = ctx.symbol_ref else {
+        return;
+    };
+    let (section, symbol) = ctx.obj.section_symbol(symbol_ref);
     let section = section.unwrap();
-    let ins_diff = &obj.1.symbol_diff(symbol_ref).instructions[row.index()];
+    let ins_diff = &ctx.diff.symbol_diff(symbol_ref).instructions[row.index()];
     let response_cb = |response: Response| {
         if let Some(ins) = &ins_diff.ins {
             response.context_menu(|ui| ins_context_menu(ui, section, ins, symbol));
             response.on_hover_ui_at_pointer(|ui| {
-                ins_hover_ui(ui, obj.0.arch.as_ref(), section, ins, symbol, appearance)
+                ins_hover_ui(ui, ctx.obj.arch.as_ref(), section, ins, symbol, appearance)
             })
         } else {
             response
@@ -369,213 +373,391 @@ fn asm_col_ui(
     response_cb(response);
 }
 
-fn empty_col_ui(row: &mut TableRow<'_, '_>) {
-    row.col(|ui| {
-        ui.label("");
-    });
-}
-
 fn asm_table_ui(
-    table: TableBuilder<'_>,
-    left_obj: Option<&(ObjInfo, ObjDiff)>,
-    right_obj: Option<&(ObjInfo, ObjDiff)>,
-    selected_symbol: &SymbolRefByName,
+    ui: &mut egui::Ui,
+    available_width: f32,
+    left_ctx: Option<FunctionDiffContext<'_>>,
+    right_ctx: Option<FunctionDiffContext<'_>>,
     appearance: &Appearance,
     ins_view_state: &mut FunctionViewState,
-) -> Option<()> {
-    let left_symbol = left_obj.and_then(|(obj, _)| find_symbol(obj, selected_symbol));
-    let right_symbol = right_obj.and_then(|(obj, _)| find_symbol(obj, selected_symbol));
-    let instructions_len = match (left_symbol, right_symbol) {
-        (Some(left_symbol_ref), Some(right_symbol_ref)) => {
-            let left_len = left_obj.unwrap().1.symbol_diff(left_symbol_ref).instructions.len();
-            let right_len = right_obj.unwrap().1.symbol_diff(right_symbol_ref).instructions.len();
-            debug_assert_eq!(left_len, right_len);
+    symbol_state: &mut SymbolViewState,
+) -> Option<SymbolOverrideAction> {
+    let left_len = left_ctx.and_then(|ctx| {
+        ctx.symbol_ref.map(|symbol_ref| ctx.diff.symbol_diff(symbol_ref).instructions.len())
+    });
+    let right_len = right_ctx.and_then(|ctx| {
+        ctx.symbol_ref.map(|symbol_ref| ctx.diff.symbol_diff(symbol_ref).instructions.len())
+    });
+    let instructions_len = match (left_len, right_len) {
+        (Some(left_len), Some(right_len)) => {
+            if left_len != right_len {
+                ui.label("Instruction count mismatch");
+                return None;
+            }
             left_len
         }
-        (Some(left_symbol_ref), None) => {
-            left_obj.unwrap().1.symbol_diff(left_symbol_ref).instructions.len()
+        (Some(left_len), None) => left_len,
+        (None, Some(right_len)) => right_len,
+        (None, None) => {
+            ui.label("No symbol selected");
+            return None;
         }
-        (None, Some(right_symbol_ref)) => {
-            right_obj.unwrap().1.symbol_diff(right_symbol_ref).instructions.len()
-        }
-        (None, None) => return None,
     };
-    table.body(|body| {
-        body.rows(appearance.code_font.size, instructions_len, |mut row| {
-            row.set_hovered(false); // Disable row hover effect
-            if let (Some(left_obj), Some(left_symbol_ref)) = (left_obj, left_symbol) {
-                asm_col_ui(
-                    &mut row,
-                    left_obj,
-                    left_symbol_ref,
-                    appearance,
-                    ins_view_state,
-                    ColumnId::Left,
-                );
-            } else {
-                empty_col_ui(&mut row);
-            }
-            if let (Some(right_obj), Some(right_symbol_ref)) = (right_obj, right_symbol) {
-                asm_col_ui(
-                    &mut row,
-                    right_obj,
-                    right_symbol_ref,
-                    appearance,
-                    ins_view_state,
-                    ColumnId::Right,
-                );
-            } else {
-                empty_col_ui(&mut row);
-            }
-            if row.response().clicked() {
-                ins_view_state.clear_highlight();
+    let mut ret = None;
+    if left_len.is_some() && right_len.is_some() {
+        // Joint view
+        render_table(
+            ui,
+            available_width,
+            2,
+            appearance.code_font.size,
+            instructions_len,
+            |row, column| {
+                if column == 0 {
+                    if let Some(ctx) = left_ctx {
+                        asm_col_ui(row, ctx, appearance, ins_view_state, column);
+                    }
+                } else if column == 1 {
+                    if let Some(ctx) = right_ctx {
+                        asm_col_ui(row, ctx, appearance, ins_view_state, column);
+                    }
+                    if row.response().clicked() {
+                        ins_view_state.clear_highlight();
+                    }
+                }
+            },
+        );
+    } else {
+        // Split view, one side is the symbol list
+        render_strips(ui, available_width, 2, |ui, column| {
+            if column == 0 {
+                if let Some(ctx) = left_ctx {
+                    if ctx.has_symbol() {
+                        render_table(
+                            ui,
+                            available_width / 2.0,
+                            1,
+                            appearance.code_font.size,
+                            instructions_len,
+                            |row, column| {
+                                asm_col_ui(row, ctx, appearance, ins_view_state, column);
+                                if row.response().clicked() {
+                                    ins_view_state.clear_highlight();
+                                }
+                            },
+                        );
+                    } else if let Some(result) = symbol_list_ui(
+                        ui,
+                        SymbolDiffContext { obj: ctx.obj, diff: ctx.diff },
+                        None,
+                        symbol_state,
+                        SymbolFilter::Kind(ObjSymbolKind::Function),
+                        appearance,
+                        column,
+                    ) {
+                        let right_symbol = right_ctx
+                            .and_then(|ctx| {
+                                ctx.symbol_ref.map(|symbol_ref| ctx.obj.section_symbol(symbol_ref))
+                            })
+                            .map(|(section, symbol)| SymbolRefByName::new(symbol, section));
+                        if let (Some(left_symbol), Some(right_symbol)) =
+                            (result.left_symbol, right_symbol)
+                        {
+                            ret = Some(SymbolOverrideAction::Set(left_symbol, right_symbol));
+                        }
+                    }
+                } else {
+                    ui.label("No left object");
+                }
+            } else if column == 1 {
+                if let Some(ctx) = right_ctx {
+                    if ctx.has_symbol() {
+                        render_table(
+                            ui,
+                            available_width / 2.0,
+                            1,
+                            appearance.code_font.size,
+                            instructions_len,
+                            |row, column| {
+                                asm_col_ui(row, ctx, appearance, ins_view_state, column);
+                                if row.response().clicked() {
+                                    ins_view_state.clear_highlight();
+                                }
+                            },
+                        );
+                    } else if let Some(result) = symbol_list_ui(
+                        ui,
+                        SymbolDiffContext { obj: ctx.obj, diff: ctx.diff },
+                        None,
+                        symbol_state,
+                        SymbolFilter::Kind(ObjSymbolKind::Function),
+                        appearance,
+                        column,
+                    ) {
+                        let left_symbol = left_ctx
+                            .and_then(|ctx| {
+                                ctx.symbol_ref.map(|symbol_ref| ctx.obj.section_symbol(symbol_ref))
+                            })
+                            .map(|(section, symbol)| SymbolRefByName::new(symbol, section));
+                        if let (Some(left_symbol), Some(right_symbol)) =
+                            (left_symbol, result.right_symbol)
+                        {
+                            ret = Some(SymbolOverrideAction::Set(left_symbol, right_symbol));
+                        }
+                    }
+                } else {
+                    ui.label("No right object");
+                }
             }
         });
-    });
-    Some(())
+    }
+    ret
+}
+
+#[derive(Clone, Copy)]
+pub struct FunctionDiffContext<'a> {
+    pub obj: &'a ObjInfo,
+    pub diff: &'a ObjDiff,
+    pub symbol_ref: Option<SymbolRef>,
+}
+
+impl<'a> FunctionDiffContext<'a> {
+    pub fn new(
+        obj: Option<&'a (ObjInfo, ObjDiff)>,
+        selected_symbol: Option<&SymbolRefByName>,
+    ) -> Option<Self> {
+        obj.map(|(obj, diff)| Self {
+            obj,
+            diff,
+            symbol_ref: selected_symbol.and_then(|s| find_symbol(obj, s)),
+        })
+    }
+
+    #[inline]
+    pub fn has_symbol(&self) -> bool { self.symbol_ref.is_some() }
 }
 
 pub fn function_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &Appearance) {
-    let (Some(result), Some(selected_symbol)) = (&state.build, &state.symbol_state.selected_symbol)
-    else {
+    let Some(result) = &state.build else {
         return;
     };
 
+    let mut left_ctx = FunctionDiffContext::new(
+        result.first_obj.as_ref(),
+        state.symbol_state.left_symbol.as_ref(),
+    );
+    let mut right_ctx = FunctionDiffContext::new(
+        result.second_obj.as_ref(),
+        state.symbol_state.right_symbol.as_ref(),
+    );
+
+    // If one side is missing a symbol, but the diff process found a match, use that symbol
+    let left_diff_symbol = left_ctx.and_then(|ctx| {
+        ctx.symbol_ref.and_then(|symbol_ref| ctx.diff.symbol_diff(symbol_ref).diff_symbol)
+    });
+    let right_diff_symbol = right_ctx.and_then(|ctx| {
+        ctx.symbol_ref.and_then(|symbol_ref| ctx.diff.symbol_diff(symbol_ref).diff_symbol)
+    });
+    if left_diff_symbol.is_some() && right_ctx.map_or(false, |ctx| !ctx.has_symbol()) {
+        let (right_section, right_symbol) =
+            right_ctx.unwrap().obj.section_symbol(left_diff_symbol.unwrap());
+        let symbol_ref = SymbolRefByName::new(right_symbol, right_section);
+        right_ctx = FunctionDiffContext::new(result.second_obj.as_ref(), Some(&symbol_ref));
+        state.symbol_state.right_symbol = Some(symbol_ref);
+    } else if right_diff_symbol.is_some() && left_ctx.map_or(false, |ctx| !ctx.has_symbol()) {
+        let (left_section, left_symbol) =
+            left_ctx.unwrap().obj.section_symbol(right_diff_symbol.unwrap());
+        let symbol_ref = SymbolRefByName::new(left_symbol, left_section);
+        left_ctx = FunctionDiffContext::new(result.first_obj.as_ref(), Some(&symbol_ref));
+        state.symbol_state.left_symbol = Some(symbol_ref);
+    }
+
+    // If both sides are missing a symbol, switch to symbol diff view
+    if !right_ctx.map_or(false, |ctx| ctx.has_symbol())
+        && !left_ctx.map_or(false, |ctx| ctx.has_symbol())
+    {
+        state.current_view = View::SymbolDiff;
+        state.symbol_state.left_symbol = None;
+        state.symbol_state.right_symbol = None;
+        return;
+    }
+
     // Header
     let available_width = ui.available_width();
-    let column_width = available_width / 2.0;
-    ui.allocate_ui_with_layout(
-        Vec2 { x: available_width, y: 100.0 },
-        Layout::left_to_right(Align::Min),
-        |ui| {
-            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
-
+    render_header(ui, available_width, 2, |ui, column| {
+        if column == 0 {
             // Left column
-            ui.allocate_ui_with_layout(
-                Vec2 { x: column_width, y: 100.0 },
-                Layout::top_down(Align::Min),
-                |ui| {
-                    ui.set_width(column_width);
+            ui.horizontal(|ui| {
+                if ui.button("⏴ Back").clicked() {
+                    state.current_view = View::SymbolDiff;
+                }
+                ui.separator();
+                if ui
+                    .add_enabled(
+                        !state.scratch_running
+                            && state.scratch_available
+                            && left_ctx.map_or(false, |ctx| ctx.has_symbol()),
+                        egui::Button::new("📲 decomp.me"),
+                    )
+                    .on_hover_text_at_pointer("Create a new scratch on decomp.me (beta)")
+                    .on_disabled_hover_text("Scratch configuration missing")
+                    .clicked()
+                {
+                    state.queue_scratch = true;
+                }
+            });
 
-                    ui.horizontal(|ui| {
-                        if ui.button("⏴ Back").clicked() {
-                            state.current_view = View::SymbolDiff;
-                        }
+            if let Some((section, symbol)) = left_ctx
+                .and_then(|ctx| ctx.symbol_ref.map(|symbol_ref| ctx.obj.section_symbol(symbol_ref)))
+            {
+                let name = symbol.demangled_name.as_deref().unwrap_or(&symbol.name);
+                ui.label(
+                    RichText::new(name)
+                        .font(appearance.code_font.clone())
+                        .color(appearance.highlight_color),
+                );
+                if right_ctx.map_or(false, |m| m.has_symbol())
+                    && ui
+                        .button("Change target")
+                        .on_hover_text_at_pointer("Choose a different symbol to use as the target")
+                        .clicked()
+                {
+                    state.match_action = Some(SymbolOverrideAction::ClearLeft(
+                        SymbolRefByName::new(symbol, section),
+                        state.symbol_state.right_symbol.clone().unwrap(),
+                    ));
+                    state.post_build_nav = Some(SymbolUiResult {
+                        view: Some(View::FunctionDiff),
+                        left_symbol: None,
+                        right_symbol: state.symbol_state.right_symbol.clone(),
+                    });
+                    state.queue_build = true;
+                }
+            } else {
+                ui.label(
+                    RichText::new("Missing")
+                        .font(appearance.code_font.clone())
+                        .color(appearance.replace_color),
+                );
+                ui.label(
+                    RichText::new("Choose target symbol")
+                        .font(appearance.code_font.clone())
+                        .color(appearance.highlight_color),
+                );
+            }
+        } else if column == 1 {
+            // Right column
+            ui.horizontal(|ui| {
+                if ui.add_enabled(!state.build_running, egui::Button::new("Build")).clicked() {
+                    state.queue_build = true;
+                }
+                ui.scope(|ui| {
+                    ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+                    if state.build_running {
+                        ui.colored_label(appearance.replace_color, "Building…");
+                    } else {
+                        ui.label("Last built:");
+                        let format = format_description::parse("[hour]:[minute]:[second]").unwrap();
+                        ui.label(
+                            result.time.to_offset(appearance.utc_offset).format(&format).unwrap(),
+                        );
+                    }
+                });
+                ui.separator();
+                if ui
+                    .add_enabled(state.source_path_available, egui::Button::new("🖹 Source file"))
+                    .on_hover_text_at_pointer("Open the source file in the default editor")
+                    .on_disabled_hover_text("Source file metadata missing")
+                    .clicked()
+                {
+                    state.queue_open_source_path = true;
+                }
+            });
+
+            if let Some(((section, symbol), symbol_diff)) = right_ctx.and_then(|ctx| {
+                ctx.symbol_ref.map(|symbol_ref| {
+                    (ctx.obj.section_symbol(symbol_ref), ctx.diff.symbol_diff(symbol_ref))
+                })
+            }) {
+                let name = symbol.demangled_name.as_deref().unwrap_or(&symbol.name);
+                ui.label(
+                    RichText::new(name)
+                        .font(appearance.code_font.clone())
+                        .color(appearance.highlight_color),
+                );
+                ui.horizontal(|ui| {
+                    if let Some(match_percent) = symbol_diff.match_percent {
+                        ui.label(
+                            RichText::new(format!("{:.0}%", match_percent.floor()))
+                                .font(appearance.code_font.clone())
+                                .color(match_color_for_symbol(match_percent, appearance)),
+                        );
+                    }
+                    if left_ctx.map_or(false, |m| m.has_symbol()) {
                         ui.separator();
                         if ui
-                            .add_enabled(
-                                !state.scratch_running && state.scratch_available,
-                                egui::Button::new("📲 decomp.me"),
+                            .button("Change base")
+                            .on_hover_text_at_pointer(
+                                "Choose a different symbol to use as the base",
                             )
-                            .on_hover_text_at_pointer("Create a new scratch on decomp.me (beta)")
-                            .on_disabled_hover_text("Scratch configuration missing")
                             .clicked()
                         {
-                            state.queue_scratch = true;
-                        }
-                    });
-
-                    let name = selected_symbol
-                        .demangled_symbol_name
-                        .as_deref()
-                        .unwrap_or(&selected_symbol.symbol_name);
-                    ui.scope(|ui| {
-                        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-                        ui.colored_label(appearance.highlight_color, name);
-                        ui.label("Diff target:");
-                    });
-                },
-            );
-
-            // Right column
-            ui.allocate_ui_with_layout(
-                Vec2 { x: column_width, y: 100.0 },
-                Layout::top_down(Align::Min),
-                |ui| {
-                    ui.set_width(column_width);
-
-                    ui.horizontal(|ui| {
-                        if ui
-                            .add_enabled(!state.build_running, egui::Button::new("Build"))
-                            .clicked()
-                        {
+                            state.match_action = Some(SymbolOverrideAction::ClearRight(
+                                state.symbol_state.left_symbol.clone().unwrap(),
+                                SymbolRefByName::new(symbol, section),
+                            ));
+                            state.post_build_nav = Some(SymbolUiResult {
+                                view: Some(View::FunctionDiff),
+                                left_symbol: state.symbol_state.left_symbol.clone(),
+                                right_symbol: None,
+                            });
                             state.queue_build = true;
                         }
-                        ui.scope(|ui| {
-                            ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-                            if state.build_running {
-                                ui.colored_label(appearance.replace_color, "Building…");
-                            } else {
-                                ui.label("Last built:");
-                                let format =
-                                    format_description::parse("[hour]:[minute]:[second]").unwrap();
-                                ui.label(
-                                    result
-                                        .time
-                                        .to_offset(appearance.utc_offset)
-                                        .format(&format)
-                                        .unwrap(),
-                                );
-                            }
-                        });
-                        ui.separator();
-                        if ui
-                            .add_enabled(
-                                state.source_path_available,
-                                egui::Button::new("🖹 Source file"),
-                            )
-                            .on_hover_text_at_pointer("Open the source file in the default editor")
-                            .on_disabled_hover_text("Source file metadata missing")
-                            .clicked()
-                        {
-                            state.queue_open_source_path = true;
-                        }
-                    });
-
-                    ui.scope(|ui| {
-                        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-                        if let Some(match_percent) = result
-                            .second_obj
-                            .as_ref()
-                            .and_then(|(obj, diff)| {
-                                find_symbol(obj, selected_symbol).map(|sref| {
-                                    &diff.sections[sref.section_idx].symbols[sref.symbol_idx]
-                                })
-                            })
-                            .and_then(|symbol| symbol.match_percent)
-                        {
-                            ui.colored_label(
-                                match_color_for_symbol(match_percent, appearance),
-                                format!("{:.0}%", match_percent.floor()),
-                            );
-                        } else {
-                            ui.colored_label(appearance.replace_color, "Missing");
-                        }
-                        ui.label("Diff base:");
-                    });
-                },
-            );
-        },
-    );
-    ui.separator();
+                    }
+                });
+            } else {
+                ui.label(
+                    RichText::new("Missing")
+                        .font(appearance.code_font.clone())
+                        .color(appearance.replace_color),
+                );
+                ui.label(
+                    RichText::new("Choose base symbol")
+                        .font(appearance.code_font.clone())
+                        .color(appearance.highlight_color),
+                );
+            }
+        }
+    });
 
     // Table
-    ui.style_mut().interaction.selectable_labels = false;
-    let available_height = ui.available_height();
-    let table = TableBuilder::new(ui)
-        .striped(false)
-        .cell_layout(Layout::left_to_right(Align::Min))
-        .columns(Column::exact(column_width).clip(true), 2)
-        .resizable(false)
-        .auto_shrink([false, false])
-        .min_scrolled_height(available_height)
-        .sense(Sense::click());
-    asm_table_ui(
-        table,
-        result.first_obj.as_ref(),
-        result.second_obj.as_ref(),
-        selected_symbol,
-        appearance,
-        &mut state.function_state,
-    );
+    let id = Id::new(state.symbol_state.left_symbol.as_ref().map(|s| s.symbol_name.as_str()))
+        .with(state.symbol_state.right_symbol.as_ref().map(|s| s.symbol_name.as_str()));
+    if let Some(result) = ui
+        .push_id(id, |ui| {
+            asm_table_ui(
+                ui,
+                available_width,
+                left_ctx,
+                right_ctx,
+                appearance,
+                &mut state.function_state,
+                &mut state.symbol_state,
+            )
+        })
+        .inner
+    {
+        match result {
+            SymbolOverrideAction::Set(left, right) => {
+                state.match_action = Some(SymbolOverrideAction::Set(left.clone(), right.clone()));
+                state.post_build_nav = Some(SymbolUiResult {
+                    view: Some(View::FunctionDiff),
+                    left_symbol: Some(left),
+                    right_symbol: Some(right),
+                });
+            }
+            _ => todo!(),
+        }
+        state.queue_build = true;
+    }
 }

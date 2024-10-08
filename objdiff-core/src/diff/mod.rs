@@ -161,6 +161,7 @@ pub struct DiffObjConfig {
     #[serde(default = "default_true")]
     pub space_between_args: bool,
     pub combine_data_sections: bool,
+    pub symbol_overrides: SymbolOverrides,
     // x86
     pub x86_formatter: X86Formatter,
     // MIPS
@@ -182,6 +183,7 @@ impl Default for DiffObjConfig {
             relax_reloc_diffs: false,
             space_between_args: true,
             combine_data_sections: false,
+            symbol_overrides: Default::default(),
             x86_formatter: Default::default(),
             mips_abi: Default::default(),
             mips_instr_category: Default::default(),
@@ -378,7 +380,7 @@ pub fn diff_objs(
     right: Option<&ObjInfo>,
     prev: Option<&ObjInfo>,
 ) -> Result<DiffObjsResult> {
-    let symbol_matches = matching_symbols(left, right, prev)?;
+    let symbol_matches = matching_symbols(left, right, prev, &config.symbol_overrides)?;
     let section_matches = matching_sections(left, right)?;
     let mut left = left.map(|p| (p, ObjDiff::new_from_obj(p)));
     let mut right = right.map(|p| (p, ObjDiff::new_from_obj(p)));
@@ -551,11 +553,61 @@ struct SectionMatch {
     section_kind: ObjSectionKind,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, serde::Deserialize, serde::Serialize)]
+pub struct SymbolOverride {
+    pub left: Option<String>,
+    pub right: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, serde::Deserialize, serde::Serialize)]
+pub struct SymbolOverrides(pub Vec<SymbolOverride>);
+
+impl SymbolOverrides {
+    pub fn get(&self, name: &str) -> Option<&SymbolOverride> {
+        self.0.iter().find(|o| {
+            o.left.as_ref().is_some_and(|l| l == name)
+                || o.right.as_ref().is_some_and(|r| r == name)
+        })
+    }
+
+    pub fn remove_left(&mut self, left: &str, right: &str) {
+        self.0.retain(|o| {
+            o.left.as_ref().map_or(true, |l| l != left)
+                && o.right.as_ref().map_or(true, |r| r != right)
+        });
+        self.0.push(SymbolOverride { left: None, right: Some(right.to_string()) });
+        // println!("{:?}", self.0);
+    }
+
+    pub fn remove_right(&mut self, left: &str, right: &str) {
+        self.0.retain(|o| {
+            o.left.as_ref().map_or(true, |l| l != left)
+                && o.right.as_ref().map_or(true, |r| r != right)
+        });
+        self.0.push(SymbolOverride { left: Some(left.to_string()), right: None });
+        // println!("{:?}", self.0);
+    }
+
+    pub fn set(&mut self, left: String, right: String) {
+        self.0.retain(|o| {
+            o.left.as_ref().map_or(true, |l| l != &left && l != &right)
+                && o.right.as_ref().map_or(true, |r| r != &left && r != &right)
+        });
+        if left != right {
+            self.0.push(SymbolOverride { left: Some(left), right: Some(right) });
+        }
+        // println!("{:?}", self.0);
+    }
+
+    pub fn clear(&mut self) { self.0.clear(); }
+}
+
 /// Find matching symbols between each object.
 fn matching_symbols(
     left: Option<&ObjInfo>,
     right: Option<&ObjInfo>,
     prev: Option<&ObjInfo>,
+    overrides: &SymbolOverrides,
 ) -> Result<Vec<SymbolMatch>> {
     let mut matches = Vec::new();
     let mut right_used = HashSet::new();
@@ -564,8 +616,8 @@ fn matching_symbols(
             for (symbol_idx, symbol) in section.symbols.iter().enumerate() {
                 let symbol_match = SymbolMatch {
                     left: Some(SymbolRef { section_idx, symbol_idx }),
-                    right: find_symbol(right, symbol, section, Some(&right_used)),
-                    prev: find_symbol(prev, symbol, section, None),
+                    right: find_symbol(right, symbol, section, Some(&right_used), overrides),
+                    prev: find_symbol(prev, symbol, section, None, &Default::default()),
                     section_kind: section.kind,
                 };
                 matches.push(symbol_match);
@@ -597,7 +649,7 @@ fn matching_symbols(
                 matches.push(SymbolMatch {
                     left: None,
                     right: Some(symbol_ref),
-                    prev: find_symbol(prev, symbol, section, None),
+                    prev: find_symbol(prev, symbol, section, None, &Default::default()),
                     section_kind: section.kind,
                 });
             }
@@ -637,8 +689,23 @@ fn find_symbol(
     in_symbol: &ObjSymbol,
     in_section: &ObjSection,
     used: Option<&HashSet<SymbolRef>>,
+    overrides: &SymbolOverrides,
 ) -> Option<SymbolRef> {
     let obj = obj?;
+    // Check for a symbol override
+    if let Some(symbol_override) = overrides.get(&in_symbol.name) {
+        symbol_override.left.as_ref()?;
+        let right_name = symbol_override.right.as_ref()?;
+        if let Some((section_idx, section)) =
+            obj.sections.iter().enumerate().find(|(_, s)| s.name == in_section.name)
+        {
+            if let Some((symbol_idx, _)) = unmatched_symbols(section, section_idx, used)
+                .find(|(_, symbol)| &symbol.name == right_name)
+            {
+                return Some(SymbolRef { section_idx, symbol_idx });
+            }
+        }
+    }
     // Try to find an exact name match
     for (section_idx, section) in obj.sections.iter().enumerate() {
         if section.kind != in_section.kind {

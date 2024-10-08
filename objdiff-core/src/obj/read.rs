@@ -23,6 +23,7 @@ use crate::{
     obj::{
         split_meta::{SplitMeta, SPLITMETA_SECTION},
         ObjInfo, ObjReloc, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlagSet, ObjSymbolFlags,
+        ObjSymbolKind,
     },
     util::{read_u16, read_u32},
 };
@@ -94,6 +95,13 @@ fn to_obj_symbol(
         })
         .unwrap_or(&[]);
 
+    let kind = match symbol.kind() {
+        SymbolKind::Text => ObjSymbolKind::Function,
+        SymbolKind::Data => ObjSymbolKind::Object,
+        SymbolKind::Section => ObjSymbolKind::Section,
+        _ => ObjSymbolKind::Unknown,
+    };
+
     Ok(ObjSymbol {
         name: name.to_string(),
         demangled_name,
@@ -101,6 +109,7 @@ fn to_obj_symbol(
         section_address,
         size: symbol.size(),
         size_known: symbol.size() != 0,
+        kind,
         flags,
         addend,
         virtual_address,
@@ -173,11 +182,18 @@ fn symbols_by_section(
     result.sort_by(|a, b| a.address.cmp(&b.address).then(a.size.cmp(&b.size)));
     let mut iter = result.iter_mut().peekable();
     while let Some(symbol) = iter.next() {
-        if symbol.size == 0 {
+        if symbol.kind == ObjSymbolKind::Unknown && symbol.size == 0 {
             if let Some(next_symbol) = iter.peek() {
                 symbol.size = next_symbol.address - symbol.address;
             } else {
                 symbol.size = (section.address + section.size) - symbol.address;
+            }
+            // Set symbol kind if we ended up with a non-zero size
+            if symbol.size > 0 {
+                symbol.kind = match section.kind {
+                    ObjSectionKind::Code => ObjSymbolKind::Function,
+                    ObjSectionKind::Data | ObjSectionKind::Bss => ObjSymbolKind::Object,
+                };
             }
         }
     }
@@ -196,6 +212,10 @@ fn symbols_by_section(
             section_address: 0,
             size: section.size,
             size_known: true,
+            kind: match section.kind {
+                ObjSectionKind::Code => ObjSymbolKind::Function,
+                ObjSectionKind::Data | ObjSectionKind::Bss => ObjSymbolKind::Object,
+            },
             flags: Default::default(),
             addend: 0,
             virtual_address: None,
@@ -281,6 +301,7 @@ fn find_section_symbol(
         section_address: 0,
         size: 0,
         size_known: false,
+        kind: ObjSymbolKind::Section,
         flags: Default::default(),
         addend: address as i64 - section.address() as i64,
         virtual_address: None,
@@ -568,6 +589,7 @@ fn update_combined_symbol(symbol: ObjSymbol, address_change: i64) -> Result<ObjS
         section_address: (symbol.section_address as i64 + address_change).try_into()?,
         size: symbol.size,
         size_known: symbol.size_known,
+        kind: symbol.kind,
         flags: symbol.flags,
         addend: symbol.addend,
         virtual_address: if let Some(virtual_address) = symbol.virtual_address {

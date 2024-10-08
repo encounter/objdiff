@@ -112,12 +112,12 @@ impl ProjectObject {
     }
 
     pub fn complete(&self) -> Option<bool> {
-        #[allow(deprecated)]
+        #[expect(deprecated)]
         self.metadata.as_ref().and_then(|m| m.complete).or(self.complete)
     }
 
     pub fn reverse_fn_order(&self) -> Option<bool> {
-        #[allow(deprecated)]
+        #[expect(deprecated)]
         self.metadata.as_ref().and_then(|m| m.reverse_fn_order).or(self.reverse_fn_order)
     }
 

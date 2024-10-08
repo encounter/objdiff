@@ -53,7 +53,7 @@ impl JobQueue {
     }
 
     /// Returns whether any job is running.
-    #[allow(dead_code)]
+    #[expect(dead_code)]
     pub fn any_running(&self) -> bool {
         self.jobs.iter().any(|job| {
             if let Some(handle) = &job.handle {

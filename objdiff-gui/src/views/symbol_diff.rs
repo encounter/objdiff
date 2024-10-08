@@ -1,14 +1,15 @@
 use std::mem::take;
 
 use egui::{
-    text::LayoutJob, Align, CollapsingHeader, Color32, Id, Layout, OpenUrl, ScrollArea,
-    SelectableLabel, TextEdit, Ui, Vec2, Widget,
+    text::LayoutJob, CollapsingHeader, Color32, Id, OpenUrl, ScrollArea, SelectableLabel, TextEdit,
+    Ui, Widget,
 };
-use egui_extras::{Size, StripBuilder};
 use objdiff_core::{
     arch::ObjArch,
     diff::{ObjDiff, ObjSymbolDiff},
-    obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags, SymbolRef},
+    obj::{
+        ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags, ObjSymbolKind, SymbolRef,
+    },
 };
 use regex::{Regex, RegexBuilder};
 
@@ -19,23 +20,84 @@ use crate::{
         objdiff::{BuildStatus, ObjDiffResult},
         Job, JobQueue, JobResult,
     },
-    views::{appearance::Appearance, function_diff::FunctionViewState, write_text},
+    views::{
+        appearance::Appearance,
+        column_layout::{render_header, render_strips},
+        function_diff::FunctionViewState,
+        write_text,
+    },
 };
 
+#[derive(Debug, Clone)]
 pub struct SymbolRefByName {
     pub symbol_name: String,
-    pub demangled_symbol_name: Option<String>,
-    pub section_name: String,
+    pub section_name: Option<String>,
 }
 
-#[allow(clippy::enum_variant_names)]
-#[derive(Default, Eq, PartialEq, Copy, Clone)]
+impl SymbolRefByName {
+    pub fn new(symbol: &ObjSymbol, section: Option<&ObjSection>) -> Self {
+        Self { symbol_name: symbol.name.clone(), section_name: section.map(|s| s.name.clone()) }
+    }
+}
+
+#[expect(clippy::enum_variant_names)]
+#[derive(Debug, Default, Eq, PartialEq, Copy, Clone, Hash)]
 pub enum View {
     #[default]
     SymbolDiff,
     FunctionDiff,
     DataDiff,
     ExtabDiff,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct SymbolUiResult {
+    pub view: Option<View>,
+    pub left_symbol: Option<SymbolRefByName>,
+    pub right_symbol: Option<SymbolRefByName>,
+}
+
+impl SymbolUiResult {
+    pub fn function_diff(
+        view: View,
+        other_ctx: Option<SymbolDiffContext<'_>>,
+        symbol: &ObjSymbol,
+        section: &ObjSection,
+        symbol_diff: &ObjSymbolDiff,
+        column: usize,
+    ) -> Self {
+        let symbol1 = Some(SymbolRefByName::new(symbol, Some(section)));
+        let symbol2 = symbol_diff.diff_symbol.and_then(|symbol_ref| {
+            other_ctx.map(|ctx| {
+                let (section, symbol) = ctx.obj.section_symbol(symbol_ref);
+                SymbolRefByName::new(symbol, section)
+            })
+        });
+        match column {
+            0 => Self { view: Some(view), left_symbol: symbol1, right_symbol: symbol2 },
+            1 => Self { view: Some(view), left_symbol: symbol2, right_symbol: symbol1 },
+            _ => unreachable!("Invalid column index"),
+        }
+    }
+
+    pub fn data_diff(section: &ObjSection) -> Self {
+        let symbol = SymbolRefByName {
+            symbol_name: section.name.clone(),
+            section_name: Some(section.name.clone()),
+        };
+        Self {
+            view: Some(View::DataDiff),
+            left_symbol: Some(symbol.clone()),
+            right_symbol: Some(symbol),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum SymbolOverrideAction {
+    ClearLeft(SymbolRefByName, SymbolRefByName),
+    ClearRight(SymbolRefByName, SymbolRefByName),
+    Set(SymbolRefByName, SymbolRefByName),
 }
 
 #[derive(Default)]
@@ -54,12 +116,16 @@ pub struct DiffViewState {
     pub scratch_running: bool,
     pub source_path_available: bool,
     pub queue_open_source_path: bool,
+    pub match_action: Option<SymbolOverrideAction>,
+    pub post_build_nav: Option<SymbolUiResult>,
+    pub object_name: String,
 }
 
 #[derive(Default)]
 pub struct SymbolViewState {
     pub highlighted_symbol: (Option<SymbolRef>, Option<SymbolRef>),
-    pub selected_symbol: Option<SymbolRefByName>,
+    pub left_symbol: Option<SymbolRefByName>,
+    pub right_symbol: Option<SymbolRefByName>,
     pub reverse_fn_order: bool,
     pub disable_reverse_fn_order: bool,
     pub show_hidden_symbols: bool,
@@ -70,6 +136,13 @@ impl DiffViewState {
         jobs.results.retain_mut(|result| match result {
             JobResult::ObjDiff(result) => {
                 self.build = take(result);
+                if let Some(result) = self.post_build_nav.take() {
+                    if let Some(view) = result.view {
+                        self.current_view = view;
+                    }
+                    self.symbol_state.left_symbol = result.left_symbol;
+                    self.symbol_state.right_symbol = result.right_symbol;
+                }
                 false
             }
             JobResult::CreateScratch(result) => {
@@ -93,6 +166,8 @@ impl DiffViewState {
                 self.source_path_available = false;
             }
             self.scratch_available = CreateScratchConfig::is_available(&state.config);
+            self.object_name =
+                state.config.selected_obj.as_ref().map(|o| o.name.clone()).unwrap_or_default();
         }
     }
 
@@ -101,9 +176,25 @@ impl DiffViewState {
             ctx.output_mut(|o| o.open_url = Some(OpenUrl::new_tab(result.scratch_url)));
         }
 
-        if self.queue_build {
+        if self.queue_build && !jobs.is_running(Job::ObjDiff) {
             self.queue_build = false;
             if let Ok(mut state) = state.write() {
+                match self.match_action.take() {
+                    Some(SymbolOverrideAction::ClearLeft(left_ref, right_ref)) => {
+                        let symbol_overrides = &mut state.config.diff_obj_config.symbol_overrides;
+                        symbol_overrides.remove_left(&left_ref.symbol_name, &right_ref.symbol_name);
+                    }
+                    Some(SymbolOverrideAction::ClearRight(left_ref, right_ref)) => {
+                        let symbol_overrides = &mut state.config.diff_obj_config.symbol_overrides;
+                        symbol_overrides
+                            .remove_right(&left_ref.symbol_name, &right_ref.symbol_name);
+                    }
+                    Some(SymbolOverrideAction::Set(left_ref, right_ref)) => {
+                        let symbol_overrides = &mut state.config.diff_obj_config.symbol_overrides;
+                        symbol_overrides.set(left_ref.symbol_name, right_ref.symbol_name);
+                    }
+                    None => {}
+                }
                 state.queue_build = true;
             }
         }
@@ -111,7 +202,7 @@ impl DiffViewState {
         if self.queue_scratch {
             self.queue_scratch = false;
             if let Some(function_name) =
-                self.symbol_state.selected_symbol.as_ref().map(|sym| sym.symbol_name.clone())
+                self.symbol_state.left_symbol.as_ref().map(|sym| sym.symbol_name.clone())
             {
                 if let Ok(state) = state.read() {
                     match CreateScratchConfig::from_config(&state.config, function_name) {
@@ -158,11 +249,13 @@ pub fn match_color_for_symbol(match_percent: f32, appearance: &Appearance) -> Co
 
 fn symbol_context_menu_ui(
     ui: &mut Ui,
-    state: &mut SymbolViewState,
-    arch: &dyn ObjArch,
+    ctx: SymbolDiffContext<'_>,
+    other_ctx: Option<SymbolDiffContext<'_>>,
     symbol: &ObjSymbol,
+    symbol_diff: &ObjSymbolDiff,
     section: Option<&ObjSection>,
-) -> Option<View> {
+    column: usize,
+) -> Option<SymbolUiResult> {
     let mut ret = None;
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
@@ -185,14 +278,17 @@ fn symbol_context_menu_ui(
             }
         }
         if let Some(section) = section {
-            let has_extab = arch.ppc().and_then(|ppc| ppc.extab_for_symbol(symbol)).is_some();
+            let has_extab =
+                ctx.obj.arch.ppc().and_then(|ppc| ppc.extab_for_symbol(symbol)).is_some();
             if has_extab && ui.button("Decode exception table").clicked() {
-                state.selected_symbol = Some(SymbolRefByName {
-                    symbol_name: symbol.name.clone(),
-                    demangled_symbol_name: symbol.demangled_name.clone(),
-                    section_name: section.name.clone(),
-                });
-                ret = Some(View::ExtabDiff);
+                ret = Some(SymbolUiResult::function_diff(
+                    View::ExtabDiff,
+                    other_ctx,
+                    symbol,
+                    section,
+                    symbol_diff,
+                    column,
+                ));
                 ui.close_menu();
             }
         }
@@ -232,17 +328,18 @@ fn symbol_hover_ui(ui: &mut Ui, arch: &dyn ObjArch, symbol: &ObjSymbol, appearan
 }
 
 #[must_use]
-#[allow(clippy::too_many_arguments)]
+#[expect(clippy::too_many_arguments)]
 fn symbol_ui(
     ui: &mut Ui,
-    arch: &dyn ObjArch,
+    ctx: SymbolDiffContext<'_>,
+    other_ctx: Option<SymbolDiffContext<'_>>,
     symbol: &ObjSymbol,
     symbol_diff: &ObjSymbolDiff,
     section: Option<&ObjSection>,
     state: &mut SymbolViewState,
     appearance: &Appearance,
-    left: bool,
-) -> Option<View> {
+    column: usize,
+) -> Option<SymbolUiResult> {
     if symbol.flags.0.contains(ObjSymbolFlags::Hidden) && !state.show_hidden_symbols {
         return None;
     }
@@ -252,7 +349,7 @@ fn symbol_ui(
         if let Some(demangled) = &symbol.demangled_name { demangled } else { &symbol.name };
     let mut selected = false;
     if let Some(sym_ref) =
-        if left { state.highlighted_symbol.0 } else { state.highlighted_symbol.1 }
+        if column == 0 { state.highlighted_symbol.0 } else { state.highlighted_symbol.1 }
     {
         selected = symbol_diff.symbol_ref == sym_ref;
     }
@@ -292,33 +389,38 @@ fn symbol_ui(
         write_text(") ", appearance.text_color, &mut job, appearance.code_font.clone());
     }
     write_text(name, appearance.highlight_color, &mut job, appearance.code_font.clone());
-    let response = SelectableLabel::new(selected, job)
-        .ui(ui)
-        .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, arch, symbol, appearance));
+    let response = SelectableLabel::new(selected, job).ui(ui).on_hover_ui_at_pointer(|ui| {
+        symbol_hover_ui(ui, ctx.obj.arch.as_ref(), symbol, appearance)
+    });
     response.context_menu(|ui| {
-        ret = ret.or(symbol_context_menu_ui(ui, state, arch, symbol, section));
+        if let Some(result) =
+            symbol_context_menu_ui(ui, ctx, other_ctx, symbol, symbol_diff, section, column)
+        {
+            ret = Some(result);
+        }
     });
     if response.clicked() {
         if let Some(section) = section {
-            if section.kind == ObjSectionKind::Code {
-                state.selected_symbol = Some(SymbolRefByName {
-                    symbol_name: symbol.name.clone(),
-                    demangled_symbol_name: symbol.demangled_name.clone(),
-                    section_name: section.name.clone(),
-                });
-                ret = Some(View::FunctionDiff);
-            } else if section.kind == ObjSectionKind::Data {
-                state.selected_symbol = Some(SymbolRefByName {
-                    symbol_name: section.name.clone(),
-                    demangled_symbol_name: None,
-                    section_name: section.name.clone(),
-                });
-                ret = Some(View::DataDiff);
+            match section.kind {
+                ObjSectionKind::Code => {
+                    ret = Some(SymbolUiResult::function_diff(
+                        View::FunctionDiff,
+                        other_ctx,
+                        symbol,
+                        section,
+                        symbol_diff,
+                        column,
+                    ));
+                }
+                ObjSectionKind::Data => {
+                    ret = Some(SymbolUiResult::data_diff(section));
+                }
+                ObjSectionKind::Bss => {}
             }
         }
     } else if response.hovered() {
         state.highlighted_symbol = if let Some(diff_symbol) = symbol_diff.diff_symbol {
-            if left {
+            if column == 0 {
                 (Some(symbol_diff.symbol_ref), Some(diff_symbol))
             } else {
                 (Some(diff_symbol), Some(symbol_diff.symbol_ref))
@@ -330,52 +432,83 @@ fn symbol_ui(
     ret
 }
 
-fn symbol_matches_search(symbol: &ObjSymbol, search_regex: Option<&Regex>) -> bool {
-    if let Some(search_regex) = search_regex {
-        search_regex.is_match(&symbol.name)
-            || symbol.demangled_name.as_ref().map(|s| search_regex.is_match(s)).unwrap_or(false)
-    } else {
-        true
+fn symbol_matches_filter(symbol: &ObjSymbol, filter: SymbolFilter<'_>) -> bool {
+    match filter {
+        SymbolFilter::None => true,
+        SymbolFilter::Search(regex) => {
+            regex.is_match(&symbol.name)
+                || symbol.demangled_name.as_ref().map(|s| regex.is_match(s)).unwrap_or(false)
+        }
+        SymbolFilter::Kind(kind) => symbol.kind == kind,
     }
 }
 
+#[derive(Copy, Clone)]
+pub enum SymbolFilter<'a> {
+    None,
+    Search(&'a Regex),
+    Kind(ObjSymbolKind),
+}
+
 #[must_use]
-fn symbol_list_ui(
+pub fn symbol_list_ui(
     ui: &mut Ui,
-    obj: &(ObjInfo, ObjDiff),
+    ctx: SymbolDiffContext<'_>,
+    other_ctx: Option<SymbolDiffContext<'_>>,
     state: &mut SymbolViewState,
-    search_regex: Option<&Regex>,
+    filter: SymbolFilter<'_>,
     appearance: &Appearance,
-    left: bool,
-) -> Option<View> {
+    column: usize,
+) -> Option<SymbolUiResult> {
     let mut ret = None;
-    let arch = obj.0.arch.as_ref();
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         ui.scope(|ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
-            if !obj.0.common.is_empty() {
+            // Skip sections with all symbols filtered out
+            if !ctx.obj.common.is_empty()
+                && (matches!(filter, SymbolFilter::None)
+                    || ctx
+                        .obj
+                        .common
+                        .iter()
+                        .zip(&ctx.diff.common)
+                        .any(|(symbol, _)| symbol_matches_filter(symbol, filter)))
+            {
                 CollapsingHeader::new(".comm").default_open(true).show(ui, |ui| {
-                    for (symbol, symbol_diff) in obj.0.common.iter().zip(&obj.1.common) {
-                        if !symbol_matches_search(symbol, search_regex) {
+                    for (symbol, symbol_diff) in ctx.obj.common.iter().zip(&ctx.diff.common) {
+                        if !symbol_matches_filter(symbol, filter) {
                             continue;
                         }
-                        ret = ret.or(symbol_ui(
+                        if let Some(result) = symbol_ui(
                             ui,
-                            arch,
+                            ctx,
+                            other_ctx,
                             symbol,
                             symbol_diff,
                             None,
                             state,
                             appearance,
-                            left,
-                        ));
+                            column,
+                        ) {
+                            ret = Some(result);
+                        }
                     }
                 });
             }
 
-            for (section, section_diff) in obj.0.sections.iter().zip(&obj.1.sections) {
+            for (section, section_diff) in ctx.obj.sections.iter().zip(&ctx.diff.sections) {
+                // Skip sections with all symbols filtered out
+                if !matches!(filter, SymbolFilter::None)
+                    && !section
+                        .symbols
+                        .iter()
+                        .zip(&section_diff.symbols)
+                        .any(|(symbol, _)| symbol_matches_filter(symbol, filter))
+                {
+                    continue;
+                }
                 let mut header = LayoutJob::simple_singleline(
                     format!("{} ({:x})", section.name, section.size),
                     appearance.code_font.clone(),
@@ -409,37 +542,43 @@ fn symbol_list_ui(
                             for (symbol, symbol_diff) in
                                 section.symbols.iter().zip(&section_diff.symbols).rev()
                             {
-                                if !symbol_matches_search(symbol, search_regex) {
+                                if !symbol_matches_filter(symbol, filter) {
                                     continue;
                                 }
-                                ret = ret.or(symbol_ui(
+                                if let Some(result) = symbol_ui(
                                     ui,
-                                    arch,
+                                    ctx,
+                                    other_ctx,
                                     symbol,
                                     symbol_diff,
                                     Some(section),
                                     state,
                                     appearance,
-                                    left,
-                                ));
+                                    column,
+                                ) {
+                                    ret = Some(result);
+                                }
                             }
                         } else {
                             for (symbol, symbol_diff) in
                                 section.symbols.iter().zip(&section_diff.symbols)
                             {
-                                if !symbol_matches_search(symbol, search_regex) {
+                                if !symbol_matches_filter(symbol, filter) {
                                     continue;
                                 }
-                                ret = ret.or(symbol_ui(
+                                if let Some(result) = symbol_ui(
                                     ui,
-                                    arch,
+                                    ctx,
+                                    other_ctx,
                                     symbol,
                                     symbol_diff,
                                     Some(section),
                                     state,
                                     appearance,
-                                    left,
-                                ));
+                                    column,
+                                ) {
+                                    ret = Some(result);
+                                }
                             }
                         }
                     });
@@ -487,6 +626,12 @@ fn missing_obj_ui(ui: &mut Ui, appearance: &Appearance) {
     });
 }
 
+#[derive(Copy, Clone)]
+pub struct SymbolDiffContext<'a> {
+    pub obj: &'a ObjInfo,
+    pub diff: &'a ObjDiff,
+}
+
 pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appearance) {
     let DiffViewState { build, current_view, symbol_state, search, search_regex, .. } = state;
     let Some(result) = build else {
@@ -495,147 +640,132 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
 
     // Header
     let available_width = ui.available_width();
-    let column_width = available_width / 2.0;
-    ui.allocate_ui_with_layout(
-        Vec2 { x: available_width, y: 100.0 },
-        Layout::left_to_right(Align::Min),
-        |ui| {
-            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
-
+    render_header(ui, available_width, 2, |ui, column| {
+        if column == 0 {
             // Left column
-            ui.allocate_ui_with_layout(
-                Vec2 { x: column_width, y: 100.0 },
-                Layout::top_down(Align::Min),
-                |ui| {
-                    ui.set_width(column_width);
+            ui.scope(|ui| {
+                ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
 
-                    ui.scope(|ui| {
-                        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-
-                        ui.label("Build target:");
-                        if result.first_status.success {
-                            if result.first_obj.is_none() {
-                                ui.colored_label(appearance.replace_color, "Missing");
-                            } else {
-                                ui.label("OK");
-                            }
-                        } else {
-                            ui.colored_label(appearance.delete_color, "Fail");
-                        }
-                    });
-
-                    if TextEdit::singleline(search).hint_text("Filter symbols").ui(ui).changed() {
-                        if search.is_empty() {
-                            *search_regex = None;
-                        } else if let Ok(regex) =
-                            RegexBuilder::new(search).case_insensitive(true).build()
-                        {
-                            *search_regex = Some(regex);
-                        } else {
-                            *search_regex = None;
-                        }
+                ui.label("Target object");
+                if result.first_status.success {
+                    if result.first_obj.is_none() {
+                        ui.colored_label(appearance.replace_color, "Missing");
+                    } else {
+                        ui.colored_label(appearance.highlight_color, state.object_name.clone());
                     }
-                },
-            );
-
-            // Right column
-            ui.allocate_ui_with_layout(
-                Vec2 { x: column_width, y: 100.0 },
-                Layout::top_down(Align::Min),
-                |ui| {
-                    ui.set_width(column_width);
-
-                    ui.horizontal(|ui| {
-                        ui.scope(|ui| {
-                            ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-                            ui.label("Build base:");
-                        });
-                        ui.separator();
-                        if ui
-                            .add_enabled(
-                                state.source_path_available,
-                                egui::Button::new("🖹 Source file"),
-                            )
-                            .on_hover_text_at_pointer("Open the source file in the default editor")
-                            .on_disabled_hover_text("Source file metadata missing")
-                            .clicked()
-                        {
-                            state.queue_open_source_path = true;
-                        }
-                    });
-
-                    ui.scope(|ui| {
-                        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-                        if result.second_status.success {
-                            if result.second_obj.is_none() {
-                                ui.colored_label(appearance.replace_color, "Missing");
-                            } else {
-                                ui.label("OK");
-                            }
-                        } else {
-                            ui.colored_label(appearance.delete_color, "Fail");
-                        }
-                    });
-
-                    if ui.add_enabled(!state.build_running, egui::Button::new("Build")).clicked() {
-                        state.queue_build = true;
-                    }
-                },
-            );
-        },
-    );
-    ui.separator();
-
-    // Table
-    let mut ret = None;
-    StripBuilder::new(ui).size(Size::remainder()).vertical(|mut strip| {
-        strip.strip(|builder| {
-            builder.sizes(Size::remainder(), 2).horizontal(|mut strip| {
-                strip.cell(|ui| {
-                    ui.push_id("left", |ui| {
-                        if result.first_status.success {
-                            if let Some(obj) = &result.first_obj {
-                                ret = ret.or(symbol_list_ui(
-                                    ui,
-                                    obj,
-                                    symbol_state,
-                                    search_regex.as_ref(),
-                                    appearance,
-                                    true,
-                                ));
-                            } else {
-                                missing_obj_ui(ui, appearance);
-                            }
-                        } else {
-                            build_log_ui(ui, &result.first_status, appearance);
-                        }
-                    });
-                });
-                strip.cell(|ui| {
-                    ui.push_id("right", |ui| {
-                        if result.second_status.success {
-                            if let Some(obj) = &result.second_obj {
-                                ret = ret.or(symbol_list_ui(
-                                    ui,
-                                    obj,
-                                    symbol_state,
-                                    search_regex.as_ref(),
-                                    appearance,
-                                    false,
-                                ));
-                            } else {
-                                missing_obj_ui(ui, appearance);
-                            }
-                        } else {
-                            build_log_ui(ui, &result.second_status, appearance);
-                        }
-                    });
-                });
+                } else {
+                    ui.colored_label(appearance.delete_color, "Fail");
+                }
             });
-        });
+
+            if TextEdit::singleline(search).hint_text("Filter symbols").ui(ui).changed() {
+                if search.is_empty() {
+                    *search_regex = None;
+                } else if let Ok(regex) = RegexBuilder::new(search).case_insensitive(true).build() {
+                    *search_regex = Some(regex);
+                } else {
+                    *search_regex = None;
+                }
+            }
+        } else if column == 1 {
+            // Right column
+            ui.horizontal(|ui| {
+                ui.scope(|ui| {
+                    ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+                    ui.label("Base object");
+                });
+                ui.separator();
+                if ui
+                    .add_enabled(state.source_path_available, egui::Button::new("🖹 Source file"))
+                    .on_hover_text_at_pointer("Open the source file in the default editor")
+                    .on_disabled_hover_text("Source file metadata missing")
+                    .clicked()
+                {
+                    state.queue_open_source_path = true;
+                }
+            });
+
+            ui.scope(|ui| {
+                ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+                if result.second_status.success {
+                    if result.second_obj.is_none() {
+                        ui.colored_label(appearance.replace_color, "Missing");
+                    } else {
+                        ui.colored_label(appearance.highlight_color, "OK");
+                    }
+                } else {
+                    ui.colored_label(appearance.delete_color, "Fail");
+                }
+            });
+
+            if ui.add_enabled(!state.build_running, egui::Button::new("Build")).clicked() {
+                state.queue_build = true;
+            }
+        }
     });
 
-    if let Some(view) = ret {
-        *current_view = view;
+    // Table
+    let filter = match search_regex {
+        Some(regex) => SymbolFilter::Search(regex),
+        _ => SymbolFilter::None,
+    };
+    let mut ret = None;
+    render_strips(ui, available_width, 2, |ui, column| {
+        if column == 0 {
+            // Left column
+            if result.first_status.success {
+                if let Some((obj, diff)) = &result.first_obj {
+                    if let Some(result) = symbol_list_ui(
+                        ui,
+                        SymbolDiffContext { obj, diff },
+                        result
+                            .second_obj
+                            .as_ref()
+                            .map(|(obj, diff)| SymbolDiffContext { obj, diff }),
+                        symbol_state,
+                        filter,
+                        appearance,
+                        column,
+                    ) {
+                        ret = Some(result);
+                    }
+                } else {
+                    missing_obj_ui(ui, appearance);
+                }
+            } else {
+                build_log_ui(ui, &result.first_status, appearance);
+            }
+        } else if column == 1 {
+            // Right column
+            if result.second_status.success {
+                if let Some((obj, diff)) = &result.second_obj {
+                    if let Some(result) = symbol_list_ui(
+                        ui,
+                        SymbolDiffContext { obj, diff },
+                        result
+                            .first_obj
+                            .as_ref()
+                            .map(|(obj, diff)| SymbolDiffContext { obj, diff }),
+                        symbol_state,
+                        filter,
+                        appearance,
+                        column,
+                    ) {
+                        ret = Some(result);
+                    }
+                } else {
+                    missing_obj_ui(ui, appearance);
+                }
+            } else {
+                build_log_ui(ui, &result.second_status, appearance);
+            }
+        }
+    });
+    if let Some(result) = ret {
+        if let Some(view) = result.view {
+            *current_view = view;
+        }
+        symbol_state.left_symbol = result.left_symbol;
+        symbol_state.right_symbol = result.right_symbol;
     }
 }

@@ -1,7 +1,6 @@
 use std::{cmp::min, default::Default, mem::take};
 
-use egui::{text::LayoutJob, Align, Label, Layout, Sense, Vec2, Widget};
-use egui_extras::{Column, TableBuilder};
+use egui::{text::LayoutJob, Id, Label, RichText, Sense, Widget};
 use objdiff_core::{
     diff::{ObjDataDiff, ObjDataDiffKind, ObjDiff},
     obj::ObjInfo,
@@ -10,6 +9,7 @@ use time::format_description;
 
 use crate::views::{
     appearance::Appearance,
+    column_layout::{render_header, render_table},
     symbol_diff::{DiffViewState, SymbolRefByName, View},
     write_text,
 };
@@ -17,7 +17,8 @@ use crate::views::{
 const BYTES_PER_ROW: usize = 16;
 
 fn find_section(obj: &ObjInfo, selected_symbol: &SymbolRefByName) -> Option<usize> {
-    obj.sections.iter().position(|section| section.name == selected_symbol.section_name)
+    let section_name = selected_symbol.section_name.as_ref()?;
+    obj.sections.iter().position(|section| &section.name == section_name)
 }
 
 fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], appearance: &Appearance) {
@@ -131,20 +132,41 @@ fn split_diffs(diffs: &[ObjDataDiff]) -> Vec<Vec<ObjDataDiff>> {
     split_diffs
 }
 
+#[derive(Clone, Copy)]
+struct SectionDiffContext<'a> {
+    obj: &'a ObjInfo,
+    diff: &'a ObjDiff,
+    section_index: Option<usize>,
+}
+
+impl<'a> SectionDiffContext<'a> {
+    pub fn new(
+        obj: Option<&'a (ObjInfo, ObjDiff)>,
+        selected_symbol: Option<&SymbolRefByName>,
+    ) -> Option<Self> {
+        obj.map(|(obj, diff)| Self {
+            obj,
+            diff,
+            section_index: selected_symbol
+                .and_then(|selected_symbol| find_section(obj, selected_symbol)),
+        })
+    }
+
+    #[inline]
+    pub fn has_section(&self) -> bool { self.section_index.is_some() }
+}
+
 fn data_table_ui(
-    table: TableBuilder<'_>,
-    left_obj: Option<&(ObjInfo, ObjDiff)>,
-    right_obj: Option<&(ObjInfo, ObjDiff)>,
-    selected_symbol: &SymbolRefByName,
+    ui: &mut egui::Ui,
+    available_width: f32,
+    left_ctx: Option<SectionDiffContext<'_>>,
+    right_ctx: Option<SectionDiffContext<'_>>,
     config: &Appearance,
 ) -> Option<()> {
-    let left_section = left_obj.and_then(|(obj, diff)| {
-        find_section(obj, selected_symbol).map(|i| (&obj.sections[i], &diff.sections[i]))
-    });
-    let right_section = right_obj.and_then(|(obj, diff)| {
-        find_section(obj, selected_symbol).map(|i| (&obj.sections[i], &diff.sections[i]))
-    });
-
+    let left_section = left_ctx
+        .and_then(|ctx| ctx.section_index.map(|i| (&ctx.obj.sections[i], &ctx.diff.sections[i])));
+    let right_section = right_ctx
+        .and_then(|ctx| ctx.section_index.map(|i| (&ctx.obj.sections[i], &ctx.diff.sections[i])));
     let total_bytes = left_section
         .or(right_section)?
         .1
@@ -159,118 +181,113 @@ fn data_table_ui(
     let left_diffs = left_section.map(|(_, section)| split_diffs(&section.data_diff));
     let right_diffs = right_section.map(|(_, section)| split_diffs(&section.data_diff));
 
-    table.body(|body| {
-        body.rows(config.code_font.size, total_rows, |mut row| {
-            let row_index = row.index();
-            let address = row_index * BYTES_PER_ROW;
-            row.col(|ui| {
+    render_table(ui, available_width, 2, config.code_font.size, total_rows, |row, column| {
+        let i = row.index();
+        let address = i * BYTES_PER_ROW;
+        row.col(|ui| {
+            if column == 0 {
                 if let Some(left_diffs) = &left_diffs {
-                    data_row_ui(ui, address, &left_diffs[row_index], config);
+                    data_row_ui(ui, address, &left_diffs[i], config);
                 }
-            });
-            row.col(|ui| {
+            } else if column == 1 {
                 if let Some(right_diffs) = &right_diffs {
-                    data_row_ui(ui, address, &right_diffs[row_index], config);
+                    data_row_ui(ui, address, &right_diffs[i], config);
                 }
-            });
+            }
         });
     });
     Some(())
 }
 
 pub fn data_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &Appearance) {
-    let (Some(result), Some(selected_symbol)) = (&state.build, &state.symbol_state.selected_symbol)
-    else {
+    let Some(result) = &state.build else {
         return;
     };
 
+    let left_ctx =
+        SectionDiffContext::new(result.first_obj.as_ref(), state.symbol_state.left_symbol.as_ref());
+    let right_ctx = SectionDiffContext::new(
+        result.second_obj.as_ref(),
+        state.symbol_state.right_symbol.as_ref(),
+    );
+
+    // If both sides are missing a symbol, switch to symbol diff view
+    if !right_ctx.map_or(false, |ctx| ctx.has_section())
+        && !left_ctx.map_or(false, |ctx| ctx.has_section())
+    {
+        state.current_view = View::SymbolDiff;
+        state.symbol_state.left_symbol = None;
+        state.symbol_state.right_symbol = None;
+        return;
+    }
+
     // Header
     let available_width = ui.available_width();
-    let column_width = available_width / 2.0;
-    ui.allocate_ui_with_layout(
-        Vec2 { x: available_width, y: 100.0 },
-        Layout::left_to_right(Align::Min),
-        |ui| {
-            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
-
+    render_header(ui, available_width, 2, |ui, column| {
+        if column == 0 {
             // Left column
-            ui.allocate_ui_with_layout(
-                Vec2 { x: column_width, y: 100.0 },
-                Layout::top_down(Align::Min),
-                |ui| {
-                    ui.set_width(column_width);
+            if ui.button("⏴ Back").clicked() {
+                state.current_view = View::SymbolDiff;
+            }
 
-                    if ui.button("⏴ Back").clicked() {
-                        state.current_view = View::SymbolDiff;
-                    }
-
-                    ui.scope(|ui| {
-                        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-                        ui.colored_label(appearance.highlight_color, &selected_symbol.symbol_name);
-                        ui.label("Diff target:");
-                    });
-                },
-            );
-
+            if let Some(section) =
+                left_ctx.and_then(|ctx| ctx.section_index.map(|i| &ctx.obj.sections[i]))
+            {
+                ui.label(
+                    RichText::new(section.name.clone())
+                        .font(appearance.code_font.clone())
+                        .color(appearance.highlight_color),
+                );
+            } else {
+                ui.label(
+                    RichText::new("Missing")
+                        .font(appearance.code_font.clone())
+                        .color(appearance.replace_color),
+                );
+            }
+        } else if column == 1 {
             // Right column
-            ui.allocate_ui_with_layout(
-                Vec2 { x: column_width, y: 100.0 },
-                Layout::top_down(Align::Min),
-                |ui| {
-                    ui.set_width(column_width);
+            ui.horizontal(|ui| {
+                if ui.add_enabled(!state.build_running, egui::Button::new("Build")).clicked() {
+                    state.queue_build = true;
+                }
+                ui.scope(|ui| {
+                    ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+                    if state.build_running {
+                        ui.colored_label(appearance.replace_color, "Building…");
+                    } else {
+                        ui.label("Last built:");
+                        let format = format_description::parse("[hour]:[minute]:[second]").unwrap();
+                        ui.label(
+                            result.time.to_offset(appearance.utc_offset).format(&format).unwrap(),
+                        );
+                    }
+                });
+            });
 
-                    ui.horizontal(|ui| {
-                        if ui
-                            .add_enabled(!state.build_running, egui::Button::new("Build"))
-                            .clicked()
-                        {
-                            state.queue_build = true;
-                        }
-                        ui.scope(|ui| {
-                            ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-                            if state.build_running {
-                                ui.colored_label(appearance.replace_color, "Building…");
-                            } else {
-                                ui.label("Last built:");
-                                let format =
-                                    format_description::parse("[hour]:[minute]:[second]").unwrap();
-                                ui.label(
-                                    result
-                                        .time
-                                        .to_offset(appearance.utc_offset)
-                                        .format(&format)
-                                        .unwrap(),
-                                );
-                            }
-                        });
-                    });
-
-                    ui.scope(|ui| {
-                        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-                        ui.label("");
-                        ui.label("Diff base:");
-                    });
-                },
-            );
-        },
-    );
-    ui.separator();
+            if let Some(section) =
+                right_ctx.and_then(|ctx| ctx.section_index.map(|i| &ctx.obj.sections[i]))
+            {
+                ui.label(
+                    RichText::new(section.name.clone())
+                        .font(appearance.code_font.clone())
+                        .color(appearance.highlight_color),
+                );
+            } else {
+                ui.label(
+                    RichText::new("Missing")
+                        .font(appearance.code_font.clone())
+                        .color(appearance.replace_color),
+                );
+            }
+        }
+    });
 
     // Table
-    ui.style_mut().interaction.selectable_labels = false;
-    let available_height = ui.available_height();
-    let table = TableBuilder::new(ui)
-        .striped(false)
-        .cell_layout(Layout::left_to_right(Align::Min))
-        .columns(Column::exact(column_width).clip(true), 2)
-        .resizable(false)
-        .auto_shrink([false, false])
-        .min_scrolled_height(available_height);
-    data_table_ui(
-        table,
-        result.first_obj.as_ref(),
-        result.second_obj.as_ref(),
-        selected_symbol,
-        appearance,
-    );
+    let id =
+        Id::new(state.symbol_state.left_symbol.as_ref().and_then(|s| s.section_name.as_deref()))
+            .with(state.symbol_state.right_symbol.as_ref().and_then(|s| s.section_name.as_deref()));
+    ui.push_id(id, |ui| {
+        data_table_ui(ui, available_width, left_ctx, right_ctx, appearance);
+    });
 }

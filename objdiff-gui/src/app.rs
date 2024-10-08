@@ -281,6 +281,7 @@ impl App {
                 if state.config.selected_obj.is_some() {
                     state.queue_build = true;
                 }
+                state.config.diff_obj_config.symbol_overrides.clear();
                 app.view_state.config_state.queue_check_update = state.config.auto_update_check;
                 app.state = Arc::new(RwLock::new(state));
             }
