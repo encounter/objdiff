@@ -152,26 +152,23 @@ fn symbols_by_section(
     arch: &dyn ObjArch,
     obj_file: &File<'_>,
     section: &ObjSection,
+    section_symbols: &[Symbol<'_, '_>],
     split_meta: Option<&SplitMeta>,
     name_counts: &mut HashMap<String, u32>,
 ) -> Result<Vec<ObjSymbol>> {
     let mut result = Vec::<ObjSymbol>::new();
-    for symbol in obj_file.symbols() {
+    for symbol in section_symbols {
         if symbol.kind() == SymbolKind::Section {
             continue;
         }
-        if let Some(index) = symbol.section().index() {
-            if index.0 == section.orig_index {
-                if symbol.is_local() && section.kind == ObjSectionKind::Code {
-                    // TODO strip local syms in diff?
-                    let name = symbol.name().context("Failed to process symbol name")?;
-                    if symbol.size() == 0 || name.starts_with("lbl_") {
-                        continue;
-                    }
-                }
-                result.push(to_obj_symbol(arch, obj_file, &symbol, 0, split_meta)?);
+        if symbol.is_local() && section.kind == ObjSectionKind::Code {
+            // TODO strip local syms in diff?
+            let name = symbol.name().context("Failed to process symbol name")?;
+            if symbol.size() == 0 || name.starts_with("lbl_") {
+                continue;
             }
         }
+        result.push(to_obj_symbol(arch, obj_file, symbol, 0, split_meta)?);
     }
     result.sort_by(|a, b| a.address.cmp(&b.address).then(a.size.cmp(&b.size)));
     let mut iter = result.iter_mut().peekable();
@@ -221,47 +218,71 @@ fn common_symbols(
         .collect::<Result<Vec<ObjSymbol>>>()
 }
 
+const LOW_PRIORITY_SYMBOLS: &[&str] =
+    &["__gnu_compiled_c", "__gnu_compiled_cplusplus", "gcc2_compiled."];
+
+fn best_symbol<'r, 'data, 'file>(
+    symbols: &'r [Symbol<'data, 'file>],
+    address: u64,
+) -> Option<&'r Symbol<'data, 'file>> {
+    let closest_symbol_index = match symbols.binary_search_by_key(&address, |s| s.address()) {
+        Ok(index) => Some(index),
+        Err(index) => index.checked_sub(1),
+    }?;
+    let mut best_symbol: Option<&'r Symbol<'data, 'file>> = None;
+    for symbol in symbols.iter().skip(closest_symbol_index) {
+        if symbol.address() > address {
+            break;
+        }
+        if symbol.kind() == SymbolKind::Section
+            || (symbol.size() > 0 && (symbol.address() + symbol.size()) <= address)
+        {
+            continue;
+        }
+        // TODO priority ranking with visibility, etc
+        if let Some(best) = best_symbol {
+            if LOW_PRIORITY_SYMBOLS.contains(&best.name().unwrap_or_default())
+                && !LOW_PRIORITY_SYMBOLS.contains(&symbol.name().unwrap_or_default())
+            {
+                best_symbol = Some(symbol);
+            }
+        } else {
+            best_symbol = Some(symbol);
+        }
+    }
+    best_symbol
+}
+
 fn find_section_symbol(
     arch: &dyn ObjArch,
     obj_file: &File<'_>,
+    section_symbols: &[Symbol<'_, '_>],
     target: &Symbol<'_, '_>,
     address: u64,
     split_meta: Option<&SplitMeta>,
 ) -> Result<ObjSymbol> {
+    if let Some(symbol) = best_symbol(section_symbols, address) {
+        return to_obj_symbol(
+            arch,
+            obj_file,
+            symbol,
+            address as i64 - symbol.address() as i64,
+            split_meta,
+        );
+    }
+    // Fallback to section symbol
     let section_index =
         target.section_index().ok_or_else(|| anyhow::Error::msg("Unknown section index"))?;
     let section = obj_file.section_by_index(section_index)?;
-    let mut closest_symbol: Option<Symbol<'_, '_>> = None;
-    for symbol in obj_file.symbols() {
-        if !matches!(symbol.section_index(), Some(idx) if idx == section_index) {
-            continue;
-        }
-        if symbol.kind() == SymbolKind::Section || symbol.address() != address {
-            if symbol.address() < address
-                && symbol.size() != 0
-                && (closest_symbol.is_none()
-                    || matches!(&closest_symbol, Some(s) if s.address() <= symbol.address()))
-            {
-                closest_symbol = Some(symbol);
-            }
-            continue;
-        }
-        return to_obj_symbol(arch, obj_file, &symbol, 0, split_meta);
-    }
-    let (name, offset) = closest_symbol
-        .and_then(|s| s.name().map(|n| (n, s.address())).ok())
-        .or_else(|| section.name().map(|n| (n, section.address())).ok())
-        .unwrap_or(("<unknown>", 0));
-    let offset_addr = address - offset;
     Ok(ObjSymbol {
-        name: name.to_string(),
+        name: section.name()?.to_string(),
         demangled_name: None,
-        address: offset,
-        section_address: address - section.address(),
+        address: section.address(),
+        section_address: 0,
         size: 0,
         size_known: false,
         flags: Default::default(),
-        addend: offset_addr as i64,
+        addend: address as i64 - section.address() as i64,
         virtual_address: None,
         original_index: None,
         bytes: Vec::new(),
@@ -272,6 +293,7 @@ fn relocations_by_section(
     arch: &dyn ObjArch,
     obj_file: &File<'_>,
     section: &ObjSection,
+    section_symbols: &[Symbol<'_, '_>],
     split_meta: Option<&SplitMeta>,
 ) -> Result<Vec<ObjReloc>> {
     let obj_section = obj_file.section_by_index(SectionIndex(section.orig_index))?;
@@ -315,7 +337,14 @@ fn relocations_by_section(
             }
             SymbolKind::Section => {
                 ensure!(addend >= 0, "Negative addend in reloc: {addend}");
-                find_section_symbol(arch, obj_file, &symbol, addend as u64, split_meta)
+                find_section_symbol(
+                    arch,
+                    obj_file,
+                    section_symbols,
+                    &symbol,
+                    addend as u64,
+                    split_meta,
+                )
             }
             kind => Err(anyhow!("Unhandled relocation symbol type {kind:?}")),
         }?;
@@ -650,15 +679,26 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<ObjInfo> {
     let mut sections = filter_sections(&obj_file, split_meta.as_ref())?;
     let mut name_counts: HashMap<String, u32> = HashMap::new();
     for section in &mut sections {
+        let mut symbols = obj_file
+            .symbols()
+            .filter(|s| s.section_index() == Some(SectionIndex(section.orig_index)))
+            .collect::<Vec<_>>();
+        symbols.sort_by_key(|s| s.address());
         section.symbols = symbols_by_section(
             arch.as_ref(),
             &obj_file,
             section,
+            &symbols,
             split_meta.as_ref(),
             &mut name_counts,
         )?;
-        section.relocations =
-            relocations_by_section(arch.as_ref(), &obj_file, section, split_meta.as_ref())?;
+        section.relocations = relocations_by_section(
+            arch.as_ref(),
+            &obj_file,
+            section,
+            &symbols,
+            split_meta.as_ref(),
+        )?;
     }
     if config.combine_data_sections {
         combine_data_sections(&mut sections)?;
