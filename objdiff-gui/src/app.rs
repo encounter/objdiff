@@ -46,7 +46,6 @@ use crate::{
     },
 };
 
-#[derive(Default)]
 pub struct ViewState {
     pub jobs: JobQueue,
     pub config_state: ConfigViewState,
@@ -63,6 +62,30 @@ pub struct ViewState {
     pub show_debug: bool,
     pub show_graphics: bool,
     pub show_jobs: bool,
+    pub show_side_panel: bool,
+}
+
+impl Default for ViewState {
+    fn default() -> Self {
+        Self {
+            jobs: Default::default(),
+            config_state: Default::default(),
+            demangle_state: Default::default(),
+            rlwinm_decode_state: Default::default(),
+            diff_state: Default::default(),
+            graphics_state: Default::default(),
+            frame_history: Default::default(),
+            show_appearance_config: false,
+            show_demangle: false,
+            show_rlwinm_decode: false,
+            show_project_config: false,
+            show_arch_config: false,
+            show_debug: false,
+            show_graphics: false,
+            show_jobs: false,
+            show_side_panel: true,
+        }
+    }
 }
 
 /// The configuration for a single object file.
@@ -485,12 +508,26 @@ impl eframe::App for App {
             show_debug,
             show_graphics,
             show_jobs,
+            show_side_panel,
         } = view_state;
 
         frame_history.on_new_frame(ctx.input(|i| i.time), frame.info().cpu_usage);
 
+        let side_panel_available = diff_state.current_view == View::SymbolDiff;
+
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             egui::menu::bar(ui, |ui| {
+                if ui
+                    .add_enabled(
+                        side_panel_available,
+                        egui::Button::new(if *show_side_panel { "⏴" } else { "⏵" }),
+                    )
+                    .on_hover_text("Toggle side panel")
+                    .clicked()
+                {
+                    *show_side_panel = !*show_side_panel;
+                }
+                ui.separator();
                 ui.menu_button("File", |ui| {
                     #[cfg(debug_assertions)]
                     if ui.button("Debug…").clicked() {
@@ -607,30 +644,26 @@ impl eframe::App for App {
             });
         });
 
-        let build_success = matches!(&diff_state.build, Some(b) if b.first_status.success && b.second_status.success);
-        if diff_state.current_view == View::FunctionDiff && build_success {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                function_diff_ui(ui, diff_state, appearance);
-            });
-        } else if diff_state.current_view == View::DataDiff && build_success {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                data_diff_ui(ui, diff_state, appearance);
-            });
-        } else if diff_state.current_view == View::ExtabDiff && build_success {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                extab_diff_ui(ui, diff_state, appearance);
-            });
-        } else {
-            egui::SidePanel::left("side_panel").show(ctx, |ui| {
+        if side_panel_available {
+            egui::SidePanel::left("side_panel").show_animated(ctx, *show_side_panel, |ui| {
                 egui::ScrollArea::both().show(ui, |ui| {
                     config_ui(ui, state, show_project_config, config_state, appearance);
                 });
             });
-
-            egui::CentralPanel::default().show(ctx, |ui| {
-                symbol_diff_ui(ui, diff_state, appearance);
-            });
         }
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            let build_success = matches!(&diff_state.build, Some(b) if b.first_status.success && b.second_status.success);
+            if diff_state.current_view == View::FunctionDiff && build_success {
+                function_diff_ui(ui, diff_state, appearance);
+            } else if diff_state.current_view == View::DataDiff && build_success {
+                data_diff_ui(ui, diff_state, appearance);
+            } else if diff_state.current_view == View::ExtabDiff && build_success {
+                extab_diff_ui(ui, diff_state, appearance);
+            } else {
+                symbol_diff_ui(ui, diff_state, appearance);
+            }
+        });
 
         project_window(ctx, state, show_project_config, config_state, appearance);
         appearance_window(ctx, show_appearance_config, appearance);
