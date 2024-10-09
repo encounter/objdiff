@@ -10,15 +10,14 @@ use time::format_description;
 use crate::views::{
     appearance::Appearance,
     column_layout::{render_header, render_table},
-    symbol_diff::{DiffViewState, SymbolRefByName, View},
+    symbol_diff::{DiffViewAction, DiffViewNavigation, DiffViewState},
     write_text,
 };
 
 const BYTES_PER_ROW: usize = 16;
 
-fn find_section(obj: &ObjInfo, selected_symbol: &SymbolRefByName) -> Option<usize> {
-    let section_name = selected_symbol.section_name.as_ref()?;
-    obj.sections.iter().position(|section| &section.name == section_name)
+fn find_section(obj: &ObjInfo, section_name: &str) -> Option<usize> {
+    obj.sections.iter().position(|section| section.name == section_name)
 }
 
 fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], appearance: &Appearance) {
@@ -140,15 +139,11 @@ struct SectionDiffContext<'a> {
 }
 
 impl<'a> SectionDiffContext<'a> {
-    pub fn new(
-        obj: Option<&'a (ObjInfo, ObjDiff)>,
-        selected_symbol: Option<&SymbolRefByName>,
-    ) -> Option<Self> {
+    pub fn new(obj: Option<&'a (ObjInfo, ObjDiff)>, section_name: Option<&str>) -> Option<Self> {
         obj.map(|(obj, diff)| Self {
             obj,
             diff,
-            section_index: selected_symbol
-                .and_then(|selected_symbol| find_section(obj, selected_symbol)),
+            section_index: section_name.and_then(|section_name| find_section(obj, section_name)),
         })
     }
 
@@ -199,26 +194,29 @@ fn data_table_ui(
     Some(())
 }
 
-pub fn data_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &Appearance) {
+#[must_use]
+pub fn data_diff_ui(
+    ui: &mut egui::Ui,
+    state: &DiffViewState,
+    appearance: &Appearance,
+) -> Option<DiffViewAction> {
+    let mut ret = None;
     let Some(result) = &state.build else {
-        return;
+        return ret;
     };
 
-    let left_ctx =
-        SectionDiffContext::new(result.first_obj.as_ref(), state.symbol_state.left_symbol.as_ref());
-    let right_ctx = SectionDiffContext::new(
-        result.second_obj.as_ref(),
-        state.symbol_state.right_symbol.as_ref(),
-    );
+    let section_name =
+        state.symbol_state.left_symbol.as_ref().and_then(|s| s.section_name.as_deref()).or_else(
+            || state.symbol_state.right_symbol.as_ref().and_then(|s| s.section_name.as_deref()),
+        );
+    let left_ctx = SectionDiffContext::new(result.first_obj.as_ref(), section_name);
+    let right_ctx = SectionDiffContext::new(result.second_obj.as_ref(), section_name);
 
     // If both sides are missing a symbol, switch to symbol diff view
     if !right_ctx.map_or(false, |ctx| ctx.has_section())
         && !left_ctx.map_or(false, |ctx| ctx.has_section())
     {
-        state.current_view = View::SymbolDiff;
-        state.symbol_state.left_symbol = None;
-        state.symbol_state.right_symbol = None;
-        return;
+        return Some(DiffViewAction::Navigate(DiffViewNavigation::symbol_diff()));
     }
 
     // Header
@@ -227,7 +225,7 @@ pub fn data_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &A
         if column == 0 {
             // Left column
             if ui.button("⏴ Back").clicked() {
-                state.current_view = View::SymbolDiff;
+                ret = Some(DiffViewAction::Navigate(DiffViewNavigation::symbol_diff()));
             }
 
             if let Some(section) =
@@ -249,7 +247,7 @@ pub fn data_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &A
             // Right column
             ui.horizontal(|ui| {
                 if ui.add_enabled(!state.build_running, egui::Button::new("Build")).clicked() {
-                    state.queue_build = true;
+                    ret = Some(DiffViewAction::Build);
                 }
                 ui.scope(|ui| {
                     ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
@@ -290,4 +288,5 @@ pub fn data_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &A
     ui.push_id(id, |ui| {
         data_table_ui(ui, available_width, left_ctx, right_ctx, appearance);
     });
+    ret
 }

@@ -1,4 +1,4 @@
-use std::mem::take;
+use std::{collections::BTreeMap, mem::take};
 
 use egui::{
     text::LayoutJob, CollapsingHeader, Color32, Id, OpenUrl, ScrollArea, SelectableLabel, TextEdit,
@@ -6,10 +6,8 @@ use egui::{
 };
 use objdiff_core::{
     arch::ObjArch,
-    diff::{ObjDiff, ObjSymbolDiff},
-    obj::{
-        ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags, ObjSymbolKind, SymbolRef,
-    },
+    diff::{display::HighlightKind, ObjDiff, ObjSymbolDiff},
+    obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags, SymbolRef},
 };
 use regex::{Regex, RegexBuilder};
 
@@ -50,15 +48,49 @@ pub enum View {
     ExtabDiff,
 }
 
+#[derive(Debug, Clone)]
+pub enum DiffViewAction {
+    /// Queue a rebuild of the current object(s)
+    Build,
+    /// Navigate to a new diff view
+    Navigate(DiffViewNavigation),
+    /// Set the highlighted symbols in the symbols view
+    SetSymbolHighlight(Option<SymbolRef>, Option<SymbolRef>),
+    /// Set the symbols view search filter
+    SetSearch(String),
+    /// Submit the current function to decomp.me
+    CreateScratch(String),
+    /// Open the source path of the current object
+    OpenSourcePath,
+    /// Set the highlight for a diff column
+    SetDiffHighlight(usize, HighlightKind),
+    /// Clear the highlight for all diff columns
+    ClearDiffHighlight,
+    /// Start selecting a left symbol for mapping.
+    /// The symbol reference is the right symbol to map to.
+    SelectingLeft(SymbolRefByName),
+    /// Start selecting a right symbol for mapping.
+    /// The symbol reference is the left symbol to map to.
+    SelectingRight(SymbolRefByName),
+    /// Set a symbol mapping.
+    SetMapping(View, SymbolRefByName, SymbolRefByName),
+    /// Set the show_mapped_symbols flag
+    SetShowMappedSymbols(bool),
+}
+
 #[derive(Debug, Clone, Default)]
-pub struct SymbolUiResult {
+pub struct DiffViewNavigation {
     pub view: Option<View>,
     pub left_symbol: Option<SymbolRefByName>,
     pub right_symbol: Option<SymbolRefByName>,
 }
 
-impl SymbolUiResult {
-    pub fn function_diff(
+impl DiffViewNavigation {
+    pub fn symbol_diff() -> Self {
+        Self { view: Some(View::SymbolDiff), left_symbol: None, right_symbol: None }
+    }
+
+    pub fn with_symbols(
         view: View,
         other_ctx: Option<SymbolDiffContext<'_>>,
         symbol: &ObjSymbol,
@@ -67,7 +99,7 @@ impl SymbolUiResult {
         column: usize,
     ) -> Self {
         let symbol1 = Some(SymbolRefByName::new(symbol, Some(section)));
-        let symbol2 = symbol_diff.diff_symbol.and_then(|symbol_ref| {
+        let symbol2 = symbol_diff.target_symbol.and_then(|symbol_ref| {
             other_ctx.map(|ctx| {
                 let (section, symbol) = ctx.obj.section_symbol(symbol_ref);
                 SymbolRefByName::new(symbol, section)
@@ -79,25 +111,6 @@ impl SymbolUiResult {
             _ => unreachable!("Invalid column index"),
         }
     }
-
-    pub fn data_diff(section: &ObjSection) -> Self {
-        let symbol = SymbolRefByName {
-            symbol_name: section.name.clone(),
-            section_name: Some(section.name.clone()),
-        };
-        Self {
-            view: Some(View::DataDiff),
-            left_symbol: Some(symbol.clone()),
-            right_symbol: Some(symbol),
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum SymbolOverrideAction {
-    ClearLeft(SymbolRefByName, SymbolRefByName),
-    ClearRight(SymbolRefByName, SymbolRefByName),
-    Set(SymbolRefByName, SymbolRefByName),
 }
 
 #[derive(Default)]
@@ -109,15 +122,11 @@ pub struct DiffViewState {
     pub function_state: FunctionViewState,
     pub search: String,
     pub search_regex: Option<Regex>,
-    pub queue_build: bool,
     pub build_running: bool,
     pub scratch_available: bool,
-    pub queue_scratch: bool,
     pub scratch_running: bool,
     pub source_path_available: bool,
-    pub queue_open_source_path: bool,
-    pub match_action: Option<SymbolOverrideAction>,
-    pub post_build_nav: Option<SymbolUiResult>,
+    pub post_build_nav: Option<DiffViewNavigation>,
     pub object_name: String,
 }
 
@@ -129,6 +138,7 @@ pub struct SymbolViewState {
     pub reverse_fn_order: bool,
     pub disable_reverse_fn_order: bool,
     pub show_hidden_symbols: bool,
+    pub show_mapped_symbols: bool,
 }
 
 impl DiffViewState {
@@ -136,6 +146,8 @@ impl DiffViewState {
         jobs.results.retain_mut(|result| match result {
             JobResult::ObjDiff(result) => {
                 self.build = take(result);
+
+                // TODO: where should this go?
                 if let Some(result) = self.post_build_nav.take() {
                     if let Some(view) = result.view {
                         self.current_view = view;
@@ -143,6 +155,7 @@ impl DiffViewState {
                     self.symbol_state.left_symbol = result.left_symbol;
                     self.symbol_state.right_symbol = result.right_symbol;
                 }
+
                 false
             }
             JobResult::CreateScratch(result) => {
@@ -171,57 +184,98 @@ impl DiffViewState {
         }
     }
 
-    pub fn post_update(&mut self, ctx: &egui::Context, jobs: &mut JobQueue, state: &AppStateRef) {
+    pub fn post_update(
+        &mut self,
+        action: Option<DiffViewAction>,
+        ctx: &egui::Context,
+        jobs: &mut JobQueue,
+        state: &AppStateRef,
+    ) {
         if let Some(result) = take(&mut self.scratch) {
             ctx.output_mut(|o| o.open_url = Some(OpenUrl::new_tab(result.scratch_url)));
         }
 
-        if self.queue_build && !jobs.is_running(Job::ObjDiff) {
-            self.queue_build = false;
-            if let Ok(mut state) = state.write() {
-                match self.match_action.take() {
-                    Some(SymbolOverrideAction::ClearLeft(left_ref, right_ref)) => {
-                        let symbol_overrides = &mut state.config.diff_obj_config.symbol_overrides;
-                        symbol_overrides.remove_left(&left_ref.symbol_name, &right_ref.symbol_name);
-                    }
-                    Some(SymbolOverrideAction::ClearRight(left_ref, right_ref)) => {
-                        let symbol_overrides = &mut state.config.diff_obj_config.symbol_overrides;
-                        symbol_overrides
-                            .remove_right(&left_ref.symbol_name, &right_ref.symbol_name);
-                    }
-                    Some(SymbolOverrideAction::Set(left_ref, right_ref)) => {
-                        let symbol_overrides = &mut state.config.diff_obj_config.symbol_overrides;
-                        symbol_overrides.set(left_ref.symbol_name, right_ref.symbol_name);
-                    }
-                    None => {}
-                }
-                state.queue_build = true;
-            }
-        }
-
-        if self.queue_scratch {
-            self.queue_scratch = false;
-            if let Some(function_name) =
-                self.symbol_state.left_symbol.as_ref().map(|sym| sym.symbol_name.clone())
-            {
-                if let Ok(state) = state.read() {
-                    match CreateScratchConfig::from_config(&state.config, function_name) {
-                        Ok(config) => {
-                            jobs.push_once(Job::CreateScratch, || {
-                                start_create_scratch(ctx, config)
-                            });
-                        }
-                        Err(err) => {
-                            log::error!("Failed to create scratch config: {err}");
-                        }
-                    }
+        let Some(action) = action else {
+            return;
+        };
+        match action {
+            DiffViewAction::Build => {
+                if let Ok(mut state) = state.write() {
+                    state.queue_build = true;
                 }
             }
-        }
-
-        if self.queue_open_source_path {
-            self.queue_open_source_path = false;
-            if let Ok(state) = state.read() {
+            DiffViewAction::Navigate(nav) => {
+                if self.post_build_nav.is_some() {
+                    // Ignore action if we're already navigating
+                    return;
+                }
+                self.symbol_state.highlighted_symbol = (None, None);
+                let Ok(mut state) = state.write() else {
+                    return;
+                };
+                if (nav.left_symbol.is_some() && nav.right_symbol.is_some())
+                    || (nav.left_symbol.is_none() && nav.right_symbol.is_none())
+                    || nav.view != Some(View::FunctionDiff)
+                {
+                    // Regular navigation
+                    if state.is_selecting_symbol() {
+                        // Cancel selection and reload
+                        state.clear_selection();
+                        self.post_build_nav = Some(nav);
+                    } else {
+                        // Navigate immediately
+                        if let Some(view) = nav.view {
+                            self.current_view = view;
+                        }
+                        self.symbol_state.left_symbol = nav.left_symbol;
+                        self.symbol_state.right_symbol = nav.right_symbol;
+                    }
+                } else {
+                    // Enter selection mode
+                    match (&nav.left_symbol, &nav.right_symbol) {
+                        (Some(left_ref), None) => {
+                            state.set_selecting_right(&left_ref.symbol_name);
+                        }
+                        (None, Some(right_ref)) => {
+                            state.set_selecting_left(&right_ref.symbol_name);
+                        }
+                        (Some(_), Some(_)) => unreachable!(),
+                        (None, None) => unreachable!(),
+                    }
+                    self.post_build_nav = Some(nav);
+                }
+            }
+            DiffViewAction::SetSymbolHighlight(left, right) => {
+                self.symbol_state.highlighted_symbol = (left, right);
+            }
+            DiffViewAction::SetSearch(search) => {
+                self.search_regex = if search.is_empty() {
+                    None
+                } else if let Ok(regex) = RegexBuilder::new(&search).case_insensitive(true).build()
+                {
+                    Some(regex)
+                } else {
+                    None
+                };
+                self.search = search;
+            }
+            DiffViewAction::CreateScratch(function_name) => {
+                let Ok(state) = state.read() else {
+                    return;
+                };
+                match CreateScratchConfig::from_config(&state.config, function_name) {
+                    Ok(config) => {
+                        jobs.push_once(Job::CreateScratch, || start_create_scratch(ctx, config));
+                    }
+                    Err(err) => {
+                        log::error!("Failed to create scratch config: {err}");
+                    }
+                }
+            }
+            DiffViewAction::OpenSourcePath => {
+                let Ok(state) = state.read() else {
+                    return;
+                };
                 if let (Some(project_dir), Some(source_path)) = (
                     &state.config.project_dir,
                     state.config.selected_obj.as_ref().and_then(|obj| obj.source_path.as_ref()),
@@ -232,6 +286,67 @@ impl DiffViewState {
                         log::error!("Failed to open source file: {err}");
                     });
                 }
+            }
+            DiffViewAction::SetDiffHighlight(column, kind) => {
+                self.function_state.set_highlight(column, kind);
+            }
+            DiffViewAction::ClearDiffHighlight => {
+                self.function_state.clear_highlight();
+            }
+            DiffViewAction::SelectingLeft(right_ref) => {
+                if self.post_build_nav.is_some() {
+                    // Ignore action if we're already navigating
+                    return;
+                }
+                let Ok(mut state) = state.write() else {
+                    return;
+                };
+                state.set_selecting_left(&right_ref.symbol_name);
+                self.post_build_nav = Some(DiffViewNavigation {
+                    view: Some(View::FunctionDiff),
+                    left_symbol: None,
+                    right_symbol: Some(right_ref),
+                });
+            }
+            DiffViewAction::SelectingRight(left_ref) => {
+                if self.post_build_nav.is_some() {
+                    // Ignore action if we're already navigating
+                    return;
+                }
+                let Ok(mut state) = state.write() else {
+                    return;
+                };
+                state.set_selecting_right(&left_ref.symbol_name);
+                self.post_build_nav = Some(DiffViewNavigation {
+                    view: Some(View::FunctionDiff),
+                    left_symbol: Some(left_ref),
+                    right_symbol: None,
+                });
+            }
+            DiffViewAction::SetMapping(view, left_ref, right_ref) => {
+                if self.post_build_nav.is_some() {
+                    // Ignore action if we're already navigating
+                    return;
+                }
+                let Ok(mut state) = state.write() else {
+                    return;
+                };
+                state.set_symbol_mapping(
+                    left_ref.symbol_name.clone(),
+                    right_ref.symbol_name.clone(),
+                );
+                if view == View::SymbolDiff {
+                    self.post_build_nav = Some(DiffViewNavigation::symbol_diff());
+                } else {
+                    self.post_build_nav = Some(DiffViewNavigation {
+                        view: Some(view),
+                        left_symbol: Some(left_ref),
+                        right_symbol: Some(right_ref),
+                    });
+                }
+            }
+            DiffViewAction::SetShowMappedSymbols(value) => {
+                self.symbol_state.show_mapped_symbols = value;
             }
         }
     }
@@ -255,7 +370,7 @@ fn symbol_context_menu_ui(
     symbol_diff: &ObjSymbolDiff,
     section: Option<&ObjSection>,
     column: usize,
-) -> Option<SymbolUiResult> {
+) -> Option<DiffViewNavigation> {
     let mut ret = None;
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
@@ -281,7 +396,7 @@ fn symbol_context_menu_ui(
             let has_extab =
                 ctx.obj.arch.ppc().and_then(|ppc| ppc.extab_for_symbol(symbol)).is_some();
             if has_extab && ui.button("Decode exception table").clicked() {
-                ret = Some(SymbolUiResult::function_diff(
+                ret = Some(DiffViewNavigation::with_symbols(
                     View::ExtabDiff,
                     other_ctx,
                     symbol,
@@ -289,6 +404,24 @@ fn symbol_context_menu_ui(
                     symbol_diff,
                     column,
                 ));
+                ui.close_menu();
+            }
+
+            if ui.button("Map symbol").clicked() {
+                let symbol_ref = SymbolRefByName::new(symbol, Some(section));
+                if column == 0 {
+                    ret = Some(DiffViewNavigation {
+                        view: Some(View::FunctionDiff),
+                        left_symbol: Some(symbol_ref),
+                        right_symbol: None,
+                    });
+                } else {
+                    ret = Some(DiffViewNavigation {
+                        view: Some(View::FunctionDiff),
+                        left_symbol: None,
+                        right_symbol: Some(symbol_ref),
+                    });
+                }
                 ui.close_menu();
             }
         }
@@ -336,14 +469,14 @@ fn symbol_ui(
     symbol: &ObjSymbol,
     symbol_diff: &ObjSymbolDiff,
     section: Option<&ObjSection>,
-    state: &mut SymbolViewState,
+    state: &SymbolViewState,
     appearance: &Appearance,
     column: usize,
-) -> Option<SymbolUiResult> {
-    if symbol.flags.0.contains(ObjSymbolFlags::Hidden) && !state.show_hidden_symbols {
-        return None;
-    }
+) -> Option<DiffViewAction> {
     let mut ret = None;
+    if symbol.flags.0.contains(ObjSymbolFlags::Hidden) && !state.show_hidden_symbols {
+        return ret;
+    }
     let mut job = LayoutJob::default();
     let name: &str =
         if let Some(demangled) = &symbol.demangled_name { demangled } else { &symbol.name };
@@ -396,50 +529,67 @@ fn symbol_ui(
         if let Some(result) =
             symbol_context_menu_ui(ui, ctx, other_ctx, symbol, symbol_diff, section, column)
         {
-            ret = Some(result);
+            ret = Some(DiffViewAction::Navigate(result));
         }
     });
     if response.clicked() {
         if let Some(section) = section {
             match section.kind {
                 ObjSectionKind::Code => {
-                    ret = Some(SymbolUiResult::function_diff(
+                    ret = Some(DiffViewAction::Navigate(DiffViewNavigation::with_symbols(
                         View::FunctionDiff,
                         other_ctx,
                         symbol,
                         section,
                         symbol_diff,
                         column,
-                    ));
+                    )));
                 }
                 ObjSectionKind::Data => {
-                    ret = Some(SymbolUiResult::data_diff(section));
+                    ret = Some(DiffViewAction::Navigate(DiffViewNavigation::with_symbols(
+                        View::DataDiff,
+                        other_ctx,
+                        symbol,
+                        section,
+                        symbol_diff,
+                        column,
+                    )));
                 }
                 ObjSectionKind::Bss => {}
             }
         }
     } else if response.hovered() {
-        state.highlighted_symbol = if let Some(diff_symbol) = symbol_diff.diff_symbol {
+        ret = Some(if let Some(target_symbol) = symbol_diff.target_symbol {
             if column == 0 {
-                (Some(symbol_diff.symbol_ref), Some(diff_symbol))
+                DiffViewAction::SetSymbolHighlight(
+                    Some(symbol_diff.symbol_ref),
+                    Some(target_symbol),
+                )
             } else {
-                (Some(diff_symbol), Some(symbol_diff.symbol_ref))
+                DiffViewAction::SetSymbolHighlight(
+                    Some(target_symbol),
+                    Some(symbol_diff.symbol_ref),
+                )
             }
         } else {
-            (None, None)
-        };
+            DiffViewAction::SetSymbolHighlight(None, None)
+        });
     }
     ret
 }
 
-fn symbol_matches_filter(symbol: &ObjSymbol, filter: SymbolFilter<'_>) -> bool {
+fn symbol_matches_filter(
+    symbol: &ObjSymbol,
+    diff: &ObjSymbolDiff,
+    filter: SymbolFilter<'_>,
+) -> bool {
     match filter {
         SymbolFilter::None => true,
         SymbolFilter::Search(regex) => {
             regex.is_match(&symbol.name)
                 || symbol.demangled_name.as_ref().map(|s| regex.is_match(s)).unwrap_or(false)
         }
-        SymbolFilter::Kind(kind) => symbol.kind == kind,
+        SymbolFilter::Mapping(symbol_ref) => diff.target_symbol == Some(symbol_ref),
     }
 }
 
@@ -447,7 +597,7 @@ fn symbol_matches_filter(symbol: &ObjSymbol, filter: SymbolFilter<'_>) -> bool {
 pub enum SymbolFilter<'a> {
     None,
     Search(&'a Regex),
-    Kind(ObjSymbolKind),
+    Mapping(SymbolRef),
 }
 
 #[must_use]
@@ -455,32 +605,59 @@ pub fn symbol_list_ui(
     ui: &mut Ui,
     ctx: SymbolDiffContext<'_>,
     other_ctx: Option<SymbolDiffContext<'_>>,
-    state: &mut SymbolViewState,
+    state: &SymbolViewState,
     filter: SymbolFilter<'_>,
     appearance: &Appearance,
     column: usize,
-) -> Option<SymbolUiResult> {
+) -> Option<DiffViewAction> {
     let mut ret = None;
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
+        let mut mapping = BTreeMap::new();
+        if let SymbolFilter::Mapping(target_ref) = filter {
+            let mut show_mapped_symbols = state.show_mapped_symbols;
+            if ui.checkbox(&mut show_mapped_symbols, "Show mapped symbols").changed() {
+                ret = Some(DiffViewAction::SetShowMappedSymbols(show_mapped_symbols));
+            }
+            for mapping_diff in &ctx.diff.mapping_symbols {
+                if mapping_diff.target_symbol == Some(target_ref) {
+                    if !show_mapped_symbols {
+                        let symbol_diff = ctx.diff.symbol_diff(mapping_diff.symbol_ref);
+                        if symbol_diff.target_symbol.is_some() {
+                            continue;
+                        }
+                    }
+                    mapping.insert(mapping_diff.symbol_ref, mapping_diff);
+                }
+            }
+        } else {
+            for (symbol, diff) in ctx.obj.common.iter().zip(&ctx.diff.common) {
+                if !symbol_matches_filter(symbol, diff, filter) {
+                    continue;
+                }
+                mapping.insert(diff.symbol_ref, diff);
+            }
+            for (section, section_diff) in ctx.obj.sections.iter().zip(&ctx.diff.sections) {
+                for (symbol, symbol_diff) in section.symbols.iter().zip(&section_diff.symbols) {
+                    if !symbol_matches_filter(symbol, symbol_diff, filter) {
+                        continue;
+                    }
+                    mapping.insert(symbol_diff.symbol_ref, symbol_diff);
+                }
+            }
+        }
+
         ui.scope(|ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
             // Skip sections with all symbols filtered out
-            if !ctx.obj.common.is_empty()
-                && (matches!(filter, SymbolFilter::None)
-                    || ctx
-                        .obj
-                        .common
-                        .iter()
-                        .zip(&ctx.diff.common)
-                        .any(|(symbol, _)| symbol_matches_filter(symbol, filter)))
-            {
+            if mapping.keys().any(|symbol_ref| symbol_ref.section_idx == usize::MAX) {
                 CollapsingHeader::new(".comm").default_open(true).show(ui, |ui| {
-                    for (symbol, symbol_diff) in ctx.obj.common.iter().zip(&ctx.diff.common) {
-                        if !symbol_matches_filter(symbol, filter) {
-                            continue;
-                        }
+                    for (symbol_ref, symbol_diff) in mapping
+                        .iter()
+                        .filter(|(symbol_ref, _)| symbol_ref.section_idx == usize::MAX)
+                    {
+                        let symbol = ctx.obj.section_symbol(*symbol_ref).1;
                         if let Some(result) = symbol_ui(
                             ui,
                             ctx,
@@ -498,15 +675,11 @@ pub fn symbol_list_ui(
                 });
             }
 
-            for (section, section_diff) in ctx.obj.sections.iter().zip(&ctx.diff.sections) {
+            for ((section_index, section), section_diff) in
+                ctx.obj.sections.iter().enumerate().zip(&ctx.diff.sections)
+            {
                 // Skip sections with all symbols filtered out
-                if !matches!(filter, SymbolFilter::None)
-                    && !section
-                        .symbols
-                        .iter()
-                        .zip(&section_diff.symbols)
-                        .any(|(symbol, _)| symbol_matches_filter(symbol, filter))
-                {
+                if !mapping.keys().any(|symbol_ref| symbol_ref.section_idx == section_index) {
                     continue;
                 }
                 let mut header = LayoutJob::simple_singleline(
@@ -539,12 +712,12 @@ pub fn symbol_list_ui(
                     .default_open(true)
                     .show(ui, |ui| {
                         if section.kind == ObjSectionKind::Code && state.reverse_fn_order {
-                            for (symbol, symbol_diff) in
-                                section.symbols.iter().zip(&section_diff.symbols).rev()
+                            for (symbol, symbol_diff) in mapping
+                                .iter()
+                                .filter(|(symbol_ref, _)| symbol_ref.section_idx == section_index)
+                                .rev()
                             {
-                                if !symbol_matches_filter(symbol, filter) {
-                                    continue;
-                                }
+                                let symbol = ctx.obj.section_symbol(*symbol).1;
                                 if let Some(result) = symbol_ui(
                                     ui,
                                     ctx,
@@ -560,12 +733,11 @@ pub fn symbol_list_ui(
                                 }
                             }
                         } else {
-                            for (symbol, symbol_diff) in
-                                section.symbols.iter().zip(&section_diff.symbols)
+                            for (symbol, symbol_diff) in mapping
+                                .iter()
+                                .filter(|(symbol_ref, _)| symbol_ref.section_idx == section_index)
                             {
-                                if !symbol_matches_filter(symbol, filter) {
-                                    continue;
-                                }
+                                let symbol = ctx.obj.section_symbol(*symbol).1;
                                 if let Some(result) = symbol_ui(
                                     ui,
                                     ctx,
@@ -632,10 +804,15 @@ pub struct SymbolDiffContext<'a> {
     pub diff: &'a ObjDiff,
 }
 
-pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appearance) {
-    let DiffViewState { build, current_view, symbol_state, search, search_regex, .. } = state;
-    let Some(result) = build else {
-        return;
+#[must_use]
+pub fn symbol_diff_ui(
+    ui: &mut Ui,
+    state: &mut DiffViewState,
+    appearance: &Appearance,
+) -> Option<DiffViewAction> {
+    let mut ret = None;
+    let Some(result) = &state.build else {
+        return ret;
     };
 
     // Header
@@ -658,14 +835,9 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                 }
             });
 
-            if TextEdit::singleline(search).hint_text("Filter symbols").ui(ui).changed() {
-                if search.is_empty() {
-                    *search_regex = None;
-                } else if let Ok(regex) = RegexBuilder::new(search).case_insensitive(true).build() {
-                    *search_regex = Some(regex);
-                } else {
-                    *search_regex = None;
-                }
+            let mut search = state.search.clone();
+            if TextEdit::singleline(&mut search).hint_text("Filter symbols").ui(ui).changed() {
+                ret = Some(DiffViewAction::SetSearch(search));
             }
         } else if column == 1 {
             // Right column
@@ -681,7 +853,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                     .on_disabled_hover_text("Source file metadata missing")
                     .clicked()
                 {
-                    state.queue_open_source_path = true;
+                    ret = Some(DiffViewAction::OpenSourcePath);
                 }
             });
 
@@ -699,17 +871,16 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
             });
 
             if ui.add_enabled(!state.build_running, egui::Button::new("Build")).clicked() {
-                state.queue_build = true;
+                ret = Some(DiffViewAction::Build);
             }
         }
     });
 
     // Table
-    let filter = match search_regex {
+    let filter = match &state.search_regex {
         Some(regex) => SymbolFilter::Search(regex),
         _ => SymbolFilter::None,
     };
-    let mut ret = None;
     render_strips(ui, available_width, 2, |ui, column| {
         if column == 0 {
             // Left column
@@ -722,7 +893,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                             .second_obj
                             .as_ref()
                             .map(|(obj, diff)| SymbolDiffContext { obj, diff }),
-                        symbol_state,
+                        &state.symbol_state,
                         filter,
                         appearance,
                         column,
@@ -746,7 +917,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                             .first_obj
                             .as_ref()
                             .map(|(obj, diff)| SymbolDiffContext { obj, diff }),
-                        symbol_state,
+                        &state.symbol_state,
                         filter,
                         appearance,
                         column,
@@ -761,11 +932,5 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
             }
         }
     });
-    if let Some(result) = ret {
-        if let Some(view) = result.view {
-            *current_view = view;
-        }
-        symbol_state.left_symbol = result.left_symbol;
-        symbol_state.right_symbol = result.right_symbol;
-    }
+    ret
 }

@@ -20,13 +20,13 @@ pub fn diff_bss_symbol(
     Ok((
         ObjSymbolDiff {
             symbol_ref: left_symbol_ref,
-            diff_symbol: Some(right_symbol_ref),
+            target_symbol: Some(right_symbol_ref),
             instructions: vec![],
             match_percent: Some(percent),
         },
         ObjSymbolDiff {
             symbol_ref: right_symbol_ref,
-            diff_symbol: Some(left_symbol_ref),
+            target_symbol: Some(left_symbol_ref),
             instructions: vec![],
             match_percent: Some(percent),
         },
@@ -34,7 +34,7 @@ pub fn diff_bss_symbol(
 }
 
 pub fn no_diff_symbol(_obj: &ObjInfo, symbol_ref: SymbolRef) -> ObjSymbolDiff {
-    ObjSymbolDiff { symbol_ref, diff_symbol: None, instructions: vec![], match_percent: None }
+    ObjSymbolDiff { symbol_ref, target_symbol: None, instructions: vec![], match_percent: None }
 }
 
 /// Compare the data sections of two object files.
@@ -158,13 +158,13 @@ pub fn diff_data_symbol(
     Ok((
         ObjSymbolDiff {
             symbol_ref: left_symbol_ref,
-            diff_symbol: Some(right_symbol_ref),
+            target_symbol: Some(right_symbol_ref),
             instructions: vec![],
             match_percent: Some(match_percent),
         },
         ObjSymbolDiff {
             symbol_ref: right_symbol_ref,
-            diff_symbol: Some(left_symbol_ref),
+            target_symbol: Some(left_symbol_ref),
             instructions: vec![],
             match_percent: Some(match_percent),
         },

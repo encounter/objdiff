@@ -9,7 +9,10 @@ use crate::views::{
     appearance::Appearance,
     column_layout::{render_header, render_strips},
     function_diff::FunctionDiffContext,
-    symbol_diff::{match_color_for_symbol, DiffViewState, SymbolRefByName, View},
+    symbol_diff::{
+        match_color_for_symbol, DiffViewAction, DiffViewNavigation, DiffViewState, SymbolRefByName,
+        View,
+    },
 };
 
 fn decode_extab(extab: &ExceptionInfo) -> String {
@@ -71,9 +74,15 @@ fn extab_ui(
     });
 }
 
-pub fn extab_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &Appearance) {
+#[must_use]
+pub fn extab_diff_ui(
+    ui: &mut egui::Ui,
+    state: &DiffViewState,
+    appearance: &Appearance,
+) -> Option<DiffViewAction> {
+    let mut ret = None;
     let Some(result) = &state.build else {
-        return;
+        return ret;
     };
 
     let mut left_ctx = FunctionDiffContext::new(
@@ -87,33 +96,38 @@ pub fn extab_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &
 
     // If one side is missing a symbol, but the diff process found a match, use that symbol
     let left_diff_symbol = left_ctx.and_then(|ctx| {
-        ctx.symbol_ref.and_then(|symbol_ref| ctx.diff.symbol_diff(symbol_ref).diff_symbol)
+        ctx.symbol_ref.and_then(|symbol_ref| ctx.diff.symbol_diff(symbol_ref).target_symbol)
     });
     let right_diff_symbol = right_ctx.and_then(|ctx| {
-        ctx.symbol_ref.and_then(|symbol_ref| ctx.diff.symbol_diff(symbol_ref).diff_symbol)
+        ctx.symbol_ref.and_then(|symbol_ref| ctx.diff.symbol_diff(symbol_ref).target_symbol)
     });
     if left_diff_symbol.is_some() && right_ctx.map_or(false, |ctx| !ctx.has_symbol()) {
         let (right_section, right_symbol) =
             right_ctx.unwrap().obj.section_symbol(left_diff_symbol.unwrap());
         let symbol_ref = SymbolRefByName::new(right_symbol, right_section);
         right_ctx = FunctionDiffContext::new(result.second_obj.as_ref(), Some(&symbol_ref));
-        state.symbol_state.right_symbol = Some(symbol_ref);
+        ret = Some(DiffViewAction::Navigate(DiffViewNavigation {
+            view: Some(View::FunctionDiff),
+            left_symbol: state.symbol_state.left_symbol.clone(),
+            right_symbol: Some(symbol_ref),
+        }));
     } else if right_diff_symbol.is_some() && left_ctx.map_or(false, |ctx| !ctx.has_symbol()) {
         let (left_section, left_symbol) =
             left_ctx.unwrap().obj.section_symbol(right_diff_symbol.unwrap());
         let symbol_ref = SymbolRefByName::new(left_symbol, left_section);
         left_ctx = FunctionDiffContext::new(result.first_obj.as_ref(), Some(&symbol_ref));
-        state.symbol_state.left_symbol = Some(symbol_ref);
+        ret = Some(DiffViewAction::Navigate(DiffViewNavigation {
+            view: Some(View::FunctionDiff),
+            left_symbol: Some(symbol_ref),
+            right_symbol: state.symbol_state.right_symbol.clone(),
+        }));
     }
 
     // If both sides are missing a symbol, switch to symbol diff view
-    if !right_ctx.map_or(false, |ctx| ctx.has_symbol())
-        && !left_ctx.map_or(false, |ctx| ctx.has_symbol())
+    if right_ctx.map_or(false, |ctx| !ctx.has_symbol())
+        && left_ctx.map_or(false, |ctx| !ctx.has_symbol())
     {
-        state.current_view = View::SymbolDiff;
-        state.symbol_state.left_symbol = None;
-        state.symbol_state.right_symbol = None;
-        return;
+        return Some(DiffViewAction::Navigate(DiffViewNavigation::symbol_diff()));
     }
 
     // Header
@@ -123,7 +137,7 @@ pub fn extab_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &
             // Left column
             ui.horizontal(|ui| {
                 if ui.button("⏴ Back").clicked() {
-                    state.current_view = View::SymbolDiff;
+                    ret = Some(DiffViewAction::Navigate(DiffViewNavigation::symbol_diff()));
                 }
                 ui.separator();
                 if ui
@@ -137,7 +151,11 @@ pub fn extab_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &
                     .on_disabled_hover_text("Scratch configuration missing")
                     .clicked()
                 {
-                    state.queue_scratch = true;
+                    if let Some((_section, symbol)) = left_ctx.and_then(|ctx| {
+                        ctx.symbol_ref.map(|symbol_ref| ctx.obj.section_symbol(symbol_ref))
+                    }) {
+                        ret = Some(DiffViewAction::CreateScratch(symbol.name.clone()));
+                    }
                 }
             });
 
@@ -161,7 +179,7 @@ pub fn extab_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &
             // Right column
             ui.horizontal(|ui| {
                 if ui.add_enabled(!state.build_running, egui::Button::new("Build")).clicked() {
-                    state.queue_build = true;
+                    ret = Some(DiffViewAction::Build);
                 }
                 ui.scope(|ui| {
                     ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
@@ -182,7 +200,7 @@ pub fn extab_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &
                     .on_disabled_hover_text("Source file metadata missing")
                     .clicked()
                 {
-                    state.queue_open_source_path = true;
+                    ret = Some(DiffViewAction::OpenSourcePath);
                 }
             });
 
@@ -226,4 +244,5 @@ pub fn extab_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance: &
             }
         }
     });
+    ret
 }

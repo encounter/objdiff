@@ -39,7 +39,7 @@ impl CreateScratchConfig {
         Ok(Self {
             build_config: BuildConfig::from_config(config),
             context_path: scratch_config.ctx_path.clone(),
-            build_context: scratch_config.build_ctx,
+            build_context: scratch_config.build_ctx.unwrap_or(false),
             compiler: scratch_config.compiler.clone().unwrap_or_default(),
             platform: scratch_config.platform.clone().unwrap_or_default(),
             compiler_flags: scratch_config.c_flags.clone().unwrap_or_default(),

@@ -6,13 +6,13 @@ use std::{
 
 use anyhow::{anyhow, Error, Result};
 use objdiff_core::{
-    diff::{diff_objs, DiffObjConfig, ObjDiff},
+    diff::{diff_objs, DiffObjConfig, MappingConfig, ObjDiff},
     obj::{read, ObjInfo},
 };
 use time::OffsetDateTime;
 
 use crate::{
-    app::{AppConfig, ObjectConfig},
+    app::{AppConfig, AppState, ObjectConfig},
     jobs::{start_job, update_status, Job, JobContext, JobResult, JobState},
 };
 
@@ -60,16 +60,20 @@ pub struct ObjDiffConfig {
     pub build_target: bool,
     pub selected_obj: Option<ObjectConfig>,
     pub diff_obj_config: DiffObjConfig,
+    pub selecting_left: Option<String>,
+    pub selecting_right: Option<String>,
 }
 
 impl ObjDiffConfig {
-    pub(crate) fn from_config(config: &AppConfig) -> Self {
+    pub(crate) fn from_state(state: &AppState) -> Self {
         Self {
-            build_config: BuildConfig::from_config(config),
-            build_base: config.build_base,
-            build_target: config.build_target,
-            selected_obj: config.selected_obj.clone(),
-            diff_obj_config: config.diff_obj_config.clone(),
+            build_config: BuildConfig::from_config(&state.config),
+            build_base: state.config.build_base,
+            build_target: state.config.build_target,
+            selected_obj: state.config.selected_obj.clone(),
+            diff_obj_config: state.config.diff_obj_config.clone(),
+            selecting_left: state.selecting_left.clone(),
+            selecting_right: state.selecting_right.clone(),
         }
     }
 }
@@ -158,9 +162,16 @@ pub(crate) fn run_make(config: &BuildConfig, arg: &Path) -> BuildStatus {
 fn run_build(
     context: &JobContext,
     cancel: Receiver<()>,
-    config: ObjDiffConfig,
+    mut config: ObjDiffConfig,
 ) -> Result<Box<ObjDiffResult>> {
-    let obj_config = config.selected_obj.as_ref().ok_or_else(|| Error::msg("Missing obj path"))?;
+    let obj_config = config.selected_obj.ok_or_else(|| Error::msg("Missing obj path"))?;
+    // Use the per-object symbol mappings, we don't set mappings globally
+    config.diff_obj_config.symbol_mappings = MappingConfig {
+        mappings: obj_config.symbol_mappings,
+        selecting_left: config.selecting_left,
+        selecting_right: config.selecting_right,
+    };
+
     let project_dir = config
         .build_config
         .project_dir

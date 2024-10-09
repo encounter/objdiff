@@ -4,11 +4,11 @@ use anyhow::Result;
 use globset::Glob;
 use objdiff_core::config::{try_project_config, ProjectObject, DEFAULT_WATCH_PATTERNS};
 
-use crate::app::AppState;
+use crate::app::{AppState, ObjectConfig};
 
 #[derive(Clone)]
 pub enum ProjectObjectNode {
-    File(String, Box<ProjectObject>),
+    Unit(String, usize),
     Dir(String, Vec<ProjectObjectNode>),
 }
 
@@ -33,17 +33,18 @@ fn find_dir<'a>(
 }
 
 fn build_nodes(
-    objects: &[ProjectObject],
+    units: &mut [ProjectObject],
     project_dir: &Path,
     target_obj_dir: Option<&Path>,
     base_obj_dir: Option<&Path>,
 ) -> Vec<ProjectObjectNode> {
     let mut nodes = vec![];
-    for object in objects {
+    for (idx, unit) in units.iter_mut().enumerate() {
+        unit.resolve_paths(project_dir, target_obj_dir, base_obj_dir);
         let mut out_nodes = &mut nodes;
-        let path = if let Some(name) = &object.name {
+        let path = if let Some(name) = &unit.name {
             Path::new(name)
-        } else if let Some(path) = &object.path {
+        } else if let Some(path) = &unit.path {
             path
         } else {
             continue;
@@ -56,10 +57,8 @@ fn build_nodes(
                 }
             }
         }
-        let mut object = Box::new(object.clone());
-        object.resolve_paths(project_dir, target_obj_dir, base_obj_dir);
         let filename = path.file_name().unwrap().to_str().unwrap().to_string();
-        out_nodes.push(ProjectObjectNode::File(filename, object));
+        out_nodes.push(ProjectObjectNode::Unit(filename, idx));
     }
     nodes
 }
@@ -70,24 +69,36 @@ pub fn load_project_config(state: &mut AppState) -> Result<()> {
     };
     if let Some((result, info)) = try_project_config(project_dir) {
         let project_config = result?;
-        state.config.custom_make = project_config.custom_make;
-        state.config.custom_args = project_config.custom_args;
-        state.config.target_obj_dir = project_config.target_dir.map(|p| project_dir.join(p));
-        state.config.base_obj_dir = project_config.base_dir.map(|p| project_dir.join(p));
-        state.config.build_base = project_config.build_base;
-        state.config.build_target = project_config.build_target;
-        state.config.watch_patterns = project_config.watch_patterns.unwrap_or_else(|| {
+        state.config.custom_make = project_config.custom_make.clone();
+        state.config.custom_args = project_config.custom_args.clone();
+        state.config.target_obj_dir =
+            project_config.target_dir.as_deref().map(|p| project_dir.join(p));
+        state.config.base_obj_dir = project_config.base_dir.as_deref().map(|p| project_dir.join(p));
+        state.config.build_base = project_config.build_base.unwrap_or(true);
+        state.config.build_target = project_config.build_target.unwrap_or(false);
+        state.config.watch_patterns = project_config.watch_patterns.clone().unwrap_or_else(|| {
             DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect()
         });
         state.watcher_change = true;
-        state.objects = project_config.objects;
+        state.objects = project_config.units.clone().unwrap_or_default();
         state.object_nodes = build_nodes(
-            &state.objects,
+            &mut state.objects,
             project_dir,
             state.config.target_obj_dir.as_deref(),
             state.config.base_obj_dir.as_deref(),
         );
+        state.current_project_config = Some(project_config);
         state.project_config_info = Some(info);
+
+        // Reload selected object
+        if let Some(selected_obj) = &state.config.selected_obj {
+            if let Some(obj) = state.objects.iter().find(|o| o.name() == selected_obj.name) {
+                let config = ObjectConfig::from(obj);
+                state.set_selected_obj(config);
+            } else {
+                state.clear_selected_obj();
+            }
+        }
     }
     Ok(())
 }
