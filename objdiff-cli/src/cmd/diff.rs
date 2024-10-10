@@ -102,26 +102,32 @@ pub fn run(args: Args) -> Result<()> {
                     let unit_path =
                         PathBuf::from_str(u).ok().and_then(|p| fs::canonicalize(p).ok());
 
-                    let Some(object) = project_config.objects.iter_mut().find_map(|obj| {
-                        if obj.name.as_deref() == Some(u) {
+                    let Some(object) = project_config
+                        .units
+                        .as_deref_mut()
+                        .unwrap_or_default()
+                        .iter_mut()
+                        .find_map(|obj| {
+                            if obj.name.as_deref() == Some(u) {
+                                resolve_paths(obj);
+                                return Some(obj);
+                            }
+
+                            let up = unit_path.as_deref()?;
+
                             resolve_paths(obj);
-                            return Some(obj);
-                        }
 
-                        let up = unit_path.as_deref()?;
+                            if [&obj.base_path, &obj.target_path]
+                                .into_iter()
+                                .filter_map(|p| p.as_ref().and_then(|p| p.canonicalize().ok()))
+                                .any(|p| p == up)
+                            {
+                                return Some(obj);
+                            }
 
-                        resolve_paths(obj);
-
-                        if [&obj.base_path, &obj.target_path]
-                            .into_iter()
-                            .filter_map(|p| p.as_ref().and_then(|p| p.canonicalize().ok()))
-                            .any(|p| p == up)
-                        {
-                            return Some(obj);
-                        }
-
-                        None
-                    }) else {
+                            None
+                        })
+                    else {
                         bail!("Unit not found: {}", u)
                     };
 
@@ -129,7 +135,13 @@ pub fn run(args: Args) -> Result<()> {
                 } else if let Some(symbol_name) = &args.symbol {
                     let mut idx = None;
                     let mut count = 0usize;
-                    for (i, obj) in project_config.objects.iter_mut().enumerate() {
+                    for (i, obj) in project_config
+                        .units
+                        .as_deref_mut()
+                        .unwrap_or_default()
+                        .iter_mut()
+                        .enumerate()
+                    {
                         resolve_paths(obj);
 
                         if obj
@@ -148,7 +160,7 @@ pub fn run(args: Args) -> Result<()> {
                     }
                     match (count, idx) {
                         (0, None) => bail!("Symbol not found: {}", symbol_name),
-                        (1, Some(i)) => &mut project_config.objects[i],
+                        (1, Some(i)) => &mut project_config.units_mut()[i],
                         (2.., Some(_)) => bail!(
                             "Multiple instances of {} were found, try specifying a unit",
                             symbol_name
@@ -303,7 +315,7 @@ fn find_function(obj: &ObjInfo, name: &str) -> Option<SymbolRef> {
     None
 }
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 struct FunctionDiffUi {
     relax_reloc_diffs: bool,
     left_highlight: HighlightKind,
@@ -758,7 +770,7 @@ impl FunctionDiffUi {
         self.scroll_y += self.per_page / if half { 2 } else { 1 };
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     fn print_sym(
         &self,
         out: &mut Text<'static>,

@@ -15,7 +15,8 @@ use globset::{Glob, GlobSet};
 use notify::{RecursiveMode, Watcher};
 use objdiff_core::{
     config::{
-        build_globset, ProjectConfigInfo, ProjectObject, ScratchConfig, DEFAULT_WATCH_PATTERNS,
+        build_globset, save_project_config, ProjectConfig, ProjectConfigInfo, ProjectObject,
+        ScratchConfig, SymbolMappings, DEFAULT_WATCH_PATTERNS,
     },
     diff::DiffObjConfig,
 };
@@ -42,7 +43,7 @@ use crate::{
         graphics::{graphics_window, GraphicsConfig, GraphicsViewState},
         jobs::{jobs_menu_ui, jobs_window},
         rlwinm::{rlwinm_decode_window, RlwinmDecodeViewState},
-        symbol_diff::{symbol_diff_ui, DiffViewState, View},
+        symbol_diff::{symbol_diff_ui, DiffViewAction, DiffViewNavigation, DiffViewState, View},
     },
 };
 
@@ -89,7 +90,7 @@ impl Default for ViewState {
 }
 
 /// The configuration for a single object file.
-#[derive(Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Default, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct ObjectConfig {
     pub name: String,
     pub target_path: Option<PathBuf>,
@@ -98,6 +99,23 @@ pub struct ObjectConfig {
     pub complete: Option<bool>,
     pub scratch: Option<ScratchConfig>,
     pub source_path: Option<String>,
+    #[serde(default)]
+    pub symbol_mappings: SymbolMappings,
+}
+
+impl From<&ProjectObject> for ObjectConfig {
+    fn from(object: &ProjectObject) -> Self {
+        Self {
+            name: object.name().to_string(),
+            target_path: object.target_path.clone(),
+            base_path: object.base_path.clone(),
+            reverse_fn_order: object.reverse_fn_order(),
+            complete: object.complete(),
+            scratch: object.scratch.clone(),
+            source_path: object.source_path().cloned(),
+            symbol_mappings: object.symbol_mappings.clone().unwrap_or_default(),
+        }
+    }
 }
 
 #[inline]
@@ -117,8 +135,14 @@ pub struct AppState {
     pub obj_change: bool,
     pub queue_build: bool,
     pub queue_reload: bool,
+    pub current_project_config: Option<ProjectConfig>,
     pub project_config_info: Option<ProjectConfigInfo>,
     pub last_mod_check: Instant,
+    /// The right object symbol name that we're selecting a left symbol for
+    pub selecting_left: Option<String>,
+    /// The left object symbol name that we're selecting a right symbol for
+    pub selecting_right: Option<String>,
+    pub config_error: Option<String>,
 }
 
 impl Default for AppState {
@@ -132,8 +156,12 @@ impl Default for AppState {
             obj_change: false,
             queue_build: false,
             queue_reload: false,
+            current_project_config: None,
             project_config_info: None,
             last_mod_check: Instant::now(),
+            selecting_left: None,
+            selecting_right: None,
+            config_error: None,
         }
     }
 }
@@ -214,7 +242,10 @@ impl AppState {
         self.config_change = true;
         self.obj_change = true;
         self.queue_build = false;
+        self.current_project_config = None;
         self.project_config_info = None;
+        self.selecting_left = None;
+        self.selecting_right = None;
     }
 
     pub fn set_target_obj_dir(&mut self, path: PathBuf) {
@@ -222,6 +253,8 @@ impl AppState {
         self.config.selected_obj = None;
         self.obj_change = true;
         self.queue_build = false;
+        self.selecting_left = None;
+        self.selecting_right = None;
     }
 
     pub fn set_base_obj_dir(&mut self, path: PathBuf) {
@@ -229,12 +262,122 @@ impl AppState {
         self.config.selected_obj = None;
         self.obj_change = true;
         self.queue_build = false;
+        self.selecting_left = None;
+        self.selecting_right = None;
     }
 
-    pub fn set_selected_obj(&mut self, object: ObjectConfig) {
-        self.config.selected_obj = Some(object);
+    pub fn set_selected_obj(&mut self, config: ObjectConfig) {
+        if self.config.selected_obj.as_ref().is_some_and(|existing| existing == &config) {
+            // Don't reload the object if there were no changes
+            return;
+        }
+        self.config.selected_obj = Some(config);
         self.obj_change = true;
         self.queue_build = false;
+        self.selecting_left = None;
+        self.selecting_right = None;
+    }
+
+    pub fn clear_selected_obj(&mut self) {
+        self.config.selected_obj = None;
+        self.obj_change = true;
+        self.queue_build = false;
+        self.selecting_left = None;
+        self.selecting_right = None;
+    }
+
+    pub fn set_selecting_left(&mut self, right: &str) {
+        let Some(object) = self.config.selected_obj.as_mut() else {
+            return;
+        };
+        object.symbol_mappings.remove_by_right(right);
+        self.selecting_left = Some(right.to_string());
+        self.queue_reload = true;
+        self.save_config();
+    }
+
+    pub fn set_selecting_right(&mut self, left: &str) {
+        let Some(object) = self.config.selected_obj.as_mut() else {
+            return;
+        };
+        object.symbol_mappings.remove_by_left(left);
+        self.selecting_right = Some(left.to_string());
+        self.queue_reload = true;
+        self.save_config();
+    }
+
+    pub fn set_symbol_mapping(&mut self, left: String, right: String) {
+        let Some(object) = self.config.selected_obj.as_mut() else {
+            log::warn!("No selected object");
+            return;
+        };
+        self.selecting_left = None;
+        self.selecting_right = None;
+        if left == right {
+            object.symbol_mappings.remove_by_left(&left);
+            object.symbol_mappings.remove_by_right(&right);
+        } else {
+            object.symbol_mappings.insert(left.clone(), right.clone());
+        }
+        self.queue_reload = true;
+        self.save_config();
+    }
+
+    pub fn clear_selection(&mut self) {
+        self.selecting_left = None;
+        self.selecting_right = None;
+        self.queue_reload = true;
+    }
+
+    pub fn clear_mappings(&mut self) {
+        self.selecting_left = None;
+        self.selecting_right = None;
+        if let Some(object) = self.config.selected_obj.as_mut() {
+            object.symbol_mappings.clear();
+        }
+        self.queue_reload = true;
+        self.save_config();
+    }
+
+    pub fn is_selecting_symbol(&self) -> bool {
+        self.selecting_left.is_some() || self.selecting_right.is_some()
+    }
+
+    pub fn save_config(&mut self) {
+        let (Some(config), Some(info)) =
+            (self.current_project_config.as_mut(), self.project_config_info.as_mut())
+        else {
+            return;
+        };
+        // Update the project config with the current state
+        if let Some(object) = self.config.selected_obj.as_ref() {
+            if let Some(existing) = config.units.as_mut().and_then(|v| {
+                v.iter_mut().find(|u| u.name.as_ref().is_some_and(|n| n == &object.name))
+            }) {
+                existing.symbol_mappings = if object.symbol_mappings.is_empty() {
+                    None
+                } else {
+                    Some(object.symbol_mappings.clone())
+                };
+            }
+            if let Some(existing) =
+                self.objects.iter_mut().find(|u| u.name.as_ref().is_some_and(|n| n == &object.name))
+            {
+                existing.symbol_mappings = if object.symbol_mappings.is_empty() {
+                    None
+                } else {
+                    Some(object.symbol_mappings.clone())
+                };
+            }
+        }
+        // Save the updated project config
+        match save_project_config(config, info) {
+            Ok(new_info) => *info = new_info,
+            Err(e) => {
+                log::error!("Failed to save project config: {e}");
+                self.config_error = Some(format!("Failed to save project config: {e}"));
+            }
+        }
     }
 }
 
@@ -373,31 +516,41 @@ impl App {
         debug_assert!(jobs.results.is_empty());
     }
 
-    fn post_update(&mut self, ctx: &egui::Context) {
+    fn post_update(&mut self, ctx: &egui::Context, action: Option<DiffViewAction>) {
         self.appearance.post_update(ctx);
 
         let ViewState { jobs, diff_state, config_state, graphics_state, .. } = &mut self.view_state;
         config_state.post_update(ctx, jobs, &self.state);
-        diff_state.post_update(ctx, jobs, &self.state);
+        diff_state.post_update(action, ctx, jobs, &self.state);
 
         let Ok(mut state) = self.state.write() else {
             return;
         };
         let state = &mut *state;
 
-        if let Some(info) = &state.project_config_info {
-            if file_modified(&info.path, info.timestamp) {
-                state.config_change = true;
+        let mut mod_check = false;
+        if state.last_mod_check.elapsed().as_millis() >= 500 {
+            state.last_mod_check = Instant::now();
+            mod_check = true;
+        }
+
+        if mod_check {
+            if let Some(info) = &state.project_config_info {
+                if let Some(last_ts) = info.timestamp {
+                    if file_modified(&info.path, last_ts) {
+                        state.config_change = true;
+                    }
+                }
             }
         }
 
         if state.config_change {
             state.config_change = false;
             match load_project_config(state) {
-                Ok(()) => config_state.load_error = None,
+                Ok(()) => state.config_error = None,
                 Err(e) => {
                     log::error!("Failed to load project config: {e}");
-                    config_state.load_error = Some(format!("{e}"));
+                    state.config_error = Some(format!("{e}"));
                 }
             }
         }
@@ -432,8 +585,7 @@ impl App {
         }
 
         if let Some(result) = &diff_state.build {
-            if state.last_mod_check.elapsed().as_millis() >= 500 {
-                state.last_mod_check = Instant::now();
+            if mod_check {
                 if let Some((obj, _)) = &result.first_obj {
                     if let (Some(path), Some(timestamp)) = (&obj.path, obj.timestamp) {
                         if file_modified(path, timestamp) {
@@ -457,11 +609,11 @@ impl App {
             && state.config.selected_obj.is_some()
             && !jobs.is_running(Job::ObjDiff)
         {
-            jobs.push(start_build(ctx, ObjDiffConfig::from_config(&state.config)));
+            jobs.push(start_build(ctx, ObjDiffConfig::from_state(state)));
             state.queue_build = false;
             state.queue_reload = false;
         } else if state.queue_reload && !jobs.is_running(Job::ObjDiff) {
-            let mut diff_config = ObjDiffConfig::from_config(&state.config);
+            let mut diff_config = ObjDiffConfig::from_state(state);
             // Don't build, just reload the current files
             diff_config.build_base = false;
             diff_config.build_target = false;
@@ -636,6 +788,11 @@ impl eframe::App for App {
                     {
                         state.queue_reload = true;
                     }
+                    if ui.button("Clear custom symbol mappings").clicked() {
+                        state.clear_mappings();
+                        diff_state.post_build_nav = Some(DiffViewNavigation::symbol_diff());
+                        state.queue_reload = true;
+                    }
                 });
                 ui.separator();
                 if jobs_menu_ui(ui, jobs, appearance) {
@@ -652,17 +809,18 @@ impl eframe::App for App {
             });
         }
 
+        let mut action = None;
         egui::CentralPanel::default().show(ctx, |ui| {
             let build_success = matches!(&diff_state.build, Some(b) if b.first_status.success && b.second_status.success);
-            if diff_state.current_view == View::FunctionDiff && build_success {
-                function_diff_ui(ui, diff_state, appearance);
+            action = if diff_state.current_view == View::FunctionDiff && build_success {
+                function_diff_ui(ui, diff_state, appearance)
             } else if diff_state.current_view == View::DataDiff && build_success {
-                data_diff_ui(ui, diff_state, appearance);
+                data_diff_ui(ui, diff_state, appearance)
             } else if diff_state.current_view == View::ExtabDiff && build_success {
-                extab_diff_ui(ui, diff_state, appearance);
+                extab_diff_ui(ui, diff_state, appearance)
             } else {
-                symbol_diff_ui(ui, diff_state, appearance);
-            }
+                symbol_diff_ui(ui, diff_state, appearance)
+            };
         });
 
         project_window(ctx, state, show_project_config, config_state, appearance);
@@ -674,10 +832,10 @@ impl eframe::App for App {
         graphics_window(ctx, show_graphics, frame_history, graphics_state, appearance);
         jobs_window(ctx, show_jobs, jobs, appearance);
 
-        self.post_update(ctx);
+        self.post_update(ctx, action);
     }
 
-    /// Called by the frame work to save state before shutdown.
+    /// Called by the framework to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         if let Ok(state) = self.state.read() {
             eframe::set_value(storage, CONFIG_KEY, &state.config);

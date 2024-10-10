@@ -29,7 +29,7 @@ pub enum DiffText<'a> {
     Eol,
 }
 
-#[derive(Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub enum HighlightKind {
     #[default]
     None,

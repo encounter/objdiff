@@ -133,6 +133,13 @@
         },
         "metadata": {
           "ref": "#/$defs/metadata"
+        },
+        "symbol_mappings": {
+          "type": "object",
+          "description": "Manual symbol mappings from target to base.",
+          "additionalProperties": {
+            "type": "string"
+          }
         }
       }
     },

@@ -43,7 +43,6 @@ pub struct ConfigViewState {
     pub build_running: bool,
     pub queue_build: bool,
     pub watch_pattern_text: String,
-    pub load_error: Option<String>,
     pub object_search: String,
     pub filter_diffable: bool,
     pub filter_incomplete: bool,
@@ -93,10 +92,7 @@ impl ConfigViewState {
                             name: obj_path.display().to_string(),
                             target_path: Some(target_path),
                             base_path: Some(path),
-                            reverse_fn_order: None,
-                            complete: None,
-                            scratch: None,
-                            source_path: None,
+                            ..Default::default()
                         });
                     } else if let Ok(obj_path) = path.strip_prefix(target_dir) {
                         let base_path = base_dir.join(obj_path);
@@ -104,10 +100,7 @@ impl ConfigViewState {
                             name: obj_path.display().to_string(),
                             target_path: Some(path),
                             base_path: Some(base_path),
-                            reverse_fn_order: None,
-                            complete: None,
-                            scratch: None,
-                            source_path: None,
+                            ..Default::default()
                         });
                     }
                 }
@@ -230,7 +223,10 @@ pub fn config_ui(
         }
     });
 
-    let mut new_selected_obj = selected_obj.clone();
+    let selected_index = selected_obj.as_ref().and_then(|selected_obj| {
+        objects.iter().position(|obj| obj.name.as_ref() == Some(&selected_obj.name))
+    });
+    let mut new_selected_index = selected_index;
     if objects.is_empty() {
         if let (Some(_base_dir), Some(target_dir)) = (base_obj_dir, target_obj_dir) {
             if ui.button("Select object").clicked() {
@@ -316,6 +312,7 @@ pub fn config_ui(
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
             for node in object_nodes.iter().filter_map(|node| {
                 filter_node(
+                    objects,
                     node,
                     &search,
                     config_state.filter_diffable,
@@ -325,8 +322,9 @@ pub fn config_ui(
             }) {
                 display_node(
                     ui,
-                    &mut new_selected_obj,
+                    &mut new_selected_index,
                     project_dir.as_deref(),
+                    objects,
                     &node,
                     appearance,
                     node_open,
@@ -334,10 +332,11 @@ pub fn config_ui(
             }
         });
     }
-    if new_selected_obj != *selected_obj {
-        if let Some(obj) = new_selected_obj {
+    if new_selected_index != selected_index {
+        if let Some(idx) = new_selected_index {
             // Will set obj_changed, which will trigger a rebuild
-            state_guard.set_selected_obj(obj);
+            let config = ObjectConfig::from(&objects[idx]);
+            state_guard.set_selected_obj(config);
         }
     }
     if state_guard.config.selected_obj.is_some()
@@ -347,16 +346,17 @@ pub fn config_ui(
     }
 }
 
-fn display_object(
+fn display_unit(
     ui: &mut egui::Ui,
-    selected_obj: &mut Option<ObjectConfig>,
+    selected_obj: &mut Option<usize>,
     project_dir: Option<&Path>,
     name: &str,
-    object: &ProjectObject,
+    units: &[ProjectObject],
+    index: usize,
     appearance: &Appearance,
 ) {
-    let object_name = object.name();
-    let selected = matches!(selected_obj, Some(obj) if obj.name == object_name);
+    let object = &units[index];
+    let selected = *selected_obj == Some(index);
     let color = if selected {
         appearance.emphasized_text_color
     } else if let Some(complete) = object.complete() {
@@ -381,18 +381,8 @@ fn display_object(
     if get_source_path(project_dir, object).is_some() {
         response.context_menu(|ui| object_context_ui(ui, object, project_dir));
     }
-    // Always recreate ObjectConfig if selected, in case the project config changed.
-    // ObjectConfig is compared using equality, so this won't unnecessarily trigger a rebuild.
-    if selected || response.clicked() {
-        *selected_obj = Some(ObjectConfig {
-            name: object_name.to_string(),
-            target_path: object.target_path.clone(),
-            base_path: object.base_path.clone(),
-            reverse_fn_order: object.reverse_fn_order(),
-            complete: object.complete(),
-            scratch: object.scratch.clone(),
-            source_path: object.source_path().cloned(),
-        });
+    if response.clicked() {
+        *selected_obj = Some(index);
     }
 }
 
@@ -427,18 +417,19 @@ enum NodeOpen {
 
 fn display_node(
     ui: &mut egui::Ui,
-    selected_obj: &mut Option<ObjectConfig>,
+    selected_obj: &mut Option<usize>,
     project_dir: Option<&Path>,
+    units: &[ProjectObject],
     node: &ProjectObjectNode,
     appearance: &Appearance,
     node_open: NodeOpen,
 ) {
     match node {
-        ProjectObjectNode::File(name, object) => {
-            display_object(ui, selected_obj, project_dir, name, object, appearance);
+        ProjectObjectNode::Unit(name, idx) => {
+            display_unit(ui, selected_obj, project_dir, name, units, *idx, appearance);
         }
         ProjectObjectNode::Dir(name, children) => {
-            let contains_obj = selected_obj.as_ref().map(|path| contains_node(node, path));
+            let contains_obj = selected_obj.map(|idx| contains_node(node, idx));
             let open = match node_open {
                 NodeOpen::Default => None,
                 NodeOpen::Open => Some(true),
@@ -461,16 +452,16 @@ fn display_node(
             .open(open)
             .show(ui, |ui| {
                 for node in children {
-                    display_node(ui, selected_obj, project_dir, node, appearance, node_open);
+                    display_node(ui, selected_obj, project_dir, units, node, appearance, node_open);
                 }
             });
         }
     }
 }
 
-fn contains_node(node: &ProjectObjectNode, selected_obj: &ObjectConfig) -> bool {
+fn contains_node(node: &ProjectObjectNode, selected_obj: usize) -> bool {
     match node {
-        ProjectObjectNode::File(_, object) => object.name() == selected_obj.name,
+        ProjectObjectNode::Unit(_, idx) => *idx == selected_obj,
         ProjectObjectNode::Dir(_, children) => {
             children.iter().any(|node| contains_node(node, selected_obj))
         }
@@ -478,6 +469,7 @@ fn contains_node(node: &ProjectObjectNode, selected_obj: &ObjectConfig) -> bool 
 }
 
 fn filter_node(
+    units: &[ProjectObject],
     node: &ProjectObjectNode,
     search: &str,
     filter_diffable: bool,
@@ -485,12 +477,12 @@ fn filter_node(
     show_hidden: bool,
 ) -> Option<ProjectObjectNode> {
     match node {
-        ProjectObjectNode::File(name, object) => {
+        ProjectObjectNode::Unit(name, idx) => {
+            let unit = &units[*idx];
             if (search.is_empty() || name.to_ascii_lowercase().contains(search))
-                && (!filter_diffable
-                    || (object.base_path.is_some() && object.target_path.is_some()))
-                && (!filter_incomplete || matches!(object.complete(), None | Some(false)))
-                && (show_hidden || !object.hidden())
+                && (!filter_diffable || (unit.base_path.is_some() && unit.target_path.is_some()))
+                && (!filter_incomplete || matches!(unit.complete(), None | Some(false)))
+                && (show_hidden || !unit.hidden())
             {
                 Some(node.clone())
             } else {
@@ -501,7 +493,14 @@ fn filter_node(
             let new_children = children
                 .iter()
                 .filter_map(|child| {
-                    filter_node(child, search, filter_diffable, filter_incomplete, show_hidden)
+                    filter_node(
+                        units,
+                        child,
+                        search,
+                        filter_diffable,
+                        filter_incomplete,
+                        show_hidden,
+                    )
                 })
                 .collect::<Vec<_>>();
             if !new_children.is_empty() {
@@ -570,14 +569,14 @@ pub fn project_window(
         split_obj_config_ui(ui, &mut state_guard, config_state, appearance);
     });
 
-    if let Some(error) = &config_state.load_error {
+    if let Some(error) = &state_guard.config_error {
         let mut open = true;
         egui::Window::new("Error").open(&mut open).show(ctx, |ui| {
             ui.label("Failed to load project config:");
             ui.colored_label(appearance.delete_color, error);
         });
         if !open {
-            config_state.load_error = None;
+            state_guard.config_error = None;
         }
     }
 }

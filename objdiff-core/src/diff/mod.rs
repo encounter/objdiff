@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use anyhow::Result;
 
 use crate::{
+    config::SymbolMappings,
     diff::{
         code::{diff_code, no_diff_code, process_code_symbol},
         data::{
@@ -161,6 +162,8 @@ pub struct DiffObjConfig {
     #[serde(default = "default_true")]
     pub space_between_args: bool,
     pub combine_data_sections: bool,
+    #[serde(default)]
+    pub symbol_mappings: MappingConfig,
     // x86
     pub x86_formatter: X86Formatter,
     // MIPS
@@ -182,6 +185,7 @@ impl Default for DiffObjConfig {
             relax_reloc_diffs: false,
             space_between_args: true,
             combine_data_sections: false,
+            symbol_mappings: Default::default(),
             x86_formatter: Default::default(),
             mips_abi: Default::default(),
             mips_instr_category: Default::default(),
@@ -223,8 +227,10 @@ impl ObjSectionDiff {
 
 #[derive(Debug, Clone, Default)]
 pub struct ObjSymbolDiff {
+    /// The symbol ref this object
     pub symbol_ref: SymbolRef,
-    pub diff_symbol: Option<SymbolRef>,
+    /// The symbol ref in the _other_ object that this symbol was diffed against
+    pub target_symbol: Option<SymbolRef>,
     pub instructions: Vec<ObjInsDiff>,
     pub match_percent: Option<f32>,
 }
@@ -294,8 +300,13 @@ pub struct ObjInsBranchTo {
 
 #[derive(Default)]
 pub struct ObjDiff {
+    /// A list of all section diffs in the object.
     pub sections: Vec<ObjSectionDiff>,
+    /// Common BSS symbols don't live in a section, so they're stored separately.
     pub common: Vec<ObjSymbolDiff>,
+    /// If `selecting_left` or `selecting_right` is set, this is the list of symbols
+    /// that are being mapped to the other object.
+    pub mapping_symbols: Vec<ObjSymbolDiff>,
 }
 
 impl ObjDiff {
@@ -303,13 +314,14 @@ impl ObjDiff {
         let mut result = Self {
             sections: Vec::with_capacity(obj.sections.len()),
             common: Vec::with_capacity(obj.common.len()),
+            mapping_symbols: vec![],
         };
         for (section_idx, section) in obj.sections.iter().enumerate() {
             let mut symbols = Vec::with_capacity(section.symbols.len());
             for (symbol_idx, _) in section.symbols.iter().enumerate() {
                 symbols.push(ObjSymbolDiff {
                     symbol_ref: SymbolRef { section_idx, symbol_idx },
-                    diff_symbol: None,
+                    target_symbol: None,
                     instructions: vec![],
                     match_percent: None,
                 });
@@ -328,7 +340,7 @@ impl ObjDiff {
         for (symbol_idx, _) in obj.common.iter().enumerate() {
             result.common.push(ObjSymbolDiff {
                 symbol_ref: SymbolRef { section_idx: obj.sections.len(), symbol_idx },
-                diff_symbol: None,
+                target_symbol: None,
                 instructions: vec![],
                 match_percent: None,
             });
@@ -378,7 +390,7 @@ pub fn diff_objs(
     right: Option<&ObjInfo>,
     prev: Option<&ObjInfo>,
 ) -> Result<DiffObjsResult> {
-    let symbol_matches = matching_symbols(left, right, prev)?;
+    let symbol_matches = matching_symbols(left, right, prev, &config.symbol_mappings)?;
     let section_matches = matching_sections(left, right)?;
     let mut left = left.map(|p| (p, ObjDiff::new_from_obj(p)));
     let mut right = right.map(|p| (p, ObjDiff::new_from_obj(p)));
@@ -529,11 +541,79 @@ pub fn diff_objs(
         }
     }
 
+    if let (Some((right_obj, right_out)), Some((left_obj, left_out))) =
+        (right.as_mut(), left.as_mut())
+    {
+        if let Some(right_name) = &config.symbol_mappings.selecting_left {
+            generate_mapping_symbols(right_obj, right_name, left_obj, left_out, config)?;
+        }
+        if let Some(left_name) = &config.symbol_mappings.selecting_right {
+            generate_mapping_symbols(left_obj, left_name, right_obj, right_out, config)?;
+        }
+    }
+
     Ok(DiffObjsResult {
         left: left.map(|(_, o)| o),
         right: right.map(|(_, o)| o),
         prev: prev.map(|(_, o)| o),
     })
+}
+
+/// When we're selecting a symbol to use as a comparison, we'll create comparisons for all
+/// symbols in the other object that match the selected symbol's section and kind. This allows
+/// us to display match percentages for all symbols in the other object that could be selected.
+fn generate_mapping_symbols(
+    base_obj: &ObjInfo,
+    base_name: &str,
+    target_obj: &ObjInfo,
+    target_out: &mut ObjDiff,
+    config: &DiffObjConfig,
+) -> Result<()> {
+    let Some(base_symbol_ref) = symbol_ref_by_name(base_obj, base_name) else {
+        return Ok(());
+    };
+    let (base_section, base_symbol) = base_obj.section_symbol(base_symbol_ref);
+    let Some(base_section) = base_section else {
+        return Ok(());
+    };
+    let base_code = match base_section.kind {
+        ObjSectionKind::Code => Some(process_code_symbol(base_obj, base_symbol_ref, config)?),
+        _ => None,
+    };
+    for (target_section_index, target_section) in
+        target_obj.sections.iter().enumerate().filter(|(_, s)| s.kind == base_section.kind)
+    {
+        for (target_symbol_index, _target_symbol) in
+            target_section.symbols.iter().enumerate().filter(|(_, s)| s.kind == base_symbol.kind)
+        {
+            let target_symbol_ref =
+                SymbolRef { section_idx: target_section_index, symbol_idx: target_symbol_index };
+            match base_section.kind {
+                ObjSectionKind::Code => {
+                    let target_code = process_code_symbol(target_obj, target_symbol_ref, config)?;
+                    let (left_diff, _right_diff) = diff_code(
+                        &target_code,
+                        base_code.as_ref().unwrap(),
+                        target_symbol_ref,
+                        base_symbol_ref,
+                        config,
+                    )?;
+                    target_out.mapping_symbols.push(left_diff);
+                }
+                ObjSectionKind::Data => {
+                    let (left_diff, _right_diff) =
+                        diff_data_symbol(target_obj, base_obj, target_symbol_ref, base_symbol_ref)?;
+                    target_out.mapping_symbols.push(left_diff);
+                }
+                ObjSectionKind::Bss => {
+                    let (left_diff, _right_diff) =
+                        diff_bss_symbol(target_obj, base_obj, target_symbol_ref, base_symbol_ref)?;
+                    target_out.mapping_symbols.push(left_diff);
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -551,19 +631,115 @@ struct SectionMatch {
     section_kind: ObjSectionKind,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, serde::Deserialize, serde::Serialize)]
+pub struct MappingConfig {
+    /// Manual symbol mappings
+    pub mappings: SymbolMappings,
+    /// The right object symbol name that we're selecting a left symbol for
+    pub selecting_left: Option<String>,
+    /// The left object symbol name that we're selecting a right symbol for
+    pub selecting_right: Option<String>,
+}
+
+fn symbol_ref_by_name(obj: &ObjInfo, name: &str) -> Option<SymbolRef> {
+    for (section_idx, section) in obj.sections.iter().enumerate() {
+        for (symbol_idx, symbol) in section.symbols.iter().enumerate() {
+            if symbol.name == name {
+                return Some(SymbolRef { section_idx, symbol_idx });
+            }
+        }
+    }
+    None
+}
+
+fn apply_symbol_mappings(
+    left: &ObjInfo,
+    right: &ObjInfo,
+    mapping_config: &MappingConfig,
+    left_used: &mut HashSet<SymbolRef>,
+    right_used: &mut HashSet<SymbolRef>,
+    matches: &mut Vec<SymbolMatch>,
+) -> Result<()> {
+    // If we're selecting a symbol to use as a comparison, mark it as used
+    // This ensures that we don't match it to another symbol at any point
+    if let Some(left_name) = &mapping_config.selecting_left {
+        if let Some(left_symbol) = symbol_ref_by_name(left, left_name) {
+            left_used.insert(left_symbol);
+        }
+    }
+    if let Some(right_name) = &mapping_config.selecting_right {
+        if let Some(right_symbol) = symbol_ref_by_name(right, right_name) {
+            right_used.insert(right_symbol);
+        }
+    }
+
+    // Apply manual symbol mappings
+    for (left_name, right_name) in &mapping_config.mappings {
+        let Some(left_symbol) = symbol_ref_by_name(left, left_name) else {
+            continue;
+        };
+        if left_used.contains(&left_symbol) {
+            continue;
+        }
+        let Some(right_symbol) = symbol_ref_by_name(right, right_name) else {
+            continue;
+        };
+        if right_used.contains(&right_symbol) {
+            continue;
+        }
+        let left_section = &left.sections[left_symbol.section_idx];
+        let right_section = &right.sections[right_symbol.section_idx];
+        if left_section.kind != right_section.kind {
+            log::warn!(
+                "Symbol section kind mismatch: {} ({:?}) vs {} ({:?})",
+                left_name,
+                left_section.kind,
+                right_name,
+                right_section.kind
+            );
+            continue;
+        }
+        matches.push(SymbolMatch {
+            left: Some(left_symbol),
+            right: Some(right_symbol),
+            prev: None, // TODO
+            section_kind: left_section.kind,
+        });
+        left_used.insert(left_symbol);
+        right_used.insert(right_symbol);
+    }
+    Ok(())
+}
+
 /// Find matching symbols between each object.
 fn matching_symbols(
     left: Option<&ObjInfo>,
     right: Option<&ObjInfo>,
     prev: Option<&ObjInfo>,
+    mappings: &MappingConfig,
 ) -> Result<Vec<SymbolMatch>> {
     let mut matches = Vec::new();
+    let mut left_used = HashSet::new();
     let mut right_used = HashSet::new();
     if let Some(left) = left {
+        if let Some(right) = right {
+            apply_symbol_mappings(
+                left,
+                right,
+                mappings,
+                &mut left_used,
+                &mut right_used,
+                &mut matches,
+            )?;
+        }
         for (section_idx, section) in left.sections.iter().enumerate() {
             for (symbol_idx, symbol) in section.symbols.iter().enumerate() {
+                let symbol_ref = SymbolRef { section_idx, symbol_idx };
+                if left_used.contains(&symbol_ref) {
+                    continue;
+                }
                 let symbol_match = SymbolMatch {
-                    left: Some(SymbolRef { section_idx, symbol_idx }),
+                    left: Some(symbol_ref),
                     right: find_symbol(right, symbol, section, Some(&right_used)),
                     prev: find_symbol(prev, symbol, section, None),
                     section_kind: section.kind,
@@ -575,8 +751,12 @@ fn matching_symbols(
             }
         }
         for (symbol_idx, symbol) in left.common.iter().enumerate() {
+            let symbol_ref = SymbolRef { section_idx: left.sections.len(), symbol_idx };
+            if left_used.contains(&symbol_ref) {
+                continue;
+            }
             let symbol_match = SymbolMatch {
-                left: Some(SymbolRef { section_idx: left.sections.len(), symbol_idx }),
+                left: Some(symbol_ref),
                 right: find_common_symbol(right, symbol),
                 prev: find_common_symbol(prev, symbol),
                 section_kind: ObjSectionKind::Bss,

@@ -1,6 +1,7 @@
 use egui::{text::LayoutJob, Color32, FontId, TextFormat};
 
 pub(crate) mod appearance;
+pub(crate) mod column_layout;
 pub(crate) mod config;
 pub(crate) mod data_diff;
 pub(crate) mod debug;

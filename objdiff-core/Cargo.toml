@@ -17,8 +17,8 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 all = ["config", "dwarf", "mips", "ppc", "x86", "arm", "bindings"]
-any-arch = [] # Implicit, used to check if any arch is enabled
-config = ["globset", "semver", "serde_json", "serde_yaml"]
+any-arch = ["bimap"] # Implicit, used to check if any arch is enabled
+config = ["bimap", "globset", "semver", "serde_json", "serde_yaml"]
 dwarf = ["gimli"]
 mips = ["any-arch", "rabbitizer"]
 ppc = ["any-arch", "cwdemangle", "cwextab", "ppc750cl"]
@@ -32,6 +32,7 @@ features = ["all"]
 
 [dependencies]
 anyhow = "1.0"
+bimap = { version = "0.6", features = ["serde"], optional = true }
 byteorder = "1.5"
 filetime = "0.2"
 flagset = "0.4"

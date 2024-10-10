@@ -112,6 +112,15 @@ pub struct ObjIns {
     pub orig: Option<String>,
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]
+pub enum ObjSymbolKind {
+    #[default]
+    Unknown,
+    Function,
+    Object,
+    Section,
+}
+
 #[derive(Debug, Clone)]
 pub struct ObjSymbol {
     pub name: String,
@@ -120,6 +129,7 @@ pub struct ObjSymbol {
     pub section_address: u64,
     pub size: u64,
     pub size_known: bool,
+    pub kind: ObjSymbolKind,
     pub flags: ObjSymbolFlagSet,
     pub addend: i64,
     /// Original virtual address (from .note.split section)

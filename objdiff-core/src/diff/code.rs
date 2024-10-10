@@ -41,7 +41,7 @@ pub fn no_diff_code(out: &ProcessCodeResult, symbol_ref: SymbolRef) -> Result<Ob
         });
     }
     resolve_branches(&mut diff);
-    Ok(ObjSymbolDiff { symbol_ref, diff_symbol: None, instructions: diff, match_percent: None })
+    Ok(ObjSymbolDiff { symbol_ref, target_symbol: None, instructions: diff, match_percent: None })
 }
 
 pub fn diff_code(
@@ -67,7 +67,7 @@ pub fn diff_code(
         right.arg_diff = result.right_args_diff;
     }
 
-    let total = left_out.insts.len();
+    let total = left_out.insts.len().max(right_out.insts.len());
     let percent = if diff_state.diff_count >= total {
         0.0
     } else {
@@ -77,13 +77,13 @@ pub fn diff_code(
     Ok((
         ObjSymbolDiff {
             symbol_ref: left_symbol_ref,
-            diff_symbol: Some(right_symbol_ref),
+            target_symbol: Some(right_symbol_ref),
             instructions: left_diff,
             match_percent: Some(percent),
         },
         ObjSymbolDiff {
             symbol_ref: right_symbol_ref,
-            diff_symbol: Some(left_symbol_ref),
+            target_symbol: Some(left_symbol_ref),
             instructions: right_diff,
             match_percent: Some(percent),
         },
@@ -211,7 +211,7 @@ fn arg_eq(
     left_diff: &ObjInsDiff,
     right_diff: &ObjInsDiff,
 ) -> bool {
-    return match left {
+    match left {
         ObjInsArg::PlainText(l) => match right {
             ObjInsArg::PlainText(r) => l == r,
             _ => false,
@@ -236,7 +236,7 @@ fn arg_eq(
             left_diff.branch_to.as_ref().map(|b| b.ins_idx)
                 == right_diff.branch_to.as_ref().map(|b| b.ins_idx)
         }
-    };
+    }
 }
 
 #[derive(Default)]

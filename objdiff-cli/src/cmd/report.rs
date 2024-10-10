@@ -94,7 +94,7 @@ fn generate(args: GenerateArgs) -> Result<()> {
     };
     info!(
         "Generating report for {} units (using {} threads)",
-        project.objects.len(),
+        project.units().len(),
         if args.deduplicate { 1 } else { rayon::current_num_threads() }
     );
 
@@ -103,7 +103,7 @@ fn generate(args: GenerateArgs) -> Result<()> {
     let mut existing_functions: HashSet<String> = HashSet::new();
     if args.deduplicate {
         // If deduplicating, we need to run single-threaded
-        for object in &mut project.objects {
+        for object in project.units.as_deref_mut().unwrap_or_default() {
             if let Some(unit) = report_object(
                 object,
                 project_dir,
@@ -116,7 +116,9 @@ fn generate(args: GenerateArgs) -> Result<()> {
         }
     } else {
         let vec = project
-            .objects
+            .units
+            .as_deref_mut()
+            .unwrap_or_default()
             .par_iter_mut()
             .map(|object| {
                 report_object(
@@ -132,7 +134,7 @@ fn generate(args: GenerateArgs) -> Result<()> {
     }
     let measures = units.iter().flat_map(|u| u.measures.into_iter()).collect();
     let mut categories = Vec::new();
-    for category in &project.progress_categories {
+    for category in project.progress_categories() {
         categories.push(ReportCategory {
             id: category.id.clone(),
             name: category.name.clone(),
