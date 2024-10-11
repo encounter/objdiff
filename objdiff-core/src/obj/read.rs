@@ -182,14 +182,14 @@ fn symbols_by_section(
     result.sort_by(|a, b| a.address.cmp(&b.address).then(a.size.cmp(&b.size)));
     let mut iter = result.iter_mut().peekable();
     while let Some(symbol) = iter.next() {
-        if symbol.kind == ObjSymbolKind::Unknown && symbol.size == 0 {
+        if symbol.size == 0 {
             if let Some(next_symbol) = iter.peek() {
                 symbol.size = next_symbol.address - symbol.address;
             } else {
                 symbol.size = (section.address + section.size) - symbol.address;
             }
             // Set symbol kind if we ended up with a non-zero size
-            if symbol.size > 0 {
+            if symbol.kind == ObjSymbolKind::Unknown && symbol.size > 0 {
                 symbol.kind = match section.kind {
                     ObjSectionKind::Code => ObjSymbolKind::Function,
                     ObjSectionKind::Data | ObjSectionKind::Bss => ObjSymbolKind::Object,
