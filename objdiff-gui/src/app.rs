@@ -267,15 +267,25 @@ impl AppState {
     }
 
     pub fn set_selected_obj(&mut self, config: ObjectConfig) {
-        if self.config.selected_obj.as_ref().is_some_and(|existing| existing == &config) {
-            // Don't reload the object if there were no changes
-            return;
+        let mut unit_changed = true;
+        if let Some(existing) = self.config.selected_obj.as_ref() {
+            if existing == &config {
+                // Don't reload the object if there were no changes
+                return;
+            }
+            if existing.name == config.name {
+                unit_changed = false;
+            }
         }
         self.config.selected_obj = Some(config);
-        self.obj_change = true;
-        self.queue_build = false;
-        self.selecting_left = None;
-        self.selecting_right = None;
+        if unit_changed {
+            self.obj_change = true;
+            self.queue_build = false;
+            self.selecting_left = None;
+            self.selecting_right = None;
+        } else {
+            self.queue_build = true;
+        }
     }
 
     pub fn clear_selected_obj(&mut self) {
