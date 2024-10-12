@@ -1373,6 +1373,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "file-id"
+version = "0.2.1"
+source = "git+https://github.com/notify-rs/notify?rev=128bf6230c03d39dbb7f301ff7b20e594e34c3a2#128bf6230c03d39dbb7f301ff7b20e594e34c3a2"
+dependencies = [
+ "windows-sys 0.52.0",
+]
+
+[[package]]
 name = "filetime"
 version = "0.2.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2558,6 +2566,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "notify-debouncer-full"
+version = "0.4.0"
+source = "git+https://github.com/notify-rs/notify?rev=128bf6230c03d39dbb7f301ff7b20e594e34c3a2#128bf6230c03d39dbb7f301ff7b20e594e34c3a2"
+dependencies = [
+ "file-id",
+ "log",
+ "notify",
+ "notify-types",
+ "walkdir",
+]
+
+[[package]]
 name = "notify-types"
 version = "1.0.0"
 source = "git+https://github.com/notify-rs/notify?rev=128bf6230c03d39dbb7f301ff7b20e594e34c3a2#128bf6230c03d39dbb7f301ff7b20e594e34c3a2"
@@ -2861,7 +2881,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-cli"
-version = "2.3.2"
+version = "2.4.0"
 dependencies = [
  "anyhow",
  "argp",
@@ -2883,7 +2903,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-core"
-version = "2.3.2"
+version = "2.4.0"
 dependencies = [
  "anyhow",
  "arm-attr",
@@ -2902,28 +2922,37 @@ dependencies = [
  "log",
  "memmap2",
  "msvc-demangler",
+ "notify",
+ "notify-debouncer-full",
  "num-traits",
  "object",
+ "path-slash",
  "pbjson",
  "pbjson-build",
  "ppc750cl",
  "prost",
  "prost-build",
  "rabbitizer",
+ "reqwest",
+ "self_update",
  "semver",
  "serde",
  "serde_json",
  "serde_yaml",
+ "shell-escape",
  "similar",
  "strum",
+ "tempfile",
+ "time",
  "tsify-next",
  "unarm",
  "wasm-bindgen",
+ "winapi",
 ]
 
 [[package]]
 name = "objdiff-gui"
-version = "2.3.2"
+version = "2.4.0"
 dependencies = [
  "anyhow",
  "bytes",
@@ -2942,29 +2971,23 @@ dependencies = [
  "font-kit",
  "globset",
  "log",
- "notify",
  "objdiff-core",
  "open",
- "path-slash",
  "png",
  "pollster",
  "regex",
- "reqwest",
  "rfd",
  "rlwinmdec",
  "ron",
- "self_update",
  "serde",
  "serde_json",
  "shell-escape",
  "strum",
  "tauri-winres",
- "tempfile",
  "time",
  "tracing-subscriber",
  "tracing-wasm",
  "wgpu",
- "winapi",
 ]
 
 [[package]]
@@ -3804,9 +3827,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.13"
+version = "0.23.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2dabaac7466917e566adb06783a81ca48944c6898a1b08b9374106dd671f4c8"
+checksum = "415d9944693cb90382053259f89fbb077ea730ad7273047ec63b19bc9b160ba8"
 dependencies = [
  "once_cell",
  "ring",
@@ -3865,9 +3888,9 @@ dependencies = [
 
 [[package]]
 name = "schannel"
-version = "0.1.24"
+version = "0.1.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9aaafd5a2b6e3d657ff009d82fbd630b6bd54dd4eb06f21693925cdf80f9b8b"
+checksum = "01227be5826fa0690321a2ba6c5cd57a19cf3f6a09e76973b58e61de6ab9d1c1"
 dependencies = [
  "windows-sys 0.59.0",
 ]

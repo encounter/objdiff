@@ -15,17 +15,14 @@ use globset::Glob;
 use objdiff_core::{
     config::{ProjectObject, DEFAULT_WATCH_PATTERNS},
     diff::{ArmArchVersion, ArmR9Usage, MipsAbi, MipsInstrCategory, X86Formatter},
+    jobs::{check_update::CheckUpdateResult, Job, JobQueue, JobResult},
 };
 use strum::{EnumMessage, VariantArray};
 
 use crate::{
     app::{AppConfig, AppState, AppStateRef, ObjectConfig},
     config::ProjectObjectNode,
-    jobs::{
-        check_update::{start_check_update, CheckUpdateResult},
-        update::start_update,
-        Job, JobQueue, JobResult,
-    },
+    jobs::{start_check_update, start_update},
     update::RELEASE_URL,
     views::{
         appearance::Appearance,
@@ -118,11 +115,11 @@ impl ConfigViewState {
 
         if self.queue_check_update {
             self.queue_check_update = false;
-            jobs.push_once(Job::CheckUpdate, || start_check_update(ctx));
+            start_check_update(ctx, jobs);
         }
 
         if let Some(bin_name) = self.queue_update.take() {
-            jobs.push_once(Job::Update, || start_update(ctx, bin_name));
+            start_update(ctx, jobs, bin_name);
         }
     }
 }

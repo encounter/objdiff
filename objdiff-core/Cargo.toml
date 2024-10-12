@@ -16,15 +16,16 @@ documentation = "https://docs.rs/objdiff-core"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-all = ["config", "dwarf", "mips", "ppc", "x86", "arm", "bindings"]
+all = ["config", "dwarf", "mips", "ppc", "x86", "arm", "bindings", "build"]
 any-arch = ["bimap"] # Implicit, used to check if any arch is enabled
+bindings = ["serde_json", "prost", "pbjson"]
+build = ["shell-escape", "path-slash", "winapi", "notify", "notify-debouncer-full", "reqwest", "self_update", "tempfile", "time"]
 config = ["bimap", "globset", "semver", "serde_json", "serde_yaml"]
 dwarf = ["gimli"]
 mips = ["any-arch", "rabbitizer"]
 ppc = ["any-arch", "cwdemangle", "cwextab", "ppc750cl"]
 x86 = ["any-arch", "cpp_demangle", "iced-x86", "msvc-demangler"]
 arm = ["any-arch", "cpp_demangle", "unarm", "arm-attr"]
-bindings = ["serde_json", "prost", "pbjson"]
 wasm = ["bindings", "console_error_panic_hook", "console_log"]
 
 [package.metadata.docs.rs]
@@ -75,6 +76,27 @@ msvc-demangler = { version = "0.10", optional = true }
 # arm
 unarm = { version = "1.6", optional = true }
 arm-attr = { version = "0.1", optional = true }
+
+# build
+notify = { git = "https://github.com/notify-rs/notify", rev = "128bf6230c03d39dbb7f301ff7b20e594e34c3a2", optional = true }
+notify-debouncer-full = { git = "https://github.com/notify-rs/notify", rev = "128bf6230c03d39dbb7f301ff7b20e594e34c3a2", optional = true }
+shell-escape = { version = "0.1", optional = true }
+tempfile = { version = "3.13", optional = true }
+time = { version = "0.3", optional = true }
+
+[target.'cfg(windows)'.dependencies]
+path-slash = { version = "0.2", optional = true }
+winapi = { version = "0.3", optional = true }
+
+# For Linux static binaries, use rustls
+[target.'cfg(target_os = "linux")'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "multipart", "rustls-tls"], optional = true }
+self_update = { version = "0.41", default-features = false, features = ["rustls"], optional = true }
+
+# For all other platforms, use native TLS
+[target.'cfg(not(target_os = "linux"))'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "multipart", "default-tls"], optional = true }
+self_update = { version = "0.41", optional = true }
 
 [build-dependencies]
 prost-build = "0.13"
