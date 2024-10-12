@@ -1399,6 +1399,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "file-id"
+version = "0.2.1"
+source = "git+https://github.com/notify-rs/notify?rev=128bf6230c03d39dbb7f301ff7b20e594e34c3a2#128bf6230c03d39dbb7f301ff7b20e594e34c3a2"
+dependencies = [
+ "windows-sys 0.52.0",
+]
+
+[[package]]
 name = "filetime"
 version = "0.2.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2727,6 +2735,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "notify-debouncer-full"
+version = "0.4.0"
+source = "git+https://github.com/notify-rs/notify?rev=128bf6230c03d39dbb7f301ff7b20e594e34c3a2#128bf6230c03d39dbb7f301ff7b20e594e34c3a2"
+dependencies = [
+ "file-id",
+ "log",
+ "notify",
+ "notify-types",
+ "walkdir",
+]
+
+[[package]]
 name = "notify-types"
 version = "1.0.0"
 source = "git+https://github.com/notify-rs/notify?rev=128bf6230c03d39dbb7f301ff7b20e594e34c3a2#128bf6230c03d39dbb7f301ff7b20e594e34c3a2"
@@ -3071,23 +3091,32 @@ dependencies = [
  "log",
  "memmap2",
  "msvc-demangler",
+ "notify",
+ "notify-debouncer-full",
  "num-traits",
  "object",
+ "path-slash",
  "pbjson",
  "pbjson-build",
  "ppc750cl",
  "prost",
  "prost-build",
  "rabbitizer",
+ "reqwest",
+ "self_update",
  "semver",
  "serde",
  "serde_json",
  "serde_yaml",
+ "shell-escape",
  "similar",
  "strum",
+ "tempfile",
+ "time",
  "tsify-next",
  "unarm",
  "wasm-bindgen",
+ "winapi",
  "yaxpeax-arch",
  "yaxpeax-arm",
 ]
@@ -3113,24 +3142,19 @@ dependencies = [
  "font-kit",
  "globset",
  "log",
- "notify",
  "objdiff-core",
  "open",
- "path-slash",
  "png",
  "pollster 0.4.0",
  "regex",
- "reqwest",
  "rfd",
  "rlwinmdec",
  "ron",
- "self_update",
  "serde",
  "serde_json",
  "shell-escape",
  "strum",
  "tauri-winres",
- "tempfile",
  "time",
  "tracing-subscriber",
  "tracing-wasm",

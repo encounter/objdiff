@@ -1,5 +1,7 @@
+use anyhow::Result;
 use cfg_if::cfg_if;
 use const_format::formatcp;
+use objdiff_core::jobs::update::self_update;
 use self_update::{cargo_crate_version, update::ReleaseUpdate};
 
 pub const OS: &str = std::env::consts::OS;
@@ -26,8 +28,8 @@ pub const BIN_NAME_OLD: &str = formatcp!("objdiff-{}-{}{}", OS, ARCH, std::env::
 pub const RELEASE_URL: &str =
     formatcp!("https://github.com/{}/{}/releases/latest", GITHUB_USER, GITHUB_REPO);
 
-pub fn build_updater() -> self_update::errors::Result<Box<dyn ReleaseUpdate>> {
-    self_update::backends::github::Update::configure()
+pub fn build_updater() -> Result<Box<dyn ReleaseUpdate>> {
+    Ok(self_update::backends::github::Update::configure()
         .repo_owner(GITHUB_USER)
         .repo_name(GITHUB_REPO)
         // bin_name is required, but unused?
@@ -35,5 +37,5 @@ pub fn build_updater() -> self_update::errors::Result<Box<dyn ReleaseUpdate>> {
         .no_confirm(true)
         .show_output(false)
         .current_version(cargo_crate_version!())
-        .build()
+        .build()?)
 }

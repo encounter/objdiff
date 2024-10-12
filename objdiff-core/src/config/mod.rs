@@ -176,6 +176,10 @@ pub const DEFAULT_WATCH_PATTERNS: &[&str] = &[
     "*.inc", "*.py", "*.yml", "*.txt", "*.json",
 ];
 
+pub fn default_watch_patterns() -> Vec<Glob> {
+    DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect()
+}
+
 #[derive(Clone, Eq, PartialEq)]
 pub struct ProjectConfigInfo {
     pub path: PathBuf,

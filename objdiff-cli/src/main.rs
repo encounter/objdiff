@@ -1,6 +1,7 @@
 mod argp_version;
 mod cmd;
 mod util;
+mod views;
 
 // musl's allocator is very slow, so use mimalloc when targeting musl.
 // Otherwise, use the system allocator to avoid extra code size.

@@ -4,6 +4,7 @@ use std::{
         mpsc::{Receiver, Sender, TryRecvError},
         Arc, RwLock,
     },
+    task::Waker,
     thread::JoinHandle,
 };
 
@@ -53,7 +54,6 @@ impl JobQueue {
     }
 
     /// Returns whether any job is running.
-    #[expect(dead_code)]
     pub fn any_running(&self) -> bool {
         self.jobs.iter().any(|job| {
             if let Some(handle) = &job.handle {
@@ -96,12 +96,53 @@ impl JobQueue {
 
     /// Removes a job from the queue given its ID.
     pub fn remove(&mut self, id: usize) { self.jobs.retain(|job| job.id != id); }
+
+    /// Collects the results of all finished jobs and handles any errors.
+    pub fn collect_results(&mut self) {
+        let mut results = vec![];
+        for (job, result) in self.iter_finished() {
+            match result {
+                Ok(result) => {
+                    match result {
+                        JobResult::None => {
+                            // Job context contains the error
+                        }
+                        _ => results.push(result),
+                    }
+                }
+                Err(err) => {
+                    let err = if let Some(msg) = err.downcast_ref::<&'static str>() {
+                        anyhow::Error::msg(*msg)
+                    } else if let Some(msg) = err.downcast_ref::<String>() {
+                        anyhow::Error::msg(msg.clone())
+                    } else {
+                        anyhow::Error::msg("Thread panicked")
+                    };
+                    let result = job.context.status.write();
+                    if let Ok(mut guard) = result {
+                        guard.error = Some(err);
+                    } else {
+                        drop(result);
+                        job.context.status = Arc::new(RwLock::new(JobStatus {
+                            title: "Error".to_string(),
+                            progress_percent: 0.0,
+                            progress_items: None,
+                            status: String::new(),
+                            error: Some(err),
+                        }));
+                    }
+                }
+            }
+        }
+        self.results.append(&mut results);
+        self.clear_finished();
+    }
 }
 
 #[derive(Clone)]
 pub struct JobContext {
     pub status: Arc<RwLock<JobStatus>>,
-    pub egui: egui::Context,
+    pub waker: Waker,
 }
 
 pub struct JobState {
@@ -137,7 +178,7 @@ fn should_cancel(rx: &Receiver<()>) -> bool {
 }
 
 fn start_job(
-    ctx: &egui::Context,
+    waker: Waker,
     title: &str,
     kind: Job,
     run: impl FnOnce(JobContext, Receiver<()>) -> Result<JobResult> + Send + 'static,
@@ -149,8 +190,8 @@ fn start_job(
         status: String::new(),
         error: None,
     }));
-    let context = JobContext { status: status.clone(), egui: ctx.clone() };
-    let context_inner = JobContext { status: status.clone(), egui: ctx.clone() };
+    let context = JobContext { status: status.clone(), waker: waker.clone() };
+    let context_inner = JobContext { status: status.clone(), waker };
     let (tx, rx) = std::sync::mpsc::channel();
     let handle = std::thread::spawn(move || match run(context_inner, rx) {
         Ok(state) => state,
@@ -162,7 +203,7 @@ fn start_job(
         }
     });
     let id = JOB_ID.fetch_add(1, Ordering::Relaxed);
-    log::info!("Started job {}", id);
+    // log::info!("Started job {}", id); TODO
     JobState { id, kind, handle: Some(handle), context, cancel: tx }
 }
 
@@ -184,6 +225,6 @@ fn update_status(
         w.status = str;
     }
     drop(w);
-    context.egui.request_repaint();
+    context.waker.wake_by_ref();
     Ok(())
 }

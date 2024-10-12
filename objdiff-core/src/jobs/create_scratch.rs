@@ -1,14 +1,10 @@
-use std::{fs, path::PathBuf, sync::mpsc::Receiver};
+use std::{fs, path::PathBuf, sync::mpsc::Receiver, task::Waker};
 
 use anyhow::{anyhow, bail, Context, Result};
-use const_format::formatcp;
 
 use crate::{
-    app::AppConfig,
-    jobs::{
-        objdiff::{run_make, BuildConfig, BuildStatus},
-        start_job, update_status, Job, JobContext, JobResult, JobState,
-    },
+    build::{run_make, BuildConfig, BuildStatus},
+    jobs::{start_job, update_status, Job, JobContext, JobResult, JobState},
 };
 
 #[derive(Debug, Clone)]
@@ -24,38 +20,6 @@ pub struct CreateScratchConfig {
     pub function_name: String,
     pub target_obj: PathBuf,
     pub preset_id: Option<u32>,
-}
-
-impl CreateScratchConfig {
-    pub(crate) fn from_config(config: &AppConfig, function_name: String) -> Result<Self> {
-        let Some(selected_obj) = &config.selected_obj else {
-            bail!("No object selected");
-        };
-        let Some(target_path) = &selected_obj.target_path else {
-            bail!("No target path for {}", selected_obj.name);
-        };
-        let Some(scratch_config) = &selected_obj.scratch else {
-            bail!("No scratch configuration for {}", selected_obj.name);
-        };
-        Ok(Self {
-            build_config: BuildConfig::from_config(config),
-            context_path: scratch_config.ctx_path.clone(),
-            build_context: scratch_config.build_ctx.unwrap_or(false),
-            compiler: scratch_config.compiler.clone().unwrap_or_default(),
-            platform: scratch_config.platform.clone().unwrap_or_default(),
-            compiler_flags: scratch_config.c_flags.clone().unwrap_or_default(),
-            function_name,
-            target_obj: target_path.to_path_buf(),
-            preset_id: scratch_config.preset_id,
-        })
-    }
-
-    pub fn is_available(config: &AppConfig) -> bool {
-        let Some(selected_obj) = &config.selected_obj else {
-            return false;
-        };
-        selected_obj.target_path.is_some() && selected_obj.scratch.is_some()
-    }
 }
 
 #[derive(Default, Debug, Clone)]
@@ -99,7 +63,7 @@ fn run_create_scratch(
 
     update_status(status, "Creating scratch".to_string(), 1, 2, &cancel)?;
     let diff_flags = [format!("--disassemble={}", config.function_name)];
-    let diff_flags = serde_json::to_string(&diff_flags).unwrap();
+    let diff_flags = serde_json::to_string(&diff_flags)?;
     let obj_path = project_dir.join(&config.target_obj);
     let file = reqwest::blocking::multipart::Part::file(&obj_path)
         .with_context(|| format!("Failed to open {}", obj_path.display()))?;
@@ -117,7 +81,7 @@ fn run_create_scratch(
     form = form.part("target_obj", file);
     let client = reqwest::blocking::Client::new();
     let response = client
-        .post(formatcp!("{API_HOST}/api/scratch"))
+        .post(format!("{API_HOST}/api/scratch"))
         .multipart(form)
         .send()
         .map_err(|e| anyhow!("Failed to send request: {}", e))?;
@@ -131,8 +95,8 @@ fn run_create_scratch(
     Ok(Box::from(CreateScratchResult { scratch_url }))
 }
 
-pub fn start_create_scratch(ctx: &egui::Context, config: CreateScratchConfig) -> JobState {
-    start_job(ctx, "Create scratch", Job::CreateScratch, move |context, cancel| {
+pub fn start_create_scratch(waker: Waker, config: CreateScratchConfig) -> JobState {
+    start_job(waker, "Create scratch", Job::CreateScratch, move |context, cancel| {
         run_create_scratch(&context, cancel, config)
             .map(|result| JobResult::CreateScratch(Some(result)))
     })

@@ -6,7 +6,9 @@ use egui::{
 };
 use objdiff_core::{
     arch::ObjArch,
+    build::BuildStatus,
     diff::{display::HighlightKind, ObjDiff, ObjSymbolDiff},
+    jobs::{create_scratch::CreateScratchResult, objdiff::ObjDiffResult, Job, JobQueue, JobResult},
     obj::{
         ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags, SymbolRef, SECTION_COMMON,
     },
@@ -16,11 +18,7 @@ use regex::{Regex, RegexBuilder};
 use crate::{
     app::AppStateRef,
     hotkeys,
-    jobs::{
-        create_scratch::{start_create_scratch, CreateScratchConfig, CreateScratchResult},
-        objdiff::{BuildStatus, ObjDiffResult},
-        Job, JobQueue, JobResult,
-    },
+    jobs::{is_create_scratch_available, start_create_scratch},
     views::{
         appearance::Appearance,
         column_layout::{render_header, render_strips},
@@ -182,7 +180,7 @@ impl DiffViewState {
             } else {
                 self.source_path_available = false;
             }
-            self.scratch_available = CreateScratchConfig::is_available(&state.config);
+            self.scratch_available = is_create_scratch_available(&state.config);
             self.object_name =
                 state.config.selected_obj.as_ref().map(|o| o.name.clone()).unwrap_or_default();
         }
@@ -270,14 +268,7 @@ impl DiffViewState {
                 let Ok(state) = state.read() else {
                     return;
                 };
-                match CreateScratchConfig::from_config(&state.config, function_name) {
-                    Ok(config) => {
-                        jobs.push_once(Job::CreateScratch, || start_create_scratch(ctx, config));
-                    }
-                    Err(err) => {
-                        log::error!("Failed to create scratch config: {err}");
-                    }
-                }
+                start_create_scratch(ctx, jobs, &state, function_name);
             }
             DiffViewAction::OpenSourcePath => {
                 let Ok(state) = state.read() else {

@@ -11,24 +11,22 @@ use std::{
 };
 
 use filetime::FileTime;
-use globset::{Glob, GlobSet};
-use notify::{RecursiveMode, Watcher};
+use globset::Glob;
 use objdiff_core::{
+    build::watcher::{create_watcher, Watcher},
     config::{
-        build_globset, save_project_config, ProjectConfig, ProjectConfigInfo, ProjectObject,
-        ScratchConfig, SymbolMappings, DEFAULT_WATCH_PATTERNS,
+        build_globset, default_watch_patterns, save_project_config, ProjectConfig,
+        ProjectConfigInfo, ProjectObject, ScratchConfig, SymbolMappings, DEFAULT_WATCH_PATTERNS,
     },
     diff::DiffObjConfig,
+    jobs::{Job, JobQueue, JobResult},
 };
 use time::UtcOffset;
 
 use crate::{
     app_config::{deserialize_config, AppConfigVersion},
     config::{load_project_config, ProjectObjectNode},
-    jobs::{
-        objdiff::{start_build, ObjDiffConfig},
-        Job, JobQueue, JobResult, JobStatus,
-    },
+    jobs::{create_objdiff_config, egui_waker, start_build},
     views::{
         appearance::{appearance_window, Appearance},
         config::{
@@ -120,11 +118,6 @@ impl From<&ProjectObject> for ObjectConfig {
 
 #[inline]
 fn bool_true() -> bool { true }
-
-#[inline]
-fn default_watch_patterns() -> Vec<Glob> {
-    DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect()
-}
 
 pub struct AppState {
     pub config: AppConfig,
@@ -399,7 +392,7 @@ pub struct App {
     view_state: ViewState,
     state: AppStateRef,
     modified: Arc<AtomicBool>,
-    watcher: Option<notify::RecommendedWatcher>,
+    watcher: Option<Watcher>,
     app_path: Option<PathBuf>,
     relaunch_path: Rc<Mutex<Option<PathBuf>>>,
     should_relaunch: bool,
@@ -474,53 +467,17 @@ impl App {
 
         let ViewState { jobs, diff_state, config_state, .. } = &mut self.view_state;
 
-        let mut results = vec![];
-        for (job, result) in jobs.iter_finished() {
-            match result {
-                Ok(result) => {
-                    log::info!("Job {} finished", job.id);
-                    match result {
-                        JobResult::None => {
-                            if let Some(err) = &job.context.status.read().unwrap().error {
-                                log::error!("{:?}", err);
-                            }
-                        }
-                        JobResult::Update(state) => {
-                            if let Ok(mut guard) = self.relaunch_path.lock() {
-                                *guard = Some(state.exe_path);
-                                self.should_relaunch = true;
-                            }
-                        }
-                        _ => results.push(result),
-                    }
+        jobs.collect_results();
+        jobs.results.retain(|result| match result {
+            JobResult::Update(state) => {
+                if let Ok(mut guard) = self.relaunch_path.lock() {
+                    *guard = Some(state.exe_path.clone());
+                    self.should_relaunch = true;
                 }
-                Err(err) => {
-                    let err = if let Some(msg) = err.downcast_ref::<&'static str>() {
-                        anyhow::Error::msg(*msg)
-                    } else if let Some(msg) = err.downcast_ref::<String>() {
-                        anyhow::Error::msg(msg.clone())
-                    } else {
-                        anyhow::Error::msg("Thread panicked")
-                    };
-                    let result = job.context.status.write();
-                    if let Ok(mut guard) = result {
-                        guard.error = Some(err);
-                    } else {
-                        drop(result);
-                        job.context.status = Arc::new(RwLock::new(JobStatus {
-                            title: "Error".to_string(),
-                            progress_percent: 0.0,
-                            progress_items: None,
-                            status: String::new(),
-                            error: Some(err),
-                        }));
-                    }
-                }
+                false
             }
-        }
-        jobs.results.append(&mut results);
-        jobs.clear_finished();
-
+            _ => true,
+        });
         diff_state.pre_update(jobs, &self.state);
         config_state.pre_update(jobs, &self.state);
         debug_assert!(jobs.results.is_empty());
@@ -572,7 +529,7 @@ impl App {
                 match build_globset(&state.config.watch_patterns)
                     .map_err(anyhow::Error::new)
                     .and_then(|globset| {
-                        create_watcher(ctx.clone(), self.modified.clone(), project_dir, globset)
+                        create_watcher(self.modified.clone(), project_dir, globset, egui_waker(ctx))
                             .map_err(anyhow::Error::new)
                     }) {
                     Ok(watcher) => self.watcher = Some(watcher),
@@ -619,15 +576,15 @@ impl App {
             && state.config.selected_obj.is_some()
             && !jobs.is_running(Job::ObjDiff)
         {
-            jobs.push(start_build(ctx, ObjDiffConfig::from_state(state)));
+            start_build(ctx, jobs, create_objdiff_config(state));
             state.queue_build = false;
             state.queue_reload = false;
         } else if state.queue_reload && !jobs.is_running(Job::ObjDiff) {
-            let mut diff_config = ObjDiffConfig::from_state(state);
+            let mut diff_config = create_objdiff_config(state);
             // Don't build, just reload the current files
             diff_config.build_base = false;
             diff_config.build_target = false;
-            jobs.push(start_build(ctx, diff_config));
+            start_build(ctx, jobs, diff_config);
             state.queue_reload = false;
         }
 
@@ -852,40 +809,6 @@ impl eframe::App for App {
         }
         eframe::set_value(storage, APPEARANCE_KEY, &self.appearance);
     }
-}
-
-fn create_watcher(
-    ctx: egui::Context,
-    modified: Arc<AtomicBool>,
-    project_dir: &Path,
-    patterns: GlobSet,
-) -> notify::Result<notify::RecommendedWatcher> {
-    let base_dir = project_dir.to_owned();
-    let mut watcher =
-        notify::recommended_watcher(move |res: notify::Result<notify::Event>| match res {
-            Ok(event) => {
-                if matches!(
-                    event.kind,
-                    notify::EventKind::Modify(..)
-                        | notify::EventKind::Create(..)
-                        | notify::EventKind::Remove(..)
-                ) {
-                    for path in &event.paths {
-                        let Ok(path) = path.strip_prefix(&base_dir) else {
-                            continue;
-                        };
-                        if patterns.is_match(path) {
-                            log::info!("File modified: {}", path.display());
-                            modified.store(true, Ordering::Relaxed);
-                            ctx.request_repaint();
-                        }
-                    }
-                }
-            }
-            Err(e) => log::error!("watch error: {e:?}"),
-        })?;
-    watcher.watch(project_dir, RecursiveMode::Recursive)?;
-    Ok(watcher)
 }
 
 #[inline]

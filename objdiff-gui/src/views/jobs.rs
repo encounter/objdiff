@@ -1,11 +1,9 @@
 use std::cmp::Ordering;
 
 use egui::{ProgressBar, RichText, Widget};
+use objdiff_core::jobs::{JobQueue, JobStatus};
 
-use crate::{
-    jobs::{JobQueue, JobStatus},
-    views::appearance::Appearance,
-};
+use crate::views::appearance::Appearance;
 
 pub fn jobs_ui(ui: &mut egui::Ui, jobs: &mut JobQueue, appearance: &Appearance) {
     if ui.button("Clear").clicked() {

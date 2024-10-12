@@ -38,7 +38,6 @@ float-ord = "0.3"
 font-kit = "0.14"
 globset = { version = "0.4", features = ["serde1"] }
 log = "0.4"
-notify = { git = "https://github.com/notify-rs/notify", rev = "128bf6230c03d39dbb7f301ff7b20e594e34c3a2" }
 objdiff-core = { path = "../objdiff-core", features = ["all"] }
 open = "5.3"
 png = "0.17"
@@ -51,7 +50,6 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 shell-escape = "0.1"
 strum = { version = "0.26", features = ["derive"] }
-tempfile = "3.14"
 time = { version = "0.3", features = ["formatting", "local-offset"] }
 
 # Keep version in sync with egui
@@ -76,18 +74,7 @@ features = [
 optional = true
 default-features = false
 
-# For Linux static binaries, use rustls
-[target.'cfg(target_os = "linux")'.dependencies]
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "multipart", "rustls-tls"] }
-self_update = { version = "0.41", default-features = false, features = ["rustls"] }
-
-# For all other platforms, use native TLS
-[target.'cfg(not(target_os = "linux"))'.dependencies]
-reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "multipart", "default-tls"] }
-self_update = "0.41"
-
 [target.'cfg(windows)'.dependencies]
-path-slash = "0.2"
 winapi = "0.3"
 
 [target.'cfg(unix)'.dependencies]
