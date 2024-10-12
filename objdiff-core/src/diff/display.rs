@@ -94,9 +94,9 @@ fn display_reloc_name<E>(
     mut cb: impl FnMut(DiffText) -> Result<(), E>,
 ) -> Result<(), E> {
     cb(DiffText::Symbol(&reloc.target))?;
-    match reloc.target.addend.cmp(&0i64) {
-        Ordering::Greater => cb(DiffText::Basic(&format!("+{:#x}", reloc.target.addend))),
-        Ordering::Less => cb(DiffText::Basic(&format!("-{:#x}", -reloc.target.addend))),
+    match reloc.addend.cmp(&0i64) {
+        Ordering::Greater => cb(DiffText::Basic(&format!("+{:#x}", reloc.addend))),
+        Ordering::Less => cb(DiffText::Basic(&format!("-{:#x}", -reloc.addend))),
         _ => Ok(()),
     }
 }

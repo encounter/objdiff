@@ -13,8 +13,8 @@ use object::{
     endian::LittleEndian as LE,
     pe::{ImageAuxSymbolFunctionBeginEnd, ImageLinenumber},
     read::coff::{CoffFile, CoffHeader, ImageSymbol},
-    BinaryFormat, File, Object, ObjectSection, ObjectSymbol, RelocationTarget, SectionIndex,
-    SectionKind, Symbol, SymbolIndex, SymbolKind, SymbolScope, SymbolSection,
+    BinaryFormat, File, Object, ObjectSection, ObjectSymbol, RelocationTarget, Section,
+    SectionIndex, SectionKind, Symbol, SymbolIndex, SymbolKind, SymbolScope,
 };
 
 use crate::{
@@ -41,7 +41,6 @@ fn to_obj_symbol(
     arch: &dyn ObjArch,
     obj_file: &File<'_>,
     symbol: &Symbol<'_, '_>,
-    addend: i64,
     split_meta: Option<&SplitMeta>,
 ) -> Result<ObjSymbol> {
     let mut name = symbol.name().context("Failed to process symbol name")?;
@@ -111,7 +110,7 @@ fn to_obj_symbol(
         size_known: symbol.size() != 0,
         kind,
         flags,
-        addend,
+        orig_section_index: symbol.section_index().map(|i| i.0),
         virtual_address,
         original_index: Some(symbol.index().0),
         bytes: bytes.to_vec(),
@@ -177,7 +176,7 @@ fn symbols_by_section(
                 continue;
             }
         }
-        result.push(to_obj_symbol(arch, obj_file, symbol, 0, split_meta)?);
+        result.push(to_obj_symbol(arch, obj_file, symbol, split_meta)?);
     }
     result.sort_by(|a, b| a.address.cmp(&b.address).then(a.size.cmp(&b.size)));
     let mut iter = result.iter_mut().peekable();
@@ -217,7 +216,7 @@ fn symbols_by_section(
                 ObjSectionKind::Data | ObjSectionKind::Bss => ObjSymbolKind::Object,
             },
             flags: Default::default(),
-            addend: 0,
+            orig_section_index: Some(section.orig_index),
             virtual_address: None,
             original_index: None,
             bytes: Vec::new(),
@@ -234,7 +233,7 @@ fn common_symbols(
     obj_file
         .symbols()
         .filter(Symbol::is_common)
-        .map(|symbol| to_obj_symbol(arch, obj_file, &symbol, 0, split_meta))
+        .map(|symbol| to_obj_symbol(arch, obj_file, &symbol, split_meta))
         .collect::<Result<Vec<ObjSymbol>>>()
 }
 
@@ -245,10 +244,18 @@ fn best_symbol<'r, 'data, 'file>(
     symbols: &'r [Symbol<'data, 'file>],
     address: u64,
 ) -> Option<&'r Symbol<'data, 'file>> {
-    let closest_symbol_index = match symbols.binary_search_by_key(&address, |s| s.address()) {
+    let mut closest_symbol_index = match symbols.binary_search_by_key(&address, |s| s.address()) {
         Ok(index) => Some(index),
         Err(index) => index.checked_sub(1),
     }?;
+    // The binary search may not find the first symbol at the address, so work backwards
+    let target_address = symbols[closest_symbol_index].address();
+    while let Some(prev_index) = closest_symbol_index.checked_sub(1) {
+        if symbols[prev_index].address() != target_address {
+            break;
+        }
+        closest_symbol_index = prev_index;
+    }
     let mut best_symbol: Option<&'r Symbol<'data, 'file>> = None;
     for symbol in symbols.iter().skip(closest_symbol_index) {
         if symbol.address() > address {
@@ -276,24 +283,15 @@ fn best_symbol<'r, 'data, 'file>(
 fn find_section_symbol(
     arch: &dyn ObjArch,
     obj_file: &File<'_>,
+    section: &Section,
     section_symbols: &[Symbol<'_, '_>],
-    target: &Symbol<'_, '_>,
     address: u64,
     split_meta: Option<&SplitMeta>,
 ) -> Result<ObjSymbol> {
     if let Some(symbol) = best_symbol(section_symbols, address) {
-        return to_obj_symbol(
-            arch,
-            obj_file,
-            symbol,
-            address as i64 - symbol.address() as i64,
-            split_meta,
-        );
+        return to_obj_symbol(arch, obj_file, symbol, split_meta);
     }
     // Fallback to section symbol
-    let section_index =
-        target.section_index().ok_or_else(|| anyhow::Error::msg("Unknown section index"))?;
-    let section = obj_file.section_by_index(section_index)?;
     Ok(ObjSymbol {
         name: section.name()?.to_string(),
         demangled_name: None,
@@ -303,7 +301,7 @@ fn find_section_symbol(
         size_known: false,
         kind: ObjSymbolKind::Section,
         flags: Default::default(),
-        addend: address as i64 - section.address() as i64,
+        orig_section_index: Some(section.index().0),
         virtual_address: None,
         original_index: None,
         bytes: Vec::new(),
@@ -314,7 +312,7 @@ fn relocations_by_section(
     arch: &dyn ObjArch,
     obj_file: &File<'_>,
     section: &ObjSection,
-    section_symbols: &[Symbol<'_, '_>],
+    section_symbols: &[Vec<Symbol<'_, '_>>],
     split_meta: Option<&SplitMeta>,
 ) -> Result<Vec<ObjReloc>> {
     let obj_section = obj_file.section_by_index(SectionIndex(section.orig_index))?;
@@ -339,37 +337,36 @@ fn relocations_by_section(
             _ => bail!("Unhandled relocation target: {:?}", reloc.target()),
         };
         let flags = reloc.flags(); // TODO validate reloc here?
-        let target_section = match symbol.section() {
-            SymbolSection::Common => Some(".comm".to_string()),
-            SymbolSection::Section(idx) => {
-                obj_file.section_by_index(idx).and_then(|s| s.name().map(|s| s.to_string())).ok()
-            }
-            _ => None,
-        };
-        let addend = if reloc.has_implicit_addend() {
+        let mut addend = if reloc.has_implicit_addend() {
             arch.implcit_addend(obj_file, section, address, &reloc)?
         } else {
             reloc.addend()
         };
-        // println!("Reloc: {reloc:?}, symbol: {symbol:?}, addend: {addend:#x}");
         let target = match symbol.kind() {
             SymbolKind::Text | SymbolKind::Data | SymbolKind::Label | SymbolKind::Unknown => {
-                to_obj_symbol(arch, obj_file, &symbol, addend, split_meta)
+                to_obj_symbol(arch, obj_file, &symbol, split_meta)?
             }
             SymbolKind::Section => {
-                ensure!(addend >= 0, "Negative addend in reloc: {addend}");
-                find_section_symbol(
+                ensure!(addend >= 0, "Negative addend in section reloc: {addend}");
+                let section_index = symbol
+                    .section_index()
+                    .ok_or_else(|| anyhow!("Section symbol {symbol:?} has no section index"))?;
+                let section = obj_file.section_by_index(section_index)?;
+                let symbol = find_section_symbol(
                     arch,
                     obj_file,
-                    section_symbols,
-                    &symbol,
+                    &section,
+                    &section_symbols[section_index.0],
                     addend as u64,
                     split_meta,
-                )
+                )?;
+                // Adjust addend to be relative to the selected symbol
+                addend = (symbol.address - section.address()) as i64;
+                symbol
             }
-            kind => Err(anyhow!("Unhandled relocation symbol type {kind:?}")),
-        }?;
-        relocations.push(ObjReloc { flags, address, target, target_section });
+            kind => bail!("Unhandled relocation symbol type {kind:?}"),
+        };
+        relocations.push(ObjReloc { flags, address, target, addend });
     }
     Ok(relocations)
 }
@@ -591,7 +588,7 @@ fn update_combined_symbol(symbol: ObjSymbol, address_change: i64) -> Result<ObjS
         size_known: symbol.size_known,
         kind: symbol.kind,
         flags: symbol.flags,
-        addend: symbol.addend,
+        orig_section_index: symbol.orig_section_index,
         virtual_address: if let Some(virtual_address) = symbol.virtual_address {
             Some((virtual_address as i64 + address_change).try_into()?)
         } else {
@@ -617,8 +614,8 @@ fn combine_sections(section: ObjSection, combine: ObjSection) -> Result<ObjSecti
         relocations.push(ObjReloc {
             flags: reloc.flags,
             address: (reloc.address as i64 + address_change).try_into()?,
-            target: reloc.target,                 // TODO: Should be updated?
-            target_section: reloc.target_section, // TODO: Same as above
+            target: reloc.target, // TODO: Should be updated?
+            addend: reloc.addend,
         });
     }
 
@@ -698,27 +695,38 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<ObjInfo> {
     let obj_file = File::parse(data)?;
     let arch = new_arch(&obj_file)?;
     let split_meta = split_meta(&obj_file)?;
-    let mut sections = filter_sections(&obj_file, split_meta.as_ref())?;
-    let mut name_counts: HashMap<String, u32> = HashMap::new();
-    for section in &mut sections {
+
+    // Create sorted symbol list for each section
+    let mut section_symbols = Vec::with_capacity(obj_file.sections().count());
+    for section in obj_file.sections() {
         let mut symbols = obj_file
             .symbols()
-            .filter(|s| s.section_index() == Some(SectionIndex(section.orig_index)))
+            .filter(|s| s.section_index() == Some(section.index()))
             .collect::<Vec<_>>();
         symbols.sort_by_key(|s| s.address());
+        let section_index = section.index().0;
+        if section_index >= section_symbols.len() {
+            section_symbols.resize_with(section_index + 1, Vec::new);
+        }
+        section_symbols[section_index] = symbols;
+    }
+
+    let mut sections = filter_sections(&obj_file, split_meta.as_ref())?;
+    let mut section_name_counts: HashMap<String, u32> = HashMap::new();
+    for section in &mut sections {
         section.symbols = symbols_by_section(
             arch.as_ref(),
             &obj_file,
             section,
-            &symbols,
+            &section_symbols[section.orig_index],
             split_meta.as_ref(),
-            &mut name_counts,
+            &mut section_name_counts,
         )?;
         section.relocations = relocations_by_section(
             arch.as_ref(),
             &obj_file,
             section,
-            &symbols,
+            &section_symbols,
             split_meta.as_ref(),
         )?;
     }

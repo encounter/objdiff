@@ -131,7 +131,7 @@ pub struct ObjSymbol {
     pub size_known: bool,
     pub kind: ObjSymbolKind,
     pub flags: ObjSymbolFlagSet,
-    pub addend: i64,
+    pub orig_section_index: Option<usize>,
     /// Original virtual address (from .note.split section)
     pub virtual_address: Option<u64>,
     /// Original index in object symbol table
@@ -155,7 +155,7 @@ pub struct ObjReloc {
     pub flags: RelocationFlags,
     pub address: u64,
     pub target: ObjSymbol,
-    pub target_section: Option<String>,
+    pub addend: i64,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]

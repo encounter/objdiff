@@ -411,6 +411,8 @@ pub fn diff_objs(
                         let left_code = process_code_symbol(left_obj, left_symbol_ref, config)?;
                         let right_code = process_code_symbol(right_obj, right_symbol_ref, config)?;
                         let (left_diff, right_diff) = diff_code(
+                            left_obj,
+                            right_obj,
                             &left_code,
                             &right_code,
                             left_symbol_ref,
@@ -424,6 +426,8 @@ pub fn diff_objs(
                             let (prev_obj, prev_out) = prev.as_mut().unwrap();
                             let prev_code = process_code_symbol(prev_obj, prev_symbol_ref, config)?;
                             let (_, prev_diff) = diff_code(
+                                left_obj,
+                                right_obj,
                                 &right_code,
                                 &prev_code,
                                 right_symbol_ref,
@@ -592,6 +596,8 @@ fn generate_mapping_symbols(
                 ObjSectionKind::Code => {
                     let target_code = process_code_symbol(target_obj, target_symbol_ref, config)?;
                     let (left_diff, _right_diff) = diff_code(
+                        target_obj,
+                        base_obj,
                         &target_code,
                         base_code.as_ref().unwrap(),
                         target_symbol_ref,

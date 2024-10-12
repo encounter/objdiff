@@ -9,7 +9,7 @@ use crate::{
         DiffObjConfig, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo, ObjInsDiff, ObjInsDiffKind,
         ObjSymbolDiff,
     },
-    obj::{ObjInfo, ObjInsArg, ObjReloc, ObjSymbol, ObjSymbolFlags, SymbolRef},
+    obj::{ObjInfo, ObjInsArg, ObjReloc, ObjSymbolFlags, SymbolRef},
 };
 
 pub fn process_code_symbol(
@@ -45,6 +45,8 @@ pub fn no_diff_code(out: &ProcessCodeResult, symbol_ref: SymbolRef) -> Result<Ob
 }
 
 pub fn diff_code(
+    left_obj: &ObjInfo,
+    right_obj: &ObjInfo,
     left_out: &ProcessCodeResult,
     right_out: &ProcessCodeResult,
     left_symbol_ref: SymbolRef,
@@ -60,7 +62,7 @@ pub fn diff_code(
 
     let mut diff_state = InsDiffState::default();
     for (left, right) in left_diff.iter_mut().zip(right_diff.iter_mut()) {
-        let result = compare_ins(config, left, right, &mut diff_state)?;
+        let result = compare_ins(config, left_obj, right_obj, left, right, &mut diff_state)?;
         left.kind = result.kind;
         right.kind = result.kind;
         left.arg_diff = result.left_args_diff;
@@ -170,12 +172,33 @@ fn resolve_branches(vec: &mut [ObjInsDiff]) {
     }
 }
 
-fn address_eq(left: &ObjSymbol, right: &ObjSymbol) -> bool {
-    left.address as i64 + left.addend == right.address as i64 + right.addend
+fn address_eq(left: &ObjReloc, right: &ObjReloc) -> bool {
+    left.target.address as i64 + left.addend == right.target.address as i64 + right.addend
+}
+
+fn section_name_eq(
+    left_obj: &ObjInfo,
+    right_obj: &ObjInfo,
+    left_orig_section_index: usize,
+    right_orig_section_index: usize,
+) -> bool {
+    let Some(left_section) =
+        left_obj.sections.iter().find(|s| s.orig_index == left_orig_section_index)
+    else {
+        return false;
+    };
+    let Some(right_section) =
+        right_obj.sections.iter().find(|s| s.orig_index == right_orig_section_index)
+    else {
+        return false;
+    };
+    left_section.name == right_section.name
 }
 
 fn reloc_eq(
     config: &DiffObjConfig,
+    left_obj: &ObjInfo,
+    right_obj: &ObjInfo,
     left_reloc: Option<&ObjReloc>,
     right_reloc: Option<&ObjReloc>,
 ) -> bool {
@@ -189,23 +212,26 @@ fn reloc_eq(
         return true;
     }
 
-    let name_matches = left.target.name == right.target.name;
-    match (&left.target_section, &right.target_section) {
+    let symbol_name_matches = left.target.name == right.target.name;
+    match (&left.target.orig_section_index, &right.target.orig_section_index) {
         (Some(sl), Some(sr)) => {
             // Match if section and name or address match
-            sl == sr && (name_matches || address_eq(&left.target, &right.target))
+            section_name_eq(left_obj, right_obj, *sl, *sr)
+                && (symbol_name_matches || address_eq(left, right))
         }
         (Some(_), None) => false,
         (None, Some(_)) => {
             // Match if possibly stripped weak symbol
-            name_matches && right.target.flags.0.contains(ObjSymbolFlags::Weak)
+            symbol_name_matches && right.target.flags.0.contains(ObjSymbolFlags::Weak)
         }
-        (None, None) => name_matches,
+        (None, None) => symbol_name_matches,
     }
 }
 
 fn arg_eq(
     config: &DiffObjConfig,
+    left_obj: &ObjInfo,
+    right_obj: &ObjInfo,
     left: &ObjInsArg,
     right: &ObjInsArg,
     left_diff: &ObjInsDiff,
@@ -227,6 +253,8 @@ fn arg_eq(
             matches!(right, ObjInsArg::Reloc)
                 && reloc_eq(
                     config,
+                    left_obj,
+                    right_obj,
                     left_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
                     right_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
                 )
@@ -257,6 +285,8 @@ struct InsDiffResult {
 
 fn compare_ins(
     config: &DiffObjConfig,
+    left_obj: &ObjInfo,
+    right_obj: &ObjInfo,
     left: &ObjInsDiff,
     right: &ObjInsDiff,
     state: &mut InsDiffState,
@@ -283,7 +313,7 @@ fn compare_ins(
             state.diff_count += 1;
         }
         for (a, b) in left_ins.args.iter().zip(&right_ins.args) {
-            if arg_eq(config, a, b, left, right) {
+            if arg_eq(config, left_obj, right_obj, a, b, left, right) {
                 result.left_args_diff.push(None);
                 result.right_args_diff.push(None);
             } else {

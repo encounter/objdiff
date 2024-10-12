@@ -70,9 +70,13 @@ impl FunctionDiff {
         //     let (_section, symbol) = object.section_symbol(symbol_ref);
         //     Symbol::from(symbol)
         // });
-        let instructions = symbol_diff.instructions.iter().map(InstructionDiff::from).collect();
+        let instructions = symbol_diff
+            .instructions
+            .iter()
+            .map(|ins_diff| InstructionDiff::new(object, ins_diff))
+            .collect();
         Self {
-            symbol: Some(Symbol::from(symbol)),
+            symbol: Some(Symbol::new(symbol)),
             // diff_symbol,
             instructions,
             match_percent: symbol_diff.match_percent,
@@ -90,8 +94,8 @@ impl DataDiff {
     }
 }
 
-impl<'a> From<&'a ObjSymbol> for Symbol {
-    fn from(value: &'a ObjSymbol) -> Self {
+impl Symbol {
+    pub fn new(value: &ObjSymbol) -> Self {
         Self {
             name: value.name.to_string(),
             demangled_name: value.demangled_name.clone(),
@@ -122,29 +126,29 @@ fn symbol_flags(value: ObjSymbolFlagSet) -> u32 {
     flags
 }
 
-impl<'a> From<&'a ObjIns> for Instruction {
-    fn from(value: &'a ObjIns) -> Self {
+impl Instruction {
+    pub fn new(object: &ObjInfo, instruction: &ObjIns) -> Self {
         Self {
-            address: value.address,
-            size: value.size as u32,
-            opcode: value.op as u32,
-            mnemonic: value.mnemonic.clone(),
-            formatted: value.formatted.clone(),
-            arguments: value.args.iter().map(Argument::from).collect(),
-            relocation: value.reloc.as_ref().map(Relocation::from),
-            branch_dest: value.branch_dest,
-            line_number: value.line,
-            original: value.orig.clone(),
+            address: instruction.address,
+            size: instruction.size as u32,
+            opcode: instruction.op as u32,
+            mnemonic: instruction.mnemonic.clone(),
+            formatted: instruction.formatted.clone(),
+            arguments: instruction.args.iter().map(Argument::new).collect(),
+            relocation: instruction.reloc.as_ref().map(|reloc| Relocation::new(object, reloc)),
+            branch_dest: instruction.branch_dest,
+            line_number: instruction.line,
+            original: instruction.orig.clone(),
         }
     }
 }
 
-impl<'a> From<&'a ObjInsArg> for Argument {
-    fn from(value: &'a ObjInsArg) -> Self {
+impl Argument {
+    pub fn new(value: &ObjInsArg) -> Self {
         Self {
             value: Some(match value {
                 ObjInsArg::PlainText(s) => argument::Value::PlainText(s.to_string()),
-                ObjInsArg::Arg(v) => argument::Value::Argument(ArgumentValue::from(v)),
+                ObjInsArg::Arg(v) => argument::Value::Argument(ArgumentValue::new(v)),
                 ObjInsArg::Reloc => argument::Value::Relocation(ArgumentRelocation {}),
                 ObjInsArg::BranchDest(dest) => argument::Value::BranchDest(*dest),
             }),
@@ -152,8 +156,8 @@ impl<'a> From<&'a ObjInsArg> for Argument {
     }
 }
 
-impl From<&ObjInsArgValue> for ArgumentValue {
-    fn from(value: &ObjInsArgValue) -> Self {
+impl ArgumentValue {
+    pub fn new(value: &ObjInsArgValue) -> Self {
         Self {
             value: Some(match value {
                 ObjInsArgValue::Signed(v) => argument_value::Value::Signed(*v),
@@ -164,42 +168,39 @@ impl From<&ObjInsArgValue> for ArgumentValue {
     }
 }
 
-impl<'a> From<&'a ObjReloc> for Relocation {
-    fn from(value: &ObjReloc) -> Self {
+impl Relocation {
+    pub fn new(object: &ObjInfo, reloc: &ObjReloc) -> Self {
         Self {
-            r#type: match value.flags {
+            r#type: match reloc.flags {
                 object::RelocationFlags::Elf { r_type } => r_type,
                 object::RelocationFlags::MachO { r_type, .. } => r_type as u32,
                 object::RelocationFlags::Coff { typ } => typ as u32,
                 object::RelocationFlags::Xcoff { r_rtype, .. } => r_rtype as u32,
                 _ => unreachable!(),
             },
-            type_name: String::new(), // TODO
-            target: Some(RelocationTarget::from(&value.target)),
+            type_name: object.arch.display_reloc(reloc.flags).into_owned(),
+            target: Some(RelocationTarget {
+                symbol: Some(Symbol::new(&reloc.target)),
+                addend: reloc.addend,
+            }),
         }
     }
 }
 
-impl<'a> From<&'a ObjSymbol> for RelocationTarget {
-    fn from(value: &'a ObjSymbol) -> Self {
-        Self { symbol: Some(Symbol::from(value)), addend: value.addend }
-    }
-}
-
-impl<'a> From<&'a ObjInsDiff> for InstructionDiff {
-    fn from(value: &'a ObjInsDiff) -> Self {
+impl InstructionDiff {
+    pub fn new(object: &ObjInfo, instruction_diff: &ObjInsDiff) -> Self {
         Self {
-            instruction: value.ins.as_ref().map(Instruction::from),
-            diff_kind: DiffKind::from(value.kind) as i32,
-            branch_from: value.branch_from.as_ref().map(InstructionBranchFrom::from),
-            branch_to: value.branch_to.as_ref().map(InstructionBranchTo::from),
-            arg_diff: value.arg_diff.iter().map(ArgumentDiff::from).collect(),
+            instruction: instruction_diff.ins.as_ref().map(|ins| Instruction::new(object, ins)),
+            diff_kind: DiffKind::from(instruction_diff.kind) as i32,
+            branch_from: instruction_diff.branch_from.as_ref().map(InstructionBranchFrom::new),
+            branch_to: instruction_diff.branch_to.as_ref().map(InstructionBranchTo::new),
+            arg_diff: instruction_diff.arg_diff.iter().map(ArgumentDiff::new).collect(),
         }
     }
 }
 
-impl From<&Option<ObjInsArgDiff>> for ArgumentDiff {
-    fn from(value: &Option<ObjInsArgDiff>) -> Self {
+impl ArgumentDiff {
+    pub fn new(value: &Option<ObjInsArgDiff>) -> Self {
         Self { diff_index: value.as_ref().map(|v| v.idx as u32) }
     }
 }
@@ -228,8 +229,8 @@ impl From<ObjDataDiffKind> for DiffKind {
     }
 }
 
-impl<'a> From<&'a ObjInsBranchFrom> for InstructionBranchFrom {
-    fn from(value: &'a ObjInsBranchFrom) -> Self {
+impl InstructionBranchFrom {
+    pub fn new(value: &ObjInsBranchFrom) -> Self {
         Self {
             instruction_index: value.ins_idx.iter().map(|&x| x as u32).collect(),
             branch_index: value.branch_idx as u32,
@@ -237,8 +238,8 @@ impl<'a> From<&'a ObjInsBranchFrom> for InstructionBranchFrom {
     }
 }
 
-impl<'a> From<&'a ObjInsBranchTo> for InstructionBranchTo {
-    fn from(value: &'a ObjInsBranchTo) -> Self {
+impl InstructionBranchTo {
+    pub fn new(value: &ObjInsBranchTo) -> Self {
         Self { instruction_index: value.ins_idx as u32, branch_index: value.branch_idx as u32 }
     }
 }

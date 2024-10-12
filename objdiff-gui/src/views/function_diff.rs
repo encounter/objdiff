@@ -3,7 +3,6 @@ use std::default::Default;
 use egui::{text::LayoutJob, Id, Label, Response, RichText, Sense, Widget};
 use egui_extras::TableRow;
 use objdiff_core::{
-    arch::ObjArch,
     diff::{
         display::{display_diff, DiffText, HighlightKind},
         ObjDiff, ObjInsDiff, ObjInsDiffKind,
@@ -77,7 +76,7 @@ impl FunctionViewState {
 
 fn ins_hover_ui(
     ui: &mut egui::Ui,
-    arch: &dyn ObjArch,
+    obj: &ObjInfo,
     section: &ObjSection,
     ins: &ObjIns,
     symbol: &ObjSymbol,
@@ -120,10 +119,17 @@ fn ins_hover_ui(
         }
 
         if let Some(reloc) = &ins.reloc {
-            ui.label(format!("Relocation type: {}", arch.display_reloc(reloc.flags)));
+            ui.label(format!("Relocation type: {}", obj.arch.display_reloc(reloc.flags)));
             ui.colored_label(appearance.highlight_color, format!("Name: {}", reloc.target.name));
-            if let Some(section) = &reloc.target_section {
-                ui.colored_label(appearance.highlight_color, format!("Section: {section}"));
+            if let Some(orig_section_index) = reloc.target.orig_section_index {
+                if let Some(section) =
+                    obj.sections.iter().find(|s| s.orig_index == orig_section_index)
+                {
+                    ui.colored_label(
+                        appearance.highlight_color,
+                        format!("Section: {}", section.name),
+                    );
+                }
                 ui.colored_label(
                     appearance.highlight_color,
                     format!("Address: {:x}", reloc.target.address),
@@ -132,9 +138,10 @@ fn ins_hover_ui(
                     appearance.highlight_color,
                     format!("Size: {:x}", reloc.target.size),
                 );
-                if let Some(s) = arch
+                if let Some(s) = obj
+                    .arch
                     .guess_data_type(ins)
-                    .and_then(|ty| arch.display_data_type(ty, &reloc.target.bytes))
+                    .and_then(|ty| obj.arch.display_data_type(ty, &reloc.target.bytes))
                 {
                     ui.colored_label(appearance.highlight_color, s);
                 }
@@ -370,7 +377,7 @@ fn asm_col_ui(
         if let Some(ins) = &ins_diff.ins {
             response.context_menu(|ui| ins_context_menu(ui, section, ins, symbol));
             response.on_hover_ui_at_pointer(|ui| {
-                ins_hover_ui(ui, ctx.obj.arch.as_ref(), section, ins, symbol, appearance)
+                ins_hover_ui(ui, ctx.obj, section, ins, symbol, appearance)
             })
         } else {
             response

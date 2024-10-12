@@ -83,7 +83,7 @@ impl ObjArch for ObjArchMips {
         &self,
         address: u64,
         code: &[u8],
-        _section_index: usize,
+        section_index: usize,
         relocations: &[ObjReloc],
         line_info: &BTreeMap<u64, u32>,
         config: &DiffObjConfig,
@@ -140,11 +140,18 @@ impl ObjArch for ObjArchMips {
                     | OperandType::cpu_label
                     | OperandType::cpu_branch_target_label => {
                         if let Some(reloc) = reloc {
-                            if matches!(&reloc.target_section, Some(s) if s == ".text")
-                                && reloc.target.address > start_address
-                                && reloc.target.address < end_address
+                            // If the relocation target is within the current function, we can
+                            // convert it into a relative branch target. Note that we check
+                            // target_address > start_address instead of >= so that recursive
+                            // tail calls are not considered branch targets.
+                            let target_address =
+                                reloc.target.address.checked_add_signed(reloc.addend);
+                            if reloc.target.orig_section_index == Some(section_index)
+                                && matches!(target_address, Some(addr) if addr > start_address && addr < end_address)
                             {
-                                args.push(ObjInsArg::BranchDest(reloc.target.address));
+                                let target_address = target_address.unwrap();
+                                args.push(ObjInsArg::BranchDest(target_address));
+                                branch_dest = Some(target_address);
                             } else {
                                 push_reloc(&mut args, reloc)?;
                                 branch_dest = None;
