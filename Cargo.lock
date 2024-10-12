@@ -2988,6 +2988,7 @@ dependencies = [
  "tracing-subscriber",
  "tracing-wasm",
  "wgpu",
+ "winapi",
 ]
 
 [[package]]

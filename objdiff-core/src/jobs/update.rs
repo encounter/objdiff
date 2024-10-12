@@ -1,6 +1,6 @@
 use std::{
     env::{current_dir, current_exe},
-    fs::{File, Permissions},
+    fs::File,
     path::PathBuf,
     sync::mpsc::Receiver,
     task::Waker,
@@ -51,7 +51,7 @@ fn run_update(
     #[cfg(unix)]
     {
         use std::{fs, os::unix::fs::PermissionsExt};
-        fs::set_permissions(&target_file, Permissions::from_mode(0o755))?;
+        fs::set_permissions(&target_file, fs::Permissions::from_mode(0o755))?;
     }
     tmp_dir.close()?;
 

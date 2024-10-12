@@ -74,6 +74,9 @@ features = [
 optional = true
 default-features = false
 
+[target.'cfg(windows)'.dependencies]
+winapi = "0.3"
+
 [target.'cfg(unix)'.dependencies]
 exec = "0.3"
 

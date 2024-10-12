@@ -374,8 +374,7 @@ fn run_interactive(
             })?;
         }
         loop {
-            let has_event = event::poll(Duration::from_millis(100))?;
-            if has_event {
+            if event::poll(Duration::from_millis(100))? {
                 match view.handle_event(&mut state, event::read()?) {
                     EventControlFlow::Break => break 'outer,
                     EventControlFlow::Continue(r) => result = r,
