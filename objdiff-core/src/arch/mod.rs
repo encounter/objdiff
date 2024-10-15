@@ -34,7 +34,11 @@ pub enum DataType {
 
 impl DataType {
     pub fn display_bytes<Endian: ByteOrder>(&self, bytes: &[u8]) -> Option<String> {
-        if self.required_len().is_some_and(|l| bytes.len() < l) {
+        // TODO: Attempt to interpret large symbols as arrays of a smaller type,
+        // fallback to intrepreting it as bytes.
+        // https://github.com/encounter/objdiff/issues/124
+        if self.required_len().is_some_and(|l| bytes.len() != l) {
+            log::warn!("Failed to display a symbol value for a symbol whose size doesn't match the instruction referencing it.");
             return None;
         }
 
