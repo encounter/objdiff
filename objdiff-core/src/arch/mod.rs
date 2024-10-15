@@ -34,12 +34,9 @@ pub enum DataType {
 
 impl DataType {
     pub fn display_bytes<Endian: ByteOrder>(&self, bytes: &[u8]) -> Option<String> {
-        let Some(required_len) = self.required_len() else {
+        if self.required_len().is_some_and(|l| bytes.len() != l) {
             return None;
-        };
-        // TODO: For symbols larger than their data type, we should probably support
-        // using the relocation's relative offset to read the bytes.
-        let bytes = bytes.get(0..required_len)?;
+        }
 
         match self {
             DataType::Int8 => {
