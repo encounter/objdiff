@@ -38,6 +38,7 @@ impl DataType {
         // fallback to intrepreting it as bytes.
         // https://github.com/encounter/objdiff/issues/124
         if self.required_len().is_some_and(|l| bytes.len() != l) {
+            log::warn!("Failed to display a symbol value for a symbol whose size doesn't match the instruction referencing it.");
             return None;
         }
 
