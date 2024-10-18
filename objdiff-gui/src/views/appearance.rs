@@ -205,7 +205,7 @@ pub const DEFAULT_COLOR_ROTATION: [Color32; 9] = [
     Color32::from_rgb(255, 0, 0),
     Color32::from_rgb(255, 255, 0),
     Color32::from_rgb(255, 192, 203),
-    Color32::from_rgb(0, 0, 255),
+    Color32::from_rgb(128, 128, 255),
     Color32::from_rgb(0, 255, 0),
     Color32::from_rgb(213, 138, 138),
 ];
