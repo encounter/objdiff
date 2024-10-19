@@ -431,9 +431,9 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection], obj_data: &[u8]) 
                 let mut text_sections =
                     obj_file.sections().filter(|s| s.kind() == SectionKind::Text);
                 let section_index = text_sections.next().map(|s| s.index().0);
-                let mut lines = section_index.map(|index| {
-                    &mut sections.iter_mut().find(|s| s.orig_index == index).unwrap().line_info
-                });
+                let mut lines = section_index
+                    .and_then(|index| sections.iter_mut().find(|s| s.orig_index == index))
+                    .map(|s| &mut s.line_info);
 
                 let mut rows = program.rows();
                 while let Some((_header, row)) = rows.next_row()? {
@@ -444,13 +444,9 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection], obj_data: &[u8]) 
                         // The next row is the start of a new sequence, which means we must
                         // advance to the next .text section.
                         let section_index = text_sections.next().map(|s| s.index().0);
-                        lines = section_index.map(|index| {
-                            &mut sections
-                                .iter_mut()
-                                .find(|s| s.orig_index == index)
-                                .unwrap()
-                                .line_info
-                        });
+                        lines = section_index
+                            .and_then(|index| sections.iter_mut().find(|s| s.orig_index == index))
+                            .map(|s| &mut s.line_info);
                     }
                 }
             }
