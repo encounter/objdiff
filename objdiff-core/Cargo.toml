@@ -25,7 +25,7 @@ ppc = ["any-arch", "dep:cwdemangle", "dep:cwextab", "dep:ppc750cl"]
 x86 = ["any-arch", "dep:cpp_demangle", "dep:iced-x86", "dep:msvc-demangler"]
 arm = ["any-arch", "dep:cpp_demangle", "dep:unarm", "dep:arm-attr"]
 bindings = ["dep:serde_json", "dep:prost", "dep:pbjson", "dep:serde", "dep:prost-build", "dep:pbjson-build"]
-wasm = ["bindings", "dep:console_error_panic_hook", "dep:console_log", "dep:wasm-bindgen", "dep:tsify-next", "dep:log"]
+wasm = ["bindings", "any-arch", "dep:console_error_panic_hook", "dep:console_log", "dep:wasm-bindgen", "dep:tsify-next", "dep:log"]
 
 [package.metadata.docs.rs]
 features = ["all"]
