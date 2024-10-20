@@ -64,6 +64,7 @@ fn to_obj_symbol(
     if obj_file.format() == BinaryFormat::Elf && symbol.scope() == SymbolScope::Linkage {
         flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Hidden);
     }
+    #[cfg(feature = "ppc")]
     if arch
         .ppc()
         .and_then(|a| a.extab.as_ref())

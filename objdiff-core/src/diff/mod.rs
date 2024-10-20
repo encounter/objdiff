@@ -29,8 +29,8 @@ pub mod display;
     serde::Serialize,
     strum::VariantArray,
     strum::EnumMessage,
-    tsify_next::Tsify,
 )]
+#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify))]
 pub enum X86Formatter {
     #[default]
     #[strum(message = "Intel (default)")]
@@ -54,8 +54,8 @@ pub enum X86Formatter {
     serde::Serialize,
     strum::VariantArray,
     strum::EnumMessage,
-    tsify_next::Tsify,
 )]
+#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify))]
 pub enum MipsAbi {
     #[default]
     #[strum(message = "Auto (default)")]
@@ -79,8 +79,8 @@ pub enum MipsAbi {
     serde::Serialize,
     strum::VariantArray,
     strum::EnumMessage,
-    tsify_next::Tsify,
 )]
+#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify))]
 pub enum MipsInstrCategory {
     #[default]
     #[strum(message = "Auto (default)")]
@@ -108,8 +108,8 @@ pub enum MipsInstrCategory {
     serde::Serialize,
     strum::VariantArray,
     strum::EnumMessage,
-    tsify_next::Tsify,
 )]
+#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify))]
 pub enum ArmArchVersion {
     #[default]
     #[strum(message = "Auto (default)")]
@@ -133,8 +133,8 @@ pub enum ArmArchVersion {
     serde::Serialize,
     strum::VariantArray,
     strum::EnumMessage,
-    tsify_next::Tsify,
 )]
+#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify))]
 pub enum ArmR9Usage {
     #[default]
     #[strum(
@@ -154,8 +154,9 @@ pub enum ArmR9Usage {
 #[inline]
 const fn default_true() -> bool { true }
 
-#[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize, tsify_next::Tsify)]
-#[tsify(from_wasm_abi)]
+#[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify))]
+#[cfg_attr(feature = "wasm", tsify(from_wasm_abi))]
 #[serde(default)]
 pub struct DiffObjConfig {
     pub relax_reloc_diffs: bool,

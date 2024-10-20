@@ -1,6 +1,11 @@
-use std::path::{Path, PathBuf};
-
 fn main() {
+    #[cfg(feature = "bindings")]
+    compile_protos();
+}
+
+#[cfg(feature = "bindings")]
+fn compile_protos() {
+    use std::path::{Path, PathBuf};
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("protos");
     let descriptor_path = root.join("proto_descriptor.bin");
     println!("cargo:rerun-if-changed={}", descriptor_path.display());
