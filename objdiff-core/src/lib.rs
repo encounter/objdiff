@@ -8,4 +8,5 @@ pub mod config;
 pub mod diff;
 #[cfg(feature = "any-arch")]
 pub mod obj;
+#[cfg(feature = "any-arch")]
 pub mod util;

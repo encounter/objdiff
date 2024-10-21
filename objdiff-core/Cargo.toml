@@ -17,15 +17,15 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 all = ["config", "dwarf", "mips", "ppc", "x86", "arm", "bindings"]
-any-arch = ["bimap"] # Implicit, used to check if any arch is enabled
-config = ["bimap", "globset", "semver", "serde_json", "serde_yaml"]
-dwarf = ["gimli"]
-mips = ["any-arch", "rabbitizer"]
-ppc = ["any-arch", "cwdemangle", "cwextab", "ppc750cl"]
-x86 = ["any-arch", "cpp_demangle", "iced-x86", "msvc-demangler"]
-arm = ["any-arch", "cpp_demangle", "unarm", "arm-attr"]
-bindings = ["serde_json", "prost", "pbjson"]
-wasm = ["bindings", "console_error_panic_hook", "console_log"]
+any-arch = ["config", "dep:bimap", "dep:strum", "dep:similar", "dep:flagset", "dep:log", "dep:memmap2", "dep:byteorder", "dep:num-traits"] # Implicit, used to check if any arch is enabled
+config = ["dep:bimap", "dep:globset", "dep:semver", "dep:serde_json", "dep:serde_yaml", "dep:serde", "dep:filetime"]
+dwarf = ["dep:gimli"]
+mips = ["any-arch", "dep:rabbitizer"]
+ppc = ["any-arch", "dep:cwdemangle", "dep:cwextab", "dep:ppc750cl"]
+x86 = ["any-arch", "dep:cpp_demangle", "dep:iced-x86", "dep:msvc-demangler"]
+arm = ["any-arch", "dep:cpp_demangle", "dep:unarm", "dep:arm-attr"]
+bindings = ["dep:serde_json", "dep:prost", "dep:pbjson", "dep:serde", "dep:prost-build", "dep:pbjson-build"]
+wasm = ["bindings", "any-arch", "dep:console_error_panic_hook", "dep:console_log", "dep:wasm-bindgen", "dep:tsify-next", "dep:log"]
 
 [package.metadata.docs.rs]
 features = ["all"]
@@ -33,20 +33,20 @@ features = ["all"]
 [dependencies]
 anyhow = "1.0"
 bimap = { version = "0.6", features = ["serde"], optional = true }
-byteorder = "1.5"
-filetime = "0.2"
-flagset = "0.4"
-log = "0.4"
-memmap2 = "0.9"
-num-traits = "0.2"
+byteorder = { version = "1.5", optional = true }
+filetime = { version = "0.2", optional = true }
+flagset = { version = "0.4", optional = true }
+log = { version = "0.4", optional = true }
+memmap2 = { version = "0.9", optional = true }
+num-traits = { version = "0.2", optional = true }
 object = { version = "0.36", features = ["read_core", "std", "elf", "pe"], default-features = false }
 pbjson = { version = "0.7", optional = true }
 prost = { version = "0.13", optional = true }
-serde = { version = "1.0", features = ["derive"] }
-similar = { version = "2.6", default-features = false }
-strum = { version = "0.26", features = ["derive"] }
-wasm-bindgen = "0.2"
-tsify-next = { version = "0.5", default-features = false, features = ["js"] }
+serde = { version = "1.0", features = ["derive"], optional = true }
+similar = { version = "2.6", default-features = false, optional = true }
+strum = { version = "0.26", features = ["derive"], optional = true }
+wasm-bindgen = { version = "0.2", optional = true }
+tsify-next = { version = "0.5", default-features = false, features = ["js"], optional = true }
 console_log = { version = "1.0", optional = true }
 console_error_panic_hook = { version = "0.1", optional = true }
 
@@ -77,5 +77,5 @@ unarm = { version = "1.6", optional = true }
 arm-attr = { version = "0.1", optional = true }
 
 [build-dependencies]
-prost-build = "0.13"
-pbjson-build = "0.7"
+prost-build = { version = "0.13", optional = true }
+pbjson-build = { version = "0.7", optional = true }
