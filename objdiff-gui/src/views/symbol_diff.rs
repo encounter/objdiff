@@ -7,7 +7,9 @@ use egui::{
 use objdiff_core::{
     arch::ObjArch,
     diff::{display::HighlightKind, ObjDiff, ObjSymbolDiff},
-    obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags, SymbolRef},
+    obj::{
+        ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags, SymbolRef, SECTION_COMMON,
+    },
 };
 use regex::{Regex, RegexBuilder};
 
@@ -651,11 +653,11 @@ pub fn symbol_list_ui(
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
             // Skip sections with all symbols filtered out
-            if mapping.keys().any(|symbol_ref| symbol_ref.section_idx == usize::MAX) {
+            if mapping.keys().any(|symbol_ref| symbol_ref.section_idx == SECTION_COMMON) {
                 CollapsingHeader::new(".comm").default_open(true).show(ui, |ui| {
                     for (symbol_ref, symbol_diff) in mapping
                         .iter()
-                        .filter(|(symbol_ref, _)| symbol_ref.section_idx == usize::MAX)
+                        .filter(|(symbol_ref, _)| symbol_ref.section_idx == SECTION_COMMON)
                     {
                         let symbol = ctx.obj.section_symbol(*symbol_ref).1;
                         if let Some(result) = symbol_ui(

@@ -11,7 +11,7 @@ use crate::{
             diff_generic_section, no_diff_symbol,
         },
     },
-    obj::{ObjInfo, ObjIns, ObjSection, ObjSectionKind, ObjSymbol, SymbolRef},
+    obj::{ObjInfo, ObjIns, ObjSection, ObjSectionKind, ObjSymbol, SymbolRef, SECTION_COMMON},
 };
 
 pub mod code;
@@ -340,7 +340,7 @@ impl ObjDiff {
         }
         for (symbol_idx, _) in obj.common.iter().enumerate() {
             result.common.push(ObjSymbolDiff {
-                symbol_ref: SymbolRef { section_idx: obj.sections.len(), symbol_idx },
+                symbol_ref: SymbolRef { section_idx: SECTION_COMMON, symbol_idx },
                 target_symbol: None,
                 instructions: vec![],
                 match_percent: None,
@@ -361,7 +361,7 @@ impl ObjDiff {
 
     #[inline]
     pub fn symbol_diff(&self, symbol_ref: SymbolRef) -> &ObjSymbolDiff {
-        if symbol_ref.section_idx == self.sections.len() {
+        if symbol_ref.section_idx == SECTION_COMMON {
             &self.common[symbol_ref.symbol_idx]
         } else {
             &self.section_diff(symbol_ref.section_idx).symbols[symbol_ref.symbol_idx]
@@ -370,7 +370,7 @@ impl ObjDiff {
 
     #[inline]
     pub fn symbol_diff_mut(&mut self, symbol_ref: SymbolRef) -> &mut ObjSymbolDiff {
-        if symbol_ref.section_idx == self.sections.len() {
+        if symbol_ref.section_idx == SECTION_COMMON {
             &mut self.common[symbol_ref.symbol_idx]
         } else {
             &mut self.section_diff_mut(symbol_ref.section_idx).symbols[symbol_ref.symbol_idx]
@@ -758,7 +758,7 @@ fn matching_symbols(
             }
         }
         for (symbol_idx, symbol) in left.common.iter().enumerate() {
-            let symbol_ref = SymbolRef { section_idx: left.sections.len(), symbol_idx };
+            let symbol_ref = SymbolRef { section_idx: SECTION_COMMON, symbol_idx };
             if left_used.contains(&symbol_ref) {
                 continue;
             }
@@ -790,7 +790,7 @@ fn matching_symbols(
             }
         }
         for (symbol_idx, symbol) in right.common.iter().enumerate() {
-            let symbol_ref = SymbolRef { section_idx: right.sections.len(), symbol_idx };
+            let symbol_ref = SymbolRef { section_idx: SECTION_COMMON, symbol_idx };
             if right_used.contains(&symbol_ref) {
                 continue;
             }
@@ -883,7 +883,7 @@ fn find_common_symbol(obj: Option<&ObjInfo>, in_symbol: &ObjSymbol) -> Option<Sy
     let obj = obj?;
     for (symbol_idx, symbol) in obj.common.iter().enumerate() {
         if symbol.name == in_symbol.name {
-            return Some(SymbolRef { section_idx: obj.sections.len(), symbol_idx });
+            return Some(SymbolRef { section_idx: SECTION_COMMON, symbol_idx });
         }
     }
     None

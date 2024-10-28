@@ -164,9 +164,11 @@ pub struct SymbolRef {
     pub symbol_idx: usize,
 }
 
+pub const SECTION_COMMON: usize = usize::MAX - 1;
+
 impl ObjInfo {
     pub fn section_symbol(&self, symbol_ref: SymbolRef) -> (Option<&ObjSection>, &ObjSymbol) {
-        if symbol_ref.section_idx == self.sections.len() {
+        if symbol_ref.section_idx == SECTION_COMMON {
             let symbol = &self.common[symbol_ref.symbol_idx];
             return (None, symbol);
         }
