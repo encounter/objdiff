@@ -577,7 +577,7 @@ fn generate_mapping_symbols(
     let Some(base_symbol_ref) = symbol_ref_by_name(base_obj, base_name) else {
         return Ok(());
     };
-    let (base_section, base_symbol) = base_obj.section_symbol(base_symbol_ref);
+    let (base_section, _base_symbol) = base_obj.section_symbol(base_symbol_ref);
     let Some(base_section) = base_section else {
         return Ok(());
     };
@@ -588,9 +588,7 @@ fn generate_mapping_symbols(
     for (target_section_index, target_section) in
         target_obj.sections.iter().enumerate().filter(|(_, s)| s.kind == base_section.kind)
     {
-        for (target_symbol_index, _target_symbol) in
-            target_section.symbols.iter().enumerate().filter(|(_, s)| s.kind == base_symbol.kind)
-        {
+        for (target_symbol_index, _target_symbol) in target_section.symbols.iter().enumerate() {
             let target_symbol_ref =
                 SymbolRef { section_idx: target_section_index, symbol_idx: target_symbol_index };
             match base_section.kind {
