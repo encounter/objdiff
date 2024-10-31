@@ -259,11 +259,17 @@ fn arg_eq(
                     right_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
                 )
         }
-        ObjInsArg::BranchDest(_) => {
+        ObjInsArg::BranchDest(_) => match right {
             // Compare dest instruction idx after diffing
-            left_diff.branch_to.as_ref().map(|b| b.ins_idx)
-                == right_diff.branch_to.as_ref().map(|b| b.ins_idx)
-        }
+            ObjInsArg::BranchDest(_) => {
+                left_diff.branch_to.as_ref().map(|b| b.ins_idx)
+                    == right_diff.branch_to.as_ref().map(|b| b.ins_idx)
+            }
+            // If relocations are relaxed, match if left is a constant and right is a reloc
+            // Useful for instances where the target object is created without relocations
+            ObjInsArg::Reloc => config.relax_reloc_diffs,
+            _ => false,
+        },
     }
 }
 
