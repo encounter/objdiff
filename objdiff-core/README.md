@@ -11,4 +11,5 @@ objdiff-core contains the core functionality of [objdiff](https://github.com/enc
 - **`ppc`**: Enables the PowerPC backend powered by [ppc750cl](https://github.com/encounter/ppc750cl).
 - **`x86`**: Enables the x86 backend powered by [iced-x86](https://crates.io/crates/iced-x86).
 - **`arm`**: Enables the ARM backend powered by [unarm](https://github.com/AetiasHax/unarm).
+- **`arm64`**: Enables the ARM64 backend powered by [yaxpeax-arm](https://github.com/iximeow/yaxpeax-arm).
 - **`bindings`**: Enables serialization and deserialization of objdiff data structures.

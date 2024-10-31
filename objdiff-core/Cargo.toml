@@ -16,7 +16,7 @@ documentation = "https://docs.rs/objdiff-core"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-all = ["config", "dwarf", "mips", "ppc", "x86", "arm", "bindings"]
+all = ["config", "dwarf", "mips", "ppc", "x86", "arm", "arm64", "bindings"]
 any-arch = ["config", "dep:bimap", "dep:strum", "dep:similar", "dep:flagset", "dep:log", "dep:memmap2", "dep:byteorder", "dep:num-traits"] # Implicit, used to check if any arch is enabled
 config = ["dep:bimap", "dep:globset", "dep:semver", "dep:serde_json", "dep:serde_yaml", "dep:serde", "dep:filetime"]
 dwarf = ["dep:gimli"]
@@ -24,6 +24,7 @@ mips = ["any-arch", "dep:rabbitizer"]
 ppc = ["any-arch", "dep:cwdemangle", "dep:cwextab", "dep:ppc750cl"]
 x86 = ["any-arch", "dep:cpp_demangle", "dep:iced-x86", "dep:msvc-demangler"]
 arm = ["any-arch", "dep:cpp_demangle", "dep:unarm", "dep:arm-attr"]
+arm64 = ["any-arch", "dep:cpp_demangle", "dep:yaxpeax-arch", "dep:yaxpeax-arm"]
 bindings = ["dep:serde_json", "dep:prost", "dep:pbjson", "dep:serde", "dep:prost-build", "dep:pbjson-build"]
 wasm = ["bindings", "any-arch", "dep:console_error_panic_hook", "dep:console_log", "dep:wasm-bindgen", "dep:tsify-next", "dep:log"]
 
@@ -75,6 +76,10 @@ msvc-demangler = { version = "0.10", optional = true }
 # arm
 unarm = { version = "1.6", optional = true }
 arm-attr = { version = "0.1", optional = true }
+
+# arm64
+yaxpeax-arch = { version = "0.3", default-features = false, features = ["std"], optional = true }
+yaxpeax-arm = { version = "0.3", default-features = false, features = ["std"], optional = true }
 
 [build-dependencies]
 prost-build = { version = "0.13", optional = true }

@@ -103,7 +103,7 @@ pub struct ObjIns {
     pub address: u64,
     pub size: u8,
     pub op: u16,
-    pub mnemonic: String,
+    pub mnemonic: Cow<'static, str>,
     pub args: Vec<ObjInsArg>,
     pub reloc: Option<ObjReloc>,
     pub branch_dest: Option<u64>,

@@ -51,7 +51,7 @@ impl ObjArch for ObjArchX86 {
                 address: 0,
                 size: 0,
                 op: 0,
-                mnemonic: String::new(),
+                mnemonic: Cow::Borrowed("<invalid>"),
                 args: vec![],
                 reloc: None,
                 branch_dest: None,
@@ -76,7 +76,7 @@ impl ObjArch for ObjArchX86 {
                 address,
                 size: instruction.len() as u8,
                 op,
-                mnemonic: String::new(),
+                mnemonic: Cow::Borrowed("<invalid>"),
                 args: vec![],
                 reloc: reloc.cloned(),
                 branch_dest: None,
@@ -242,7 +242,8 @@ impl FormatterOutput for InstructionFormatterOutput {
 
     fn write_mnemonic(&mut self, _instruction: &Instruction, text: &str) {
         self.formatted.push_str(text);
-        self.ins.mnemonic = text.to_string();
+        // TODO: can iced-x86 guarantee 'static here?
+        self.ins.mnemonic = Cow::Owned(text.to_string());
     }
 
     fn write_number(

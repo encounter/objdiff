@@ -20,6 +20,7 @@ Supports:
 - MIPS (N64, PS1, PS2, PSP)
 - x86 (COFF only at the moment)
 - ARM (GBA, DS, 3DS)
+- ARM64 (Switch, experimental)
 
 See [Usage](#usage) for more information.
 

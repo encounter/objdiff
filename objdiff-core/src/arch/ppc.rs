@@ -143,7 +143,7 @@ impl ObjArch for ObjArchPpc {
             insts.push(ObjIns {
                 address: cur_addr as u64,
                 size: 4,
-                mnemonic: simplified.mnemonic.to_string(),
+                mnemonic: Cow::Borrowed(simplified.mnemonic),
                 args,
                 reloc: reloc.cloned(),
                 op: ins.op as u16,

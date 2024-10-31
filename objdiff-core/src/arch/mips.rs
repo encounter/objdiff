@@ -119,7 +119,7 @@ impl ObjArch for ObjArchMips {
             let op = instruction.unique_id as u16;
             ops.push(op);
 
-            let mnemonic = instruction.opcode_name().to_string();
+            let mnemonic = instruction.opcode_name();
             let is_branch = instruction.is_branch();
             let branch_offset = instruction.branch_offset();
             let mut branch_dest = if is_branch {
@@ -202,7 +202,7 @@ impl ObjArch for ObjArchMips {
                 address: cur_addr as u64,
                 size: 4,
                 op,
-                mnemonic,
+                mnemonic: Cow::Borrowed(mnemonic),
                 args,
                 reloc: reloc.cloned(),
                 branch_dest,
