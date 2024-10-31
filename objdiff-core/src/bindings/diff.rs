@@ -132,7 +132,7 @@ impl Instruction {
             address: instruction.address,
             size: instruction.size as u32,
             opcode: instruction.op as u32,
-            mnemonic: instruction.mnemonic.clone(),
+            mnemonic: instruction.mnemonic.to_string(),
             formatted: instruction.formatted.clone(),
             arguments: instruction.args.iter().map(Argument::new).collect(),
             relocation: instruction.reloc.as_ref().map(|reloc| Relocation::new(object, reloc)),

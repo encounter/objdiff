@@ -124,11 +124,9 @@ impl ObjArch for ObjArchArm {
             .get(&SectionIndex(section_index))
             .map(|x| x.as_slice())
             .unwrap_or(&fallback_mappings);
-        let first_mapping_idx =
-            match mapping_symbols.binary_search_by_key(&start_addr, |x| x.address) {
-                Ok(idx) => idx,
-                Err(idx) => idx - 1,
-            };
+        let first_mapping_idx = mapping_symbols
+            .binary_search_by_key(&start_addr, |x| x.address)
+            .unwrap_or_else(|idx| idx - 1);
         let first_mapping = mapping_symbols[first_mapping_idx].mapping;
 
         let mut mappings_iter =
@@ -215,7 +213,7 @@ impl ObjArch for ObjArchArm {
                 address: address as u64,
                 size: (parser.address - address) as u8,
                 op: ins.opcode_id(),
-                mnemonic: parsed_ins.mnemonic.to_string(),
+                mnemonic: Cow::Borrowed(parsed_ins.mnemonic),
                 args,
                 reloc,
                 branch_dest,
@@ -234,7 +232,7 @@ impl ObjArch for ObjArchArm {
         section: &ObjSection,
         address: u64,
         reloc: &Relocation,
-    ) -> anyhow::Result<i64> {
+    ) -> Result<i64> {
         let address = address as usize;
         Ok(match reloc.flags() {
             // ARM calls

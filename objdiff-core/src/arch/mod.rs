@@ -12,6 +12,8 @@ use crate::{
 
 #[cfg(feature = "arm")]
 mod arm;
+#[cfg(feature = "arm64")]
+mod arm64;
 #[cfg(feature = "mips")]
 pub mod mips;
 #[cfg(feature = "ppc")]
@@ -165,6 +167,8 @@ pub fn new_arch(object: &File) -> Result<Box<dyn ObjArch>> {
         Architecture::I386 | Architecture::X86_64 => Box::new(x86::ObjArchX86::new(object)?),
         #[cfg(feature = "arm")]
         Architecture::Arm => Box::new(arm::ObjArchArm::new(object)?),
+        #[cfg(feature = "arm64")]
+        Architecture::Aarch64 => Box::new(arm64::ObjArchArm64::new(object)?),
         arch => bail!("Unsupported architecture: {arch:?}"),
     })
 }
