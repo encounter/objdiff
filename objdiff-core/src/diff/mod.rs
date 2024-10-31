@@ -245,7 +245,7 @@ pub struct ObjInsDiff {
     pub branch_from: Option<ObjInsBranchFrom>,
     /// Branches to instruction
     pub branch_to: Option<ObjInsBranchTo>,
-    /// Arg diffs
+    /// Arg diffs (only contains non-PlainText args)
     pub arg_diff: Vec<Option<ObjInsArgDiff>>,
 }
 

@@ -85,6 +85,9 @@ pub enum ObjInsArg {
 }
 
 impl ObjInsArg {
+    #[inline]
+    pub fn is_plain_text(&self) -> bool { matches!(self, ObjInsArg::PlainText(_)) }
+
     pub fn loose_eq(&self, other: &ObjInsArg) -> bool {
         match (self, other) {
             (ObjInsArg::Arg(a), ObjInsArg::Arg(b)) => a.loose_eq(b),
@@ -110,6 +113,14 @@ pub struct ObjIns {
     pub formatted: String,
     /// Original (unsimplified) instruction
     pub orig: Option<String>,
+}
+
+impl ObjIns {
+    /// Iterate over non-PlainText arguments.
+    #[inline]
+    pub fn iter_args(&self) -> impl DoubleEndedIterator<Item = &ObjInsArg> {
+        self.args.iter().filter(|a| !a.is_plain_text())
+    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]

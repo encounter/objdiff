@@ -299,15 +299,10 @@ fn compare_ins(
 ) -> Result<InsDiffResult> {
     let mut result = InsDiffResult::default();
     if let (Some(left_ins), Some(right_ins)) = (&left.ins, &right.ins) {
-        if left_ins.args.len() != right_ins.args.len()
-            || left_ins.op != right_ins.op
-            // Check if any PlainText segments differ (punctuation and spacing)
-            // This indicates a more significant difference than a simple arg mismatch
-            || !left_ins.args.iter().zip(&right_ins.args).all(|(a, b)| match (a, b) {
-                (ObjInsArg::PlainText(l), ObjInsArg::PlainText(r)) => l == r,
-                _ => true,
-            })
-        {
+        // Count only non-PlainText args
+        let left_args_count = left_ins.iter_args().count();
+        let right_args_count = right_ins.iter_args().count();
+        if left_args_count != right_args_count || left_ins.op != right_ins.op {
             // Totally different op
             result.kind = ObjInsDiffKind::Replace;
             state.diff_count += 1;
@@ -318,7 +313,7 @@ fn compare_ins(
             result.kind = ObjInsDiffKind::OpMismatch;
             state.diff_count += 1;
         }
-        for (a, b) in left_ins.args.iter().zip(&right_ins.args) {
+        for (a, b) in left_ins.iter_args().zip(right_ins.iter_args()) {
             if arg_eq(config, left_obj, right_obj, a, b, left, right) {
                 result.left_args_diff.push(None);
                 result.right_args_diff.push(None);

@@ -58,20 +58,23 @@ pub fn display_diff<E>(
         cb(DiffText::Spacing(4))?;
     }
     cb(DiffText::Opcode(&ins.mnemonic, ins.op))?;
+    let mut arg_diff_idx = 0; // non-PlainText index
     for (i, arg) in ins.args.iter().enumerate() {
         if i == 0 {
             cb(DiffText::Spacing(1))?;
         }
-        let diff = ins_diff.arg_diff.get(i).and_then(|o| o.as_ref());
+        let diff = ins_diff.arg_diff.get(arg_diff_idx).and_then(|o| o.as_ref());
         match arg {
             ObjInsArg::PlainText(s) => {
                 cb(DiffText::Basic(s))?;
             }
             ObjInsArg::Arg(v) => {
                 cb(DiffText::Argument(v, diff))?;
+                arg_diff_idx += 1;
             }
             ObjInsArg::Reloc => {
                 display_reloc_name(ins.reloc.as_ref().unwrap(), &mut cb, diff)?;
+                arg_diff_idx += 1;
             }
             ObjInsArg::BranchDest(dest) => {
                 if let Some(dest) = dest.checked_sub(base_addr) {
@@ -79,6 +82,7 @@ pub fn display_diff<E>(
                 } else {
                     cb(DiffText::Basic("<unknown>"))?;
                 }
+                arg_diff_idx += 1;
             }
         }
     }
