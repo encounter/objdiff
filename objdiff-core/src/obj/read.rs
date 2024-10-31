@@ -335,6 +335,10 @@ fn relocations_by_section(
                 };
                 symbol
             }
+            RelocationTarget::Absolute => {
+                log::warn!("Ignoring absolute relocation @ {}:{:#x}", section.name, address);
+                continue;
+            }
             _ => bail!("Unhandled relocation target: {:?}", reloc.target()),
         };
         let flags = reloc.flags(); // TODO validate reloc here?
