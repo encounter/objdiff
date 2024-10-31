@@ -292,10 +292,14 @@ fn diff_text_ui(
                 base_color = appearance.diff_colors[diff.idx % appearance.diff_colors.len()]
             }
         }
-        DiffText::Symbol(sym) => {
+        DiffText::Symbol(sym, diff) => {
             let name = sym.demangled_name.as_ref().unwrap_or(&sym.name);
             label_text = name.clone();
-            base_color = appearance.emphasized_text_color;
+            if let Some(diff) = diff {
+                base_color = appearance.diff_colors[diff.idx % appearance.diff_colors.len()]
+            } else {
+                base_color = appearance.emphasized_text_color;
+            }
         }
         DiffText::Spacing(n) => {
             ui.add_space(n as f32 * space_width);

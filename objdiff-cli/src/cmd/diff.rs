@@ -844,10 +844,14 @@ impl FunctionDiffUi {
                             base_color = COLOR_ROTATION[diff.idx % COLOR_ROTATION.len()]
                         }
                     }
-                    DiffText::Symbol(sym) => {
+                    DiffText::Symbol(sym, diff) => {
                         let name = sym.demangled_name.as_ref().unwrap_or(&sym.name);
                         label_text = name.clone();
-                        base_color = Color::White;
+                        if let Some(diff) = diff {
+                            base_color = COLOR_ROTATION[diff.idx % COLOR_ROTATION.len()]
+                        } else {
+                            base_color = Color::White;
+                        }
                     }
                     DiffText::Spacing(n) => {
                         line.spans.push(Span::raw(" ".repeat(n)));

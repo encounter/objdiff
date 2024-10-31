@@ -330,8 +330,11 @@ fn compare_ins(
                 let a_str = match a {
                     ObjInsArg::PlainText(arg) => arg.to_string(),
                     ObjInsArg::Arg(arg) => arg.to_string(),
-                    ObjInsArg::Reloc => String::new(),
-                    ObjInsArg::BranchDest(arg) => format!("{arg}"),
+                    ObjInsArg::Reloc => left_ins
+                        .reloc
+                        .as_ref()
+                        .map_or_else(|| "<unknown>".to_string(), |r| r.target.name.clone()),
+                    ObjInsArg::BranchDest(arg) => arg.to_string(),
                 };
                 let a_diff = if let Some(idx) = state.left_args_idx.get(&a_str) {
                     ObjInsArgDiff { idx: *idx }
@@ -344,8 +347,11 @@ fn compare_ins(
                 let b_str = match b {
                     ObjInsArg::PlainText(arg) => arg.to_string(),
                     ObjInsArg::Arg(arg) => arg.to_string(),
-                    ObjInsArg::Reloc => String::new(),
-                    ObjInsArg::BranchDest(arg) => format!("{arg}"),
+                    ObjInsArg::Reloc => right_ins
+                        .reloc
+                        .as_ref()
+                        .map_or_else(|| "<unknown>".to_string(), |r| r.target.name.clone()),
+                    ObjInsArg::BranchDest(arg) => arg.to_string(),
                 };
                 let b_diff = if let Some(idx) = state.right_args_idx.get(&b_str) {
                     ObjInsArgDiff { idx: *idx }

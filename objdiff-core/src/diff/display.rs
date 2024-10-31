@@ -22,7 +22,7 @@ pub enum DiffText<'a> {
     /// Branch destination
     BranchDest(u64, Option<&'a ObjInsArgDiff>),
     /// Symbol name
-    Symbol(&'a ObjSymbol),
+    Symbol(&'a ObjSymbol, Option<&'a ObjInsArgDiff>),
     /// Number of spaces
     Spacing(usize),
     /// End of line
@@ -71,7 +71,7 @@ pub fn display_diff<E>(
                 cb(DiffText::Argument(v, diff))?;
             }
             ObjInsArg::Reloc => {
-                display_reloc_name(ins.reloc.as_ref().unwrap(), &mut cb)?;
+                display_reloc_name(ins.reloc.as_ref().unwrap(), &mut cb, diff)?;
             }
             ObjInsArg::BranchDest(dest) => {
                 if let Some(dest) = dest.checked_sub(base_addr) {
@@ -92,8 +92,9 @@ pub fn display_diff<E>(
 fn display_reloc_name<E>(
     reloc: &ObjReloc,
     mut cb: impl FnMut(DiffText) -> Result<(), E>,
+    diff: Option<&ObjInsArgDiff>,
 ) -> Result<(), E> {
-    cb(DiffText::Symbol(&reloc.target))?;
+    cb(DiffText::Symbol(&reloc.target, diff))?;
     match reloc.addend.cmp(&0i64) {
         Ordering::Greater => cb(DiffText::Basic(&format!("+{:#x}", reloc.addend))),
         Ordering::Less => cb(DiffText::Basic(&format!("-{:#x}", -reloc.addend))),
@@ -106,7 +107,7 @@ impl PartialEq<DiffText<'_>> for HighlightKind {
         match (self, other) {
             (HighlightKind::Opcode(a), DiffText::Opcode(_, b)) => a == b,
             (HighlightKind::Arg(a), DiffText::Argument(b, _)) => a.loose_eq(b),
-            (HighlightKind::Symbol(a), DiffText::Symbol(b)) => a == &b.name,
+            (HighlightKind::Symbol(a), DiffText::Symbol(b, _)) => a == &b.name,
             (HighlightKind::Address(a), DiffText::Address(b) | DiffText::BranchDest(b, _)) => {
                 a == b
             }
@@ -124,7 +125,7 @@ impl From<DiffText<'_>> for HighlightKind {
         match value {
             DiffText::Opcode(_, op) => HighlightKind::Opcode(op),
             DiffText::Argument(arg, _) => HighlightKind::Arg(arg.clone()),
-            DiffText::Symbol(sym) => HighlightKind::Symbol(sym.name.to_string()),
+            DiffText::Symbol(sym, _) => HighlightKind::Symbol(sym.name.to_string()),
             DiffText::Address(addr) | DiffText::BranchDest(addr, _) => HighlightKind::Address(addr),
             _ => HighlightKind::None,
         }
