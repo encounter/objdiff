@@ -12,6 +12,21 @@ pub enum ProjectObjectNode {
     Dir(String, Vec<ProjectObjectNode>),
 }
 
+fn join_single_dir_entries(nodes: &mut Vec<ProjectObjectNode>) {
+    for node in nodes {
+        if let ProjectObjectNode::Dir(my_name, my_nodes) = node {
+            join_single_dir_entries(my_nodes);
+            // If this directory consists of a single sub-directory...
+            if let [ProjectObjectNode::Dir(sub_name, sub_nodes)] = &mut my_nodes[..] {
+                // ... join the two names with a path separator and eliminate the layer
+                *my_name += "/";
+                *my_name += sub_name;
+                *my_nodes = std::mem::take(sub_nodes);
+            }
+        }
+    }
+}
+
 fn find_dir<'a>(
     name: &str,
     nodes: &'a mut Vec<ProjectObjectNode>,
@@ -60,6 +75,14 @@ fn build_nodes(
         let filename = path.file_name().unwrap().to_str().unwrap().to_string();
         out_nodes.push(ProjectObjectNode::Unit(filename, idx));
     }
+    // Within the top-level module directories, join paths. Leave the
+    // top-level name intact though since it's the module name.
+    for node in &mut nodes {
+        if let ProjectObjectNode::Dir(_, sub_nodes) = node {
+            join_single_dir_entries(sub_nodes);
+        }
+    }
+
     nodes
 }
 
