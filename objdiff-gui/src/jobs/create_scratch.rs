@@ -23,6 +23,7 @@ pub struct CreateScratchConfig {
     pub compiler_flags: String,
     pub function_name: String,
     pub target_obj: PathBuf,
+    pub preset_id: Option<u32>,
 }
 
 impl CreateScratchConfig {
@@ -45,6 +46,7 @@ impl CreateScratchConfig {
             compiler_flags: scratch_config.c_flags.clone().unwrap_or_default(),
             function_name,
             target_obj: target_path.to_path_buf(),
+            preset_id: scratch_config.preset_id,
         })
     }
 
@@ -101,15 +103,18 @@ fn run_create_scratch(
     let obj_path = project_dir.join(&config.target_obj);
     let file = reqwest::blocking::multipart::Part::file(&obj_path)
         .with_context(|| format!("Failed to open {}", obj_path.display()))?;
-    let form = reqwest::blocking::multipart::Form::new()
+    let mut form = reqwest::blocking::multipart::Form::new()
         .text("compiler", config.compiler.clone())
         .text("platform", config.platform.clone())
         .text("compiler_flags", config.compiler_flags.clone())
         .text("diff_label", config.function_name.clone())
         .text("diff_flags", diff_flags)
         .text("context", context.unwrap_or_default())
-        .text("source_code", "// Move related code from Context tab to here")
-        .part("target_obj", file);
+        .text("source_code", "// Move related code from Context tab to here");
+    if let Some(preset) = config.preset_id {
+        form = form.text("preset", preset.to_string());
+    }
+    form = form.part("target_obj", file);
     let client = reqwest::blocking::Client::new();
     let response = client
         .post(formatcp!("{API_HOST}/api/scratch"))

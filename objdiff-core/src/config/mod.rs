@@ -165,6 +165,8 @@ pub struct ScratchConfig {
     pub ctx_path: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub build_ctx: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preset_id: Option<u32>,
 }
 
 pub const CONFIG_FILENAMES: [&str; 3] = ["objdiff.json", "objdiff.yml", "objdiff.yaml"];

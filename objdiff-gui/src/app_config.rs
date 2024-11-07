@@ -71,6 +71,7 @@ impl ScratchConfigV1 {
             c_flags: self.c_flags,
             ctx_path: self.ctx_path,
             build_ctx: self.build_ctx.then_some(true),
+            preset_id: None,
         }
     }
 }
