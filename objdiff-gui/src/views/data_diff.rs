@@ -7,11 +7,14 @@ use objdiff_core::{
 };
 use time::format_description;
 
-use crate::views::{
-    appearance::Appearance,
-    column_layout::{render_header, render_table},
-    symbol_diff::{DiffViewAction, DiffViewNavigation, DiffViewState},
-    write_text,
+use crate::{
+    hotkeys,
+    views::{
+        appearance::Appearance,
+        column_layout::{render_header, render_table},
+        symbol_diff::{DiffViewAction, DiffViewNavigation, DiffViewState},
+        write_text,
+    },
 };
 
 const BYTES_PER_ROW: usize = 16;
@@ -224,7 +227,7 @@ pub fn data_diff_ui(
     render_header(ui, available_width, 2, |ui, column| {
         if column == 0 {
             // Left column
-            if ui.button("⏴ Back").clicked() {
+            if ui.button("⏴ Back").clicked() || hotkeys::back_pressed(ui.ctx()) {
                 ret = Some(DiffViewAction::Navigate(DiffViewNavigation::symbol_diff()));
             }
 
