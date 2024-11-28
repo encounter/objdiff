@@ -20,7 +20,9 @@ pub fn back_pressed(ctx: &Context) -> bool {
         return false;
     }
     ctx.input_mut(|i| {
-        i.key_pressed(Key::Backspace) || i.pointer.button_pressed(PointerButton::Extra1)
+        i.key_pressed(Key::Backspace)
+            || i.key_pressed(Key::Escape)
+            || i.pointer.button_pressed(PointerButton::Extra1)
     })
 }
 
