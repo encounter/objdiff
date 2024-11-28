@@ -212,7 +212,6 @@ impl DiffViewState {
                     // Ignore action if we're already navigating
                     return;
                 }
-                self.symbol_state.highlighted_symbol = (None, None);
                 let Ok(mut state) = state.write() else {
                     return;
                 };
