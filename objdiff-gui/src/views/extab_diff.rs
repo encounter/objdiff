@@ -235,7 +235,7 @@ pub fn extab_diff_ui(
         }
     });
 
-    hotkeys::check_scroll_hotkeys(ui);
+    hotkeys::check_scroll_hotkeys(ui, true);
 
     // Table
     render_strips(ui, available_width, 2, |ui, column| {

@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, mem::take};
+use std::{collections::BTreeMap, mem::take, ops::Bound};
 
 use egui::{
     text::LayoutJob, CollapsingHeader, Color32, Id, OpenUrl, ScrollArea, SelectableLabel, TextEdit,
@@ -649,7 +649,55 @@ pub fn symbol_list_ui(
             }
         }
 
-        hotkeys::check_scroll_hotkeys(ui);
+        hotkeys::check_scroll_hotkeys(ui, false);
+
+        let mut new_key_value_to_highlight = None;
+        if let Some(sym_ref) =
+            if column == 0 { state.highlighted_symbol.0 } else { state.highlighted_symbol.1 }
+        {
+            let up = if hotkeys::consume_up_key(ui.ctx()) {
+                Some(true)
+            } else if hotkeys::consume_down_key(ui.ctx()) {
+                Some(false)
+            } else {
+                None
+            };
+            if let Some(mut up) = up {
+                if state.reverse_fn_order {
+                    up = !up;
+                }
+                new_key_value_to_highlight = if up {
+                    mapping.range(..sym_ref).next_back()
+                } else {
+                    mapping.range((Bound::Excluded(sym_ref), Bound::Unbounded)).next()
+                };
+            };
+        } else {
+            // No symbol is highlighted in this column. Select the topmost symbol instead.
+            // Note that we intentionally do not consume the up/down key presses in this case, but
+            // we do when a symbol is highlighted. This is so that if only one column has a symbol
+            // highlighted, that one takes precedence over the one with nothing highlighted.
+            if hotkeys::up_pressed(ui.ctx()) || hotkeys::down_pressed(ui.ctx()) {
+                new_key_value_to_highlight = if state.reverse_fn_order {
+                    mapping.last_key_value()
+                } else {
+                    mapping.first_key_value()
+                };
+            }
+        }
+        if let Some((new_sym_ref, new_symbol_diff)) = new_key_value_to_highlight {
+            ret = Some(if column == 0 {
+                DiffViewAction::SetSymbolHighlight(
+                    Some(*new_sym_ref),
+                    new_symbol_diff.target_symbol,
+                )
+            } else {
+                DiffViewAction::SetSymbolHighlight(
+                    new_symbol_diff.target_symbol,
+                    Some(*new_sym_ref),
+                )
+            });
+        }
 
         ui.scope(|ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
