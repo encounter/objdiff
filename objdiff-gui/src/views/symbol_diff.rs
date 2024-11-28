@@ -1,8 +1,8 @@
 use std::{collections::BTreeMap, mem::take, ops::Bound};
 
 use egui::{
-    text::LayoutJob, CollapsingHeader, Color32, Id, OpenUrl, ScrollArea, SelectableLabel, TextEdit,
-    Ui, Widget,
+    style::ScrollAnimation, text::LayoutJob, CollapsingHeader, Color32, Id, OpenUrl, ScrollArea,
+    SelectableLabel, TextEdit, Ui, Widget,
 };
 use objdiff_core::{
     arch::ObjArch,
@@ -57,8 +57,8 @@ pub enum DiffViewAction {
     Build,
     /// Navigate to a new diff view
     Navigate(DiffViewNavigation),
-    /// Set the highlighted symbols in the symbols view
-    SetSymbolHighlight(Option<SymbolRef>, Option<SymbolRef>),
+    /// Set the highlighted symbols in the symbols view, optionally scrolling them into view.
+    SetSymbolHighlight(Option<SymbolRef>, Option<SymbolRef>, bool),
     /// Set the symbols view search filter
     SetSearch(String),
     /// Submit the current function to decomp.me
@@ -136,6 +136,7 @@ pub struct DiffViewState {
 #[derive(Default)]
 pub struct SymbolViewState {
     pub highlighted_symbol: (Option<SymbolRef>, Option<SymbolRef>),
+    pub scroll_highlighted_symbol_into_view: bool,
     pub left_symbol: Option<SymbolRefByName>,
     pub right_symbol: Option<SymbolRefByName>,
     pub reverse_fn_order: bool,
@@ -247,8 +248,9 @@ impl DiffViewState {
                     self.post_build_nav = Some(nav);
                 }
             }
-            DiffViewAction::SetSymbolHighlight(left, right) => {
+            DiffViewAction::SetSymbolHighlight(left, right, scroll) => {
                 self.symbol_state.highlighted_symbol = (left, right);
+                self.symbol_state.scroll_highlighted_symbol_into_view = scroll;
             }
             DiffViewAction::SetSearch(search) => {
                 self.search_regex = if search.is_empty() {
@@ -471,7 +473,7 @@ fn symbol_ui(
     symbol: &ObjSymbol,
     symbol_diff: &ObjSymbolDiff,
     section: Option<&ObjSection>,
-    state: &SymbolViewState,
+    state: &mut SymbolViewState,
     appearance: &Appearance,
     column: usize,
 ) -> Option<DiffViewAction> {
@@ -534,6 +536,14 @@ fn symbol_ui(
             ret = Some(DiffViewAction::Navigate(result));
         }
     });
+    if selected && state.scroll_highlighted_symbol_into_view {
+        // Scroll the view to encompass the selected symbol in case the user selected an offscreen
+        // symbol by using a keyboard shortcut.
+        ui.scroll_to_rect_animation(response.rect, None, ScrollAnimation::none());
+        // Then reset this flag so that we don't repeatedly scroll the view back when the user is
+        // trying to manually scroll away.
+        state.scroll_highlighted_symbol_into_view = false;
+    }
     if response.clicked() || (selected && hotkeys::enter_pressed(ui.ctx())) {
         if let Some(section) = section {
             match section.kind {
@@ -565,11 +575,13 @@ fn symbol_ui(
             DiffViewAction::SetSymbolHighlight(
                 Some(symbol_diff.symbol_ref),
                 symbol_diff.target_symbol,
+                false,
             )
         } else {
             DiffViewAction::SetSymbolHighlight(
                 symbol_diff.target_symbol,
                 Some(symbol_diff.symbol_ref),
+                false,
             )
         });
     }
@@ -603,7 +615,7 @@ pub fn symbol_list_ui(
     ui: &mut Ui,
     ctx: SymbolDiffContext<'_>,
     other_ctx: Option<SymbolDiffContext<'_>>,
-    state: &SymbolViewState,
+    state: &mut SymbolViewState,
     filter: SymbolFilter<'_>,
     appearance: &Appearance,
     column: usize,
@@ -685,11 +697,13 @@ pub fn symbol_list_ui(
                 DiffViewAction::SetSymbolHighlight(
                     Some(*new_sym_ref),
                     new_symbol_diff.target_symbol,
+                    true,
                 )
             } else {
                 DiffViewAction::SetSymbolHighlight(
                     new_symbol_diff.target_symbol,
                     Some(*new_sym_ref),
+                    true,
                 )
             });
         }
@@ -941,7 +955,7 @@ pub fn symbol_diff_ui(
                             .second_obj
                             .as_ref()
                             .map(|(obj, diff)| SymbolDiffContext { obj, diff }),
-                        &state.symbol_state,
+                        &mut state.symbol_state,
                         filter,
                         appearance,
                         column,
@@ -965,7 +979,7 @@ pub fn symbol_diff_ui(
                             .first_obj
                             .as_ref()
                             .map(|(obj, diff)| SymbolDiffContext { obj, diff }),
-                        &state.symbol_state,
+                        &mut state.symbol_state,
                         filter,
                         appearance,
                         column,
