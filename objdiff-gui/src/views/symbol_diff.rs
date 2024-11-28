@@ -15,6 +15,7 @@ use regex::{Regex, RegexBuilder};
 
 use crate::{
     app::AppStateRef,
+    hotkeys,
     jobs::{
         create_scratch::{start_create_scratch, CreateScratchConfig, CreateScratchResult},
         objdiff::{BuildStatus, ObjDiffResult},
@@ -534,7 +535,7 @@ fn symbol_ui(
             ret = Some(DiffViewAction::Navigate(result));
         }
     });
-    if response.clicked() {
+    if response.clicked() || (selected && hotkeys::enter_pressed(ui.ctx())) {
         if let Some(section) = section {
             match section.kind {
                 ObjSectionKind::Code => {

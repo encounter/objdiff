@@ -14,12 +14,15 @@ use objdiff_core::{
 };
 use time::format_description;
 
-use crate::views::{
-    appearance::Appearance,
-    column_layout::{render_header, render_strips, render_table},
-    symbol_diff::{
-        match_color_for_symbol, symbol_list_ui, DiffViewAction, DiffViewNavigation, DiffViewState,
-        SymbolDiffContext, SymbolFilter, SymbolRefByName, SymbolViewState, View,
+use crate::{
+    hotkeys,
+    views::{
+        appearance::Appearance,
+        column_layout::{render_header, render_strips, render_table},
+        symbol_diff::{
+            match_color_for_symbol, symbol_list_ui, DiffViewAction, DiffViewNavigation,
+            DiffViewState, SymbolDiffContext, SymbolFilter, SymbolRefByName, SymbolViewState, View,
+        },
     },
 };
 
@@ -675,7 +678,7 @@ pub fn function_diff_ui(
         if column == 0 {
             // Left column
             ui.horizontal(|ui| {
-                if ui.button("⏴ Back").clicked() {
+                if ui.button("⏴ Back").clicked() || hotkeys::back_pressed(ui.ctx()) {
                     ret = Some(DiffViewAction::Navigate(DiffViewNavigation::symbol_diff()));
                 }
                 ui.separator();

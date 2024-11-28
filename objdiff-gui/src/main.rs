@@ -4,6 +4,7 @@ mod app;
 mod app_config;
 mod config;
 mod fonts;
+mod hotkeys;
 mod jobs;
 mod update;
 mod views;
