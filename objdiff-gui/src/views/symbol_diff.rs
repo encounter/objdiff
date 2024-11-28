@@ -898,7 +898,11 @@ pub fn symbol_diff_ui(
             });
 
             let mut search = state.search.clone();
-            if TextEdit::singleline(&mut search).hint_text("Filter symbols").ui(ui).changed() {
+            let response = TextEdit::singleline(&mut search).hint_text("Filter symbols").ui(ui);
+            if hotkeys::consume_symbol_filter_shortcut(ui.ctx()) {
+                response.request_focus();
+            }
+            if response.changed() {
                 ret = Some(DiffViewAction::SetSearch(search));
             }
         } else if column == 1 {

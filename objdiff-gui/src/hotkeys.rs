@@ -1,4 +1,6 @@
-use egui::{style::ScrollAnimation, vec2, Context, Key, Modifiers, PointerButton};
+use egui::{
+    style::ScrollAnimation, vec2, Context, Key, KeyboardShortcut, Modifiers, PointerButton,
+};
 
 fn any_widget_focused(ctx: &Context) -> bool { ctx.memory(|mem| mem.focused().is_some()) }
 
@@ -73,4 +75,16 @@ pub fn consume_down_key(ctx: &Context) -> bool {
     ctx.input_mut(|i| {
         i.consume_key(Modifiers::NONE, Key::ArrowDown) || i.consume_key(Modifiers::NONE, Key::S)
     })
+}
+
+const OBJECT_FILTER_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::F);
+
+pub fn consume_object_filter_shortcut(ctx: &Context) -> bool {
+    ctx.input_mut(|i| i.consume_shortcut(&OBJECT_FILTER_SHORTCUT))
+}
+
+const SYMBOL_FILTER_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::S);
+
+pub fn consume_symbol_filter_shortcut(ctx: &Context) -> bool {
+    ctx.input_mut(|i| i.consume_shortcut(&SYMBOL_FILTER_SHORTCUT))
 }
