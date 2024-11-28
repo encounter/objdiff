@@ -409,7 +409,7 @@ fn asm_table_ui(
     right_ctx: Option<FunctionDiffContext<'_>>,
     appearance: &Appearance,
     ins_view_state: &FunctionViewState,
-    symbol_state: &SymbolViewState,
+    symbol_state: &mut SymbolViewState,
 ) -> Option<DiffViewAction> {
     let mut ret = None;
     let left_len = left_ctx.and_then(|ctx| {
@@ -516,8 +516,9 @@ fn asm_table_ui(
                                         SymbolRefByName::new(right_symbol, right_section),
                                     ));
                                 }
-                                DiffViewAction::SetSymbolHighlight(_, _) => {
-                                    // Ignore
+                                DiffViewAction::SetSymbolHighlight(left, right, scroll) => {
+                                    symbol_state.highlighted_symbol = (left, right);
+                                    symbol_state.scroll_highlighted_symbol_into_view = scroll;
                                 }
                                 _ => {
                                     ret = Some(action);
@@ -576,8 +577,9 @@ fn asm_table_ui(
                                         right_symbol_ref,
                                     ));
                                 }
-                                DiffViewAction::SetSymbolHighlight(_, _) => {
-                                    // Ignore
+                                DiffViewAction::SetSymbolHighlight(left, right, scroll) => {
+                                    symbol_state.highlighted_symbol = (left, right);
+                                    symbol_state.scroll_highlighted_symbol_into_view = scroll;
                                 }
                                 _ => {
                                     ret = Some(action);
@@ -620,7 +622,7 @@ impl<'a> FunctionDiffContext<'a> {
 #[must_use]
 pub fn function_diff_ui(
     ui: &mut egui::Ui,
-    state: &DiffViewState,
+    state: &mut DiffViewState,
     appearance: &Appearance,
 ) -> Option<DiffViewAction> {
     let mut ret = None;
@@ -823,7 +825,7 @@ pub fn function_diff_ui(
                 right_ctx,
                 appearance,
                 &state.function_state,
-                &state.symbol_state,
+                &mut state.symbol_state,
             )
         })
         .inner
