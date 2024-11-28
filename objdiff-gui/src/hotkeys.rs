@@ -1,4 +1,4 @@
-use egui::{style::ScrollAnimation, vec2, Context, Key, PointerButton};
+use egui::{style::ScrollAnimation, vec2, Context, Key, Modifiers, PointerButton};
 
 pub fn enter_pressed(ctx: &Context) -> bool {
     ctx.input_mut(|i| i.key_pressed(Key::Enter) || i.pointer.button_pressed(PointerButton::Extra2))
@@ -26,11 +26,11 @@ pub fn home_pressed(ctx: &Context) -> bool { ctx.input_mut(|i| i.key_pressed(Key
 
 pub fn end_pressed(ctx: &Context) -> bool { ctx.input_mut(|i| i.key_pressed(Key::End)) }
 
-pub fn check_scroll_hotkeys(ui: &mut egui::Ui) {
+pub fn check_scroll_hotkeys(ui: &mut egui::Ui, include_small_increments: bool) {
     let ui_height = ui.available_rect_before_wrap().height();
-    if up_pressed(ui.ctx()) {
+    if up_pressed(ui.ctx()) && include_small_increments {
         ui.scroll_with_delta_animation(vec2(0.0, ui_height / 10.0), ScrollAnimation::none());
-    } else if down_pressed(ui.ctx()) {
+    } else if down_pressed(ui.ctx()) && include_small_increments {
         ui.scroll_with_delta_animation(vec2(0.0, -ui_height / 10.0), ScrollAnimation::none());
     } else if page_up_pressed(ui.ctx()) {
         ui.scroll_with_delta_animation(vec2(0.0, ui_height), ScrollAnimation::none());
@@ -41,4 +41,16 @@ pub fn check_scroll_hotkeys(ui: &mut egui::Ui) {
     } else if end_pressed(ui.ctx()) {
         ui.scroll_with_delta_animation(vec2(0.0, -f32::INFINITY), ScrollAnimation::none());
     }
+}
+
+pub fn consume_up_key(ctx: &Context) -> bool {
+    ctx.input_mut(|i| {
+        i.consume_key(Modifiers::NONE, Key::ArrowUp) || i.consume_key(Modifiers::NONE, Key::W)
+    })
+}
+
+pub fn consume_down_key(ctx: &Context) -> bool {
+    ctx.input_mut(|i| {
+        i.consume_key(Modifiers::NONE, Key::ArrowDown) || i.consume_key(Modifiers::NONE, Key::S)
+    })
 }

@@ -179,7 +179,7 @@ fn data_table_ui(
     let left_diffs = left_section.map(|(_, section)| split_diffs(&section.data_diff));
     let right_diffs = right_section.map(|(_, section)| split_diffs(&section.data_diff));
 
-    hotkeys::check_scroll_hotkeys(ui);
+    hotkeys::check_scroll_hotkeys(ui, true);
 
     render_table(ui, available_width, 2, config.code_font.size, total_rows, |row, column| {
         let i = row.index();
