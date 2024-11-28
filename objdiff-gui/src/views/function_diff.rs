@@ -714,10 +714,11 @@ pub fn function_diff_ui(
                         .color(appearance.highlight_color),
                 );
                 if right_ctx.map_or(false, |m| m.has_symbol())
-                    && ui
+                    && (ui
                         .button("Change target")
                         .on_hover_text_at_pointer("Choose a different symbol to use as the target")
                         .clicked()
+                        || hotkeys::consume_change_target_shortcut(ui.ctx()))
                 {
                     if let Some(symbol_ref) = state.symbol_state.right_symbol.as_ref() {
                         ret = Some(DiffViewAction::SelectingLeft(symbol_ref.clone()));
@@ -791,6 +792,7 @@ pub fn function_diff_ui(
                                 "Choose a different symbol to use as the base",
                             )
                             .clicked()
+                            || hotkeys::consume_change_base_shortcut(ui.ctx())
                         {
                             if let Some(symbol_ref) = state.symbol_state.left_symbol.as_ref() {
                                 ret = Some(DiffViewAction::SelectingRight(symbol_ref.clone()));
