@@ -235,6 +235,8 @@ pub fn extab_diff_ui(
         }
     });
 
+    hotkeys::check_scroll_hotkeys(ui);
+
     // Table
     render_strips(ui, available_width, 2, |ui, column| {
         if column == 0 {
