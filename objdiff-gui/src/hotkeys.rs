@@ -1,20 +1,34 @@
 use egui::{style::ScrollAnimation, vec2, Context, Key, Modifiers, PointerButton};
 
+fn any_widget_focused(ctx: &Context) -> bool { ctx.memory(|mem| mem.focused().is_some()) }
+
 pub fn enter_pressed(ctx: &Context) -> bool {
+    if any_widget_focused(ctx) {
+        return false;
+    }
     ctx.input_mut(|i| i.key_pressed(Key::Enter) || i.pointer.button_pressed(PointerButton::Extra2))
 }
 
 pub fn back_pressed(ctx: &Context) -> bool {
+    if any_widget_focused(ctx) {
+        return false;
+    }
     ctx.input_mut(|i| {
         i.key_pressed(Key::Backspace) || i.pointer.button_pressed(PointerButton::Extra1)
     })
 }
 
 pub fn up_pressed(ctx: &Context) -> bool {
+    if any_widget_focused(ctx) {
+        return false;
+    }
     ctx.input_mut(|i| i.key_pressed(Key::ArrowUp) || i.key_pressed(Key::W))
 }
 
 pub fn down_pressed(ctx: &Context) -> bool {
+    if any_widget_focused(ctx) {
+        return false;
+    }
     ctx.input_mut(|i| i.key_pressed(Key::ArrowDown) || i.key_pressed(Key::S))
 }
 
@@ -44,12 +58,18 @@ pub fn check_scroll_hotkeys(ui: &mut egui::Ui, include_small_increments: bool) {
 }
 
 pub fn consume_up_key(ctx: &Context) -> bool {
+    if any_widget_focused(ctx) {
+        return false;
+    }
     ctx.input_mut(|i| {
         i.consume_key(Modifiers::NONE, Key::ArrowUp) || i.consume_key(Modifiers::NONE, Key::W)
     })
 }
 
 pub fn consume_down_key(ctx: &Context) -> bool {
+    if any_widget_focused(ctx) {
+        return false;
+    }
     ctx.input_mut(|i| {
         i.consume_key(Modifiers::NONE, Key::ArrowDown) || i.consume_key(Modifiers::NONE, Key::S)
     })
