@@ -561,20 +561,16 @@ fn symbol_ui(
             }
         }
     } else if response.hovered() {
-        ret = Some(if let Some(target_symbol) = symbol_diff.target_symbol {
-            if column == 0 {
-                DiffViewAction::SetSymbolHighlight(
-                    Some(symbol_diff.symbol_ref),
-                    Some(target_symbol),
-                )
-            } else {
-                DiffViewAction::SetSymbolHighlight(
-                    Some(target_symbol),
-                    Some(symbol_diff.symbol_ref),
-                )
-            }
+        ret = Some(if column == 0 {
+            DiffViewAction::SetSymbolHighlight(
+                Some(symbol_diff.symbol_ref),
+                symbol_diff.target_symbol,
+            )
         } else {
-            DiffViewAction::SetSymbolHighlight(None, None)
+            DiffViewAction::SetSymbolHighlight(
+                symbol_diff.target_symbol,
+                Some(symbol_diff.symbol_ref),
+            )
         });
     }
     ret
