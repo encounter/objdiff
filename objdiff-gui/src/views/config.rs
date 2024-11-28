@@ -21,6 +21,7 @@ use strum::{EnumMessage, VariantArray};
 use crate::{
     app::{AppConfig, AppState, AppStateRef, ObjectConfig},
     config::ProjectObjectNode,
+    hotkeys,
     jobs::{
         check_update::{start_check_update, CheckUpdateResult},
         update::start_update,
@@ -254,7 +255,11 @@ pub fn config_ui(
         }
     } else {
         let had_search = !config_state.object_search.is_empty();
-        egui::TextEdit::singleline(&mut config_state.object_search).hint_text("Filter").ui(ui);
+        let response =
+            egui::TextEdit::singleline(&mut config_state.object_search).hint_text("Filter").ui(ui);
+        if hotkeys::consume_object_filter_shortcut(ui.ctx()) {
+            response.request_focus();
+        }
 
         let mut root_open = None;
         let mut node_open = NodeOpen::Default;
