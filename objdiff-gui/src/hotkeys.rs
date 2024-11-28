@@ -92,3 +92,15 @@ const SYMBOL_FILTER_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers
 pub fn consume_symbol_filter_shortcut(ctx: &Context) -> bool {
     ctx.input_mut(|i| i.consume_shortcut(&SYMBOL_FILTER_SHORTCUT))
 }
+
+const CHANGE_TARGET_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::T);
+
+pub fn consume_change_target_shortcut(ctx: &Context) -> bool {
+    ctx.input_mut(|i| i.consume_shortcut(&CHANGE_TARGET_SHORTCUT))
+}
+
+const CHANGE_BASE_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::B);
+
+pub fn consume_change_base_shortcut(ctx: &Context) -> bool {
+    ctx.input_mut(|i| i.consume_shortcut(&CHANGE_BASE_SHORTCUT))
+}
