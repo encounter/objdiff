@@ -471,6 +471,7 @@ fn asm_table_ui(
             if column == 0 {
                 if let Some(ctx) = left_ctx {
                     if ctx.has_symbol() {
+                        hotkeys::check_scroll_hotkeys(ui, false);
                         render_table(
                             ui,
                             available_width / 2.0,
@@ -532,6 +533,7 @@ fn asm_table_ui(
             } else if column == 1 {
                 if let Some(ctx) = right_ctx {
                     if ctx.has_symbol() {
+                        hotkeys::check_scroll_hotkeys(ui, false);
                         render_table(
                             ui,
                             available_width / 2.0,
