@@ -8,7 +8,11 @@ pub fn enter_pressed(ctx: &Context) -> bool {
     if any_widget_focused(ctx) {
         return false;
     }
-    ctx.input_mut(|i| i.key_pressed(Key::Enter) || i.pointer.button_pressed(PointerButton::Extra2))
+    ctx.input_mut(|i| {
+        i.key_pressed(Key::Enter)
+            || i.key_pressed(Key::Space)
+            || i.pointer.button_pressed(PointerButton::Extra2)
+    })
 }
 
 pub fn back_pressed(ctx: &Context) -> bool {
