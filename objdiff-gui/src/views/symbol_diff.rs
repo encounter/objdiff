@@ -649,6 +649,8 @@ pub fn symbol_list_ui(
             }
         }
 
+        hotkeys::check_scroll_hotkeys(ui);
+
         ui.scope(|ui| {
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);

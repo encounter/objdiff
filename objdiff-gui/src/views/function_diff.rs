@@ -435,6 +435,7 @@ fn asm_table_ui(
     };
     if left_len.is_some() && right_len.is_some() {
         // Joint view
+        hotkeys::check_scroll_hotkeys(ui);
         render_table(
             ui,
             available_width,
