@@ -136,7 +136,7 @@ pub struct DiffViewState {
 #[derive(Default)]
 pub struct SymbolViewState {
     pub highlighted_symbol: (Option<SymbolRef>, Option<SymbolRef>),
-    pub scroll_highlighted_symbol_into_view: bool,
+    pub scroll_to_highlighted_symbols: (bool, bool),
     pub left_symbol: Option<SymbolRefByName>,
     pub right_symbol: Option<SymbolRefByName>,
     pub reverse_fn_order: bool,
@@ -250,7 +250,7 @@ impl DiffViewState {
             }
             DiffViewAction::SetSymbolHighlight(left, right, scroll) => {
                 self.symbol_state.highlighted_symbol = (left, right);
-                self.symbol_state.scroll_highlighted_symbol_into_view = scroll;
+                self.symbol_state.scroll_to_highlighted_symbols = (scroll, scroll);
             }
             DiffViewAction::SetSearch(search) => {
                 self.search_regex = if search.is_empty() {
@@ -536,13 +536,18 @@ fn symbol_ui(
             ret = Some(DiffViewAction::Navigate(result));
         }
     });
-    if selected && state.scroll_highlighted_symbol_into_view {
+    let should_scroll = if column == 0 {
+        &mut state.scroll_to_highlighted_symbols.0
+    } else {
+        &mut state.scroll_to_highlighted_symbols.1
+    };
+    if selected && *should_scroll {
         // Scroll the view to encompass the selected symbol in case the user selected an offscreen
         // symbol by using a keyboard shortcut.
         ui.scroll_to_rect_animation(response.rect, None, ScrollAnimation::none());
         // Then reset this flag so that we don't repeatedly scroll the view back when the user is
         // trying to manually scroll away.
-        state.scroll_highlighted_symbol_into_view = false;
+        *should_scroll = false;
     }
     if response.clicked() || (selected && hotkeys::enter_pressed(ui.ctx())) {
         if let Some(section) = section {

@@ -519,7 +519,7 @@ fn asm_table_ui(
                                 }
                                 DiffViewAction::SetSymbolHighlight(left, right, scroll) => {
                                     symbol_state.highlighted_symbol = (left, right);
-                                    symbol_state.scroll_highlighted_symbol_into_view = scroll;
+                                    symbol_state.scroll_to_highlighted_symbols = (scroll, scroll);
                                 }
                                 _ => {
                                     ret = Some(action);
@@ -581,7 +581,7 @@ fn asm_table_ui(
                                 }
                                 DiffViewAction::SetSymbolHighlight(left, right, scroll) => {
                                     symbol_state.highlighted_symbol = (left, right);
-                                    symbol_state.scroll_highlighted_symbol_into_view = scroll;
+                                    symbol_state.scroll_to_highlighted_symbols = (scroll, scroll);
                                 }
                                 _ => {
                                     ret = Some(action);
