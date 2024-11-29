@@ -199,6 +199,9 @@ impl DiffViewState {
             ctx.output_mut(|o| o.open_url = Some(OpenUrl::new_tab(result.scratch_url)));
         }
 
+        // Clear the autoscroll flag so that it doesn't scroll continuously.
+        self.symbol_state.autoscroll_to_highlighted_symbols = false;
+
         let Some(action) = action else {
             return;
         };
@@ -540,8 +543,9 @@ fn symbol_ui(
         // Automatically scroll the view to encompass the selected symbol in case the user selected
         // an offscreen symbol by using a keyboard shortcut.
         ui.scroll_to_rect_animation(response.rect, None, ScrollAnimation::none());
-        // This state flag will be reset in App::update at the end of every frame so that we don't
-        // continuously scroll the view back when the user is trying to manually scroll away.
+        // This autoscroll state flag will be reset in DiffViewState::post_update at the end of
+        // every frame so that we don't continuously scroll the view back when the user is trying to
+        // manually scroll away.
     }
     if response.clicked() || (selected && hotkeys::enter_pressed(ui.ctx())) {
         if let Some(section) = section {
