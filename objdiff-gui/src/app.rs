@@ -831,6 +831,8 @@ impl eframe::App for App {
             } else {
                 symbol_diff_ui(ui, diff_state, appearance)
             };
+            // Clear the autoscroll flag so it doesn't scroll continuously.
+            diff_state.symbol_state.autoscroll_to_highlighted_symbols = false;
         });
 
         project_window(ctx, state, show_project_config, config_state, appearance);
