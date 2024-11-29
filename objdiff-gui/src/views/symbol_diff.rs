@@ -136,7 +136,7 @@ pub struct DiffViewState {
 #[derive(Default)]
 pub struct SymbolViewState {
     pub highlighted_symbol: (Option<SymbolRef>, Option<SymbolRef>),
-    pub scroll_to_highlighted_symbols: (bool, bool),
+    pub autoscroll_to_highlighted_symbols: bool,
     pub left_symbol: Option<SymbolRefByName>,
     pub right_symbol: Option<SymbolRefByName>,
     pub reverse_fn_order: bool,
@@ -248,9 +248,9 @@ impl DiffViewState {
                     self.post_build_nav = Some(nav);
                 }
             }
-            DiffViewAction::SetSymbolHighlight(left, right, scroll) => {
+            DiffViewAction::SetSymbolHighlight(left, right, autoscroll) => {
                 self.symbol_state.highlighted_symbol = (left, right);
-                self.symbol_state.scroll_to_highlighted_symbols = (scroll, scroll);
+                self.symbol_state.autoscroll_to_highlighted_symbols = autoscroll;
             }
             DiffViewAction::SetSearch(search) => {
                 self.search_regex = if search.is_empty() {
@@ -473,7 +473,7 @@ fn symbol_ui(
     symbol: &ObjSymbol,
     symbol_diff: &ObjSymbolDiff,
     section: Option<&ObjSection>,
-    state: &mut SymbolViewState,
+    state: &SymbolViewState,
     appearance: &Appearance,
     column: usize,
 ) -> Option<DiffViewAction> {
@@ -536,18 +536,12 @@ fn symbol_ui(
             ret = Some(DiffViewAction::Navigate(result));
         }
     });
-    let should_scroll = if column == 0 {
-        &mut state.scroll_to_highlighted_symbols.0
-    } else {
-        &mut state.scroll_to_highlighted_symbols.1
-    };
-    if selected && *should_scroll {
-        // Scroll the view to encompass the selected symbol in case the user selected an offscreen
-        // symbol by using a keyboard shortcut.
+    if selected && state.autoscroll_to_highlighted_symbols {
+        // Automatically scroll the view to encompass the selected symbol in case the user selected
+        // an offscreen symbol by using a keyboard shortcut.
         ui.scroll_to_rect_animation(response.rect, None, ScrollAnimation::none());
-        // Then reset this flag so that we don't repeatedly scroll the view back when the user is
-        // trying to manually scroll away.
-        *should_scroll = false;
+        // This state flag will be reset in App::update at the end of every frame so that we don't
+        // continuously scroll the view back when the user is trying to manually scroll away.
     }
     if response.clicked() || (selected && hotkeys::enter_pressed(ui.ctx())) {
         if let Some(section) = section {
@@ -620,7 +614,7 @@ pub fn symbol_list_ui(
     ui: &mut Ui,
     ctx: SymbolDiffContext<'_>,
     other_ctx: Option<SymbolDiffContext<'_>>,
-    state: &mut SymbolViewState,
+    state: &SymbolViewState,
     filter: SymbolFilter<'_>,
     appearance: &Appearance,
     column: usize,
@@ -964,7 +958,7 @@ pub fn symbol_diff_ui(
                             .second_obj
                             .as_ref()
                             .map(|(obj, diff)| SymbolDiffContext { obj, diff }),
-                        &mut state.symbol_state,
+                        &state.symbol_state,
                         filter,
                         appearance,
                         column,
@@ -988,7 +982,7 @@ pub fn symbol_diff_ui(
                             .first_obj
                             .as_ref()
                             .map(|(obj, diff)| SymbolDiffContext { obj, diff }),
-                        &mut state.symbol_state,
+                        &state.symbol_state,
                         filter,
                         appearance,
                         column,
