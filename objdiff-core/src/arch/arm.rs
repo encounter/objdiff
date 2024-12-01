@@ -113,6 +113,7 @@ impl ObjArch for ObjArchArm {
         relocations: &[ObjReloc],
         line_info: &BTreeMap<u64, u32>,
         config: &DiffObjConfig,
+        _sections: &[ObjSection],
     ) -> Result<ProcessCodeResult> {
         let start_addr = address as u32;
         let end_addr = start_addr + code.len() as u32;
@@ -216,6 +217,7 @@ impl ObjArch for ObjArchArm {
                 mnemonic: Cow::Borrowed(parsed_ins.mnemonic),
                 args,
                 reloc,
+                fake_pool_reloc: None,
                 branch_dest,
                 line,
                 formatted: parsed_ins.display(display_options).to_string(),

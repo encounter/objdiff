@@ -1,4 +1,4 @@
-use std::default::Default;
+use std::{cmp::Ordering, default::Default};
 
 use egui::{text::LayoutJob, Id, Label, Response, RichText, Sense, Widget};
 use egui_extras::TableRow;
@@ -118,9 +118,17 @@ fn ins_hover_ui(
             }
         }
 
-        if let Some(reloc) = &ins.reloc {
+        if let Some(reloc) = ins.reloc.as_ref().or(ins.fake_pool_reloc.as_ref()) {
             ui.label(format!("Relocation type: {}", obj.arch.display_reloc(reloc.flags)));
-            ui.colored_label(appearance.highlight_color, format!("Name: {}", reloc.target.name));
+            let addend_str = match reloc.addend.cmp(&0i64) {
+                Ordering::Greater => format!("+{:x}", reloc.addend),
+                Ordering::Less => format!("-{:x}", -reloc.addend),
+                _ => "".to_string(),
+            };
+            ui.colored_label(
+                appearance.highlight_color,
+                format!("Name: {}{}", reloc.target.name, addend_str),
+            );
             if let Some(orig_section_index) = reloc.target.orig_section_index {
                 if let Some(section) =
                     obj.sections.iter().find(|s| s.orig_index == orig_section_index)
@@ -132,18 +140,18 @@ fn ins_hover_ui(
                 }
                 ui.colored_label(
                     appearance.highlight_color,
-                    format!("Address: {:x}", reloc.target.address),
+                    format!("Address: {:x}{}", reloc.target.address, addend_str),
                 );
                 ui.colored_label(
                     appearance.highlight_color,
                     format!("Size: {:x}", reloc.target.size),
                 );
-                if let Some(s) = obj
-                    .arch
-                    .guess_data_type(ins)
-                    .and_then(|ty| obj.arch.display_data_type(ty, &reloc.target.bytes))
-                {
-                    ui.colored_label(appearance.highlight_color, s);
+                if reloc.addend >= 0 && reloc.target.bytes.len() > reloc.addend as usize {
+                    if let Some(s) = obj.arch.guess_data_type(ins).and_then(|ty| {
+                        obj.arch.display_data_type(ty, &reloc.target.bytes[reloc.addend as usize..])
+                    }) {
+                        ui.colored_label(appearance.highlight_color, s);
+                    }
                 }
             } else {
                 ui.colored_label(appearance.highlight_color, "Extern".to_string());

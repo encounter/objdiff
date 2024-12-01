@@ -34,6 +34,7 @@ impl ObjArch for ObjArchX86 {
         relocations: &[ObjReloc],
         line_info: &BTreeMap<u64, u32>,
         config: &DiffObjConfig,
+        _sections: &[ObjSection],
     ) -> Result<ProcessCodeResult> {
         let mut result = ProcessCodeResult { ops: Vec::new(), insts: Vec::new() };
         let mut decoder = Decoder::with_ip(self.bits, code, address, DecoderOptions::NONE);
@@ -54,6 +55,7 @@ impl ObjArch for ObjArchX86 {
                 mnemonic: Cow::Borrowed("<invalid>"),
                 args: vec![],
                 reloc: None,
+                fake_pool_reloc: None,
                 branch_dest: None,
                 line: None,
                 formatted: String::new(),
@@ -79,6 +81,7 @@ impl ObjArch for ObjArchX86 {
                 mnemonic: Cow::Borrowed("<invalid>"),
                 args: vec![],
                 reloc: reloc.cloned(),
+                fake_pool_reloc: None,
                 branch_dest: None,
                 line,
                 formatted: String::new(),
