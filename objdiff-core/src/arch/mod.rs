@@ -95,10 +95,10 @@ impl DataType {
                 }
             }
             DataType::Float => {
-                format!("Float: {}", Endian::read_f32(bytes))
+                format!("Float: {:?}f", Endian::read_f32(bytes))
             }
             DataType::Double => {
-                format!("Double: {}", Endian::read_f64(bytes))
+                format!("Double: {:?}", Endian::read_f64(bytes))
             }
             DataType::Bytes => {
                 format!("Bytes: {:#?}", bytes)
