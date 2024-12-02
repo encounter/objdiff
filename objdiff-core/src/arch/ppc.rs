@@ -30,180 +30,6 @@ fn is_rel_abs_arg(arg: &Argument) -> bool {
 
 fn is_offset_arg(arg: &Argument) -> bool { matches!(arg, Argument::Offset(_)) }
 
-fn guess_data_type_from_load_store_inst_op(inst_op: Opcode) -> Option<DataType> {
-    match inst_op {
-        Opcode::Lbz | Opcode::Lbzu | Opcode::Lbzux | Opcode::Lbzx => Some(DataType::Int8),
-        Opcode::Lhz | Opcode::Lhzu | Opcode::Lhzux | Opcode::Lhzx => Some(DataType::Int16),
-        Opcode::Lha | Opcode::Lhau | Opcode::Lhaux | Opcode::Lhax => Some(DataType::Int16),
-        Opcode::Lwz | Opcode::Lwzu | Opcode::Lwzux | Opcode::Lwzx => Some(DataType::Int32),
-        Opcode::Lfs | Opcode::Lfsu | Opcode::Lfsux | Opcode::Lfsx => Some(DataType::Float),
-        Opcode::Lfd | Opcode::Lfdu | Opcode::Lfdux | Opcode::Lfdx => Some(DataType::Double),
-
-        Opcode::Stb | Opcode::Stbu | Opcode::Stbux | Opcode::Stbx => Some(DataType::Int8),
-        Opcode::Sth | Opcode::Sthu | Opcode::Sthux | Opcode::Sthx => Some(DataType::Int16),
-        Opcode::Stw | Opcode::Stwu | Opcode::Stwux | Opcode::Stwx => Some(DataType::Int32),
-        Opcode::Stfs | Opcode::Stfsu | Opcode::Stfsux | Opcode::Stfsx => Some(DataType::Float),
-        Opcode::Stfd | Opcode::Stfdu | Opcode::Stfdux | Opcode::Stfdx => Some(DataType::Double),
-        _ => None,
-    }
-}
-
-// Given an instruction, determine if it could accessing data at the address in a register.
-// If so, return the offset added to the register's address, the register containing that address,
-// and (optionally) which destination register the address is being copied into.
-fn get_offset_and_addr_gpr_for_possible_pool_reference(
-    opcode: Opcode,
-    simplified: &ParsedIns,
-) -> Option<(i16, GPR, Option<GPR>)> {
-    let args = &simplified.args;
-    if guess_data_type_from_load_store_inst_op(opcode).is_some() {
-        match (args[1], args[2]) {
-            (Argument::Offset(offset), Argument::GPR(addr_src_gpr)) => {
-                // e.g. lwz. Immediate offset.
-                Some((offset.0, addr_src_gpr, None))
-            }
-            (Argument::GPR(addr_src_gpr), Argument::GPR(_offset_gpr)) => {
-                // e.g. lwzx. The offset is in a register and was likely calculated from an index.
-                // Treat the offset as being 0 in this case to show the first element of the array.
-                // It may be possible to show all elements by figuring out the stride of the array
-                // from the calculations performed on the index before it's put into offset_gpr, but
-                // this would be much more complicated, so it's not currently done.
-                Some((0, addr_src_gpr, None))
-            }
-            _ => None,
-        }
-    } else {
-        // If it's not a load/store instruction, there's two more possibilities we need to handle.
-        // 1. It could be a reference to @stringBase.
-        // 2. It could be moving the relocation address plus an offset into a different register to
-        //    load from later.
-        // If either of these match, we also want to return the destination register that the
-        // address is being copied into so that we can detect any future references to that new
-        // register as well.
-        match (opcode, args[0], args[1], args[2]) {
-            (
-                Opcode::Addi,
-                Argument::GPR(addr_dst_gpr),
-                Argument::GPR(addr_src_gpr),
-                Argument::Simm(simm),
-            ) => Some((simm.0, addr_src_gpr, Some(addr_dst_gpr))),
-            (
-                Opcode::Or,
-                Argument::GPR(addr_dst_gpr),
-                Argument::GPR(addr_src_gpr),
-                Argument::None,
-            ) => Some((0, addr_src_gpr, Some(addr_dst_gpr))), // `mr` or `mr.`
-            _ => None,
-        }
-    }
-}
-
-// We create a fake relocation for an instruction, vaguely simulating what the actual relocation
-// might have looked like if it wasn't pooled. This is so minimal changes are needed to display
-// pooled accesses vs non-pooled accesses. We set the relocation type to R_PPC_NONE to indicate that
-// there isn't really a relocation here, as copying the pool relocation's type wouldn't make sense.
-// Also, if this instruction is accessing the middle of a symbol instead of the start, we add an
-// addend to indicate that.
-fn make_fake_pool_reloc(
-    offset: i16,
-    cur_addr: u32,
-    pool_reloc: &ObjReloc,
-    sections: &[ObjSection],
-) -> Option<ObjReloc> {
-    let offset_from_pool = pool_reloc.addend + offset as i64;
-    let target_address = pool_reloc.target.address.checked_add_signed(offset_from_pool)?;
-    let orig_section_index = pool_reloc.target.orig_section_index?;
-    let section = sections.iter().find(|s| s.orig_index == orig_section_index)?;
-    let target_symbol = section
-        .symbols
-        .iter()
-        .find(|s| s.size > 0 && (s.address..s.address + s.size).contains(&target_address))?;
-    let addend = (target_address - target_symbol.address) as i64;
-    Some(ObjReloc {
-        flags: RelocationFlags::Elf { r_type: elf::R_PPC_NONE },
-        address: cur_addr as u64,
-        target: target_symbol.clone(),
-        addend,
-    })
-}
-
-// Searches through all instructions in a function, determining which registers have the addresses
-// of pooled data relocations in them, finding which instructions load data from those addresses,
-// and constructing a mapping of the address of that instruction to a "fake pool relocation" that
-// simulates what that instruction's relocation would look like if data hadn't been pooled.
-// Limitations: This method currently only goes through the instructions in a function in linear
-// order, from start to finish. It does *not* follow any branches. This means that it could have
-// false positives or false negatives in determining which relocation is currently loaded in which
-// register at any given point in the function, as control flow is not respected.
-// There are currently no known examples of this method producing inaccurate results in reality, but
-// if examples are found, it may be possible to update this method to also follow all branches so
-// that it produces more accurate results.
-fn generate_fake_pool_reloc_for_addr_mapping(
-    address: u64,
-    code: &[u8],
-    relocations: &[ObjReloc],
-    sections: &[ObjSection],
-) -> HashMap<u32, ObjReloc> {
-    let mut active_pool_relocs = HashMap::new();
-    let mut pool_reloc_for_addr = HashMap::new();
-    for (cur_addr, ins) in InsIter::new(code, address as u32) {
-        let simplified = ins.simplified();
-        let reloc = relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
-
-        if let Some(reloc) = reloc {
-            // This instruction has a real relocation, so it may be a pool load we want to keep
-            // track of.
-            let args = &simplified.args;
-            match (ins.op, args[0], args[1], args[2]) {
-                (
-                    Opcode::Addi,
-                    Argument::GPR(addr_dst_gpr),
-                    Argument::GPR(_addr_src_gpr),
-                    Argument::Simm(_simm),
-                ) => {
-                    active_pool_relocs.insert(addr_dst_gpr.0, reloc.clone()); // `lis` + `addi`
-                }
-                (
-                    Opcode::Ori,
-                    Argument::GPR(addr_dst_gpr),
-                    Argument::GPR(_addr_src_gpr),
-                    Argument::Uimm(_uimm),
-                ) => {
-                    active_pool_relocs.insert(addr_dst_gpr.0, reloc.clone()); // `lis` + `ori`
-                }
-                _ => {}
-            }
-        } else if let Some((offset, addr_src_gpr, addr_dst_gpr)) =
-            get_offset_and_addr_gpr_for_possible_pool_reference(ins.op, &simplified)
-        {
-            // This instruction doesn't have a real relocation, so it may be a reference to one of
-            // the already-loaded pools.
-            if let Some(pool_reloc) = active_pool_relocs.get(&addr_src_gpr.0) {
-                if let Some(fake_pool_reloc) =
-                    make_fake_pool_reloc(offset, cur_addr, pool_reloc, sections)
-                {
-                    pool_reloc_for_addr.insert(cur_addr, fake_pool_reloc);
-                }
-                if let Some(addr_dst_gpr) = addr_dst_gpr {
-                    // If the address of the pool relocation got copied into another register, we
-                    // need to keep track of it in that register too as future instructions may
-                    // reference the symbol indirectly via this new register, instead of the
-                    // register the symbol's address was originally loaded into.
-                    // For example, the start of the function might `lis` + `addi` the start of the
-                    // ...data pool into r25, and then later the start of a loop will `addi` r25
-                    // with the offset within the .data section of an array variable into r21.
-                    // Then the body of the loop will `lwzx` one of the array elements from r21.
-                    let mut new_reloc = pool_reloc.clone();
-                    new_reloc.addend += offset as i64;
-                    active_pool_relocs.insert(addr_dst_gpr.0, new_reloc);
-                }
-            }
-        }
-    }
-
-    pool_reloc_for_addr
-}
-
 pub struct ObjArchPpc {
     /// Exception info
     pub extab: Option<BTreeMap<usize, ExceptionInfo>>,
@@ -551,4 +377,178 @@ fn make_symbol_ref(symbol: &Symbol) -> Result<ExtabSymbolRef> {
     let name = symbol.name()?.to_string();
     let demangled_name = cwdemangle::demangle(&name, &cwdemangle::DemangleOptions::default());
     Ok(ExtabSymbolRef { original_index: symbol.index().0, name, demangled_name })
+}
+
+fn guess_data_type_from_load_store_inst_op(inst_op: Opcode) -> Option<DataType> {
+    match inst_op {
+        Opcode::Lbz | Opcode::Lbzu | Opcode::Lbzux | Opcode::Lbzx => Some(DataType::Int8),
+        Opcode::Lhz | Opcode::Lhzu | Opcode::Lhzux | Opcode::Lhzx => Some(DataType::Int16),
+        Opcode::Lha | Opcode::Lhau | Opcode::Lhaux | Opcode::Lhax => Some(DataType::Int16),
+        Opcode::Lwz | Opcode::Lwzu | Opcode::Lwzux | Opcode::Lwzx => Some(DataType::Int32),
+        Opcode::Lfs | Opcode::Lfsu | Opcode::Lfsux | Opcode::Lfsx => Some(DataType::Float),
+        Opcode::Lfd | Opcode::Lfdu | Opcode::Lfdux | Opcode::Lfdx => Some(DataType::Double),
+
+        Opcode::Stb | Opcode::Stbu | Opcode::Stbux | Opcode::Stbx => Some(DataType::Int8),
+        Opcode::Sth | Opcode::Sthu | Opcode::Sthux | Opcode::Sthx => Some(DataType::Int16),
+        Opcode::Stw | Opcode::Stwu | Opcode::Stwux | Opcode::Stwx => Some(DataType::Int32),
+        Opcode::Stfs | Opcode::Stfsu | Opcode::Stfsux | Opcode::Stfsx => Some(DataType::Float),
+        Opcode::Stfd | Opcode::Stfdu | Opcode::Stfdux | Opcode::Stfdx => Some(DataType::Double),
+        _ => None,
+    }
+}
+
+// Given an instruction, determine if it could accessing data at the address in a register.
+// If so, return the offset added to the register's address, the register containing that address,
+// and (optionally) which destination register the address is being copied into.
+fn get_offset_and_addr_gpr_for_possible_pool_reference(
+    opcode: Opcode,
+    simplified: &ParsedIns,
+) -> Option<(i16, GPR, Option<GPR>)> {
+    let args = &simplified.args;
+    if guess_data_type_from_load_store_inst_op(opcode).is_some() {
+        match (args[1], args[2]) {
+            (Argument::Offset(offset), Argument::GPR(addr_src_gpr)) => {
+                // e.g. lwz. Immediate offset.
+                Some((offset.0, addr_src_gpr, None))
+            }
+            (Argument::GPR(addr_src_gpr), Argument::GPR(_offset_gpr)) => {
+                // e.g. lwzx. The offset is in a register and was likely calculated from an index.
+                // Treat the offset as being 0 in this case to show the first element of the array.
+                // It may be possible to show all elements by figuring out the stride of the array
+                // from the calculations performed on the index before it's put into offset_gpr, but
+                // this would be much more complicated, so it's not currently done.
+                Some((0, addr_src_gpr, None))
+            }
+            _ => None,
+        }
+    } else {
+        // If it's not a load/store instruction, there's two more possibilities we need to handle.
+        // 1. It could be a reference to @stringBase.
+        // 2. It could be moving the relocation address plus an offset into a different register to
+        //    load from later.
+        // If either of these match, we also want to return the destination register that the
+        // address is being copied into so that we can detect any future references to that new
+        // register as well.
+        match (opcode, args[0], args[1], args[2]) {
+            (
+                Opcode::Addi,
+                Argument::GPR(addr_dst_gpr),
+                Argument::GPR(addr_src_gpr),
+                Argument::Simm(simm),
+            ) => Some((simm.0, addr_src_gpr, Some(addr_dst_gpr))),
+            (
+                Opcode::Or,
+                Argument::GPR(addr_dst_gpr),
+                Argument::GPR(addr_src_gpr),
+                Argument::None,
+            ) => Some((0, addr_src_gpr, Some(addr_dst_gpr))), // `mr` or `mr.`
+            _ => None,
+        }
+    }
+}
+
+// We create a fake relocation for an instruction, vaguely simulating what the actual relocation
+// might have looked like if it wasn't pooled. This is so minimal changes are needed to display
+// pooled accesses vs non-pooled accesses. We set the relocation type to R_PPC_NONE to indicate that
+// there isn't really a relocation here, as copying the pool relocation's type wouldn't make sense.
+// Also, if this instruction is accessing the middle of a symbol instead of the start, we add an
+// addend to indicate that.
+fn make_fake_pool_reloc(
+    offset: i16,
+    cur_addr: u32,
+    pool_reloc: &ObjReloc,
+    sections: &[ObjSection],
+) -> Option<ObjReloc> {
+    let offset_from_pool = pool_reloc.addend + offset as i64;
+    let target_address = pool_reloc.target.address.checked_add_signed(offset_from_pool)?;
+    let orig_section_index = pool_reloc.target.orig_section_index?;
+    let section = sections.iter().find(|s| s.orig_index == orig_section_index)?;
+    let target_symbol = section
+        .symbols
+        .iter()
+        .find(|s| s.size > 0 && (s.address..s.address + s.size).contains(&target_address))?;
+    let addend = (target_address - target_symbol.address) as i64;
+    Some(ObjReloc {
+        flags: RelocationFlags::Elf { r_type: elf::R_PPC_NONE },
+        address: cur_addr as u64,
+        target: target_symbol.clone(),
+        addend,
+    })
+}
+
+// Searches through all instructions in a function, determining which registers have the addresses
+// of pooled data relocations in them, finding which instructions load data from those addresses,
+// and constructing a mapping of the address of that instruction to a "fake pool relocation" that
+// simulates what that instruction's relocation would look like if data hadn't been pooled.
+// Limitations: This method currently only goes through the instructions in a function in linear
+// order, from start to finish. It does *not* follow any branches. This means that it could have
+// false positives or false negatives in determining which relocation is currently loaded in which
+// register at any given point in the function, as control flow is not respected.
+// There are currently no known examples of this method producing inaccurate results in reality, but
+// if examples are found, it may be possible to update this method to also follow all branches so
+// that it produces more accurate results.
+fn generate_fake_pool_reloc_for_addr_mapping(
+    address: u64,
+    code: &[u8],
+    relocations: &[ObjReloc],
+    sections: &[ObjSection],
+) -> HashMap<u32, ObjReloc> {
+    let mut active_pool_relocs = HashMap::new();
+    let mut pool_reloc_for_addr = HashMap::new();
+    for (cur_addr, ins) in InsIter::new(code, address as u32) {
+        let simplified = ins.simplified();
+        let reloc = relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
+
+        if let Some(reloc) = reloc {
+            // This instruction has a real relocation, so it may be a pool load we want to keep
+            // track of.
+            let args = &simplified.args;
+            match (ins.op, args[0], args[1], args[2]) {
+                (
+                    Opcode::Addi,
+                    Argument::GPR(addr_dst_gpr),
+                    Argument::GPR(_addr_src_gpr),
+                    Argument::Simm(_simm),
+                ) => {
+                    active_pool_relocs.insert(addr_dst_gpr.0, reloc.clone()); // `lis` + `addi`
+                }
+                (
+                    Opcode::Ori,
+                    Argument::GPR(addr_dst_gpr),
+                    Argument::GPR(_addr_src_gpr),
+                    Argument::Uimm(_uimm),
+                ) => {
+                    active_pool_relocs.insert(addr_dst_gpr.0, reloc.clone()); // `lis` + `ori`
+                }
+                _ => {}
+            }
+        } else if let Some((offset, addr_src_gpr, addr_dst_gpr)) =
+            get_offset_and_addr_gpr_for_possible_pool_reference(ins.op, &simplified)
+        {
+            // This instruction doesn't have a real relocation, so it may be a reference to one of
+            // the already-loaded pools.
+            if let Some(pool_reloc) = active_pool_relocs.get(&addr_src_gpr.0) {
+                if let Some(fake_pool_reloc) =
+                    make_fake_pool_reloc(offset, cur_addr, pool_reloc, sections)
+                {
+                    pool_reloc_for_addr.insert(cur_addr, fake_pool_reloc);
+                }
+                if let Some(addr_dst_gpr) = addr_dst_gpr {
+                    // If the address of the pool relocation got copied into another register, we
+                    // need to keep track of it in that register too as future instructions may
+                    // reference the symbol indirectly via this new register, instead of the
+                    // register the symbol's address was originally loaded into.
+                    // For example, the start of the function might `lis` + `addi` the start of the
+                    // ...data pool into r25, and then later the start of a loop will `addi` r25
+                    // with the offset within the .data section of an array variable into r21.
+                    // Then the body of the loop will `lwzx` one of the array elements from r21.
+                    let mut new_reloc = pool_reloc.clone();
+                    new_reloc.addend += offset as i64;
+                    active_pool_relocs.insert(addr_dst_gpr.0, new_reloc);
+                }
+            }
+        }
+    }
+
+    pool_reloc_for_addr
 }
