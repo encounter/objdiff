@@ -218,8 +218,8 @@ pub fn data_diff_ui(
     let right_ctx = SectionDiffContext::new(result.second_obj.as_ref(), section_name);
 
     // If both sides are missing a symbol, switch to symbol diff view
-    if !right_ctx.map_or(false, |ctx| ctx.has_section())
-        && !left_ctx.map_or(false, |ctx| ctx.has_section())
+    if !right_ctx.is_some_and(|ctx| ctx.has_section())
+        && !left_ctx.is_some_and(|ctx| ctx.has_section())
     {
         return Some(DiffViewAction::Navigate(DiffViewNavigation::symbol_diff()));
     }

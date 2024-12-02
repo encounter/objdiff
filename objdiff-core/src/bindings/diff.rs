@@ -1,3 +1,4 @@
+#![allow(clippy::needless_lifetimes)] // Generated serde code
 use crate::{
     diff::{
         ObjDataDiff, ObjDataDiffKind, ObjDiff, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo,

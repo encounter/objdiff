@@ -1,3 +1,4 @@
+#![allow(clippy::needless_lifetimes)] // Generated serde code
 use std::ops::AddAssign;
 
 use anyhow::{bail, Result};
@@ -173,8 +174,7 @@ impl Report {
                 continue;
             }
             fn is_sub_category(id: &str, parent: &str, sep: char) -> bool {
-                id.starts_with(parent)
-                    && id.get(parent.len()..).map_or(false, |s| s.starts_with(sep))
+                id.starts_with(parent) && id.get(parent.len()..).is_some_and(|s| s.starts_with(sep))
             }
             let mut sub_categories = self
                 .categories

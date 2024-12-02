@@ -152,16 +152,14 @@ fn start_job(
     let context = JobContext { status: status.clone(), egui: ctx.clone() };
     let context_inner = JobContext { status: status.clone(), egui: ctx.clone() };
     let (tx, rx) = std::sync::mpsc::channel();
-    let handle = std::thread::spawn(move || {
-        return match run(context_inner, rx) {
-            Ok(state) => state,
-            Err(e) => {
-                if let Ok(mut w) = status.write() {
-                    w.error = Some(e);
-                }
-                JobResult::None
+    let handle = std::thread::spawn(move || match run(context_inner, rx) {
+        Ok(state) => state,
+        Err(e) => {
+            if let Ok(mut w) = status.write() {
+                w.error = Some(e);
             }
-        };
+            JobResult::None
+        }
     });
     let id = JOB_ID.fetch_add(1, Ordering::Relaxed);
     log::info!("Started job {}", id);
