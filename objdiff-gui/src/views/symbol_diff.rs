@@ -901,7 +901,9 @@ pub fn symbol_diff_ui(
             });
 
             let mut search = state.search.clone();
-            let response = TextEdit::singleline(&mut search).hint_text("Filter symbols").ui(ui);
+            let response = TextEdit::singleline(&mut search)
+                .hint_text(hotkeys::alt_text(ui, "Filter _symbols", false))
+                .ui(ui);
             if hotkeys::consume_symbol_filter_shortcut(ui.ctx()) {
                 response.request_focus();
             }

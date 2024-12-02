@@ -3,6 +3,7 @@ use std::cmp::Ordering;
 use egui::{ProgressBar, RichText, Widget};
 
 use crate::{
+    hotkeys,
     jobs::{JobQueue, JobStatus},
     views::appearance::Appearance,
 };
@@ -94,7 +95,14 @@ impl From<&JobStatus> for JobStatusDisplay {
 }
 
 pub fn jobs_menu_ui(ui: &mut egui::Ui, jobs: &mut JobQueue, appearance: &Appearance) -> bool {
-    ui.label("Jobs:");
+    let mut clicked = false;
+    if egui::Label::new(hotkeys::alt_text(ui, "_Jobs:", true))
+        .sense(egui::Sense::click())
+        .ui(ui)
+        .clicked()
+    {
+        clicked = true;
+    }
     let mut statuses = Vec::new();
     for job in jobs.iter_mut() {
         let Ok(status) = job.context.status.read() else {
@@ -105,7 +113,6 @@ pub fn jobs_menu_ui(ui: &mut egui::Ui, jobs: &mut JobQueue, appearance: &Appeara
     let running_jobs = statuses.iter().filter(|s| !s.error).count();
     let error_jobs = statuses.iter().filter(|s| s.error).count();
 
-    let mut clicked = false;
     let spinner =
         egui::Spinner::new().size(appearance.ui_font.size * 0.9).color(appearance.text_color);
     match running_jobs.cmp(&1) {

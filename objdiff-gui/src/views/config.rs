@@ -219,7 +219,7 @@ pub fn config_ui(
 
     ui.horizontal(|ui| {
         ui.heading("Project");
-        if ui.button(RichText::new("Settings")).clicked() {
+        if ui.button("Settings").clicked() {
             *show_config_window = true;
         }
     });
@@ -255,8 +255,9 @@ pub fn config_ui(
         }
     } else {
         let had_search = !config_state.object_search.is_empty();
-        let response =
-            egui::TextEdit::singleline(&mut config_state.object_search).hint_text("Filter").ui(ui);
+        let response = egui::TextEdit::singleline(&mut config_state.object_search)
+            .hint_text(hotkeys::alt_text(ui, "Filter _objects", false))
+            .ui(ui);
         if hotkeys::consume_object_filter_shortcut(ui.ctx()) {
             response.request_focus();
         }

@@ -25,6 +25,7 @@ use time::UtcOffset;
 use crate::{
     app_config::{deserialize_config, AppConfigVersion},
     config::{load_project_config, ProjectObjectNode},
+    hotkeys,
     jobs::{
         objdiff::{start_build, ObjDiffConfig},
         Job, JobQueue, JobResult, JobStatus,
@@ -527,6 +528,10 @@ impl App {
     }
 
     fn post_update(&mut self, ctx: &egui::Context, action: Option<DiffViewAction>) {
+        if action.is_some() {
+            ctx.request_repaint();
+        }
+
         self.appearance.post_update(ctx);
 
         let ViewState { jobs, diff_state, config_state, graphics_state, .. } = &mut self.view_state;
@@ -690,13 +695,13 @@ impl eframe::App for App {
                     *show_side_panel = !*show_side_panel;
                 }
                 ui.separator();
-                ui.menu_button("File", |ui| {
+                ui.menu_button(hotkeys::button_alt_text(ui, "_File"), |ui| {
                     #[cfg(debug_assertions)]
-                    if ui.button("Debug…").clicked() {
+                    if ui.button(hotkeys::button_alt_text(ui, "_Debug…")).clicked() {
                         *show_debug = !*show_debug;
                         ui.close_menu();
                     }
-                    if ui.button("Project…").clicked() {
+                    if ui.button(hotkeys::button_alt_text(ui, "_Project…")).clicked() {
                         *show_project_config = !*show_project_config;
                         ui.close_menu();
                     }
@@ -705,10 +710,11 @@ impl eframe::App for App {
                     } else {
                         vec![]
                     };
+                    let recent_projects_text = hotkeys::button_alt_text(ui, "_Recent Projects…");
                     if recent_projects.is_empty() {
-                        ui.add_enabled(false, egui::Button::new("Recent projects…"));
+                        ui.add_enabled(false, egui::Button::new(recent_projects_text));
                     } else {
-                        ui.menu_button("Recent Projects…", |ui| {
+                        ui.menu_button(recent_projects_text, |ui| {
                             if ui.button("Clear").clicked() {
                                 state.write().unwrap().config.recent_projects.clear();
                             };
@@ -721,36 +727,39 @@ impl eframe::App for App {
                             }
                         });
                     }
-                    if ui.button("Appearance…").clicked() {
+                    if ui.button(hotkeys::button_alt_text(ui, "_Appearance…")).clicked() {
                         *show_appearance_config = !*show_appearance_config;
                         ui.close_menu();
                     }
-                    if ui.button("Graphics…").clicked() {
+                    if ui.button(hotkeys::button_alt_text(ui, "_Graphics…")).clicked() {
                         *show_graphics = !*show_graphics;
                         ui.close_menu();
                     }
-                    if ui.button("Quit").clicked() {
+                    if ui.button(hotkeys::button_alt_text(ui, "_Quit")).clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
-                ui.menu_button("Tools", |ui| {
-                    if ui.button("Demangle…").clicked() {
+                ui.menu_button(hotkeys::button_alt_text(ui, "_Tools"), |ui| {
+                    if ui.button(hotkeys::button_alt_text(ui, "_Demangle…")).clicked() {
                         *show_demangle = !*show_demangle;
                         ui.close_menu();
                     }
-                    if ui.button("Rlwinm Decoder…").clicked() {
+                    if ui.button(hotkeys::button_alt_text(ui, "_Rlwinm Decoder…")).clicked() {
                         *show_rlwinm_decode = !*show_rlwinm_decode;
                         ui.close_menu();
                     }
                 });
-                ui.menu_button("Diff Options", |ui| {
-                    if ui.button("Arch Settings…").clicked() {
+                ui.menu_button(hotkeys::button_alt_text(ui, "_Diff Options"), |ui| {
+                    if ui.button(hotkeys::button_alt_text(ui, "_Arch Settings…")).clicked() {
                         *show_arch_config = !*show_arch_config;
                         ui.close_menu();
                     }
                     let mut state = state.write().unwrap();
                     let response = ui
-                        .checkbox(&mut state.config.rebuild_on_changes, "Rebuild on changes")
+                        .checkbox(
+                            &mut state.config.rebuild_on_changes,
+                            hotkeys::button_alt_text(ui, "_Rebuild on changes"),
+                        )
                         .on_hover_text("Automatically re-run the build & diff when files change.");
                     if response.changed() {
                         state.watcher_change = true;
@@ -759,18 +768,21 @@ impl eframe::App for App {
                         !diff_state.symbol_state.disable_reverse_fn_order,
                         egui::Checkbox::new(
                             &mut diff_state.symbol_state.reverse_fn_order,
-                            "Reverse function order (-inline deferred)",
+                            hotkeys::button_alt_text(
+                                ui,
+                                "Reverse function order (-inline _deferred)",
+                            ),
                         ),
                     )
                     .on_disabled_hover_text(CONFIG_DISABLED_TEXT);
                     ui.checkbox(
                         &mut diff_state.symbol_state.show_hidden_symbols,
-                        "Show hidden symbols",
+                        hotkeys::button_alt_text(ui, "Show _hidden symbols"),
                     );
                     if ui
                         .checkbox(
                             &mut state.config.diff_obj_config.relax_reloc_diffs,
-                            "Relax relocation diffs",
+                            hotkeys::button_alt_text(ui, "Rela_x relocation diffs"),
                         )
                         .on_hover_text(
                             "Ignores differences in relocation targets. (Address, name, etc)",
@@ -782,7 +794,7 @@ impl eframe::App for App {
                     if ui
                         .checkbox(
                             &mut state.config.diff_obj_config.space_between_args,
-                            "Space between args",
+                            hotkeys::button_alt_text(ui, "_Space between args"),
                         )
                         .changed()
                     {
@@ -791,14 +803,17 @@ impl eframe::App for App {
                     if ui
                         .checkbox(
                             &mut state.config.diff_obj_config.combine_data_sections,
-                            "Combine data sections",
+                            hotkeys::button_alt_text(ui, "Combine _data sections"),
                         )
                         .on_hover_text("Combines data sections with equal names.")
                         .changed()
                     {
                         state.queue_reload = true;
                     }
-                    if ui.button("Clear custom symbol mappings").clicked() {
+                    if ui
+                        .button(hotkeys::button_alt_text(ui, "_Clear custom symbol mappings"))
+                        .clicked()
+                    {
                         state.clear_mappings();
                         diff_state.post_build_nav = Some(DiffViewNavigation::symbol_diff());
                         state.queue_reload = true;
