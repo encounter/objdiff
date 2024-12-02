@@ -25,7 +25,7 @@ wsl = []
 
 [dependencies]
 anyhow = "1.0"
-bytes = "1.7"
+bytes = "1.9"
 cfg-if = "1.0"
 const_format = "0.2"
 cwdemangle = "1.0"
@@ -42,7 +42,7 @@ notify = { git = "https://github.com/notify-rs/notify", rev = "128bf6230c03d39db
 objdiff-core = { path = "../objdiff-core", features = ["all"] }
 open = "5.3"
 png = "0.17"
-pollster = "0.3"
+pollster = "0.4"
 regex = "1.11"
 rfd = { version = "0.15" } #, default-features = false, features = ['xdg-portal']
 rlwinmdec = "1.0"
@@ -51,7 +51,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 shell-escape = "0.1"
 strum = { version = "0.26", features = ["derive"] }
-tempfile = "3.13"
+tempfile = "3.14"
 time = { version = "0.3", features = ["formatting", "local-offset"] }
 
 # Keep version in sync with egui

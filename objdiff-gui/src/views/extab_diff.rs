@@ -101,7 +101,7 @@ pub fn extab_diff_ui(
     let right_diff_symbol = right_ctx.and_then(|ctx| {
         ctx.symbol_ref.and_then(|symbol_ref| ctx.diff.symbol_diff(symbol_ref).target_symbol)
     });
-    if left_diff_symbol.is_some() && right_ctx.map_or(false, |ctx| !ctx.has_symbol()) {
+    if left_diff_symbol.is_some() && right_ctx.is_some_and(|ctx| !ctx.has_symbol()) {
         let (right_section, right_symbol) =
             right_ctx.unwrap().obj.section_symbol(left_diff_symbol.unwrap());
         let symbol_ref = SymbolRefByName::new(right_symbol, right_section);
@@ -111,7 +111,7 @@ pub fn extab_diff_ui(
             left_symbol: state.symbol_state.left_symbol.clone(),
             right_symbol: Some(symbol_ref),
         }));
-    } else if right_diff_symbol.is_some() && left_ctx.map_or(false, |ctx| !ctx.has_symbol()) {
+    } else if right_diff_symbol.is_some() && left_ctx.is_some_and(|ctx| !ctx.has_symbol()) {
         let (left_section, left_symbol) =
             left_ctx.unwrap().obj.section_symbol(right_diff_symbol.unwrap());
         let symbol_ref = SymbolRefByName::new(left_symbol, left_section);
@@ -124,8 +124,8 @@ pub fn extab_diff_ui(
     }
 
     // If both sides are missing a symbol, switch to symbol diff view
-    if right_ctx.map_or(false, |ctx| !ctx.has_symbol())
-        && left_ctx.map_or(false, |ctx| !ctx.has_symbol())
+    if right_ctx.is_some_and(|ctx| !ctx.has_symbol())
+        && left_ctx.is_some_and(|ctx| !ctx.has_symbol())
     {
         return Some(DiffViewAction::Navigate(DiffViewNavigation::symbol_diff()));
     }
@@ -144,7 +144,7 @@ pub fn extab_diff_ui(
                     .add_enabled(
                         !state.scratch_running
                             && state.scratch_available
-                            && left_ctx.map_or(false, |ctx| ctx.has_symbol()),
+                            && left_ctx.is_some_and(|ctx| ctx.has_symbol()),
                         egui::Button::new("📲 decomp.me"),
                     )
                     .on_hover_text_at_pointer("Create a new scratch on decomp.me (beta)")

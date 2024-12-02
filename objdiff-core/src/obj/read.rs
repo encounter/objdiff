@@ -65,10 +65,7 @@ fn to_obj_symbol(
         flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Hidden);
     }
     #[cfg(feature = "ppc")]
-    if arch
-        .ppc()
-        .and_then(|a| a.extab.as_ref())
-        .map_or(false, |e| e.contains_key(&symbol.index().0))
+    if arch.ppc().and_then(|a| a.extab.as_ref()).is_some_and(|e| e.contains_key(&symbol.index().0))
     {
         flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::HasExtra);
     }
