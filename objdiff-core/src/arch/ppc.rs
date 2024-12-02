@@ -520,6 +520,16 @@ fn generate_fake_pool_reloc_for_addr_mapping(
                 ) => {
                     active_pool_relocs.insert(addr_dst_gpr.0, reloc.clone()); // `lis` + `ori`
                 }
+                (Opcode::B, _, _, _) => {
+                    if simplified.mnemonic == "bl" {
+                        // When encountering a function call, clear any active pool relocations from
+                        // the volatile registers (r0, r3-r12), but not the nonvolatile registers.
+                        active_pool_relocs.remove(&0);
+                        for gpr in 3..12 {
+                            active_pool_relocs.remove(&gpr);
+                        }
+                    }
+                }
                 _ => {}
             }
         } else if let Some((offset, addr_src_gpr, addr_dst_gpr)) =
