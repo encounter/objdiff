@@ -150,8 +150,8 @@ fn ins_hover_ui(
             }
         }
 
-        if let Some(demangled) = rlwinmdec::decode(&ins.formatted) {
-            ui.colored_label(appearance.highlight_color, demangled.trim());
+        if let Some(decoded) = rlwinmdec::decode(&ins.formatted) {
+            ui.colored_label(appearance.highlight_color, decoded.trim());
         }
     });
 }
