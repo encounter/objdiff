@@ -151,7 +151,7 @@ fn ins_hover_ui(
         }
 
         if let Some(demangled) = rlwinmdec::decode(&ins.formatted) {
-            ui.colored_label(appearance.highlight_color, &demangled);
+            ui.colored_label(appearance.highlight_color, demangled.trim());
         }
     });
 }

@@ -19,7 +19,7 @@ pub fn rlwinm_decode_window(
         if let Some(demangled) = rlwinmdec::decode(&state.text) {
             ui.scope(|ui| {
                 ui.style_mut().override_text_style = Some(TextStyle::Monospace);
-                ui.colored_label(appearance.replace_color, &demangled);
+                ui.colored_label(appearance.replace_color, demangled.trim());
             });
             if ui.button("Copy").clicked() {
                 ui.output_mut(|output| output.copied_text = demangled);
