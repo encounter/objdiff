@@ -204,7 +204,21 @@ impl ObjArch for ObjArchPpc {
             return Some(DataType::String);
         }
 
-        guess_data_type_from_load_store_inst_op(Opcode::from(instruction.op as u8))
+        let op = Opcode::from(instruction.op as u8);
+        if let Some(ty) = guess_data_type_from_load_store_inst_op(op) {
+            Some(ty)
+        } else if op == Opcode::Addi {
+            // Assume that any addi instruction that references a local symbol is loading a string.
+            // This hack is not ideal and results in tons of false positives where it will show
+            // garbage strings (e.g. misinterpreting arrays, float literals, etc).
+            // But there isn't much other choice as not all strings are in the @stringBase pool.
+            // And even those that are would be missed by the target.name.starts_with("@stringBase")
+            // hack above for fake pooled relocations, as they have an empty string placeholder for
+            // the target symbol name.
+            Some(DataType::String)
+        } else {
+            None
+        }
     }
 
     fn display_data_type(&self, ty: DataType, bytes: &[u8]) -> Option<String> {
@@ -422,7 +436,7 @@ fn get_offset_and_addr_gpr_for_possible_pool_reference(
         }
     } else {
         // If it's not a load/store instruction, there's two more possibilities we need to handle.
-        // 1. It could be a reference to @stringBase.
+        // 1. It could be loading a pointer to a string.
         // 2. It could be moving the relocation address plus an offset into a different register to
         //    load from later.
         // If either of these match, we also want to return the destination register that the
