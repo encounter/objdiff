@@ -74,19 +74,6 @@ impl FunctionViewState {
     }
 }
 
-fn find_symbol_matching_fake_symbol_in_sections(
-    fake_symbol: &ObjSymbol,
-    sections: &[ObjSection],
-) -> Option<ObjSymbol> {
-    let orig_section_index = fake_symbol.orig_section_index?;
-    let section = sections.iter().find(|s| s.orig_index == orig_section_index)?;
-    let real_symbol = section
-        .symbols
-        .iter()
-        .find(|s| s.size > 0 && (s.address..s.address + s.size).contains(&fake_symbol.address))?;
-    Some(real_symbol.clone())
-}
-
 fn ins_hover_ui(
     ui: &mut egui::Ui,
     obj: &ObjInfo,
@@ -132,29 +119,17 @@ fn ins_hover_ui(
         }
 
         if let Some(reloc) = ins.reloc.as_ref().or(ins.fake_pool_reloc.as_ref()) {
-            let mut target = reloc.target.clone();
-            let mut addend = reloc.addend;
-            if target.size == 0 && target.name.is_empty() {
-                // Fake target symbol we added as a placeholder. We need to find the real one.
-                if let Some(real_target) =
-                    find_symbol_matching_fake_symbol_in_sections(&target, &obj.sections)
-                {
-                    target = real_target;
-                    addend = (reloc.target.address - target.address) as i64;
-                }
-            }
-
             ui.label(format!("Relocation type: {}", obj.arch.display_reloc(reloc.flags)));
-            let addend_str = match addend.cmp(&0i64) {
-                Ordering::Greater => format!("+{:x}", addend),
-                Ordering::Less => format!("-{:x}", -addend),
+            let addend_str = match reloc.addend.cmp(&0i64) {
+                Ordering::Greater => format!("+{:x}", reloc.addend),
+                Ordering::Less => format!("-{:x}", -reloc.addend),
                 _ => "".to_string(),
             };
             ui.colored_label(
                 appearance.highlight_color,
-                format!("Name: {}{}", target.name, addend_str),
+                format!("Name: {}{}", reloc.target.name, addend_str),
             );
-            if let Some(orig_section_index) = target.orig_section_index {
+            if let Some(orig_section_index) = reloc.target.orig_section_index {
                 if let Some(section) =
                     obj.sections.iter().find(|s| s.orig_index == orig_section_index)
                 {
@@ -165,12 +140,15 @@ fn ins_hover_ui(
                 }
                 ui.colored_label(
                     appearance.highlight_color,
-                    format!("Address: {:x}{}", target.address, addend_str),
+                    format!("Address: {:x}{}", reloc.target.address, addend_str),
                 );
-                ui.colored_label(appearance.highlight_color, format!("Size: {:x}", target.size));
-                if addend >= 0 && target.bytes.len() > addend as usize {
+                ui.colored_label(
+                    appearance.highlight_color,
+                    format!("Size: {:x}", reloc.target.size),
+                );
+                if reloc.addend >= 0 && reloc.target.bytes.len() > reloc.addend as usize {
                     if let Some(s) = obj.arch.guess_data_type(ins).and_then(|ty| {
-                        obj.arch.display_data_type(ty, &target.bytes[addend as usize..])
+                        obj.arch.display_data_type(ty, &reloc.target.bytes[reloc.addend as usize..])
                     }) {
                         ui.colored_label(appearance.highlight_color, s);
                     }

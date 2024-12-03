@@ -211,10 +211,8 @@ impl ObjArch for ObjArchPpc {
             // Assume that any addi instruction that references a local symbol is loading a string.
             // This hack is not ideal and results in tons of false positives where it will show
             // garbage strings (e.g. misinterpreting arrays, float literals, etc).
-            // But there isn't much other choice as not all strings are in the @stringBase pool.
-            // And even those that are would be missed by the target.name.starts_with("@stringBase")
-            // hack above for fake pooled relocations, as they have an empty string placeholder for
-            // the target symbol name.
+            // But not all strings are in the @stringBase pool, so the condition above that checks
+            // the target symbol name would miss some.
             Some(DataType::String)
         } else {
             None

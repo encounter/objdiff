@@ -9,7 +9,7 @@ use crate::{
         DiffObjConfig, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo, ObjInsDiff, ObjInsDiffKind,
         ObjSymbolDiff,
     },
-    obj::{ObjInfo, ObjInsArg, ObjReloc, ObjSymbolFlags, SymbolRef},
+    obj::{ObjInfo, ObjInsArg, ObjReloc, ObjSection, ObjSymbol, ObjSymbolFlags, SymbolRef},
 };
 
 pub fn process_code_symbol(
@@ -21,14 +21,30 @@ pub fn process_code_symbol(
     let section = section.ok_or_else(|| anyhow!("Code symbol section not found"))?;
     let code = &section.data
         [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
-    obj.arch.process_code(
+    let mut res = obj.arch.process_code(
         symbol.address,
         code,
         section.orig_index,
         &section.relocations,
         &section.line_info,
         config,
-    )
+    )?;
+
+    for inst in res.insts.iter_mut() {
+        if let Some(reloc) = &mut inst.fake_pool_reloc {
+            if reloc.target.size == 0 && reloc.target.name.is_empty() {
+                // Fake target symbol we added as a placeholder. We need to find the real one.
+                if let Some(real_target) =
+                    find_symbol_matching_fake_symbol_in_sections(&reloc.target, &obj.sections)
+                {
+                    reloc.addend = (reloc.target.address - real_target.address) as i64;
+                    reloc.target = real_target;
+                }
+            }
+        }
+    }
+
+    Ok(res)
 }
 
 pub fn no_diff_code(out: &ProcessCodeResult, symbol_ref: SymbolRef) -> Result<ObjSymbolDiff> {
@@ -368,4 +384,17 @@ fn compare_ins(
         state.diff_count += 1;
     }
     Ok(result)
+}
+
+fn find_symbol_matching_fake_symbol_in_sections(
+    fake_symbol: &ObjSymbol,
+    sections: &[ObjSection],
+) -> Option<ObjSymbol> {
+    let orig_section_index = fake_symbol.orig_section_index?;
+    let section = sections.iter().find(|s| s.orig_index == orig_section_index)?;
+    let real_symbol = section
+        .symbols
+        .iter()
+        .find(|s| s.size > 0 && (s.address..s.address + s.size).contains(&fake_symbol.address))?;
+    Some(real_symbol.clone())
 }
