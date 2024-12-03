@@ -14,12 +14,15 @@ use objdiff_core::{
 };
 use time::format_description;
 
-use crate::views::{
-    appearance::Appearance,
-    column_layout::{render_header, render_strips, render_table},
-    symbol_diff::{
-        match_color_for_symbol, symbol_list_ui, DiffViewAction, DiffViewNavigation, DiffViewState,
-        SymbolDiffContext, SymbolFilter, SymbolRefByName, SymbolViewState, View,
+use crate::{
+    hotkeys,
+    views::{
+        appearance::Appearance,
+        column_layout::{render_header, render_strips, render_table},
+        symbol_diff::{
+            match_color_for_symbol, symbol_list_ui, DiffViewAction, DiffViewNavigation,
+            DiffViewState, SymbolDiffContext, SymbolFilter, SymbolRefByName, SymbolViewState, View,
+        },
     },
 };
 
@@ -436,6 +439,7 @@ fn asm_table_ui(
     };
     if left_len.is_some() && right_len.is_some() {
         // Joint view
+        hotkeys::check_scroll_hotkeys(ui, true);
         render_table(
             ui,
             available_width,
@@ -471,6 +475,7 @@ fn asm_table_ui(
             if column == 0 {
                 if let Some(ctx) = left_ctx {
                     if ctx.has_symbol() {
+                        hotkeys::check_scroll_hotkeys(ui, false);
                         render_table(
                             ui,
                             available_width / 2.0,
@@ -516,9 +521,6 @@ fn asm_table_ui(
                                         SymbolRefByName::new(right_symbol, right_section),
                                     ));
                                 }
-                                DiffViewAction::SetSymbolHighlight(_, _) => {
-                                    // Ignore
-                                }
                                 _ => {
                                     ret = Some(action);
                                 }
@@ -531,6 +533,7 @@ fn asm_table_ui(
             } else if column == 1 {
                 if let Some(ctx) = right_ctx {
                     if ctx.has_symbol() {
+                        hotkeys::check_scroll_hotkeys(ui, false);
                         render_table(
                             ui,
                             available_width / 2.0,
@@ -575,9 +578,6 @@ fn asm_table_ui(
                                         SymbolRefByName::new(left_symbol, left_section),
                                         right_symbol_ref,
                                     ));
-                                }
-                                DiffViewAction::SetSymbolHighlight(_, _) => {
-                                    // Ignore
                                 }
                                 _ => {
                                     ret = Some(action);
@@ -679,7 +679,7 @@ pub fn function_diff_ui(
         if column == 0 {
             // Left column
             ui.horizontal(|ui| {
-                if ui.button("⏴ Back").clicked() {
+                if ui.button("⏴ Back").clicked() || hotkeys::back_pressed(ui.ctx()) {
                     ret = Some(DiffViewAction::Navigate(DiffViewNavigation::symbol_diff()));
                 }
                 ui.separator();
@@ -712,10 +712,11 @@ pub fn function_diff_ui(
                         .color(appearance.highlight_color),
                 );
                 if right_ctx.is_some_and(|m| m.has_symbol())
-                    && ui
+                    && (ui
                         .button("Change target")
                         .on_hover_text_at_pointer("Choose a different symbol to use as the target")
                         .clicked()
+                        || hotkeys::consume_change_target_shortcut(ui.ctx()))
                 {
                     if let Some(symbol_ref) = state.symbol_state.right_symbol.as_ref() {
                         ret = Some(DiffViewAction::SelectingLeft(symbol_ref.clone()));
@@ -789,6 +790,7 @@ pub fn function_diff_ui(
                                 "Choose a different symbol to use as the base",
                             )
                             .clicked()
+                            || hotkeys::consume_change_base_shortcut(ui.ctx())
                         {
                             if let Some(symbol_ref) = state.symbol_state.left_symbol.as_ref() {
                                 ret = Some(DiffViewAction::SelectingRight(symbol_ref.clone()));

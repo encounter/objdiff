@@ -1,8 +1,8 @@
-use std::{collections::BTreeMap, mem::take};
+use std::{collections::BTreeMap, mem::take, ops::Bound};
 
 use egui::{
-    text::LayoutJob, CollapsingHeader, Color32, Id, OpenUrl, ScrollArea, SelectableLabel, TextEdit,
-    Ui, Widget,
+    style::ScrollAnimation, text::LayoutJob, CollapsingHeader, Color32, Id, OpenUrl, ScrollArea,
+    SelectableLabel, TextEdit, Ui, Widget,
 };
 use objdiff_core::{
     arch::ObjArch,
@@ -15,6 +15,7 @@ use regex::{Regex, RegexBuilder};
 
 use crate::{
     app::AppStateRef,
+    hotkeys,
     jobs::{
         create_scratch::{start_create_scratch, CreateScratchConfig, CreateScratchResult},
         objdiff::{BuildStatus, ObjDiffResult},
@@ -56,8 +57,8 @@ pub enum DiffViewAction {
     Build,
     /// Navigate to a new diff view
     Navigate(DiffViewNavigation),
-    /// Set the highlighted symbols in the symbols view
-    SetSymbolHighlight(Option<SymbolRef>, Option<SymbolRef>),
+    /// Set the highlighted symbols in the symbols view, optionally scrolling them into view.
+    SetSymbolHighlight(Option<SymbolRef>, Option<SymbolRef>, bool),
     /// Set the symbols view search filter
     SetSearch(String),
     /// Submit the current function to decomp.me
@@ -135,6 +136,7 @@ pub struct DiffViewState {
 #[derive(Default)]
 pub struct SymbolViewState {
     pub highlighted_symbol: (Option<SymbolRef>, Option<SymbolRef>),
+    pub autoscroll_to_highlighted_symbols: bool,
     pub left_symbol: Option<SymbolRefByName>,
     pub right_symbol: Option<SymbolRefByName>,
     pub reverse_fn_order: bool,
@@ -197,6 +199,9 @@ impl DiffViewState {
             ctx.output_mut(|o| o.open_url = Some(OpenUrl::new_tab(result.scratch_url)));
         }
 
+        // Clear the autoscroll flag so that it doesn't scroll continuously.
+        self.symbol_state.autoscroll_to_highlighted_symbols = false;
+
         let Some(action) = action else {
             return;
         };
@@ -211,7 +216,6 @@ impl DiffViewState {
                     // Ignore action if we're already navigating
                     return;
                 }
-                self.symbol_state.highlighted_symbol = (None, None);
                 let Ok(mut state) = state.write() else {
                     return;
                 };
@@ -247,8 +251,9 @@ impl DiffViewState {
                     self.post_build_nav = Some(nav);
                 }
             }
-            DiffViewAction::SetSymbolHighlight(left, right) => {
+            DiffViewAction::SetSymbolHighlight(left, right, autoscroll) => {
                 self.symbol_state.highlighted_symbol = (left, right);
+                self.symbol_state.autoscroll_to_highlighted_symbols = autoscroll;
             }
             DiffViewAction::SetSearch(search) => {
                 self.search_regex = if search.is_empty() {
@@ -534,7 +539,15 @@ fn symbol_ui(
             ret = Some(DiffViewAction::Navigate(result));
         }
     });
-    if response.clicked() {
+    if selected && state.autoscroll_to_highlighted_symbols {
+        // Automatically scroll the view to encompass the selected symbol in case the user selected
+        // an offscreen symbol by using a keyboard shortcut.
+        ui.scroll_to_rect_animation(response.rect, None, ScrollAnimation::none());
+        // This autoscroll state flag will be reset in DiffViewState::post_update at the end of
+        // every frame so that we don't continuously scroll the view back when the user is trying to
+        // manually scroll away.
+    }
+    if response.clicked() || (selected && hotkeys::enter_pressed(ui.ctx())) {
         if let Some(section) = section {
             match section.kind {
                 ObjSectionKind::Code => {
@@ -561,20 +574,18 @@ fn symbol_ui(
             }
         }
     } else if response.hovered() {
-        ret = Some(if let Some(target_symbol) = symbol_diff.target_symbol {
-            if column == 0 {
-                DiffViewAction::SetSymbolHighlight(
-                    Some(symbol_diff.symbol_ref),
-                    Some(target_symbol),
-                )
-            } else {
-                DiffViewAction::SetSymbolHighlight(
-                    Some(target_symbol),
-                    Some(symbol_diff.symbol_ref),
-                )
-            }
+        ret = Some(if column == 0 {
+            DiffViewAction::SetSymbolHighlight(
+                Some(symbol_diff.symbol_ref),
+                symbol_diff.target_symbol,
+                false,
+            )
         } else {
-            DiffViewAction::SetSymbolHighlight(None, None)
+            DiffViewAction::SetSymbolHighlight(
+                symbol_diff.target_symbol,
+                Some(symbol_diff.symbol_ref),
+                false,
+            )
         });
     }
     ret
@@ -646,6 +657,58 @@ pub fn symbol_list_ui(
                     mapping.insert(symbol_diff.symbol_ref, symbol_diff);
                 }
             }
+        }
+
+        hotkeys::check_scroll_hotkeys(ui, false);
+
+        let mut new_key_value_to_highlight = None;
+        if let Some(sym_ref) =
+            if column == 0 { state.highlighted_symbol.0 } else { state.highlighted_symbol.1 }
+        {
+            let up = if hotkeys::consume_up_key(ui.ctx()) {
+                Some(true)
+            } else if hotkeys::consume_down_key(ui.ctx()) {
+                Some(false)
+            } else {
+                None
+            };
+            if let Some(mut up) = up {
+                if state.reverse_fn_order {
+                    up = !up;
+                }
+                new_key_value_to_highlight = if up {
+                    mapping.range(..sym_ref).next_back()
+                } else {
+                    mapping.range((Bound::Excluded(sym_ref), Bound::Unbounded)).next()
+                };
+            };
+        } else {
+            // No symbol is highlighted in this column. Select the topmost symbol instead.
+            // Note that we intentionally do not consume the up/down key presses in this case, but
+            // we do when a symbol is highlighted. This is so that if only one column has a symbol
+            // highlighted, that one takes precedence over the one with nothing highlighted.
+            if hotkeys::up_pressed(ui.ctx()) || hotkeys::down_pressed(ui.ctx()) {
+                new_key_value_to_highlight = if state.reverse_fn_order {
+                    mapping.last_key_value()
+                } else {
+                    mapping.first_key_value()
+                };
+            }
+        }
+        if let Some((new_sym_ref, new_symbol_diff)) = new_key_value_to_highlight {
+            ret = Some(if column == 0 {
+                DiffViewAction::SetSymbolHighlight(
+                    Some(*new_sym_ref),
+                    new_symbol_diff.target_symbol,
+                    true,
+                )
+            } else {
+                DiffViewAction::SetSymbolHighlight(
+                    new_symbol_diff.target_symbol,
+                    Some(*new_sym_ref),
+                    true,
+                )
+            });
         }
 
         ui.scope(|ui| {
@@ -838,7 +901,11 @@ pub fn symbol_diff_ui(
             });
 
             let mut search = state.search.clone();
-            if TextEdit::singleline(&mut search).hint_text("Filter symbols").ui(ui).changed() {
+            let response = TextEdit::singleline(&mut search).hint_text("Filter symbols").ui(ui);
+            if hotkeys::consume_symbol_filter_shortcut(ui.ctx()) {
+                response.request_focus();
+            }
+            if response.changed() {
                 ret = Some(DiffViewAction::SetSearch(search));
             }
         } else if column == 1 {

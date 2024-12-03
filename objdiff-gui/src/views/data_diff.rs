@@ -7,11 +7,14 @@ use objdiff_core::{
 };
 use time::format_description;
 
-use crate::views::{
-    appearance::Appearance,
-    column_layout::{render_header, render_table},
-    symbol_diff::{DiffViewAction, DiffViewNavigation, DiffViewState},
-    write_text,
+use crate::{
+    hotkeys,
+    views::{
+        appearance::Appearance,
+        column_layout::{render_header, render_table},
+        symbol_diff::{DiffViewAction, DiffViewNavigation, DiffViewState},
+        write_text,
+    },
 };
 
 const BYTES_PER_ROW: usize = 16;
@@ -176,6 +179,8 @@ fn data_table_ui(
     let left_diffs = left_section.map(|(_, section)| split_diffs(&section.data_diff));
     let right_diffs = right_section.map(|(_, section)| split_diffs(&section.data_diff));
 
+    hotkeys::check_scroll_hotkeys(ui, true);
+
     render_table(ui, available_width, 2, config.code_font.size, total_rows, |row, column| {
         let i = row.index();
         let address = i * BYTES_PER_ROW;
@@ -224,7 +229,7 @@ pub fn data_diff_ui(
     render_header(ui, available_width, 2, |ui, column| {
         if column == 0 {
             // Left column
-            if ui.button("⏴ Back").clicked() {
+            if ui.button("⏴ Back").clicked() || hotkeys::back_pressed(ui.ctx()) {
                 ret = Some(DiffViewAction::Navigate(DiffViewNavigation::symbol_diff()));
             }
 
