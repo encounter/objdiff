@@ -29,7 +29,6 @@ impl ObjArch for ObjArchArm64 {
         relocations: &[ObjReloc],
         line_info: &BTreeMap<u64, u32>,
         config: &DiffObjConfig,
-        _sections: &[ObjSection],
     ) -> Result<ProcessCodeResult> {
         let start_address = address;
         let end_address = address + code.len() as u64;

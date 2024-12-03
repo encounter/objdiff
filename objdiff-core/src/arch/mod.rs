@@ -126,7 +126,6 @@ impl DataType {
 }
 
 pub trait ObjArch: Send + Sync {
-    #[expect(clippy::too_many_arguments)]
     fn process_code(
         &self,
         address: u64,
@@ -135,7 +134,6 @@ pub trait ObjArch: Send + Sync {
         relocations: &[ObjReloc],
         line_info: &BTreeMap<u64, u32>,
         config: &DiffObjConfig,
-        sections: &[ObjSection],
     ) -> Result<ProcessCodeResult>;
 
     fn implcit_addend(

@@ -34,7 +34,6 @@ impl ObjArch for ObjArchX86 {
         relocations: &[ObjReloc],
         line_info: &BTreeMap<u64, u32>,
         config: &DiffObjConfig,
-        _sections: &[ObjSection],
     ) -> Result<ProcessCodeResult> {
         let mut result = ProcessCodeResult { ops: Vec::new(), insts: Vec::new() };
         let mut decoder = Decoder::with_ip(self.bits, code, address, DecoderOptions::NONE);

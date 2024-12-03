@@ -48,13 +48,12 @@ impl ObjArch for ObjArchPpc {
         relocations: &[ObjReloc],
         line_info: &BTreeMap<u64, u32>,
         config: &DiffObjConfig,
-        sections: &[ObjSection],
     ) -> Result<ProcessCodeResult> {
         let ins_count = code.len() / 4;
         let mut ops = Vec::<u16>::with_capacity(ins_count);
         let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
         let fake_pool_reloc_for_addr =
-            generate_fake_pool_reloc_for_addr_mapping(address, code, relocations, sections);
+            generate_fake_pool_reloc_for_addr_mapping(address, code, relocations);
         for (cur_addr, mut ins) in InsIter::new(code, address as u32) {
             let reloc = relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
             if let Some(reloc) = reloc {
@@ -453,26 +452,38 @@ fn get_offset_and_addr_gpr_for_possible_pool_reference(
 // there isn't really a relocation here, as copying the pool relocation's type wouldn't make sense.
 // Also, if this instruction is accessing the middle of a symbol instead of the start, we add an
 // addend to indicate that.
-fn make_fake_pool_reloc(
-    offset: i16,
-    cur_addr: u32,
-    pool_reloc: &ObjReloc,
-    sections: &[ObjSection],
-) -> Option<ObjReloc> {
+fn make_fake_pool_reloc(offset: i16, cur_addr: u32, pool_reloc: &ObjReloc) -> Option<ObjReloc> {
     let offset_from_pool = pool_reloc.addend + offset as i64;
     let target_address = pool_reloc.target.address.checked_add_signed(offset_from_pool)?;
     let orig_section_index = pool_reloc.target.orig_section_index?;
-    let section = sections.iter().find(|s| s.orig_index == orig_section_index)?;
-    let target_symbol = section
-        .symbols
-        .iter()
-        .find(|s| s.size > 0 && (s.address..s.address + s.size).contains(&target_address))?;
-    let addend = (target_address - target_symbol.address) as i64;
+    // We also need to create a fake target symbol to go inside our fake relocation.
+    // This is because we don't have access to list of all symbols in this section, so we can't find
+    // the real symbol yet. Instead we make a placeholder that has the correct `orig_section_index`
+    // and `address` fields, and then later on when this information is displayed to the user, we
+    // can find the real symbol by searching through the object's section's symbols for one that
+    // contains this address.
+    let fake_target_symbol = ObjSymbol {
+        name: "".to_string(),
+        demangled_name: None,
+        address: target_address,
+        section_address: 0,
+        size: 0,
+        size_known: false,
+        kind: Default::default(),
+        flags: Default::default(),
+        orig_section_index: Some(orig_section_index),
+        virtual_address: None,
+        original_index: None,
+        bytes: vec![],
+    };
+    // The addend is also fake because we don't know yet if the `target_address` here is the exact
+    // start of the symbol or if it's in the middle of it.
+    let fake_addend = 0;
     Some(ObjReloc {
         flags: RelocationFlags::Elf { r_type: elf::R_PPC_NONE },
         address: cur_addr as u64,
-        target: target_symbol.clone(),
-        addend,
+        target: fake_target_symbol,
+        addend: fake_addend,
     })
 }
 
@@ -491,7 +502,6 @@ fn generate_fake_pool_reloc_for_addr_mapping(
     address: u64,
     code: &[u8],
     relocations: &[ObjReloc],
-    sections: &[ObjSection],
 ) -> HashMap<u32, ObjReloc> {
     let mut active_pool_relocs = HashMap::new();
     let mut pool_reloc_for_addr = HashMap::new();
@@ -538,9 +548,7 @@ fn generate_fake_pool_reloc_for_addr_mapping(
             // This instruction doesn't have a real relocation, so it may be a reference to one of
             // the already-loaded pools.
             if let Some(pool_reloc) = active_pool_relocs.get(&addr_src_gpr.0) {
-                if let Some(fake_pool_reloc) =
-                    make_fake_pool_reloc(offset, cur_addr, pool_reloc, sections)
-                {
+                if let Some(fake_pool_reloc) = make_fake_pool_reloc(offset, cur_addr, pool_reloc) {
                     pool_reloc_for_addr.insert(cur_addr, fake_pool_reloc);
                 }
                 if let Some(addr_dst_gpr) = addr_dst_gpr {

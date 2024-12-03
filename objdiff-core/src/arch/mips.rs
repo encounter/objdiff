@@ -87,7 +87,6 @@ impl ObjArch for ObjArchMips {
         relocations: &[ObjReloc],
         line_info: &BTreeMap<u64, u32>,
         config: &DiffObjConfig,
-        _sections: &[ObjSection],
     ) -> Result<ProcessCodeResult> {
         let _guard = RABBITIZER_MUTEX.lock().map_err(|e| anyhow!("Failed to lock mutex: {e}"))?;
         configure_rabbitizer(match config.mips_abi {

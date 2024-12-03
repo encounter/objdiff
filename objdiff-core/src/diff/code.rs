@@ -28,7 +28,6 @@ pub fn process_code_symbol(
         &section.relocations,
         &section.line_info,
         config,
-        &obj.sections,
     )
 }
 
