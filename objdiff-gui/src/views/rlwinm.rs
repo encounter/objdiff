@@ -16,13 +16,13 @@ pub fn rlwinm_decode_window(
     egui::Window::new("Rlwinm Decoder").open(show).show(ctx, |ui| {
         ui.text_edit_singleline(&mut state.text);
         ui.add_space(10.0);
-        if let Some(demangled) = rlwinmdec::decode(&state.text) {
+        if let Some(decoded) = rlwinmdec::decode(&state.text) {
             ui.scope(|ui| {
                 ui.style_mut().override_text_style = Some(TextStyle::Monospace);
-                ui.colored_label(appearance.replace_color, &demangled);
+                ui.colored_label(appearance.replace_color, decoded.trim());
             });
             if ui.button("Copy").clicked() {
-                ui.output_mut(|output| output.copied_text = demangled);
+                ui.output_mut(|output| output.copied_text = decoded);
             }
         } else {
             ui.scope(|ui| {

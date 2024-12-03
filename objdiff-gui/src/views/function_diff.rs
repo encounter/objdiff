@@ -149,6 +149,10 @@ fn ins_hover_ui(
                 ui.colored_label(appearance.highlight_color, "Extern".to_string());
             }
         }
+
+        if let Some(decoded) = rlwinmdec::decode(&ins.formatted) {
+            ui.colored_label(appearance.highlight_color, decoded.trim());
+        }
     });
 }
 
