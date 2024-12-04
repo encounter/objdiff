@@ -36,12 +36,21 @@ pub enum DataType {
 
 impl DataType {
     pub fn display_bytes<Endian: ByteOrder>(&self, bytes: &[u8]) -> Option<String> {
-        // TODO: Attempt to interpret large symbols as arrays of a smaller type,
-        // fallback to intrepreting it as bytes.
-        // https://github.com/encounter/objdiff/issues/124
-        if self.required_len().is_some_and(|l| bytes.len() != l) {
-            log::warn!("Failed to display a symbol value for a symbol whose size doesn't match the instruction referencing it.");
+        if self.required_len().is_some_and(|l| bytes.len() < l) {
+            log::warn!("Failed to display a symbol value for a symbol whose size is too small for instruction referencing it.");
             return None;
+        }
+        let mut bytes = bytes;
+        if self.required_len().is_some_and(|l| bytes.len() > l) {
+            // If the symbol's size is larger a single instance of this data type, we take just the
+            // bytes necessary for one of them in order to display the first element of the array.
+            bytes = &bytes[0..self.required_len().unwrap()];
+            // TODO: Attempt to interpret large symbols as arrays of a smaller type and show all
+            // elements of the array instead. https://github.com/encounter/objdiff/issues/124
+            // However, note that the stride of an array can not always be determined just by the
+            // data type guessed by the single instruction accessing it. There can also be arrays of
+            // structs that contain multiple elements of different types, so if other elements after
+            // the first one were to be displayed in this manner, they may be inaccurate.
         }
 
         match self {
@@ -86,10 +95,10 @@ impl DataType {
                 }
             }
             DataType::Float => {
-                format!("Float: {}", Endian::read_f32(bytes))
+                format!("Float: {:?}f", Endian::read_f32(bytes))
             }
             DataType::Double => {
-                format!("Double: {}", Endian::read_f64(bytes))
+                format!("Double: {:?}", Endian::read_f64(bytes))
             }
             DataType::Bytes => {
                 format!("Bytes: {:#?}", bytes)
