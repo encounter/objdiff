@@ -106,7 +106,6 @@ pub struct ObjIns {
     pub mnemonic: Cow<'static, str>,
     pub args: Vec<ObjInsArg>,
     pub reloc: Option<ObjReloc>,
-    pub fake_pool_reloc: Option<ObjReloc>,
     pub branch_dest: Option<u64>,
     /// Line number
     pub line: Option<u32>,

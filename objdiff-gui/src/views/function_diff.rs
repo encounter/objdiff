@@ -118,7 +118,7 @@ fn ins_hover_ui(
             }
         }
 
-        if let Some(reloc) = ins.reloc.as_ref().or(ins.fake_pool_reloc.as_ref()) {
+        if let Some(reloc) = &ins.reloc {
             ui.label(format!("Relocation type: {}", obj.arch.display_reloc(reloc.flags)));
             let addend_str = match reloc.addend.cmp(&0i64) {
                 Ordering::Greater => format!("+{:x}", reloc.addend),

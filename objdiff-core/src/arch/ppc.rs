@@ -150,8 +150,7 @@ impl ObjArch for ObjArchPpc {
                 size: 4,
                 mnemonic: Cow::Borrowed(simplified.mnemonic),
                 args,
-                reloc: reloc.cloned(),
-                fake_pool_reloc: fake_pool_reloc_for_addr.get(&cur_addr).cloned(),
+                reloc: reloc.or(fake_pool_reloc_for_addr.get(&cur_addr)).cloned(),
                 op: ins.op as u16,
                 branch_dest,
                 line,
@@ -195,12 +194,7 @@ impl ObjArch for ObjArchPpc {
     }
 
     fn guess_data_type(&self, instruction: &ObjIns) -> Option<super::DataType> {
-        if instruction
-            .reloc
-            .as_ref()
-            .or(instruction.fake_pool_reloc.as_ref())
-            .is_some_and(|r| r.target.name.starts_with("@stringBase"))
-        {
+        if instruction.reloc.as_ref().is_some_and(|r| r.target.name.starts_with("@stringBase")) {
             return Some(DataType::String);
         }
 

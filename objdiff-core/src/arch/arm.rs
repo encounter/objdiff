@@ -216,7 +216,6 @@ impl ObjArch for ObjArchArm {
                 mnemonic: Cow::Borrowed(parsed_ins.mnemonic),
                 args,
                 reloc,
-                fake_pool_reloc: None,
                 branch_dest,
                 line,
                 formatted: parsed_ins.display(display_options).to_string(),

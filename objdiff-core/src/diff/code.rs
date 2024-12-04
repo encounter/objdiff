@@ -31,7 +31,7 @@ pub fn process_code_symbol(
     )?;
 
     for inst in res.insts.iter_mut() {
-        if let Some(reloc) = &mut inst.fake_pool_reloc {
+        if let Some(reloc) = &mut inst.reloc {
             if reloc.target.size == 0 && reloc.target.name.is_empty() {
                 // Fake target symbol we added as a placeholder. We need to find the real one.
                 if let Some(real_target) =

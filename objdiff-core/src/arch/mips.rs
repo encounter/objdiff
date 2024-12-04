@@ -205,7 +205,6 @@ impl ObjArch for ObjArchMips {
                 mnemonic: Cow::Borrowed(mnemonic),
                 args,
                 reloc: reloc.cloned(),
-                fake_pool_reloc: None,
                 branch_dest,
                 line,
                 formatted,
