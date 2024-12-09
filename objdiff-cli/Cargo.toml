@@ -14,7 +14,7 @@ publish = false
 
 [dependencies]
 anyhow = "1.0"
-argp = "0.3"
+argp = "0.4"
 crossterm = "0.28"
 enable-ansi-support = "0.2"
 memmap2 = "0.9"

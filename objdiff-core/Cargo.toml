@@ -86,7 +86,7 @@ yaxpeax-arm = { version = "0.3", default-features = false, features = ["std"], o
 notify = { git = "https://github.com/notify-rs/notify", rev = "128bf6230c03d39dbb7f301ff7b20e594e34c3a2", optional = true }
 notify-debouncer-full = { git = "https://github.com/notify-rs/notify", rev = "128bf6230c03d39dbb7f301ff7b20e594e34c3a2", optional = true }
 shell-escape = { version = "0.1", optional = true }
-tempfile = { version = "3.13", optional = true }
+tempfile = { version = "3.14", optional = true }
 time = { version = "0.3", optional = true }
 
 [target.'cfg(windows)'.dependencies]
