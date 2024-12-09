@@ -484,6 +484,10 @@ impl App {
     }
 
     fn post_update(&mut self, ctx: &egui::Context, action: Option<DiffViewAction>) {
+        if action.is_some() {
+            ctx.request_repaint();
+        }
+
         self.appearance.post_update(ctx);
 
         let ViewState { jobs, diff_state, config_state, graphics_state, .. } = &mut self.view_state;
