@@ -155,8 +155,7 @@ pub enum ArmR9Usage {
 const fn default_true() -> bool { true }
 
 #[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify))]
-#[cfg_attr(feature = "wasm", tsify(from_wasm_abi))]
+#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify), tsify(from_wasm_abi))]
 #[serde(default)]
 pub struct DiffObjConfig {
     pub relax_reloc_diffs: bool,
@@ -637,6 +636,7 @@ struct SectionMatch {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default, serde::Deserialize, serde::Serialize)]
+#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify), tsify(from_wasm_abi))]
 pub struct MappingConfig {
     /// Manual symbol mappings
     pub mappings: SymbolMappings,
