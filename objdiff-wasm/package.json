@@ -1,6 +1,6 @@
 {
   "name": "objdiff-wasm",
-  "version": "2.0.0",
+  "version": "2.5.0",
   "description": "A local diffing tool for decompilation projects.",
   "author": {
     "name": "Luke Street",
@@ -21,7 +21,7 @@
     "build": "tsup",
     "build:all": "npm run build:wasm && npm run build:proto && npm run build",
     "build:proto": "protoc --ts_out=gen --ts_opt add_pb_suffix,eslint_disable,ts_nocheck,use_proto_field_name --proto_path=../objdiff-core/protos ../objdiff-core/protos/*.proto",
-    "build:wasm": "cd ../objdiff-core && wasm-pack build --out-dir ../objdiff-wasm/pkg --target web -- --features arm,dwarf,ppc,x86,wasm"
+    "build:wasm": "cd ../objdiff-core && wasm-pack build --out-dir ../objdiff-wasm/pkg --target web -- --features arm,arm64,dwarf,config,ppc,x86,wasm"
   },
   "dependencies": {
     "@protobuf-ts/runtime": "^2.9.4"

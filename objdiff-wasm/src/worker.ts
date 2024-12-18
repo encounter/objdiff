@@ -73,12 +73,19 @@ self.onmessage = (event: MessageEvent<InMessage>) => {
             const result = await handler(data as never);
             const end = performance.now();
             console.debug(`Worker message ${data.messageId} took ${end - start}ms`);
+            let transfer: Transferable[] = [];
+            if (result instanceof Uint8Array) {
+                console.log("Transferring!", result.byteLength);
+                transfer = [result.buffer];
+            } else {
+                console.log("Didn't transfer", typeof result);
+            }
             self.postMessage({
                 type: 'result',
                 result: result,
                 error: null,
                 messageId,
-            } as OutMessage);
+            } as OutMessage, {transfer});
         } else {
             throw new Error(`No handler for ${data.type}`);
         }

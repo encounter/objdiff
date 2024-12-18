@@ -4,6 +4,7 @@ use crate::{
         ObjDataDiff, ObjDataDiffKind, ObjDiff, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo,
         ObjInsDiff, ObjInsDiffKind, ObjSectionDiff, ObjSymbolDiff,
     },
+    obj,
     obj::{
         ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSectionKind, ObjSymbol,
         ObjSymbolFlagSet, ObjSymbolFlags,
@@ -39,14 +40,14 @@ impl ObjectDiff {
 impl SectionDiff {
     pub fn new(obj: &ObjInfo, section_index: usize, section_diff: &ObjSectionDiff) -> Self {
         let section = &obj.sections[section_index];
-        let functions = section_diff.symbols.iter().map(|d| FunctionDiff::new(obj, d)).collect();
+        let symbols = section_diff.symbols.iter().map(|d| SymbolDiff::new(obj, d)).collect();
         let data = section_diff.data_diff.iter().map(|d| DataDiff::new(obj, d)).collect();
         Self {
             name: section.name.to_string(),
             kind: SectionKind::from(section.kind) as i32,
             size: section.size,
             address: section.address,
-            functions,
+            symbols,
             data,
             match_percent: section_diff.match_percent,
         }
@@ -64,13 +65,22 @@ impl From<ObjSectionKind> for SectionKind {
     }
 }
 
-impl FunctionDiff {
+impl From<obj::SymbolRef> for SymbolRef {
+    fn from(value: obj::SymbolRef) -> Self {
+        Self {
+            section_index: if value.section_idx == obj::SECTION_COMMON {
+                None
+            } else {
+                Some(value.section_idx as u32)
+            },
+            symbol_index: value.symbol_idx as u32,
+        }
+    }
+}
+
+impl SymbolDiff {
     pub fn new(object: &ObjInfo, symbol_diff: &ObjSymbolDiff) -> Self {
         let (_section, symbol) = object.section_symbol(symbol_diff.symbol_ref);
-        // let diff_symbol = symbol_diff.diff_symbol.map(|symbol_ref| {
-        //     let (_section, symbol) = object.section_symbol(symbol_ref);
-        //     Symbol::from(symbol)
-        // });
         let instructions = symbol_diff
             .instructions
             .iter()
@@ -78,9 +88,9 @@ impl FunctionDiff {
             .collect();
         Self {
             symbol: Some(Symbol::new(symbol)),
-            // diff_symbol,
             instructions,
             match_percent: symbol_diff.match_percent,
+            target: symbol_diff.target_symbol.map(SymbolRef::from),
         }
     }
 }
@@ -110,7 +120,7 @@ impl Symbol {
 fn symbol_flags(value: ObjSymbolFlagSet) -> u32 {
     let mut flags = 0u32;
     if value.0.contains(ObjSymbolFlags::Global) {
-        flags |= SymbolFlag::SymbolNone as u32;
+        flags |= SymbolFlag::SymbolGlobal as u32;
     }
     if value.0.contains(ObjSymbolFlags::Local) {
         flags |= SymbolFlag::SymbolLocal as u32;
