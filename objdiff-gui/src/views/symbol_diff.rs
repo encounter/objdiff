@@ -1,8 +1,8 @@
 use std::{collections::BTreeMap, mem::take, ops::Bound};
 
 use egui::{
-    style::ScrollAnimation, text::LayoutJob, CollapsingHeader, Color32, Id, OpenUrl, ScrollArea,
-    SelectableLabel, TextEdit, Ui, Widget,
+    style::ScrollAnimation, text::LayoutJob, CollapsingHeader, Color32, Id, Layout, OpenUrl,
+    ScrollArea, SelectableLabel, TextEdit, Ui, Widget,
 };
 use objdiff_core::{
     arch::ObjArch,
@@ -605,6 +605,7 @@ pub enum SymbolFilter<'a> {
 }
 
 #[must_use]
+#[expect(clippy::too_many_arguments)]
 pub fn symbol_list_ui(
     ui: &mut Ui,
     ctx: SymbolDiffContext<'_>,
@@ -613,6 +614,7 @@ pub fn symbol_list_ui(
     filter: SymbolFilter<'_>,
     appearance: &Appearance,
     column: usize,
+    open_sections: Option<bool>,
 ) -> Option<DiffViewAction> {
     let mut ret = None;
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
@@ -766,6 +768,7 @@ pub fn symbol_list_ui(
                 CollapsingHeader::new(header)
                     .id_salt(Id::new(section.name.clone()).with(section.orig_index))
                     .default_open(true)
+                    .open(open_sections)
                     .show(ui, |ui| {
                         if section.kind == ObjSectionKind::Code && state.reverse_fn_order {
                             for (symbol, symbol_diff) in mapping
@@ -873,6 +876,7 @@ pub fn symbol_diff_ui(
 
     // Header
     let available_width = ui.available_width();
+    let mut open_sections = (None, None);
     render_header(ui, available_width, 2, |ui, column| {
         if column == 0 {
             // Left column
@@ -891,14 +895,25 @@ pub fn symbol_diff_ui(
                 }
             });
 
-            let mut search = state.search.clone();
-            let response = TextEdit::singleline(&mut search).hint_text("Filter symbols").ui(ui);
-            if hotkeys::consume_symbol_filter_shortcut(ui.ctx()) {
-                response.request_focus();
-            }
-            if response.changed() {
-                ret = Some(DiffViewAction::SetSearch(search));
-            }
+            ui.horizontal(|ui| {
+                let mut search = state.search.clone();
+                let response = TextEdit::singleline(&mut search).hint_text("Filter symbols").ui(ui);
+                if hotkeys::consume_symbol_filter_shortcut(ui.ctx()) {
+                    response.request_focus();
+                }
+                if response.changed() {
+                    ret = Some(DiffViewAction::SetSearch(search));
+                }
+
+                ui.with_layout(Layout::right_to_left(egui::Align::TOP), |ui| {
+                    if ui.small_button("⏷").on_hover_text_at_pointer("Expand all").clicked() {
+                        open_sections.0 = Some(true);
+                    }
+                    if ui.small_button("⏶").on_hover_text_at_pointer("Collapse all").clicked() {
+                        open_sections.0 = Some(false);
+                    }
+                })
+            });
         } else if column == 1 {
             // Right column
             ui.horizontal(|ui| {
@@ -930,9 +945,20 @@ pub fn symbol_diff_ui(
                 }
             });
 
-            if ui.add_enabled(!state.build_running, egui::Button::new("Build")).clicked() {
-                ret = Some(DiffViewAction::Build);
-            }
+            ui.horizontal(|ui| {
+                if ui.add_enabled(!state.build_running, egui::Button::new("Build")).clicked() {
+                    ret = Some(DiffViewAction::Build);
+                }
+
+                ui.with_layout(Layout::right_to_left(egui::Align::TOP), |ui| {
+                    if ui.small_button("⏷").on_hover_text_at_pointer("Expand all").clicked() {
+                        open_sections.1 = Some(true);
+                    }
+                    if ui.small_button("⏶").on_hover_text_at_pointer("Collapse all").clicked() {
+                        open_sections.1 = Some(false);
+                    }
+                })
+            });
         }
     });
 
@@ -957,6 +983,7 @@ pub fn symbol_diff_ui(
                         filter,
                         appearance,
                         column,
+                        open_sections.0,
                     ) {
                         ret = Some(result);
                     }
@@ -981,6 +1008,7 @@ pub fn symbol_diff_ui(
                         filter,
                         appearance,
                         column,
+                        open_sections.1,
                     ) {
                         ret = Some(result);
                     }

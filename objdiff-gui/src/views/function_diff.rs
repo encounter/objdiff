@@ -512,6 +512,7 @@ fn asm_table_ui(
                             SymbolFilter::Mapping(right_symbol_ref),
                             appearance,
                             column,
+                            None,
                         ) {
                             match action {
                                 DiffViewAction::Navigate(DiffViewNavigation {
@@ -570,6 +571,7 @@ fn asm_table_ui(
                             SymbolFilter::Mapping(left_symbol_ref),
                             appearance,
                             column,
+                            None,
                         ) {
                             match action {
                                 DiffViewAction::Navigate(DiffViewNavigation {
