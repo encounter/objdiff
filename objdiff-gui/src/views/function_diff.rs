@@ -1,6 +1,6 @@
 use std::{cmp::Ordering, default::Default};
 
-use egui::{text::LayoutJob, Id, Label, Response, RichText, Sense, Widget};
+use egui::{text::LayoutJob, Id, Label, Layout, Response, RichText, Sense, Widget};
 use egui_extras::TableRow;
 use objdiff_core::{
     diff::{
@@ -414,6 +414,7 @@ fn asm_col_ui(
 }
 
 #[must_use]
+#[expect(clippy::too_many_arguments)]
 fn asm_table_ui(
     ui: &mut egui::Ui,
     available_width: f32,
@@ -422,6 +423,7 @@ fn asm_table_ui(
     appearance: &Appearance,
     ins_view_state: &FunctionViewState,
     symbol_state: &SymbolViewState,
+    open_sections: (Option<bool>, Option<bool>),
 ) -> Option<DiffViewAction> {
     let mut ret = None;
     let left_len = left_ctx.and_then(|ctx| {
@@ -512,7 +514,7 @@ fn asm_table_ui(
                             SymbolFilter::Mapping(right_symbol_ref),
                             appearance,
                             column,
-                            None,
+                            open_sections.0,
                         ) {
                             match action {
                                 DiffViewAction::Navigate(DiffViewNavigation {
@@ -571,7 +573,7 @@ fn asm_table_ui(
                             SymbolFilter::Mapping(left_symbol_ref),
                             appearance,
                             column,
-                            None,
+                            open_sections.1,
                         ) {
                             match action {
                                 DiffViewAction::Navigate(DiffViewNavigation {
@@ -685,6 +687,7 @@ pub fn function_diff_ui(
 
     // Header
     let available_width = ui.available_width();
+    let mut open_sections = (None, None);
     render_header(ui, available_width, 2, |ui, column| {
         if column == 0 {
             // Left column
@@ -738,11 +741,24 @@ pub fn function_diff_ui(
                         .font(appearance.code_font.clone())
                         .color(appearance.replace_color),
                 );
-                ui.label(
-                    RichText::new("Choose target symbol")
-                        .font(appearance.code_font.clone())
-                        .color(appearance.highlight_color),
-                );
+
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new("Choose target symbol")
+                            .font(appearance.code_font.clone())
+                            .color(appearance.highlight_color),
+                    );
+
+                    ui.with_layout(Layout::right_to_left(egui::Align::TOP), |ui| {
+                        if ui.small_button("⏷").on_hover_text_at_pointer("Expand all").clicked() {
+                            open_sections.0 = Some(true);
+                        }
+                        if ui.small_button("⏶").on_hover_text_at_pointer("Collapse all").clicked()
+                        {
+                            open_sections.0 = Some(false);
+                        }
+                    })
+                });
             }
         } else if column == 1 {
             // Right column
@@ -814,11 +830,24 @@ pub fn function_diff_ui(
                         .font(appearance.code_font.clone())
                         .color(appearance.replace_color),
                 );
-                ui.label(
-                    RichText::new("Choose base symbol")
-                        .font(appearance.code_font.clone())
-                        .color(appearance.highlight_color),
-                );
+
+                ui.horizontal(|ui| {
+                    ui.label(
+                        RichText::new("Choose base symbol")
+                            .font(appearance.code_font.clone())
+                            .color(appearance.highlight_color),
+                    );
+
+                    ui.with_layout(Layout::right_to_left(egui::Align::TOP), |ui| {
+                        if ui.small_button("⏷").on_hover_text_at_pointer("Expand all").clicked() {
+                            open_sections.1 = Some(true);
+                        }
+                        if ui.small_button("⏶").on_hover_text_at_pointer("Collapse all").clicked()
+                        {
+                            open_sections.1 = Some(false);
+                        }
+                    })
+                });
             }
         }
     });
@@ -836,6 +865,7 @@ pub fn function_diff_ui(
                 appearance,
                 &state.function_state,
                 &state.symbol_state,
+                open_sections,
             )
         })
         .inner
