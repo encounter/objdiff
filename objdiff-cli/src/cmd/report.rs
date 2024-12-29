@@ -169,22 +169,26 @@ fn report_object(
         }
         _ => {}
     }
-    let config = diff::DiffObjConfig { relax_reloc_diffs: true, ..Default::default() };
+    let diff_config = diff::DiffObjConfig { relax_reloc_diffs: true, ..Default::default() };
+    let mapping_config = diff::MappingConfig::default();
     let target = object
         .target_path
         .as_ref()
         .map(|p| {
-            obj::read::read(p, &config).with_context(|| format!("Failed to open {}", p.display()))
+            obj::read::read(p, &diff_config)
+                .with_context(|| format!("Failed to open {}", p.display()))
         })
         .transpose()?;
     let base = object
         .base_path
         .as_ref()
         .map(|p| {
-            obj::read::read(p, &config).with_context(|| format!("Failed to open {}", p.display()))
+            obj::read::read(p, &diff_config)
+                .with_context(|| format!("Failed to open {}", p.display()))
         })
         .transpose()?;
-    let result = diff::diff_objs(&config, target.as_ref(), base.as_ref(), None)?;
+    let result =
+        diff::diff_objs(&diff_config, &mapping_config, target.as_ref(), base.as_ref(), None)?;
 
     let metadata = ReportUnitMetadata {
         complete: object.complete(),

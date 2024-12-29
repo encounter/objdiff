@@ -99,9 +99,15 @@ pub fn load_project_config(state: &mut AppState) -> Result<()> {
         state.config.base_obj_dir = project_config.base_dir.as_deref().map(|p| project_dir.join(p));
         state.config.build_base = project_config.build_base.unwrap_or(true);
         state.config.build_target = project_config.build_target.unwrap_or(false);
-        state.config.watch_patterns = project_config.watch_patterns.clone().unwrap_or_else(|| {
-            DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect()
-        });
+        if let Some(watch_patterns) = &project_config.watch_patterns {
+            state.config.watch_patterns = watch_patterns
+                .iter()
+                .map(|s| Glob::new(s))
+                .collect::<Result<Vec<Glob>, globset::Error>>()?;
+        } else {
+            state.config.watch_patterns =
+                DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect();
+        }
         state.watcher_change = true;
         state.objects = project_config.units.clone().unwrap_or_default();
         state.object_nodes = build_nodes(

@@ -160,7 +160,6 @@ impl DiffObjConfigV1 {
             arm_sl_usage: self.arm_sl_usage,
             arm_fp_usage: self.arm_fp_usage,
             arm_ip_usage: self.arm_ip_usage,
-            ..Default::default()
         }
     }
 }

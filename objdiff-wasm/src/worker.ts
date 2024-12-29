@@ -38,13 +38,15 @@ async function initIfNeeded() {
 //     return exports.run_diff_json(left, right, cfg);
 // }
 
-async function run_diff_proto({left, right, config}: {
+async function run_diff_proto({left, right, diff_config, mapping_config}: {
     left: Uint8Array | undefined,
     right: Uint8Array | undefined,
-    config?: exports.DiffObjConfig,
+    diff_config?: exports.DiffObjConfig,
+    mapping_config?: exports.MappingConfig,
 }): Promise<Uint8Array> {
-    config = config || {};
-    return exports.run_diff_proto(left, right, config);
+    diff_config = diff_config || {};
+    mapping_config = mapping_config || {};
+    return exports.run_diff_proto(left, right, diff_config, mapping_config);
 }
 
 export type AnyHandlerData = HandlerData[keyof HandlerData];

@@ -30,7 +30,8 @@ use crate::{
     views::{
         appearance::{appearance_window, Appearance},
         config::{
-            arch_config_window, config_ui, project_window, ConfigViewState, CONFIG_DISABLED_TEXT,
+            arch_config_window, config_ui, general_config_ui, project_window, ConfigViewState,
+            CONFIG_DISABLED_TEXT,
         },
         data_diff::data_diff_ui,
         debug::debug_window,
@@ -293,7 +294,7 @@ impl AppState {
         let Some(object) = self.config.selected_obj.as_mut() else {
             return;
         };
-        object.symbol_mappings.remove_by_right(right);
+        object.symbol_mappings.retain(|_, r| r != right);
         self.selecting_left = Some(right.to_string());
         self.queue_reload = true;
         self.save_config();
@@ -303,7 +304,7 @@ impl AppState {
         let Some(object) = self.config.selected_obj.as_mut() else {
             return;
         };
-        object.symbol_mappings.remove_by_left(left);
+        object.symbol_mappings.retain(|l, _| l != left);
         self.selecting_right = Some(left.to_string());
         self.queue_reload = true;
         self.save_config();
@@ -316,10 +317,8 @@ impl AppState {
         };
         self.selecting_left = None;
         self.selecting_right = None;
-        if left == right {
-            object.symbol_mappings.remove_by_left(&left);
-            object.symbol_mappings.remove_by_right(&right);
-        } else {
+        object.symbol_mappings.retain(|l, r| l != &left && r != &right);
+        if left != right {
             object.symbol_mappings.insert(left.clone(), right.clone());
         }
         self.queue_reload = true;
@@ -728,37 +727,9 @@ impl eframe::App for App {
                         &mut diff_state.symbol_state.show_hidden_symbols,
                         "Show hidden symbols",
                     );
-                    if ui
-                        .checkbox(
-                            &mut state.config.diff_obj_config.relax_reloc_diffs,
-                            "Relax relocation diffs",
-                        )
-                        .on_hover_text(
-                            "Ignores differences in relocation targets. (Address, name, etc)",
-                        )
-                        .changed()
-                    {
-                        state.queue_reload = true;
-                    }
-                    if ui
-                        .checkbox(
-                            &mut state.config.diff_obj_config.space_between_args,
-                            "Space between args",
-                        )
-                        .changed()
-                    {
-                        state.queue_reload = true;
-                    }
-                    if ui
-                        .checkbox(
-                            &mut state.config.diff_obj_config.combine_data_sections,
-                            "Combine data sections",
-                        )
-                        .on_hover_text("Combines data sections with equal names.")
-                        .changed()
-                    {
-                        state.queue_reload = true;
-                    }
+                    ui.separator();
+                    general_config_ui(ui, &mut state);
+                    ui.separator();
                     if ui.button("Clear custom symbol mappings").clicked() {
                         state.clear_mappings();
                         diff_state.post_build_nav = Some(DiffViewNavigation::symbol_diff());

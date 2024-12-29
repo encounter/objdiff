@@ -3050,7 +3050,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-cli"
-version = "2.5.0"
+version = "2.6.0"
 dependencies = [
  "anyhow",
  "argp",
@@ -3072,7 +3072,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-core"
-version = "2.5.0"
+version = "2.6.0"
 dependencies = [
  "anyhow",
  "arm-attr",
@@ -3087,6 +3087,7 @@ dependencies = [
  "flagset",
  "gimli",
  "globset",
+ "heck",
  "iced-x86",
  "log",
  "memmap2",
@@ -3099,8 +3100,11 @@ dependencies = [
  "pbjson",
  "pbjson-build",
  "ppc750cl",
+ "prettyplease",
+ "proc-macro2",
  "prost",
  "prost-build",
+ "quote",
  "rabbitizer",
  "reqwest",
  "self_update",
@@ -3111,6 +3115,7 @@ dependencies = [
  "shell-escape",
  "similar",
  "strum",
+ "syn 2.0.90",
  "tempfile",
  "time",
  "tsify-next",
@@ -3123,7 +3128,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-gui"
-version = "2.5.0"
+version = "2.6.0"
 dependencies = [
  "anyhow",
  "bytes",

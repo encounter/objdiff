@@ -139,9 +139,9 @@ impl ObjArch for ObjArchArm {
 
         let version = match config.arm_arch_version {
             ArmArchVersion::Auto => self.detected_version.unwrap_or(ArmVersion::V5Te),
-            ArmArchVersion::V4T => ArmVersion::V4T,
-            ArmArchVersion::V5TE => ArmVersion::V5Te,
-            ArmArchVersion::V6K => ArmVersion::V6K,
+            ArmArchVersion::V4t => ArmVersion::V4T,
+            ArmArchVersion::V5te => ArmVersion::V5Te,
+            ArmArchVersion::V6k => ArmVersion::V6K,
         };
         let endian = match self.endianness {
             object::Endianness::Little => unarm::Endian::Little,

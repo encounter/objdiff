@@ -13,20 +13,22 @@ fn parse_object(
 fn parse_and_run_diff(
     left: Option<Box<[u8]>>,
     right: Option<Box<[u8]>>,
-    config: diff::DiffObjConfig,
+    diff_config: diff::DiffObjConfig,
+    mapping_config: diff::MappingConfig,
 ) -> Result<DiffResult, JsError> {
-    let target = parse_object(left, &config)?;
-    let base = parse_object(right, &config)?;
-    run_diff(target.as_ref(), base.as_ref(), config)
+    let target = parse_object(left, &diff_config)?;
+    let base = parse_object(right, &diff_config)?;
+    run_diff(target.as_ref(), base.as_ref(), diff_config, mapping_config)
 }
 
 fn run_diff(
     left: Option<&obj::ObjInfo>,
     right: Option<&obj::ObjInfo>,
-    config: diff::DiffObjConfig,
+    diff_config: diff::DiffObjConfig,
+    mapping_config: diff::MappingConfig,
 ) -> Result<DiffResult, JsError> {
-    log::debug!("Running diff with config: {:?}", config);
-    let result = diff::diff_objs(&config, left, right, None).to_js()?;
+    log::debug!("Running diff with config: {:?}", diff_config);
+    let result = diff::diff_objs(&diff_config, &mapping_config, left, right, None).to_js()?;
     let left = left.and_then(|o| result.left.as_ref().map(|d| (o, d)));
     let right = right.and_then(|o| result.right.as_ref().map(|d| (o, d)));
     Ok(DiffResult::new(left, right))
@@ -46,9 +48,10 @@ fn run_diff(
 pub fn run_diff_proto(
     left: Option<Box<[u8]>>,
     right: Option<Box<[u8]>>,
-    config: diff::DiffObjConfig,
+    diff_config: diff::DiffObjConfig,
+    mapping_config: diff::MappingConfig,
 ) -> Result<Box<[u8]>, JsError> {
-    let out = parse_and_run_diff(left, right, config)?;
+    let out = parse_and_run_diff(left, right, diff_config, mapping_config)?;
     Ok(out.encode_to_vec().into_boxed_slice())
 }
 
