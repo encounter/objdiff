@@ -16,18 +16,104 @@ documentation = "https://docs.rs/objdiff-core"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-all = ["config", "dwarf", "mips", "ppc", "x86", "arm", "arm64", "bindings", "build"]
-any-arch = ["config", "dep:bimap", "dep:strum", "dep:similar", "dep:flagset", "dep:log", "dep:memmap2", "dep:byteorder", "dep:num-traits"] # Implicit, used to check if any arch is enabled
-bindings = ["dep:serde_json", "dep:prost", "dep:pbjson", "dep:serde", "dep:prost-build", "dep:pbjson-build"]
-build = ["dep:shell-escape", "dep:path-slash", "dep:winapi", "dep:notify", "dep:notify-debouncer-full", "dep:reqwest", "dep:self_update", "dep:tempfile", "dep:time"]
-config = ["dep:bimap", "dep:globset", "dep:semver", "dep:serde_json", "dep:serde_yaml", "dep:serde", "dep:filetime"]
+all = [
+    # Features
+    "bindings",
+    "build",
+    "config",
+    "dwarf",
+    # Architectures
+    "mips",
+    "ppc",
+    "x86",
+    "arm",
+    "arm64",
+]
+# Implicit, used to check if any arch is enabled
+any-arch = [
+    "config",
+    "dep:bimap",
+    "dep:byteorder",
+    "dep:flagset",
+    "dep:heck",
+    "dep:log",
+    "dep:memmap2",
+    "dep:num-traits",
+    "dep:prettyplease",
+    "dep:proc-macro2",
+    "dep:quote",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:similar",
+    "dep:strum",
+    "dep:syn",
+]
+bindings = [
+    "dep:pbjson",
+    "dep:pbjson-build",
+    "dep:prost",
+    "dep:prost-build",
+    "dep:serde",
+    "dep:serde_json",
+]
+build = [
+    "dep:notify",
+    "dep:notify-debouncer-full",
+    "dep:path-slash",
+    "dep:reqwest",
+    "dep:self_update",
+    "dep:shell-escape",
+    "dep:tempfile",
+    "dep:time",
+    "dep:winapi",
+]
+config = [
+    "dep:bimap",
+    "dep:filetime",
+    "dep:globset",
+    "dep:semver",
+    "dep:serde",
+    "dep:serde_json",
+    "dep:serde_yaml",
+]
 dwarf = ["dep:gimli"]
-mips = ["any-arch", "dep:rabbitizer"]
-ppc = ["any-arch", "dep:cwdemangle", "dep:cwextab", "dep:ppc750cl"]
-x86 = ["any-arch", "dep:cpp_demangle", "dep:iced-x86", "dep:msvc-demangler"]
-arm = ["any-arch", "dep:cpp_demangle", "dep:unarm", "dep:arm-attr"]
-arm64 = ["any-arch", "dep:cpp_demangle", "dep:yaxpeax-arch", "dep:yaxpeax-arm"]
-wasm = ["bindings", "any-arch", "dep:console_error_panic_hook", "dep:console_log", "dep:wasm-bindgen", "dep:tsify-next", "dep:log"]
+mips = [
+    "any-arch",
+    "dep:rabbitizer",
+]
+ppc = [
+    "any-arch",
+    "dep:cwdemangle",
+    "dep:cwextab",
+    "dep:ppc750cl",
+]
+x86 = [
+    "any-arch",
+    "dep:cpp_demangle",
+    "dep:iced-x86",
+    "dep:msvc-demangler",
+]
+arm = [
+    "any-arch",
+    "dep:arm-attr",
+    "dep:cpp_demangle",
+    "dep:unarm",
+]
+arm64 = [
+    "any-arch",
+    "dep:cpp_demangle",
+    "dep:yaxpeax-arch",
+    "dep:yaxpeax-arm",
+]
+wasm = [
+    "any-arch",
+    "bindings",
+    "dep:console_error_panic_hook",
+    "dep:console_log",
+    "dep:log",
+    "dep:tsify-next",
+    "dep:wasm-bindgen",
+]
 
 [package.metadata.docs.rs]
 features = ["all"]
@@ -104,5 +190,12 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 self_update = { version = "0.42", optional = true }
 
 [build-dependencies]
-prost-build = { version = "0.13", optional = true }
+heck = { version = "0.5", optional = true }
 pbjson-build = { version = "0.7", optional = true }
+prettyplease = { version = "0.2", optional = true }
+proc-macro2 = { version = "1.0", optional = true }
+prost-build = { version = "0.13", optional = true }
+quote = { version = "1.0", optional = true }
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_json = { version = "1.0", optional = true }
+syn = { version = "2.0", optional = true }

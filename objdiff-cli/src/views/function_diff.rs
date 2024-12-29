@@ -370,7 +370,8 @@ impl UiView for FunctionDiffUi {
                     }
                     // Toggle relax relocation diffs
                     KeyCode::Char('x') => {
-                        state.relax_reloc_diffs = !state.relax_reloc_diffs;
+                        state.diff_obj_config.relax_reloc_diffs =
+                            !state.diff_obj_config.relax_reloc_diffs;
                         result.redraw = true;
                         return EventControlFlow::Reload;
                     }

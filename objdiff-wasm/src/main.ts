@@ -111,12 +111,12 @@ async function defer<T>(message: AnyHandlerData, worker?: Worker): Promise<T> {
     return promise;
 }
 
-export async function runDiff(left: Uint8Array | undefined, right: Uint8Array | undefined, config?: DiffObjConfig): Promise<DiffResult> {
+export async function runDiff(left: Uint8Array | undefined, right: Uint8Array | undefined, diff_config?: DiffObjConfig): Promise<DiffResult> {
     const data = await defer<Uint8Array>({
         type: 'run_diff_proto',
         left,
         right,
-        config
+        diff_config
     });
     const parseStart = performance.now();
     const result = DiffResult.fromBinary(data, {readUnknownField: false});

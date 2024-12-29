@@ -18,187 +18,7 @@ pub mod code;
 pub mod data;
 pub mod display;
 
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Default,
-    Eq,
-    PartialEq,
-    serde::Deserialize,
-    serde::Serialize,
-    strum::VariantArray,
-    strum::EnumMessage,
-)]
-#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify))]
-pub enum X86Formatter {
-    #[default]
-    #[strum(message = "Intel (default)")]
-    Intel,
-    #[strum(message = "AT&T")]
-    Gas,
-    #[strum(message = "NASM")]
-    Nasm,
-    #[strum(message = "MASM")]
-    Masm,
-}
-
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Default,
-    Eq,
-    PartialEq,
-    serde::Deserialize,
-    serde::Serialize,
-    strum::VariantArray,
-    strum::EnumMessage,
-)]
-#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify))]
-pub enum MipsAbi {
-    #[default]
-    #[strum(message = "Auto (default)")]
-    Auto,
-    #[strum(message = "O32")]
-    O32,
-    #[strum(message = "N32")]
-    N32,
-    #[strum(message = "N64")]
-    N64,
-}
-
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Default,
-    Eq,
-    PartialEq,
-    serde::Deserialize,
-    serde::Serialize,
-    strum::VariantArray,
-    strum::EnumMessage,
-)]
-#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify))]
-pub enum MipsInstrCategory {
-    #[default]
-    #[strum(message = "Auto (default)")]
-    Auto,
-    #[strum(message = "CPU")]
-    Cpu,
-    #[strum(message = "RSP (N64)")]
-    Rsp,
-    #[strum(message = "R3000 GTE (PS1)")]
-    R3000Gte,
-    #[strum(message = "R4000 ALLEGREX (PSP)")]
-    R4000Allegrex,
-    #[strum(message = "R5900 EE (PS2)")]
-    R5900,
-}
-
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Default,
-    Eq,
-    PartialEq,
-    serde::Deserialize,
-    serde::Serialize,
-    strum::VariantArray,
-    strum::EnumMessage,
-)]
-#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify))]
-pub enum ArmArchVersion {
-    #[default]
-    #[strum(message = "Auto (default)")]
-    Auto,
-    #[strum(message = "ARMv4T (GBA)")]
-    V4T,
-    #[strum(message = "ARMv5TE (DS)")]
-    V5TE,
-    #[strum(message = "ARMv6K (3DS)")]
-    V6K,
-}
-
-#[derive(
-    Debug,
-    Copy,
-    Clone,
-    Default,
-    Eq,
-    PartialEq,
-    serde::Deserialize,
-    serde::Serialize,
-    strum::VariantArray,
-    strum::EnumMessage,
-)]
-#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify))]
-pub enum ArmR9Usage {
-    #[default]
-    #[strum(
-        message = "R9 or V6 (default)",
-        detailed_message = "Use R9 as a general-purpose register."
-    )]
-    GeneralPurpose,
-    #[strum(
-        message = "SB (static base)",
-        detailed_message = "Used for position-independent data (PID)."
-    )]
-    Sb,
-    #[strum(message = "TR (TLS register)", detailed_message = "Used for thread-local storage.")]
-    Tr,
-}
-
-#[inline]
-const fn default_true() -> bool { true }
-
-#[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
-#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify), tsify(from_wasm_abi))]
-#[serde(default)]
-pub struct DiffObjConfig {
-    pub relax_reloc_diffs: bool,
-    #[serde(default = "default_true")]
-    pub space_between_args: bool,
-    pub combine_data_sections: bool,
-    #[serde(default)]
-    pub symbol_mappings: MappingConfig,
-    // x86
-    pub x86_formatter: X86Formatter,
-    // MIPS
-    pub mips_abi: MipsAbi,
-    pub mips_instr_category: MipsInstrCategory,
-    // ARM
-    pub arm_arch_version: ArmArchVersion,
-    pub arm_unified_syntax: bool,
-    pub arm_av_registers: bool,
-    pub arm_r9_usage: ArmR9Usage,
-    pub arm_sl_usage: bool,
-    pub arm_fp_usage: bool,
-    pub arm_ip_usage: bool,
-}
-
-impl Default for DiffObjConfig {
-    fn default() -> Self {
-        Self {
-            relax_reloc_diffs: false,
-            space_between_args: true,
-            combine_data_sections: false,
-            symbol_mappings: Default::default(),
-            x86_formatter: Default::default(),
-            mips_abi: Default::default(),
-            mips_instr_category: Default::default(),
-            arm_arch_version: Default::default(),
-            arm_unified_syntax: true,
-            arm_av_registers: false,
-            arm_r9_usage: Default::default(),
-            arm_sl_usage: false,
-            arm_fp_usage: false,
-            arm_ip_usage: false,
-        }
-    }
-}
+include!(concat!(env!("OUT_DIR"), "/config.gen.rs"));
 
 impl DiffObjConfig {
     pub fn separator(&self) -> &'static str {
@@ -385,12 +205,13 @@ pub struct DiffObjsResult {
 }
 
 pub fn diff_objs(
-    config: &DiffObjConfig,
+    diff_config: &DiffObjConfig,
+    mapping_config: &MappingConfig,
     left: Option<&ObjInfo>,
     right: Option<&ObjInfo>,
     prev: Option<&ObjInfo>,
 ) -> Result<DiffObjsResult> {
-    let symbol_matches = matching_symbols(left, right, prev, &config.symbol_mappings)?;
+    let symbol_matches = matching_symbols(left, right, prev, mapping_config)?;
     let section_matches = matching_sections(left, right)?;
     let mut left = left.map(|p| (p, ObjDiff::new_from_obj(p)));
     let mut right = right.map(|p| (p, ObjDiff::new_from_obj(p)));
@@ -408,8 +229,10 @@ pub fn diff_objs(
                 let (right_obj, right_out) = right.as_mut().unwrap();
                 match section_kind {
                     ObjSectionKind::Code => {
-                        let left_code = process_code_symbol(left_obj, left_symbol_ref, config)?;
-                        let right_code = process_code_symbol(right_obj, right_symbol_ref, config)?;
+                        let left_code =
+                            process_code_symbol(left_obj, left_symbol_ref, diff_config)?;
+                        let right_code =
+                            process_code_symbol(right_obj, right_symbol_ref, diff_config)?;
                         let (left_diff, right_diff) = diff_code(
                             left_obj,
                             right_obj,
@@ -417,14 +240,15 @@ pub fn diff_objs(
                             &right_code,
                             left_symbol_ref,
                             right_symbol_ref,
-                            config,
+                            diff_config,
                         )?;
                         *left_out.symbol_diff_mut(left_symbol_ref) = left_diff;
                         *right_out.symbol_diff_mut(right_symbol_ref) = right_diff;
 
                         if let Some(prev_symbol_ref) = prev_symbol_ref {
                             let (prev_obj, prev_out) = prev.as_mut().unwrap();
-                            let prev_code = process_code_symbol(prev_obj, prev_symbol_ref, config)?;
+                            let prev_code =
+                                process_code_symbol(prev_obj, prev_symbol_ref, diff_config)?;
                             let (_, prev_diff) = diff_code(
                                 left_obj,
                                 right_obj,
@@ -432,7 +256,7 @@ pub fn diff_objs(
                                 &prev_code,
                                 right_symbol_ref,
                                 prev_symbol_ref,
-                                config,
+                                diff_config,
                             )?;
                             *prev_out.symbol_diff_mut(prev_symbol_ref) = prev_diff;
                         }
@@ -463,7 +287,7 @@ pub fn diff_objs(
                 let (left_obj, left_out) = left.as_mut().unwrap();
                 match section_kind {
                     ObjSectionKind::Code => {
-                        let code = process_code_symbol(left_obj, left_symbol_ref, config)?;
+                        let code = process_code_symbol(left_obj, left_symbol_ref, diff_config)?;
                         *left_out.symbol_diff_mut(left_symbol_ref) =
                             no_diff_code(&code, left_symbol_ref)?;
                     }
@@ -477,7 +301,7 @@ pub fn diff_objs(
                 let (right_obj, right_out) = right.as_mut().unwrap();
                 match section_kind {
                     ObjSectionKind::Code => {
-                        let code = process_code_symbol(right_obj, right_symbol_ref, config)?;
+                        let code = process_code_symbol(right_obj, right_symbol_ref, diff_config)?;
                         *right_out.symbol_diff_mut(right_symbol_ref) =
                             no_diff_code(&code, right_symbol_ref)?;
                     }
@@ -548,11 +372,11 @@ pub fn diff_objs(
     if let (Some((right_obj, right_out)), Some((left_obj, left_out))) =
         (right.as_mut(), left.as_mut())
     {
-        if let Some(right_name) = &config.symbol_mappings.selecting_left {
-            generate_mapping_symbols(right_obj, right_name, left_obj, left_out, config)?;
+        if let Some(right_name) = &mapping_config.selecting_left {
+            generate_mapping_symbols(right_obj, right_name, left_obj, left_out, diff_config)?;
         }
-        if let Some(left_name) = &config.symbol_mappings.selecting_right {
-            generate_mapping_symbols(left_obj, left_name, right_obj, right_out, config)?;
+        if let Some(left_name) = &mapping_config.selecting_right {
+            generate_mapping_symbols(left_obj, left_name, right_obj, right_out, diff_config)?;
         }
     }
 
@@ -635,8 +459,9 @@ struct SectionMatch {
     section_kind: ObjSectionKind,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
 #[cfg_attr(feature = "wasm", derive(tsify_next::Tsify), tsify(from_wasm_abi))]
+#[serde(default)]
 pub struct MappingConfig {
     /// Manual symbol mappings
     pub mappings: SymbolMappings,

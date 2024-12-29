@@ -99,8 +99,8 @@ impl ObjArch for ObjArchMips {
             MipsInstrCategory::Auto => self.instr_category,
             MipsInstrCategory::Cpu => InstrCategory::CPU,
             MipsInstrCategory::Rsp => InstrCategory::RSP,
-            MipsInstrCategory::R3000Gte => InstrCategory::R3000GTE,
-            MipsInstrCategory::R4000Allegrex => InstrCategory::R4000ALLEGREX,
+            MipsInstrCategory::R3000gte => InstrCategory::R3000GTE,
+            MipsInstrCategory::R4000allegrex => InstrCategory::R4000ALLEGREX,
             MipsInstrCategory::R5900 => InstrCategory::R5900,
         };
 

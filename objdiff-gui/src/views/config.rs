@@ -14,10 +14,12 @@ use egui::{
 use globset::Glob;
 use objdiff_core::{
     config::{ProjectObject, DEFAULT_WATCH_PATTERNS},
-    diff::{ArmArchVersion, ArmR9Usage, MipsAbi, MipsInstrCategory, X86Formatter},
+    diff::{
+        ConfigEnum, ConfigEnumVariantInfo, ConfigPropertyId, ConfigPropertyKind,
+        ConfigPropertyValue, CONFIG_GROUPS,
+    },
     jobs::{check_update::CheckUpdateResult, Job, JobQueue, JobResult},
 };
-use strum::{EnumMessage, VariantArray};
 
 use crate::{
     app::{AppConfig, AppState, AppStateRef, ObjectConfig},
@@ -874,121 +876,102 @@ pub fn arch_config_window(
     });
 }
 
+fn config_property_ui(
+    ui: &mut egui::Ui,
+    state: &mut AppState,
+    property_id: ConfigPropertyId,
+) -> bool {
+    let mut changed = false;
+    let current_value = state.config.diff_obj_config.get_property_value(property_id);
+    match (property_id.kind(), current_value) {
+        (ConfigPropertyKind::Boolean, ConfigPropertyValue::Boolean(mut checked)) => {
+            let mut response = ui.checkbox(&mut checked, property_id.name());
+            if let Some(description) = property_id.description() {
+                response = response.on_hover_text(description);
+            }
+            if response.changed() {
+                state
+                    .config
+                    .diff_obj_config
+                    .set_property_value(property_id, ConfigPropertyValue::Boolean(checked))
+                    .expect("Failed to set property value");
+                changed = true;
+            }
+        }
+        (ConfigPropertyKind::Choice(variants), ConfigPropertyValue::Choice(selected)) => {
+            fn variant_name(variant: &ConfigEnumVariantInfo) -> String {
+                if variant.is_default {
+                    format!("{} (default)", variant.name)
+                } else {
+                    variant.name.to_string()
+                }
+            }
+            let selected_variant = variants
+                .iter()
+                .find(|v| v.value == selected)
+                .or_else(|| variants.iter().find(|v| v.is_default))
+                .expect("Invalid choice variant");
+            let response = egui::ComboBox::new(property_id.name(), property_id.name())
+                .selected_text(variant_name(selected_variant))
+                .show_ui(ui, |ui| {
+                    for variant in variants {
+                        let mut response =
+                            ui.selectable_label(selected == variant.value, variant_name(variant));
+                        if let Some(description) = variant.description {
+                            response = response.on_hover_text(description);
+                        }
+                        if response.clicked() {
+                            state
+                                .config
+                                .diff_obj_config
+                                .set_property_value(
+                                    property_id,
+                                    ConfigPropertyValue::Choice(variant.value),
+                                )
+                                .expect("Failed to set property value");
+                            changed = true;
+                        }
+                    }
+                })
+                .response;
+            if let Some(description) = property_id.description() {
+                response.on_hover_text(description);
+            }
+        }
+        _ => panic!("Incompatible property kind and value"),
+    }
+    changed
+}
+
 fn arch_config_ui(ui: &mut egui::Ui, state: &mut AppState, _appearance: &Appearance) {
-    ui.heading("x86");
-    egui::ComboBox::new("x86_formatter", "Format")
-        .selected_text(state.config.diff_obj_config.x86_formatter.get_message().unwrap())
-        .show_ui(ui, |ui| {
-            for &formatter in X86Formatter::VARIANTS {
-                if ui
-                    .selectable_label(
-                        state.config.diff_obj_config.x86_formatter == formatter,
-                        formatter.get_message().unwrap(),
-                    )
-                    .clicked()
-                {
-                    state.config.diff_obj_config.x86_formatter = formatter;
-                    state.queue_reload = true;
-                }
-            }
-        });
-    ui.separator();
-    ui.heading("MIPS");
-    egui::ComboBox::new("mips_abi", "ABI")
-        .selected_text(state.config.diff_obj_config.mips_abi.get_message().unwrap())
-        .show_ui(ui, |ui| {
-            for &abi in MipsAbi::VARIANTS {
-                if ui
-                    .selectable_label(
-                        state.config.diff_obj_config.mips_abi == abi,
-                        abi.get_message().unwrap(),
-                    )
-                    .clicked()
-                {
-                    state.config.diff_obj_config.mips_abi = abi;
-                    state.queue_reload = true;
-                }
-            }
-        });
-    egui::ComboBox::new("mips_instr_category", "Instruction Category")
-        .selected_text(state.config.diff_obj_config.mips_instr_category.get_message().unwrap())
-        .show_ui(ui, |ui| {
-            for &category in MipsInstrCategory::VARIANTS {
-                if ui
-                    .selectable_label(
-                        state.config.diff_obj_config.mips_instr_category == category,
-                        category.get_message().unwrap(),
-                    )
-                    .clicked()
-                {
-                    state.config.diff_obj_config.mips_instr_category = category;
-                    state.queue_reload = true;
-                }
-            }
-        });
-    ui.separator();
-    ui.heading("ARM");
-    egui::ComboBox::new("arm_arch_version", "Architecture Version")
-        .selected_text(state.config.diff_obj_config.arm_arch_version.get_message().unwrap())
-        .show_ui(ui, |ui| {
-            for &version in ArmArchVersion::VARIANTS {
-                if ui
-                    .selectable_label(
-                        state.config.diff_obj_config.arm_arch_version == version,
-                        version.get_message().unwrap(),
-                    )
-                    .clicked()
-                {
-                    state.config.diff_obj_config.arm_arch_version = version;
-                    state.queue_reload = true;
-                }
-            }
-        });
-    let response = ui
-        .checkbox(&mut state.config.diff_obj_config.arm_unified_syntax, "Unified syntax")
-        .on_hover_text("Disassemble as unified assembly language (UAL).");
-    if response.changed() {
+    let mut first = true;
+    let mut changed = false;
+    for group in CONFIG_GROUPS {
+        if group.id == "general" {
+            continue;
+        }
+        if first {
+            first = false;
+        } else {
+            ui.separator();
+        }
+        ui.heading(group.name);
+        for property_id in group.properties.iter().cloned() {
+            changed |= config_property_ui(ui, state, property_id);
+        }
+    }
+    if changed {
         state.queue_reload = true;
     }
-    let response = ui
-        .checkbox(&mut state.config.diff_obj_config.arm_av_registers, "Use A/V registers")
-        .on_hover_text("Display R0-R3 as A1-A4 and R4-R11 as V1-V8");
-    if response.changed() {
-        state.queue_reload = true;
+}
+
+pub fn general_config_ui(ui: &mut egui::Ui, state: &mut AppState) {
+    let mut changed = false;
+    let group = CONFIG_GROUPS.iter().find(|group| group.id == "general").unwrap();
+    for property_id in group.properties.iter().cloned() {
+        changed |= config_property_ui(ui, state, property_id);
     }
-    egui::ComboBox::new("arm_r9_usage", "Display R9 as")
-        .selected_text(state.config.diff_obj_config.arm_r9_usage.get_message().unwrap())
-        .show_ui(ui, |ui| {
-            for &usage in ArmR9Usage::VARIANTS {
-                if ui
-                    .selectable_label(
-                        state.config.diff_obj_config.arm_r9_usage == usage,
-                        usage.get_message().unwrap(),
-                    )
-                    .on_hover_text(usage.get_detailed_message().unwrap())
-                    .clicked()
-                {
-                    state.config.diff_obj_config.arm_r9_usage = usage;
-                    state.queue_reload = true;
-                }
-            }
-        });
-    let response = ui
-        .checkbox(&mut state.config.diff_obj_config.arm_sl_usage, "Display R10 as SL")
-        .on_hover_text("Used for explicit stack limits.");
-    if response.changed() {
-        state.queue_reload = true;
-    }
-    let response = ui
-        .checkbox(&mut state.config.diff_obj_config.arm_fp_usage, "Display R11 as FP")
-        .on_hover_text("Used for frame pointers.");
-    if response.changed() {
-        state.queue_reload = true;
-    }
-    let response = ui
-        .checkbox(&mut state.config.diff_obj_config.arm_ip_usage, "Display R12 as IP")
-        .on_hover_text("Used for interworking and long branches.");
-    if response.changed() {
+    if changed {
         state.queue_reload = true;
     }
 }

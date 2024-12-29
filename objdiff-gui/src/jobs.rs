@@ -7,6 +7,7 @@ use anyhow::{bail, Result};
 use jobs::create_scratch;
 use objdiff_core::{
     build::BuildConfig,
+    diff::MappingConfig,
     jobs,
     jobs::{check_update::CheckUpdateConfig, objdiff, update::UpdateConfig, Job, JobQueue},
 };
@@ -106,15 +107,17 @@ pub fn create_objdiff_config(state: &AppState) -> objdiff::ObjDiffConfig {
             .and_then(|obj| obj.base_path.as_ref())
             .cloned(),
         diff_obj_config: state.config.diff_obj_config.clone(),
-        symbol_mappings: state
-            .config
-            .selected_obj
-            .as_ref()
-            .map(|obj| &obj.symbol_mappings)
-            .cloned()
-            .unwrap_or_default(),
-        selecting_left: state.selecting_left.clone(),
-        selecting_right: state.selecting_right.clone(),
+        mapping_config: MappingConfig {
+            mappings: state
+                .config
+                .selected_obj
+                .as_ref()
+                .map(|obj| &obj.symbol_mappings)
+                .cloned()
+                .unwrap_or_default(),
+            selecting_left: state.selecting_left.clone(),
+            selecting_right: state.selecting_right.clone(),
+        },
     }
 }
 

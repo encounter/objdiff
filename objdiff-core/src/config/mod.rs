@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     fs,
     fs::File,
     io::{BufReader, BufWriter, Read},
@@ -27,7 +28,7 @@ pub struct ProjectConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub build_target: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub watch_patterns: Option<Vec<Glob>>,
+    pub watch_patterns: Option<Vec<String>>,
     #[serde(default, alias = "objects", skip_serializing_if = "Option::is_none")]
     pub units: Option<Vec<ProjectObject>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -51,6 +52,17 @@ impl ProjectConfig {
     #[inline]
     pub fn progress_categories_mut(&mut self) -> &mut Vec<ProjectProgressCategory> {
         self.progress_categories.get_or_insert_with(Vec::new)
+    }
+
+    pub fn build_watch_patterns(&self) -> Result<Vec<Glob>, globset::Error> {
+        Ok(if let Some(watch_patterns) = &self.watch_patterns {
+            watch_patterns
+                .iter()
+                .map(|s| Glob::new(s))
+                .collect::<Result<Vec<Glob>, globset::Error>>()?
+        } else {
+            DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect()
+        })
     }
 }
 
@@ -79,12 +91,8 @@ pub struct ProjectObject {
     pub symbol_mappings: Option<SymbolMappings>,
 }
 
-#[cfg(feature = "wasm")]
-#[tsify_next::declare]
-pub type SymbolMappings = std::collections::BTreeMap<String, String>;
-
-#[cfg(not(feature = "wasm"))]
-pub type SymbolMappings = bimap::BiBTreeMap<String, String>;
+#[cfg_attr(feature = "wasm", tsify_next::declare)]
+pub type SymbolMappings = BTreeMap<String, String>;
 
 #[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "wasm", derive(tsify_next::Tsify), tsify(from_wasm_abi))]
