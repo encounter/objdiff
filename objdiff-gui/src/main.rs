@@ -18,7 +18,6 @@ use std::{
 
 use anyhow::{ensure, Result};
 use cfg_if::cfg_if;
-use eframe::egui_wgpu::{wgpu::Backends, WgpuConfiguration, WgpuSetup};
 use time::UtcOffset;
 use tracing_subscriber::EnvFilter;
 
@@ -89,6 +88,7 @@ fn main() -> ExitCode {
     }
     #[cfg(feature = "wgpu")]
     {
+        use eframe::egui_wgpu::{wgpu::Backends, WgpuSetup};
         if graphics_config.desired_backend.is_supported() {
             native_options.wgpu_options.wgpu_setup = match native_options.wgpu_options.wgpu_setup {
                 WgpuSetup::CreateNew {
@@ -127,6 +127,8 @@ fn main() -> ExitCode {
     }
     #[cfg(feature = "wgpu")]
     if let Some(e) = eframe_error {
+        use eframe::egui_wgpu::WgpuConfiguration;
+
         // Attempt to relaunch using wgpu auto backend if the desired backend failed
         #[allow(unused_mut)]
         let mut should_relaunch = graphics_config.desired_backend != GraphicsBackend::Auto;
