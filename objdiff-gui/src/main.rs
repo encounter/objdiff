@@ -88,14 +88,29 @@ fn main() -> ExitCode {
     }
     #[cfg(feature = "wgpu")]
     {
-        use eframe::egui_wgpu::wgpu::Backends;
+        use eframe::egui_wgpu::{wgpu::Backends, WgpuSetup};
         if graphics_config.desired_backend.is_supported() {
-            native_options.wgpu_options.supported_backends = match graphics_config.desired_backend {
-                GraphicsBackend::Auto => native_options.wgpu_options.supported_backends,
-                GraphicsBackend::Dx12 => Backends::DX12,
-                GraphicsBackend::Metal => Backends::METAL,
-                GraphicsBackend::Vulkan => Backends::VULKAN,
-                GraphicsBackend::OpenGL => Backends::GL,
+            native_options.wgpu_options.wgpu_setup = match native_options.wgpu_options.wgpu_setup {
+                WgpuSetup::CreateNew {
+                    supported_backends: backends,
+                    power_preference,
+                    device_descriptor,
+                } => {
+                    let backend = match graphics_config.desired_backend {
+                        GraphicsBackend::Auto => backends,
+                        GraphicsBackend::Dx12 => Backends::DX12,
+                        GraphicsBackend::Metal => Backends::METAL,
+                        GraphicsBackend::Vulkan => Backends::VULKAN,
+                        GraphicsBackend::OpenGL => Backends::GL,
+                    };
+                    WgpuSetup::CreateNew {
+                        supported_backends: backend,
+                        power_preference,
+                        device_descriptor,
+                    }
+                }
+                // WgpuConfiguration::Default is CreateNew until we call run_eframe()
+                _ => unreachable!(),
             };
         }
     }
@@ -112,6 +127,8 @@ fn main() -> ExitCode {
     }
     #[cfg(feature = "wgpu")]
     if let Some(e) = eframe_error {
+        use eframe::egui_wgpu::WgpuConfiguration;
+
         // Attempt to relaunch using wgpu auto backend if the desired backend failed
         #[allow(unused_mut)]
         let mut should_relaunch = graphics_config.desired_backend != GraphicsBackend::Auto;
@@ -123,7 +140,7 @@ fn main() -> ExitCode {
         if should_relaunch {
             log::warn!("Failed to launch application: {e:?}");
             log::warn!("Attempting to relaunch using auto-detected backend");
-            native_options.wgpu_options.supported_backends = Default::default();
+            native_options.wgpu_options.wgpu_setup = WgpuConfiguration::default().wgpu_setup;
             if let Err(e) = run_eframe(
                 native_options.clone(),
                 utc_offset,

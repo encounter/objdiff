@@ -96,7 +96,7 @@ pub fn load_font_if_needed(
     let default_font = family.handles.get(family.default_index).unwrap();
     let default_font_data = load_font(default_font).unwrap();
     log::info!("Loaded font family '{}'", family.family_name);
-    fonts.font_data.insert(default_font_ref.full_name(), default_font_data.font_data);
+    fonts.font_data.insert(default_font_ref.full_name(), Arc::new(default_font_data.font_data));
     fonts
         .families
         .entry(egui::FontFamily::Name(Arc::from(family.family_name)))
