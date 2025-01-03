@@ -10,7 +10,7 @@ use crate::{
         ObjSymbolDiff,
     },
     obj::{
-        ObjInfo, ObjInsArg, ObjReloc, ObjSection, ObjSymbol, ObjSymbolFlags, ObjSymbolKind,
+        ObjInfo, ObjIns, ObjInsArg, ObjReloc, ObjSection, ObjSymbol, ObjSymbolFlags, ObjSymbolKind,
         SymbolRef,
     },
 };
@@ -218,10 +218,13 @@ fn reloc_eq(
     config: &DiffObjConfig,
     left_obj: &ObjInfo,
     right_obj: &ObjInfo,
-    left_reloc: Option<&ObjReloc>,
-    right_reloc: Option<&ObjReloc>,
+    left_ins: Option<&ObjIns>,
+    right_ins: Option<&ObjIns>,
 ) -> bool {
-    let (Some(left), Some(right)) = (left_reloc, right_reloc) else {
+    let (Some(left_ins), Some(right_ins)) = (left_ins, right_ins) else {
+        return false;
+    };
+    let (Some(left), Some(right)) = (&left_ins.reloc, &right_ins.reloc) else {
         return false;
     };
     if left.flags != right.flags {
@@ -241,7 +244,8 @@ fn reloc_eq(
                     || config.relax_shifted_data_diffs)
                 && (left.target.kind != ObjSymbolKind::Object
                     || right.target.name.starts_with("...")
-                    || left.target.bytes == right.target.bytes)
+                    || left_obj.arch.display_ins_data(left_ins)
+                        == left_obj.arch.display_ins_data(right_ins))
         }
         (Some(_), None) => false,
         (None, Some(_)) => {
@@ -279,8 +283,8 @@ fn arg_eq(
                     config,
                     left_obj,
                     right_obj,
-                    left_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
-                    right_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
+                    left_diff.ins.as_ref(),
+                    right_diff.ins.as_ref(),
                 )
         }
         ObjInsArg::BranchDest(_) => match right {
