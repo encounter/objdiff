@@ -742,6 +742,18 @@ impl eframe::App for App {
                     }
                     if ui
                         .checkbox(
+                            &mut state.config.diff_obj_config.relax_shifted_data_diffs,
+                            "Relax shifted data diffs",
+                        )
+                        .on_hover_text(
+                            "Ignores differences in addresses for symbols with matching data.",
+                        )
+                        .changed()
+                    {
+                        state.queue_reload = true;
+                    }
+                    if ui
+                        .checkbox(
                             &mut state.config.diff_obj_config.space_between_args,
                             "Space between args",
                         )

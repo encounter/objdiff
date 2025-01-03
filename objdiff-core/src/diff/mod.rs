@@ -160,6 +160,7 @@ const fn default_true() -> bool { true }
 #[serde(default)]
 pub struct DiffObjConfig {
     pub relax_reloc_diffs: bool,
+    pub relax_shifted_data_diffs: bool,
     #[serde(default = "default_true")]
     pub space_between_args: bool,
     pub combine_data_sections: bool,
@@ -184,6 +185,7 @@ impl Default for DiffObjConfig {
     fn default() -> Self {
         Self {
             relax_reloc_diffs: false,
+            relax_shifted_data_diffs: false,
             space_between_args: true,
             combine_data_sections: false,
             symbol_mappings: Default::default(),
