@@ -143,6 +143,15 @@ impl ObjArch for ObjArchPpc {
                 }
             }
 
+            if reloc.is_none() {
+                if let Some(fake_pool_reloc) = fake_pool_reloc_for_addr.get(&cur_addr) {
+                    // If this instruction has a fake pool relocation, show it as a fake argument
+                    // at the end of the line.
+                    args.push(ObjInsArg::PlainText(" ".into()));
+                    push_reloc(&mut args, fake_pool_reloc)?;
+                }
+            }
+
             ops.push(ins.op as u16);
             let line = line_info.range(..=cur_addr as u64).last().map(|(_, &b)| b);
             insts.push(ObjIns {
@@ -247,6 +256,12 @@ fn push_reloc(args: &mut Vec<ObjInsArg>, reloc: &ObjReloc) -> Result<()> {
             }
             elf::R_PPC_ADDR32 | elf::R_PPC_UADDR32 | elf::R_PPC_REL24 | elf::R_PPC_REL14 => {
                 args.push(ObjInsArg::Reloc);
+            }
+            elf::R_PPC_NONE => {
+                // Fake pool relocation.
+                args.push(ObjInsArg::PlainText("<".into()));
+                args.push(ObjInsArg::Reloc);
+                args.push(ObjInsArg::PlainText(">".into()));
             }
             _ => bail!("Unsupported ELF PPC relocation type {r_type}"),
         },
