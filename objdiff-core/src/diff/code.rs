@@ -9,7 +9,10 @@ use crate::{
         DiffObjConfig, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo, ObjInsDiff, ObjInsDiffKind,
         ObjSymbolDiff,
     },
-    obj::{ObjInfo, ObjInsArg, ObjReloc, ObjSection, ObjSymbol, ObjSymbolFlags, SymbolRef},
+    obj::{
+        ObjInfo, ObjInsArg, ObjReloc, ObjSection, ObjSymbol, ObjSymbolFlags, ObjSymbolKind,
+        SymbolRef,
+    },
 };
 
 pub fn process_code_symbol(
@@ -234,6 +237,9 @@ fn reloc_eq(
             // Match if section and name or address match
             section_name_eq(left_obj, right_obj, *sl, *sr)
                 && (symbol_name_matches || address_eq(left, right))
+                && (left.target.kind != ObjSymbolKind::Object
+                    || right.target.name.starts_with("...")
+                    || left.target.bytes == right.target.bytes)
         }
         (Some(_), None) => false,
         (None, Some(_)) => {
