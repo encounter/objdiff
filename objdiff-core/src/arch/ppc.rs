@@ -476,26 +476,39 @@ fn get_offset_and_addr_gpr_for_possible_pool_reference(
 fn make_fake_pool_reloc(offset: i16, cur_addr: u32, pool_reloc: &ObjReloc) -> Option<ObjReloc> {
     let offset_from_pool = pool_reloc.addend + offset as i64;
     let target_address = pool_reloc.target.address.checked_add_signed(offset_from_pool)?;
-    let orig_section_index = pool_reloc.target.orig_section_index?;
-    // We also need to create a fake target symbol to go inside our fake relocation.
-    // This is because we don't have access to list of all symbols in this section, so we can't find
-    // the real symbol yet. Instead we make a placeholder that has the correct `orig_section_index`
-    // and `address` fields, and then later on when this information is displayed to the user, we
-    // can find the real symbol by searching through the object's section's symbols for one that
-    // contains this address.
-    let fake_target_symbol = ObjSymbol {
-        name: "".to_string(),
-        demangled_name: None,
-        address: target_address,
-        section_address: 0,
-        size: 0,
-        size_known: false,
-        kind: Default::default(),
-        flags: Default::default(),
-        orig_section_index: Some(orig_section_index),
-        virtual_address: None,
-        original_index: None,
-        bytes: vec![],
+    let target_symbol = if pool_reloc.target.orig_section_index.is_some() {
+        // If the target symbol is within this current object, then we also need to create a fake
+        // target symbol to go inside our fake relocation. This is because we don't have access to
+        // list of all symbols in this section, so we can't find the real symbol within the pool
+        // based on its address yet. Instead we make a placeholder that has the correct
+        // `orig_section_index` and `address` fields, and then later on when this information is
+        // displayed to the user, we can find the real symbol by searching through the object's
+        // section's symbols for one that contains this address.
+        ObjSymbol {
+            name: "".to_string(),
+            demangled_name: None,
+            address: target_address,
+            section_address: 0,
+            size: 0,
+            size_known: false,
+            kind: Default::default(),
+            flags: Default::default(),
+            orig_section_index: pool_reloc.target.orig_section_index,
+            virtual_address: None,
+            original_index: None,
+            bytes: vec![],
+        }
+    } else {
+        // But if the target symbol is in a different object (extern), then we simply copy the pool
+        // relocation's target. This is because it won't be possible to locate the actual symbol
+        // later on based only off of an offset without knowing the object or section it's in. And
+        // doing that for external symbols would also be unnecessary, because when the compiler
+        // generates an instruction that accesses an external "pool" plus some offset, that won't be
+        // a normal pool that contains other symbols within it that we want to display. It will be
+        // something like a vtable for a class with multiple inheritance (for example, dCcD_Cyl in
+        // The Wind Waker). So just showing that vtable symbol plus an addend to represent the
+        // offset into it works fine in this case, no fake symbol to hold an address is necessary.
+        pool_reloc.target.clone()
     };
     // The addend is also fake because we don't know yet if the `target_address` here is the exact
     // start of the symbol or if it's in the middle of it.
@@ -503,7 +516,7 @@ fn make_fake_pool_reloc(offset: i16, cur_addr: u32, pool_reloc: &ObjReloc) -> Op
     Some(ObjReloc {
         flags: RelocationFlags::Elf { r_type: elf::R_PPC_NONE },
         address: cur_addr as u64,
-        target: fake_target_symbol,
+        target: target_symbol,
         addend: fake_addend,
     })
 }
