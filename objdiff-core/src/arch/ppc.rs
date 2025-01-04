@@ -10,7 +10,7 @@ use object::{
     elf, File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, RelocationTarget,
     Symbol, SymbolKind,
 };
-use ppc750cl::{Argument, InsIter, Opcode, ParsedIns, GPR};
+use ppc750cl::{Argument, Arguments, Ins, InsIter, Opcode, ParsedIns, GPR};
 
 use crate::{
     arch::{DataType, ObjArch, ProcessCodeResult},
@@ -445,12 +445,25 @@ fn get_offset_and_addr_gpr_for_possible_pool_reference(
                 Argument::Simm(simm),
             ) => Some((simm.0, addr_src_gpr, Some(addr_dst_gpr))),
             (
+                // `mr` or `mr.`
                 Opcode::Or,
                 Argument::GPR(addr_dst_gpr),
                 Argument::GPR(addr_src_gpr),
                 Argument::None,
-            ) => Some((0, addr_src_gpr, Some(addr_dst_gpr))), // `mr` or `mr.`
+            ) => Some((0, addr_src_gpr, Some(addr_dst_gpr))),
             _ => None,
+        }
+    }
+}
+
+// Remove the relocation we're keeping track of in a particular register when an instruction reuses
+// that register to hold some other value, unrelated to pool relocation addresses.
+fn clear_overwritten_gprs(ins: Ins, active_pool_relocs: &mut HashMap<u8, ObjReloc>) {
+    let mut def_args = Arguments::default();
+    ins.parse_defs(&mut def_args);
+    for arg in def_args {
+        if let Argument::GPR(gpr) = arg {
+            active_pool_relocs.remove(&gpr.0);
         }
     }
 }
@@ -537,20 +550,22 @@ fn generate_fake_pool_reloc_for_addr_mapping(
             let args = &simplified.args;
             match (ins.op, args[0], args[1], args[2]) {
                 (
+                    // `lis` + `addi`
                     Opcode::Addi,
                     Argument::GPR(addr_dst_gpr),
                     Argument::GPR(_addr_src_gpr),
                     Argument::Simm(_simm),
                 ) => {
-                    active_pool_relocs.insert(addr_dst_gpr.0, reloc.clone()); // `lis` + `addi`
+                    active_pool_relocs.insert(addr_dst_gpr.0, reloc.clone());
                 }
                 (
+                    // `lis` + `ori`
                     Opcode::Ori,
                     Argument::GPR(addr_dst_gpr),
                     Argument::GPR(_addr_src_gpr),
                     Argument::Uimm(_uimm),
                 ) => {
-                    active_pool_relocs.insert(addr_dst_gpr.0, reloc.clone()); // `lis` + `ori`
+                    active_pool_relocs.insert(addr_dst_gpr.0, reloc.clone());
                 }
                 (Opcode::B, _, _, _) => {
                     if simplified.mnemonic == "bl" {
@@ -562,7 +577,9 @@ fn generate_fake_pool_reloc_for_addr_mapping(
                         }
                     }
                 }
-                _ => {}
+                _ => {
+                    clear_overwritten_gprs(ins, &mut active_pool_relocs);
+                }
             }
         } else if let Some((offset, addr_src_gpr, addr_dst_gpr)) =
             get_offset_and_addr_gpr_for_possible_pool_reference(ins.op, &simplified)
@@ -585,8 +602,14 @@ fn generate_fake_pool_reloc_for_addr_mapping(
                     let mut new_reloc = pool_reloc.clone();
                     new_reloc.addend += offset as i64;
                     active_pool_relocs.insert(addr_dst_gpr.0, new_reloc);
+                } else {
+                    clear_overwritten_gprs(ins, &mut active_pool_relocs);
                 }
+            } else {
+                clear_overwritten_gprs(ins, &mut active_pool_relocs);
             }
+        } else {
+            clear_overwritten_gprs(ins, &mut active_pool_relocs);
         }
     }
 
