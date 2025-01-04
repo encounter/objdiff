@@ -374,6 +374,12 @@ impl UiView for FunctionDiffUi {
                         result.redraw = true;
                         return EventControlFlow::Reload;
                     }
+                    // Toggle relax shifted data diffs
+                    KeyCode::Char('s') => {
+                        state.relax_shifted_data_diffs = !state.relax_shifted_data_diffs;
+                        result.redraw = true;
+                        return EventControlFlow::Reload;
+                    }
                     // Toggle three-way diff
                     KeyCode::Char('3') => {
                         self.three_way = !self.three_way;

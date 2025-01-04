@@ -156,6 +156,17 @@ pub trait ObjArch: Send + Sync {
         Some(format!("Bytes: {:#x?}", bytes))
     }
 
+    fn display_ins_data(&self, ins: &ObjIns) -> Option<String> {
+        let reloc = ins.reloc.as_ref()?;
+        if reloc.addend >= 0 && reloc.target.bytes.len() > reloc.addend as usize {
+            self.guess_data_type(ins).and_then(|ty| {
+                self.display_data_type(ty, &reloc.target.bytes[reloc.addend as usize..])
+            })
+        } else {
+            None
+        }
+    }
+
     // Downcast methods
     #[cfg(feature = "ppc")]
     fn ppc(&self) -> Option<&ppc::ObjArchPpc> { None }

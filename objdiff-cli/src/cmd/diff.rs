@@ -66,6 +66,9 @@ pub struct Args {
     #[argp(switch, short = 'x')]
     /// Relax relocation diffs
     relax_reloc_diffs: bool,
+    #[argp(switch, short = 's')]
+    /// Relax shifted data diffs
+    relax_shifted_data_diffs: bool,
     #[argp(option, short = 'o')]
     /// Output file (one-shot mode) ("-" for stdout)
     output: Option<PathBuf>,
@@ -202,6 +205,7 @@ fn run_oneshot(
     let output_format = OutputFormat::from_option(args.format.as_deref())?;
     let config = diff::DiffObjConfig {
         relax_reloc_diffs: args.relax_reloc_diffs,
+        relax_shifted_data_diffs: args.relax_shifted_data_diffs,
         ..Default::default() // TODO
     };
     let target = target_path
@@ -230,6 +234,7 @@ pub struct AppState {
     pub reload_time: Option<time::OffsetDateTime>,
     pub time_format: Vec<time::format_description::FormatItem<'static>>,
     pub relax_reloc_diffs: bool,
+    pub relax_shifted_data_diffs: bool,
     pub watcher: Option<Watcher>,
     pub modified: Arc<AtomicBool>,
 }
@@ -259,6 +264,7 @@ fn create_objdiff_config(state: &AppState) -> ObjDiffConfig {
         base_path: state.base_path.clone(),
         diff_obj_config: diff::DiffObjConfig {
             relax_reloc_diffs: state.relax_reloc_diffs,
+            relax_shifted_data_diffs: state.relax_shifted_data_diffs,
             ..Default::default() // TODO
         },
         symbol_mappings: Default::default(),
@@ -327,6 +333,7 @@ fn run_interactive(
         reload_time: None,
         time_format,
         relax_reloc_diffs: args.relax_reloc_diffs,
+        relax_shifted_data_diffs: args.relax_shifted_data_diffs,
         watcher: None,
         modified: Default::default(),
     };

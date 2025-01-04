@@ -9,7 +9,10 @@ use crate::{
         DiffObjConfig, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo, ObjInsDiff, ObjInsDiffKind,
         ObjSymbolDiff,
     },
-    obj::{ObjInfo, ObjInsArg, ObjReloc, ObjSection, ObjSymbol, ObjSymbolFlags, SymbolRef},
+    obj::{
+        ObjInfo, ObjIns, ObjInsArg, ObjReloc, ObjSection, ObjSymbol, ObjSymbolFlags, ObjSymbolKind,
+        SymbolRef,
+    },
 };
 
 pub fn process_code_symbol(
@@ -215,10 +218,13 @@ fn reloc_eq(
     config: &DiffObjConfig,
     left_obj: &ObjInfo,
     right_obj: &ObjInfo,
-    left_reloc: Option<&ObjReloc>,
-    right_reloc: Option<&ObjReloc>,
+    left_ins: Option<&ObjIns>,
+    right_ins: Option<&ObjIns>,
 ) -> bool {
-    let (Some(left), Some(right)) = (left_reloc, right_reloc) else {
+    let (Some(left_ins), Some(right_ins)) = (left_ins, right_ins) else {
+        return false;
+    };
+    let (Some(left), Some(right)) = (&left_ins.reloc, &right_ins.reloc) else {
         return false;
     };
     if left.flags != right.flags {
@@ -233,7 +239,12 @@ fn reloc_eq(
         (Some(sl), Some(sr)) => {
             // Match if section and name or address match
             section_name_eq(left_obj, right_obj, *sl, *sr)
-                && (symbol_name_matches || address_eq(left, right))
+                && (symbol_name_matches
+                    || address_eq(left, right)
+                    || config.relax_shifted_data_diffs)
+                && (left.target.kind != ObjSymbolKind::Object
+                    || left_obj.arch.display_ins_data(left_ins)
+                        == left_obj.arch.display_ins_data(right_ins))
         }
         (Some(_), None) => false,
         (None, Some(_)) => {
@@ -271,8 +282,8 @@ fn arg_eq(
                     config,
                     left_obj,
                     right_obj,
-                    left_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
-                    right_diff.ins.as_ref().and_then(|i| i.reloc.as_ref()),
+                    left_diff.ins.as_ref(),
+                    right_diff.ins.as_ref(),
                 )
         }
         ObjInsArg::BranchDest(_) => match right {

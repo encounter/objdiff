@@ -143,6 +143,15 @@ impl ObjArch for ObjArchPpc {
                 }
             }
 
+            if reloc.is_none() {
+                if let Some(fake_pool_reloc) = fake_pool_reloc_for_addr.get(&cur_addr) {
+                    // If this instruction has a fake pool relocation, show it as a fake argument
+                    // at the end of the line.
+                    args.push(ObjInsArg::PlainText(" ".into()));
+                    push_reloc(&mut args, fake_pool_reloc)?;
+                }
+            }
+
             ops.push(ins.op as u16);
             let line = line_info.range(..=cur_addr as u64).last().map(|(_, &b)| b);
             insts.push(ObjIns {
@@ -198,19 +207,7 @@ impl ObjArch for ObjArchPpc {
             return Some(DataType::String);
         }
 
-        let op = Opcode::from(instruction.op as u8);
-        if let Some(ty) = guess_data_type_from_load_store_inst_op(op) {
-            Some(ty)
-        } else if op == Opcode::Addi {
-            // Assume that any addi instruction that references a local symbol is loading a string.
-            // This hack is not ideal and results in tons of false positives where it will show
-            // garbage strings (e.g. misinterpreting arrays, float literals, etc).
-            // But not all strings are in the @stringBase pool, so the condition above that checks
-            // the target symbol name would miss some.
-            Some(DataType::String)
-        } else {
-            None
-        }
+        guess_data_type_from_load_store_inst_op(Opcode::from(instruction.op as u8))
     }
 
     fn display_data_type(&self, ty: DataType, bytes: &[u8]) -> Option<String> {
@@ -247,6 +244,12 @@ fn push_reloc(args: &mut Vec<ObjInsArg>, reloc: &ObjReloc) -> Result<()> {
             }
             elf::R_PPC_ADDR32 | elf::R_PPC_UADDR32 | elf::R_PPC_REL24 | elf::R_PPC_REL14 => {
                 args.push(ObjInsArg::Reloc);
+            }
+            elf::R_PPC_NONE => {
+                // Fake pool relocation.
+                args.push(ObjInsArg::PlainText("<".into()));
+                args.push(ObjInsArg::Reloc);
+                args.push(ObjInsArg::PlainText(">".into()));
             }
             _ => bail!("Unsupported ELF PPC relocation type {r_type}"),
         },
@@ -461,26 +464,39 @@ fn get_offset_and_addr_gpr_for_possible_pool_reference(
 fn make_fake_pool_reloc(offset: i16, cur_addr: u32, pool_reloc: &ObjReloc) -> Option<ObjReloc> {
     let offset_from_pool = pool_reloc.addend + offset as i64;
     let target_address = pool_reloc.target.address.checked_add_signed(offset_from_pool)?;
-    let orig_section_index = pool_reloc.target.orig_section_index?;
-    // We also need to create a fake target symbol to go inside our fake relocation.
-    // This is because we don't have access to list of all symbols in this section, so we can't find
-    // the real symbol yet. Instead we make a placeholder that has the correct `orig_section_index`
-    // and `address` fields, and then later on when this information is displayed to the user, we
-    // can find the real symbol by searching through the object's section's symbols for one that
-    // contains this address.
-    let fake_target_symbol = ObjSymbol {
-        name: "".to_string(),
-        demangled_name: None,
-        address: target_address,
-        section_address: 0,
-        size: 0,
-        size_known: false,
-        kind: Default::default(),
-        flags: Default::default(),
-        orig_section_index: Some(orig_section_index),
-        virtual_address: None,
-        original_index: None,
-        bytes: vec![],
+    let target_symbol = if pool_reloc.target.orig_section_index.is_some() {
+        // If the target symbol is within this current object, then we also need to create a fake
+        // target symbol to go inside our fake relocation. This is because we don't have access to
+        // list of all symbols in this section, so we can't find the real symbol within the pool
+        // based on its address yet. Instead we make a placeholder that has the correct
+        // `orig_section_index` and `address` fields, and then later on when this information is
+        // displayed to the user, we can find the real symbol by searching through the object's
+        // section's symbols for one that contains this address.
+        ObjSymbol {
+            name: "".to_string(),
+            demangled_name: None,
+            address: target_address,
+            section_address: 0,
+            size: 0,
+            size_known: false,
+            kind: Default::default(),
+            flags: Default::default(),
+            orig_section_index: pool_reloc.target.orig_section_index,
+            virtual_address: None,
+            original_index: None,
+            bytes: vec![],
+        }
+    } else {
+        // But if the target symbol is in a different object (extern), then we simply copy the pool
+        // relocation's target. This is because it won't be possible to locate the actual symbol
+        // later on based only off of an offset without knowing the object or section it's in. And
+        // doing that for external symbols would also be unnecessary, because when the compiler
+        // generates an instruction that accesses an external "pool" plus some offset, that won't be
+        // a normal pool that contains other symbols within it that we want to display. It will be
+        // something like a vtable for a class with multiple inheritance (for example, dCcD_Cyl in
+        // The Wind Waker). So just showing that vtable symbol plus an addend to represent the
+        // offset into it works fine in this case, no fake symbol to hold an address is necessary.
+        pool_reloc.target.clone()
     };
     // The addend is also fake because we don't know yet if the `target_address` here is the exact
     // start of the symbol or if it's in the middle of it.
@@ -488,7 +504,7 @@ fn make_fake_pool_reloc(offset: i16, cur_addr: u32, pool_reloc: &ObjReloc) -> Op
     Some(ObjReloc {
         flags: RelocationFlags::Elf { r_type: elf::R_PPC_NONE },
         address: cur_addr as u64,
-        target: fake_target_symbol,
+        target: target_symbol,
         addend: fake_addend,
     })
 }
