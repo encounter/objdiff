@@ -243,7 +243,6 @@ fn reloc_eq(
                     || address_eq(left, right)
                     || config.relax_shifted_data_diffs)
                 && (left.target.kind != ObjSymbolKind::Object
-                    || right.target.name.starts_with("...")
                     || left_obj.arch.display_ins_data(left_ins)
                         == left_obj.arch.display_ins_data(right_ins))
         }

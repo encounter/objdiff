@@ -210,13 +210,6 @@ impl ObjArch for ObjArchPpc {
         let op = Opcode::from(instruction.op as u8);
         if let Some(ty) = guess_data_type_from_load_store_inst_op(op) {
             Some(ty)
-        } else if op == Opcode::Addi {
-            // Assume that any addi instruction that references a local symbol is loading a string.
-            // This hack is not ideal and results in tons of false positives where it will show
-            // garbage strings (e.g. misinterpreting arrays, float literals, etc).
-            // But not all strings are in the @stringBase pool, so the condition above that checks
-            // the target symbol name would miss some.
-            Some(DataType::String)
         } else {
             None
         }
