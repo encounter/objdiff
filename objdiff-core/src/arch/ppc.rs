@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, HashMap, HashSet},
 };
 
 use anyhow::{bail, ensure, Result};
@@ -458,12 +458,12 @@ fn get_offset_and_addr_gpr_for_possible_pool_reference(
 
 // Remove the relocation we're keeping track of in a particular register when an instruction reuses
 // that register to hold some other value, unrelated to pool relocation addresses.
-fn clear_overwritten_gprs(ins: Ins, active_pool_relocs: &mut HashMap<u8, ObjReloc>) {
+fn clear_overwritten_gprs(ins: Ins, gpr_pool_relocs: &mut HashMap<u8, ObjReloc>) {
     let mut def_args = Arguments::default();
     ins.parse_defs(&mut def_args);
     for arg in def_args {
         if let Argument::GPR(gpr) = arg {
-            active_pool_relocs.remove(&gpr.0);
+            gpr_pool_relocs.remove(&gpr.0);
         }
     }
 }
@@ -526,90 +526,146 @@ fn make_fake_pool_reloc(offset: i16, cur_addr: u32, pool_reloc: &ObjReloc) -> Op
 // of pooled data relocations in them, finding which instructions load data from those addresses,
 // and constructing a mapping of the address of that instruction to a "fake pool relocation" that
 // simulates what that instruction's relocation would look like if data hadn't been pooled.
-// Limitations: This method currently only goes through the instructions in a function in linear
-// order, from start to finish. It does *not* follow any branches. This means that it could have
-// false positives or false negatives in determining which relocation is currently loaded in which
-// register at any given point in the function, as control flow is not respected.
-// There are currently no known examples of this method producing inaccurate results in reality, but
-// if examples are found, it may be possible to update this method to also follow all branches so
-// that it produces more accurate results.
+// This method tries to follow the function's proper control flow. It keeps track of a queue of
+// states it hasn't traversed yet, where each state holds an instruction address and a HashMap of
+// which registers hold which pool relocations at that point.
+// When a conditional or unconditional branch is encountered, the destination of the branch is added
+// to the queue. Conditional branches will traverse both the path where the branch is taken and the
+// one where it's not. Unconditional branches only follow the branch, ignoring any code immediately
+// after the branch instruction.
+// Limitations: This method cannot follow jump tables. This is because the jump table is located in
+// the .data section, but ObjArch.process_code only has access to the .text section. This means that
+// it will miss most of the cases in a switch statement that uses a jump table.
 fn generate_fake_pool_reloc_for_addr_mapping(
-    address: u64,
+    func_address: u64,
     code: &[u8],
     relocations: &[ObjReloc],
 ) -> HashMap<u32, ObjReloc> {
-    let mut active_pool_relocs = HashMap::new();
+    let mut visited_ins_addrs = HashSet::new();
     let mut pool_reloc_for_addr = HashMap::new();
-    for (cur_addr, ins) in InsIter::new(code, address as u32) {
-        let simplified = ins.simplified();
-        let reloc = relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
+    let mut ins_iters_with_gpr_state =
+        vec![(InsIter::new(code, func_address as u32), HashMap::new())];
+    while let Some((ins_iter, mut gpr_pool_relocs)) = ins_iters_with_gpr_state.pop() {
+        for (cur_addr, ins) in ins_iter {
+            if visited_ins_addrs.contains(&cur_addr) {
+                // Avoid getting stuck in an infinite loop when following looping branches.
+                break;
+            }
+            visited_ins_addrs.insert(cur_addr);
 
-        if let Some(reloc) = reloc {
-            // This instruction has a real relocation, so it may be a pool load we want to keep
-            // track of.
-            let args = &simplified.args;
-            match (ins.op, args[0], args[1], args[2]) {
-                (
-                    // `lis` + `addi`
-                    Opcode::Addi,
-                    Argument::GPR(addr_dst_gpr),
-                    Argument::GPR(_addr_src_gpr),
-                    Argument::Simm(_simm),
-                ) => {
-                    active_pool_relocs.insert(addr_dst_gpr.0, reloc.clone());
+            let simplified = ins.simplified();
+            let reloc = relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
+
+            let mut branch_dest = None;
+            for arg in simplified.args_iter() {
+                if let Argument::BranchDest(dest) = arg {
+                    let dest = cur_addr.wrapping_add_signed(dest.0);
+                    branch_dest = Some(dest);
+                    break;
                 }
-                (
-                    // `lis` + `ori`
-                    Opcode::Ori,
-                    Argument::GPR(addr_dst_gpr),
-                    Argument::GPR(_addr_src_gpr),
-                    Argument::Uimm(_uimm),
-                ) => {
-                    active_pool_relocs.insert(addr_dst_gpr.0, reloc.clone());
-                }
-                (Opcode::B, _, _, _) => {
-                    if simplified.mnemonic == "bl" {
-                        // When encountering a function call, clear any active pool relocations from
-                        // the volatile registers (r0, r3-r12), but not the nonvolatile registers.
-                        active_pool_relocs.remove(&0);
-                        for gpr in 3..12 {
-                            active_pool_relocs.remove(&gpr);
+            }
+            if let Some(branch_dest) = branch_dest {
+                if branch_dest >= func_address as u32
+                    && (branch_dest - func_address as u32) < code.len() as u32
+                {
+                    let dest_offset_into_func = branch_dest - func_address as u32;
+                    let dest_code_slice = &code[dest_offset_into_func as usize..];
+                    match ins.op {
+                        Opcode::Bc => {
+                            // Conditional branch.
+                            // Add the branch destination to the queue to do later.
+                            ins_iters_with_gpr_state.push((
+                                InsIter::new(dest_code_slice, branch_dest),
+                                gpr_pool_relocs.clone(),
+                            ));
+                            // Then continue on with the current iterator.
                         }
+                        Opcode::B => {
+                            if simplified.mnemonic != "bl" {
+                                // Unconditional branch.
+                                // Add the branch destination to the queue.
+                                ins_iters_with_gpr_state.push((
+                                    InsIter::new(dest_code_slice, branch_dest),
+                                    gpr_pool_relocs.clone(),
+                                ));
+                                // Break out of the current iterator so we can do the newly added one.
+                                break;
+                            }
+                        }
+                        _ => unreachable!(),
                     }
                 }
-                _ => {
-                    clear_overwritten_gprs(ins, &mut active_pool_relocs);
-                }
             }
-        } else if let Some((offset, addr_src_gpr, addr_dst_gpr)) =
-            get_offset_and_addr_gpr_for_possible_pool_reference(ins.op, &simplified)
-        {
-            // This instruction doesn't have a real relocation, so it may be a reference to one of
-            // the already-loaded pools.
-            if let Some(pool_reloc) = active_pool_relocs.get(&addr_src_gpr.0) {
-                if let Some(fake_pool_reloc) = make_fake_pool_reloc(offset, cur_addr, pool_reloc) {
-                    pool_reloc_for_addr.insert(cur_addr, fake_pool_reloc);
+
+            if let Some(reloc) = reloc {
+                // This instruction has a real relocation, so it may be a pool load we want to keep
+                // track of.
+                let args = &simplified.args;
+                match (ins.op, args[0], args[1], args[2]) {
+                    (
+                        // `lis` + `addi`
+                        Opcode::Addi,
+                        Argument::GPR(addr_dst_gpr),
+                        Argument::GPR(_addr_src_gpr),
+                        Argument::Simm(_simm),
+                    ) => {
+                        gpr_pool_relocs.insert(addr_dst_gpr.0, reloc.clone());
+                    }
+                    (
+                        // `lis` + `ori`
+                        Opcode::Ori,
+                        Argument::GPR(addr_dst_gpr),
+                        Argument::GPR(_addr_src_gpr),
+                        Argument::Uimm(_uimm),
+                    ) => {
+                        gpr_pool_relocs.insert(addr_dst_gpr.0, reloc.clone());
+                    }
+                    (Opcode::B, _, _, _) => {
+                        if simplified.mnemonic == "bl" {
+                            // When encountering a function call, clear any active pool relocations from
+                            // the volatile registers (r0, r3-r12), but not the nonvolatile registers.
+                            gpr_pool_relocs.remove(&0);
+                            for gpr in 3..12 {
+                                gpr_pool_relocs.remove(&gpr);
+                            }
+                        }
+                    }
+                    _ => {
+                        clear_overwritten_gprs(ins, &mut gpr_pool_relocs);
+                    }
                 }
-                if let Some(addr_dst_gpr) = addr_dst_gpr {
-                    // If the address of the pool relocation got copied into another register, we
-                    // need to keep track of it in that register too as future instructions may
-                    // reference the symbol indirectly via this new register, instead of the
-                    // register the symbol's address was originally loaded into.
-                    // For example, the start of the function might `lis` + `addi` the start of the
-                    // ...data pool into r25, and then later the start of a loop will `addi` r25
-                    // with the offset within the .data section of an array variable into r21.
-                    // Then the body of the loop will `lwzx` one of the array elements from r21.
-                    let mut new_reloc = pool_reloc.clone();
-                    new_reloc.addend += offset as i64;
-                    active_pool_relocs.insert(addr_dst_gpr.0, new_reloc);
+            } else if let Some((offset, addr_src_gpr, addr_dst_gpr)) =
+                get_offset_and_addr_gpr_for_possible_pool_reference(ins.op, &simplified)
+            {
+                // This instruction doesn't have a real relocation, so it may be a reference to one of
+                // the already-loaded pools.
+                if let Some(pool_reloc) = gpr_pool_relocs.get(&addr_src_gpr.0) {
+                    if let Some(fake_pool_reloc) =
+                        make_fake_pool_reloc(offset, cur_addr, pool_reloc)
+                    {
+                        pool_reloc_for_addr.insert(cur_addr, fake_pool_reloc);
+                    }
+                    if let Some(addr_dst_gpr) = addr_dst_gpr {
+                        // If the address of the pool relocation got copied into another register, we
+                        // need to keep track of it in that register too as future instructions may
+                        // reference the symbol indirectly via this new register, instead of the
+                        // register the symbol's address was originally loaded into.
+                        // For example, the start of the function might `lis` + `addi` the start of the
+                        // ...data pool into r25, and then later the start of a loop will `addi` r25
+                        // with the offset within the .data section of an array variable into r21.
+                        // Then the body of the loop will `lwzx` one of the array elements from r21.
+                        let mut new_reloc = pool_reloc.clone();
+                        new_reloc.addend += offset as i64;
+                        gpr_pool_relocs.insert(addr_dst_gpr.0, new_reloc);
+                    } else {
+                        clear_overwritten_gprs(ins, &mut gpr_pool_relocs);
+                    }
                 } else {
-                    clear_overwritten_gprs(ins, &mut active_pool_relocs);
+                    clear_overwritten_gprs(ins, &mut gpr_pool_relocs);
                 }
             } else {
-                clear_overwritten_gprs(ins, &mut active_pool_relocs);
+                clear_overwritten_gprs(ins, &mut gpr_pool_relocs);
             }
-        } else {
-            clear_overwritten_gprs(ins, &mut active_pool_relocs);
         }
     }
 
