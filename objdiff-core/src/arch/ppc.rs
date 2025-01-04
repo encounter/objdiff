@@ -207,12 +207,7 @@ impl ObjArch for ObjArchPpc {
             return Some(DataType::String);
         }
 
-        let op = Opcode::from(instruction.op as u8);
-        if let Some(ty) = guess_data_type_from_load_store_inst_op(op) {
-            Some(ty)
-        } else {
-            None
-        }
+        guess_data_type_from_load_store_inst_op(Opcode::from(instruction.op as u8))
     }
 
     fn display_data_type(&self, ty: DataType, bytes: &[u8]) -> Option<String> {
