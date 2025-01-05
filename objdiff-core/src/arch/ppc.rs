@@ -601,15 +601,12 @@ fn generate_fake_pool_reloc_for_addr_mapping(
                     }
                 }
             }
-            match ins.op {
-                Opcode::Bcctr => {
-                    if simplified.mnemonic == "bctr" {
-                        // Unconditional branch to count register.
-                        // Likely a jump table.
-                        gpr_state_at_bctr.insert(cur_addr, gpr_pool_relocs.clone());
-                    }
+            if let Opcode::Bcctr = ins.op {
+                if simplified.mnemonic == "bctr" {
+                    // Unconditional branch to count register.
+                    // Likely a jump table.
+                    gpr_state_at_bctr.insert(cur_addr, gpr_pool_relocs.clone());
                 }
-                _ => {}
             }
 
             // Then handle keeping track of which GPR contains which pool relocation.
@@ -692,13 +689,13 @@ fn generate_fake_pool_reloc_for_addr_mapping(
         if ins_iters_with_gpr_state.is_empty() {
             let unseen_addrs = (func_address as u32..func_address as u32 + code.len() as u32)
                 .step_by(4)
-                .filter(|addr| !visited_ins_addrs.contains(&addr));
+                .filter(|addr| !visited_ins_addrs.contains(addr));
             for unseen_addr in unseen_addrs {
                 let prev_bctr_gpr_state = gpr_state_at_bctr
                     .iter()
                     .filter(|(&addr, _)| addr < unseen_addr)
                     .min_by_key(|(&addr, _)| addr)
-                    .and_then(|(_, gpr_state)| Some(gpr_state));
+                    .map(|(_, gpr_state)| gpr_state);
                 if let Some(gpr_pool_relocs) = prev_bctr_gpr_state {
                     let dest_offset_into_func = unseen_addr - func_address as u32;
                     let dest_code_slice = &code[dest_offset_into_func as usize..];
