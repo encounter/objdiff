@@ -533,9 +533,13 @@ fn make_fake_pool_reloc(offset: i16, cur_addr: u32, pool_reloc: &ObjReloc) -> Op
 // to the queue. Conditional branches will traverse both the path where the branch is taken and the
 // one where it's not. Unconditional branches only follow the branch, ignoring any code immediately
 // after the branch instruction.
-// Limitations: This method cannot follow jump tables. This is because the jump table is located in
-// the .data section, but ObjArch.process_code only has access to the .text section. This means that
-// it will miss most of the cases in a switch statement that uses a jump table.
+// Limitations: This method cannot read jump tables. This is because the jump tables are located in
+// the .data section, but ObjArch.process_code only has access to the .text section. In order to
+// work around this limitation and avoid completely missing most code inside switch statements that
+// use jump tables, we instead guess that any parts of a function we missed were switch cases, and
+// traverse them as if the last `bctr` before that address had branched there. This should be fairly
+// accurate in practice - in testing the only instructions it seems to miss are double branches that
+// the compiler generates in error which can never be reached during normal execution anyway.
 fn generate_fake_pool_reloc_for_addr_mapping(
     func_address: u64,
     code: &[u8],
@@ -545,6 +549,7 @@ fn generate_fake_pool_reloc_for_addr_mapping(
     let mut pool_reloc_for_addr = HashMap::new();
     let mut ins_iters_with_gpr_state =
         vec![(InsIter::new(code, func_address as u32), HashMap::new())];
+    let mut gpr_state_at_bctr = BTreeMap::new();
     while let Some((ins_iter, mut gpr_pool_relocs)) = ins_iters_with_gpr_state.pop() {
         for (cur_addr, ins) in ins_iter {
             if visited_ins_addrs.contains(&cur_addr) {
@@ -554,8 +559,8 @@ fn generate_fake_pool_reloc_for_addr_mapping(
             visited_ins_addrs.insert(cur_addr);
 
             let simplified = ins.simplified();
-            let reloc = relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
 
+            // First handle traversing the function's control flow.
             let mut branch_dest = None;
             for arg in simplified.args_iter() {
                 if let Argument::BranchDest(dest) = arg {
@@ -596,7 +601,19 @@ fn generate_fake_pool_reloc_for_addr_mapping(
                     }
                 }
             }
+            match ins.op {
+                Opcode::Bcctr => {
+                    if simplified.mnemonic == "bctr" {
+                        // Unconditional branch to count register.
+                        // Likely a jump table.
+                        gpr_state_at_bctr.insert(cur_addr, gpr_pool_relocs.clone());
+                    }
+                }
+                _ => {}
+            }
 
+            // Then handle keeping track of which GPR contains which pool relocation.
+            let reloc = relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
             if let Some(reloc) = reloc {
                 // This instruction has a real relocation, so it may be a pool load we want to keep
                 // track of.
@@ -665,6 +682,32 @@ fn generate_fake_pool_reloc_for_addr_mapping(
                 }
             } else {
                 clear_overwritten_gprs(ins, &mut gpr_pool_relocs);
+            }
+        }
+
+        // Finally, if we're about to finish the outer loop and don't have any more control flow to
+        // follow, we check if there are any instruction addresses in this function that we missed.
+        // If so, and if there were any `bctr` instructions before those points in this function,
+        // then we try to traverse those missing spots as switch cases.
+        if ins_iters_with_gpr_state.is_empty() {
+            let unseen_addrs = (func_address as u32..func_address as u32 + code.len() as u32)
+                .step_by(4)
+                .filter(|addr| !visited_ins_addrs.contains(&addr));
+            for unseen_addr in unseen_addrs {
+                let prev_bctr_gpr_state = gpr_state_at_bctr
+                    .iter()
+                    .filter(|(&addr, _)| addr < unseen_addr)
+                    .min_by_key(|(&addr, _)| addr)
+                    .and_then(|(_, gpr_state)| Some(gpr_state));
+                if let Some(gpr_pool_relocs) = prev_bctr_gpr_state {
+                    let dest_offset_into_func = unseen_addr - func_address as u32;
+                    let dest_code_slice = &code[dest_offset_into_func as usize..];
+                    ins_iters_with_gpr_state.push((
+                        InsIter::new(dest_code_slice, unseen_addr),
+                        gpr_pool_relocs.clone(),
+                    ));
+                    break;
+                }
             }
         }
     }
