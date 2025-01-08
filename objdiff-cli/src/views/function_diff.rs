@@ -3,7 +3,7 @@ use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, 
 use objdiff_core::{
     diff::{
         display::{display_diff, DiffText, HighlightKind},
-        ObjDiff, ObjInsDiffKind, ObjSymbolDiff,
+        FunctionDataDiffs, ObjDiff, ObjInsDiffKind, ObjSymbolDiff,
     },
     obj::{ObjInfo, ObjSectionKind, ObjSymbol, SymbolRef},
 };
@@ -375,10 +375,14 @@ impl UiView for FunctionDiffUi {
                         result.redraw = true;
                         return EventControlFlow::Reload;
                     }
-                    // Toggle relax shifted data diffs
+                    // Cycle through function data diff mode
                     KeyCode::Char('s') => {
-                        state.diff_obj_config.relax_shifted_data_diffs =
-                            !state.diff_obj_config.relax_shifted_data_diffs;
+                        state.diff_obj_config.function_data_diffs =
+                            match state.diff_obj_config.function_data_diffs {
+                                FunctionDataDiffs::AddressOnly => FunctionDataDiffs::ValueOnly,
+                                FunctionDataDiffs::ValueOnly => FunctionDataDiffs::All,
+                                FunctionDataDiffs::All => FunctionDataDiffs::AddressOnly,
+                            };
                         result.redraw = true;
                         return EventControlFlow::Reload;
                     }

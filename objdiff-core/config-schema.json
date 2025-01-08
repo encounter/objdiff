@@ -8,11 +8,25 @@
       "description": "Ignores differences in relocation targets. (Address, name, etc)"
     },
     {
-      "id": "relaxShiftedDataDiffs",
-      "type": "boolean",
-      "default": false,
-      "name": "Relax shifted data diffs",
-      "description": "Ignores differences in addresses for symbols with matching data."
+      "id": "functionDataDiffs",
+      "type": "choice",
+      "default": "address_only",
+      "name": "Function data diffs",
+      "description": "How data relocations will be diffed in the function view.",
+      "items": [
+        {
+          "value": "address_only",
+          "name": "Address only"
+        },
+        {
+          "value": "value_only",
+          "name": "Value only"
+        },
+        {
+          "value": "all",
+          "name": "Value and address"
+        }
+      ]
     },
     {
       "id": "spaceBetweenArgs",
@@ -201,7 +215,7 @@
       "name": "General",
       "properties": [
         "relaxRelocDiffs",
-        "relaxShiftedDataDiffs",
+        "functionDataDiffs",
         "spaceBetweenArgs",
         "combineDataSections"
       ]

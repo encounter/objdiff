@@ -3,6 +3,7 @@ use std::{cmp::max, collections::BTreeMap};
 use anyhow::{anyhow, Result};
 use similar::{capture_diff_slices_deadline, Algorithm};
 
+use super::FunctionDataDiffs;
 use crate::{
     arch::ProcessCodeResult,
     diff::{
@@ -241,8 +242,9 @@ fn reloc_eq(
             section_name_eq(left_obj, right_obj, *sl, *sr)
                 && (symbol_name_matches
                     || address_eq(left, right)
-                    || config.relax_shifted_data_diffs)
-                && (left.target.kind != ObjSymbolKind::Object
+                    || config.function_data_diffs == FunctionDataDiffs::ValueOnly)
+                && (config.function_data_diffs == FunctionDataDiffs::AddressOnly
+                    || left.target.kind != ObjSymbolKind::Object
                     || left_obj.arch.display_ins_data(left_ins)
                         == left_obj.arch.display_ins_data(right_ins))
         }
