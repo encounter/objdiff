@@ -5,7 +5,6 @@ use time::OffsetDateTime;
 
 use crate::{
     build::{run_make, BuildConfig, BuildStatus},
-    config::SymbolMappings,
     diff::{diff_objs, DiffObjConfig, MappingConfig, ObjDiff},
     jobs::{start_job, update_status, Job, JobContext, JobResult, JobState},
     obj::{read, ObjInfo},
@@ -18,9 +17,7 @@ pub struct ObjDiffConfig {
     pub target_path: Option<PathBuf>,
     pub base_path: Option<PathBuf>,
     pub diff_obj_config: DiffObjConfig,
-    pub symbol_mappings: SymbolMappings,
-    pub selecting_left: Option<String>,
-    pub selecting_right: Option<String>,
+    pub mapping_config: MappingConfig,
 }
 
 pub struct ObjDiffResult {
@@ -34,15 +31,8 @@ pub struct ObjDiffResult {
 fn run_build(
     context: &JobContext,
     cancel: Receiver<()>,
-    mut config: ObjDiffConfig,
+    config: ObjDiffConfig,
 ) -> Result<Box<ObjDiffResult>> {
-    // Use the per-object symbol mappings, we don't set mappings globally
-    config.diff_obj_config.symbol_mappings = MappingConfig {
-        mappings: config.symbol_mappings,
-        selecting_left: config.selecting_left,
-        selecting_right: config.selecting_right,
-    };
-
     let mut target_path_rel = None;
     let mut base_path_rel = None;
     if config.build_target || config.build_base {
@@ -180,7 +170,13 @@ fn run_build(
 
     update_status(context, "Performing diff".to_string(), step_idx, total, &cancel)?;
     step_idx += 1;
-    let result = diff_objs(&config.diff_obj_config, first_obj.as_ref(), second_obj.as_ref(), None)?;
+    let result = diff_objs(
+        &config.diff_obj_config,
+        &config.mapping_config,
+        first_obj.as_ref(),
+        second_obj.as_ref(),
+        None,
+    )?;
 
     update_status(context, "Complete".to_string(), step_idx, total, &cancel)?;
     Ok(Box::new(ObjDiffResult {

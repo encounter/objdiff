@@ -270,7 +270,7 @@ fn arg_eq(
             _ => false,
         },
         ObjInsArg::Arg(l) => match right {
-            ObjInsArg::Arg(r) => l == r,
+            ObjInsArg::Arg(r) => l.loose_eq(r),
             // If relocations are relaxed, match if left is a constant and right is a reloc
             // Useful for instances where the target object is created without relocations
             ObjInsArg::Reloc => config.relax_reloc_diffs,

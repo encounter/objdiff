@@ -1,6 +1,11 @@
+#[cfg(feature = "any-arch")]
+mod config_gen;
+
 fn main() {
     #[cfg(feature = "bindings")]
     compile_protos();
+    #[cfg(feature = "any-arch")]
+    config_gen::generate_diff_config();
 }
 
 #[cfg(feature = "bindings")]

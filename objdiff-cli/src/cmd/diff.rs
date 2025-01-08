@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use argp::FromArgs;
 use crossterm::{
     event,
@@ -27,9 +27,11 @@ use objdiff_core::{
         watcher::{create_watcher, Watcher},
         BuildConfig,
     },
-    config::{build_globset, default_watch_patterns, ProjectConfig, ProjectObject},
+    config::{build_globset, ProjectConfig, ProjectObject},
     diff,
-    diff::ObjDiff,
+    diff::{
+        ConfigEnum, ConfigPropertyId, ConfigPropertyKind, DiffObjConfig, MappingConfig, ObjDiff,
+    },
     jobs::{
         objdiff::{start_build, ObjDiffConfig},
         Job, JobQueue, JobResult,
@@ -63,12 +65,6 @@ pub struct Args {
     #[argp(option, short = 'u')]
     /// Unit name within project
     unit: Option<String>,
-    #[argp(switch, short = 'x')]
-    /// Relax relocation diffs
-    relax_reloc_diffs: bool,
-    #[argp(switch, short = 's')]
-    /// Relax shifted data diffs
-    relax_shifted_data_diffs: bool,
     #[argp(option, short = 'o')]
     /// Output file (one-shot mode) ("-" for stdout)
     output: Option<PathBuf>,
@@ -78,6 +74,18 @@ pub struct Args {
     #[argp(positional)]
     /// Function symbol to diff
     symbol: Option<String>,
+    #[argp(option, short = 'c')]
+    /// Configuration property (key=value)
+    config: Vec<String>,
+    #[argp(option, short = 'm')]
+    /// Symbol mapping (target=base)
+    mapping: Vec<String>,
+    #[argp(option)]
+    /// Left symbol name for selection
+    selecting_left: Option<String>,
+    #[argp(option)]
+    /// Right symbol name for selection
+    selecting_right: Option<String>,
 }
 
 pub fn run(args: Args) -> Result<()> {
@@ -87,7 +95,9 @@ pub fn run(args: Args) -> Result<()> {
         &args.project,
         &args.unit,
     ) {
-        (Some(t), Some(b), None, None) => (Some(t.clone()), Some(b.clone()), None),
+        (Some(_), Some(_), None, None)
+        | (Some(_), None, None, None)
+        | (None, Some(_), None, None) => (args.target.clone(), args.base.clone(), None),
         (None, None, p, u) => {
             let project = match p {
                 Some(project) => project.clone(),
@@ -196,6 +206,43 @@ pub fn run(args: Args) -> Result<()> {
     }
 }
 
+fn build_config_from_args(args: &Args) -> Result<(DiffObjConfig, MappingConfig)> {
+    let mut diff_config = DiffObjConfig::default();
+    for config in &args.config {
+        let (key, value) = config.split_once('=').context("--config expects \"key=value\"")?;
+        let property_id = ConfigPropertyId::from_str(key)
+            .map_err(|()| anyhow!("Invalid configuration property: {}", key))?;
+        diff_config.set_property_value_str(property_id, value).map_err(|()| {
+            let mut options = String::new();
+            match property_id.kind() {
+                ConfigPropertyKind::Boolean => {
+                    options = "true, false".to_string();
+                }
+                ConfigPropertyKind::Choice(variants) => {
+                    for (i, variant) in variants.iter().enumerate() {
+                        if i > 0 {
+                            options.push_str(", ");
+                        }
+                        options.push_str(variant.value);
+                    }
+                }
+            }
+            anyhow!("Invalid value for {}. Expected one of: {}", property_id.name(), options)
+        })?;
+    }
+    let mut mapping_config = MappingConfig {
+        mappings: Default::default(),
+        selecting_left: args.selecting_left.clone(),
+        selecting_right: args.selecting_right.clone(),
+    };
+    for mapping in &args.mapping {
+        let (target, base) =
+            mapping.split_once('=').context("--mapping expects \"target=base\"")?;
+        mapping_config.mappings.insert(target.to_string(), base.to_string());
+    }
+    Ok((diff_config, mapping_config))
+}
+
 fn run_oneshot(
     args: &Args,
     output: &Path,
@@ -203,18 +250,19 @@ fn run_oneshot(
     base_path: Option<&Path>,
 ) -> Result<()> {
     let output_format = OutputFormat::from_option(args.format.as_deref())?;
-    let config = diff::DiffObjConfig {
-        relax_reloc_diffs: args.relax_reloc_diffs,
-        relax_shifted_data_diffs: args.relax_shifted_data_diffs,
-        ..Default::default() // TODO
-    };
+    let (diff_config, mapping_config) = build_config_from_args(args)?;
     let target = target_path
-        .map(|p| obj::read::read(p, &config).with_context(|| format!("Loading {}", p.display())))
+        .map(|p| {
+            obj::read::read(p, &diff_config).with_context(|| format!("Loading {}", p.display()))
+        })
         .transpose()?;
     let base = base_path
-        .map(|p| obj::read::read(p, &config).with_context(|| format!("Loading {}", p.display())))
+        .map(|p| {
+            obj::read::read(p, &diff_config).with_context(|| format!("Loading {}", p.display()))
+        })
         .transpose()?;
-    let result = diff::diff_objs(&config, target.as_ref(), base.as_ref(), None)?;
+    let result =
+        diff::diff_objs(&diff_config, &mapping_config, target.as_ref(), base.as_ref(), None)?;
     let left = target.as_ref().and_then(|o| result.left.as_ref().map(|d| (o, d)));
     let right = base.as_ref().and_then(|o| result.right.as_ref().map(|d| (o, d)));
     write_output(&DiffResult::new(left, right), Some(output), output_format)?;
@@ -233,10 +281,10 @@ pub struct AppState {
     pub prev_obj: Option<(ObjInfo, ObjDiff)>,
     pub reload_time: Option<time::OffsetDateTime>,
     pub time_format: Vec<time::format_description::FormatItem<'static>>,
-    pub relax_reloc_diffs: bool,
-    pub relax_shifted_data_diffs: bool,
     pub watcher: Option<Watcher>,
     pub modified: Arc<AtomicBool>,
+    pub diff_obj_config: DiffObjConfig,
+    pub mapping_config: MappingConfig,
 }
 
 fn create_objdiff_config(state: &AppState) -> ObjDiffConfig {
@@ -262,14 +310,8 @@ fn create_objdiff_config(state: &AppState) -> ObjDiffConfig {
             .is_some_and(|p| p.build_target.unwrap_or(false)),
         target_path: state.target_path.clone(),
         base_path: state.base_path.clone(),
-        diff_obj_config: diff::DiffObjConfig {
-            relax_reloc_diffs: state.relax_reloc_diffs,
-            relax_shifted_data_diffs: state.relax_shifted_data_diffs,
-            ..Default::default() // TODO
-        },
-        symbol_mappings: Default::default(),
-        selecting_left: None,
-        selecting_right: None,
+        diff_obj_config: state.diff_obj_config.clone(),
+        mapping_config: state.mapping_config.clone(),
     }
 }
 
@@ -320,6 +362,7 @@ fn run_interactive(
     let Some(symbol_name) = &args.symbol else { bail!("Interactive mode requires a symbol name") };
     let time_format = time::format_description::parse_borrowed::<2>("[hour]:[minute]:[second]")
         .context("Failed to parse time format")?;
+    let (diff_obj_config, mapping_config) = build_config_from_args(&args)?;
     let mut state = AppState {
         jobs: Default::default(),
         waker: Default::default(),
@@ -332,18 +375,13 @@ fn run_interactive(
         prev_obj: None,
         reload_time: None,
         time_format,
-        relax_reloc_diffs: args.relax_reloc_diffs,
-        relax_shifted_data_diffs: args.relax_shifted_data_diffs,
         watcher: None,
         modified: Default::default(),
+        diff_obj_config,
+        mapping_config,
     };
-    if let Some(project_dir) = &state.project_dir {
-        let watch_patterns = state
-            .project_config
-            .as_ref()
-            .and_then(|c| c.watch_patterns.as_ref())
-            .cloned()
-            .unwrap_or_else(default_watch_patterns);
+    if let (Some(project_dir), Some(project_config)) = (&state.project_dir, &state.project_config) {
+        let watch_patterns = project_config.build_watch_patterns()?;
         state.watcher = Some(create_watcher(
             state.modified.clone(),
             project_dir,

@@ -1,0 +1,238 @@
+{
+  "properties": [
+    {
+      "id": "relaxRelocDiffs",
+      "type": "boolean",
+      "default": false,
+      "name": "Relax relocation diffs",
+      "description": "Ignores differences in relocation targets. (Address, name, etc)"
+    },
+    {
+      "id": "relaxShiftedDataDiffs",
+      "type": "boolean",
+      "default": false,
+      "name": "Relax shifted data diffs",
+      "description": "Ignores differences in addresses for symbols with matching data."
+    },
+    {
+      "id": "spaceBetweenArgs",
+      "type": "boolean",
+      "default": true,
+      "name": "Space between args",
+      "description": "Adds a space between arguments in the diff output."
+    },
+    {
+      "id": "combineDataSections",
+      "type": "boolean",
+      "default": false,
+      "name": "Combine data sections",
+      "description": "Combines data sections with equal names."
+    },
+    {
+      "id": "arm.archVersion",
+      "type": "choice",
+      "default": "auto",
+      "name": "Architecture version",
+      "description": "ARM architecture version to use for disassembly.",
+      "items": [
+        {
+          "value": "auto",
+          "name": "Auto"
+        },
+        {
+          "value": "v4t",
+          "name": "ARMv4T (GBA)"
+        },
+        {
+          "value": "v5te",
+          "name": "ARMv5TE (DS)"
+        },
+        {
+          "value": "v6k",
+          "name": "ARMv6K (3DS)"
+        }
+      ]
+    },
+    {
+      "id": "arm.unifiedSyntax",
+      "type": "boolean",
+      "default": false,
+      "name": "Unified syntax",
+      "description": "Disassemble as unified assembly language (UAL)."
+    },
+    {
+      "id": "arm.avRegisters",
+      "type": "boolean",
+      "default": false,
+      "name": "Use A/V registers",
+      "description": "Display R0-R3 as A1-A4 and R4-R11 as V1-V8."
+    },
+    {
+      "id": "arm.r9Usage",
+      "type": "choice",
+      "default": "generalPurpose",
+      "name": "Display R9 as",
+      "items": [
+        {
+          "value": "generalPurpose",
+          "name": "R9 or V6",
+          "description": "Use R9 as a general-purpose register."
+        },
+        {
+          "value": "sb",
+          "name": "SB (static base)",
+          "description": "Used for position-independent data (PID)."
+        },
+        {
+          "value": "tr",
+          "name": "TR (TLS register)",
+          "description": "Used for thread-local storage."
+        }
+      ]
+    },
+    {
+      "id": "arm.slUsage",
+      "type": "boolean",
+      "default": false,
+      "name": "Display R10 as SL",
+      "description": "Used for explicit stack limits."
+    },
+    {
+      "id": "arm.fpUsage",
+      "type": "boolean",
+      "default": false,
+      "name": "Display R11 as FP",
+      "description": "Used for frame pointers."
+    },
+    {
+      "id": "arm.ipUsage",
+      "type": "boolean",
+      "default": false,
+      "name": "Display R12 as IP",
+      "description": "Used for interworking and long branches."
+    },
+    {
+      "id": "mips.abi",
+      "type": "choice",
+      "default": "auto",
+      "name": "ABI",
+      "description": "MIPS ABI to use for disassembly.",
+      "items": [
+        {
+          "value": "auto",
+          "name": "Auto"
+        },
+        {
+          "value": "o32",
+          "name": "O32"
+        },
+        {
+          "value": "n32",
+          "name": "N32"
+        },
+        {
+          "value": "n64",
+          "name": "N64"
+        }
+      ]
+    },
+    {
+      "id": "mips.instrCategory",
+      "type": "choice",
+      "default": "auto",
+      "name": "Instruction category",
+      "description": "MIPS instruction category to use for disassembly.",
+      "items": [
+        {
+          "value": "auto",
+          "name": "Auto"
+        },
+        {
+          "value": "cpu",
+          "name": "CPU"
+        },
+        {
+          "value": "rsp",
+          "name": "RSP (N64)"
+        },
+        {
+          "value": "r3000gte",
+          "name": "R3000 GTE (PS1)"
+        },
+        {
+          "value": "r4000allegrex",
+          "name": "R4000 ALLEGREX (PSP)"
+        },
+        {
+          "value": "r5900",
+          "name": "R5900 EE (PS2)"
+        }
+      ]
+    },
+    {
+      "id": "x86.formatter",
+      "type": "choice",
+      "default": "intel",
+      "name": "Format",
+      "description": "x86 disassembly syntax.",
+      "items": [
+        {
+          "value": "intel",
+          "name": "Intel"
+        },
+        {
+          "value": "gas",
+          "name": "AT&T"
+        },
+        {
+          "value": "nasm",
+          "name": "NASM"
+        },
+        {
+          "value": "masm",
+          "name": "MASM"
+        }
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "id": "general",
+      "name": "General",
+      "properties": [
+        "relaxRelocDiffs",
+        "relaxShiftedDataDiffs",
+        "spaceBetweenArgs",
+        "combineDataSections"
+      ]
+    },
+    {
+      "id": "arm",
+      "name": "ARM",
+      "properties": [
+        "arm.archVersion",
+        "arm.unifiedSyntax",
+        "arm.avRegisters",
+        "arm.r9Usage",
+        "arm.slUsage",
+        "arm.fpUsage",
+        "arm.ipUsage"
+      ]
+    },
+    {
+      "id": "mips",
+      "name": "MIPS",
+      "properties": [
+        "mips.abi",
+        "mips.instrCategory"
+      ]
+    },
+    {
+      "id": "x86",
+      "name": "x86",
+      "properties": [
+        "x86.formatter"
+      ]
+    }
+  ]
+}

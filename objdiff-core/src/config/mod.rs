@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     fs,
     fs::File,
     io::{BufReader, BufWriter, Read},
@@ -6,11 +7,11 @@ use std::{
 };
 
 use anyhow::{anyhow, Context, Result};
-use bimap::BiBTreeMap;
 use filetime::FileTime;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 
 #[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify), tsify(from_wasm_abi))]
 pub struct ProjectConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_version: Option<String>,
@@ -27,7 +28,7 @@ pub struct ProjectConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub build_target: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub watch_patterns: Option<Vec<Glob>>,
+    pub watch_patterns: Option<Vec<String>>,
     #[serde(default, alias = "objects", skip_serializing_if = "Option::is_none")]
     pub units: Option<Vec<ProjectObject>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -52,9 +53,21 @@ impl ProjectConfig {
     pub fn progress_categories_mut(&mut self) -> &mut Vec<ProjectProgressCategory> {
         self.progress_categories.get_or_insert_with(Vec::new)
     }
+
+    pub fn build_watch_patterns(&self) -> Result<Vec<Glob>, globset::Error> {
+        Ok(if let Some(watch_patterns) = &self.watch_patterns {
+            watch_patterns
+                .iter()
+                .map(|s| Glob::new(s))
+                .collect::<Result<Vec<Glob>, globset::Error>>()?
+        } else {
+            DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect()
+        })
+    }
 }
 
 #[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify), tsify(from_wasm_abi))]
 pub struct ProjectObject {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
@@ -78,9 +91,11 @@ pub struct ProjectObject {
     pub symbol_mappings: Option<SymbolMappings>,
 }
 
-pub type SymbolMappings = BiBTreeMap<String, String>;
+#[cfg_attr(feature = "wasm", tsify_next::declare)]
+pub type SymbolMappings = BTreeMap<String, String>;
 
 #[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify), tsify(from_wasm_abi))]
 pub struct ProjectObjectMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub complete: Option<bool>,
@@ -95,6 +110,7 @@ pub struct ProjectObjectMetadata {
 }
 
 #[derive(Default, Clone, serde::Serialize, serde::Deserialize)]
+#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify), tsify(from_wasm_abi))]
 pub struct ProjectProgressCategory {
     #[serde(default)]
     pub id: String,
@@ -154,6 +170,7 @@ impl ProjectObject {
 }
 
 #[derive(Default, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
+#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify), tsify(from_wasm_abi))]
 pub struct ScratchConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub platform: Option<String>,

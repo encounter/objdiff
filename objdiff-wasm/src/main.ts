@@ -111,12 +111,12 @@ async function defer<T>(message: AnyHandlerData, worker?: Worker): Promise<T> {
     return promise;
 }
 
-export async function runDiff(left: Uint8Array | undefined, right: Uint8Array | undefined, config?: DiffObjConfig): Promise<DiffResult> {
+export async function runDiff(left: Uint8Array | undefined, right: Uint8Array | undefined, diff_config?: DiffObjConfig): Promise<DiffResult> {
     const data = await defer<Uint8Array>({
         type: 'run_diff_proto',
         left,
         right,
-        config
+        diff_config
     });
     const parseStart = performance.now();
     const result = DiffResult.fromBinary(data, {readUnknownField: false});
@@ -194,12 +194,17 @@ export function displayDiff(diff: InstructionDiff, baseAddr: bigint, cb: (text: 
         cb({type: 'spacing', count: 4});
     }
     cb({type: 'opcode', mnemonic: ins.mnemonic, opcode: ins.opcode});
+    let arg_diff_idx = 0; // non-PlainText argument index
     for (let i = 0; i < ins.arguments.length; i++) {
         if (i === 0) {
             cb({type: 'spacing', count: 1});
         }
         const arg = ins.arguments[i].value;
-        const diff_index = diff.arg_diff[i]?.diff_index;
+        let diff_index: number | undefined;
+        if (arg.oneofKind !== 'plain_text') {
+            diff_index = diff.arg_diff[arg_diff_idx]?.diff_index;
+            arg_diff_idx++;
+        }
         switch (arg.oneofKind) {
             case "plain_text":
                 cb({type: 'basic', text: arg.plain_text, diff_index});
