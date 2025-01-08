@@ -463,6 +463,14 @@ fn clear_overwritten_gprs(ins: Ins, gpr_pool_relocs: &mut HashMap<u8, ObjReloc>)
     ins.parse_defs(&mut def_args);
     for arg in def_args {
         if let Argument::GPR(gpr) = arg {
+            if ins.op == Opcode::Lmw {
+                // `lmw` overwrites all registers from rd to r31.
+                // ppc750cl only returns rd itself, so we manually clear the rest of them.
+                for reg in gpr.0..31 {
+                    gpr_pool_relocs.remove(&reg);
+                }
+                break;
+            }
             gpr_pool_relocs.remove(&gpr.0);
         }
     }
