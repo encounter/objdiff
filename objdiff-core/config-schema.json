@@ -1,30 +1,27 @@
 {
   "properties": [
     {
-      "id": "relaxRelocDiffs",
-      "type": "boolean",
-      "default": false,
-      "name": "Relax relocation diffs",
-      "description": "Ignores differences in relocation targets. (Address, name, etc)"
-    },
-    {
-      "id": "functionDataDiffs",
+      "id": "functionRelocDiffs",
       "type": "choice",
-      "default": "address_only",
-      "name": "Function data diffs",
-      "description": "How data relocations will be diffed in the function view.",
+      "default": "name_address",
+      "name": "Function relocation diffs",
+      "description": "How relocation targets will be diffed in the function view.",
       "items": [
         {
-          "value": "address_only",
-          "name": "Address only"
+          "value": "none",
+          "name": "None"
         },
         {
-          "value": "value_only",
-          "name": "Value only"
+          "value": "name_address",
+          "name": "Name or address"
+        },
+        {
+          "value": "data_value",
+          "name": "Data value"
         },
         {
           "value": "all",
-          "name": "Value and address"
+          "name": "Name or address, data value"
         }
       ]
     },
@@ -214,8 +211,7 @@
       "id": "general",
       "name": "General",
       "properties": [
-        "relaxRelocDiffs",
-        "functionDataDiffs",
+        "functionRelocDiffs",
         "spaceBetweenArgs",
         "combineDataSections"
       ]

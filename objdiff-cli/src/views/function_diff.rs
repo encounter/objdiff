@@ -3,7 +3,7 @@ use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, 
 use objdiff_core::{
     diff::{
         display::{display_diff, DiffText, HighlightKind},
-        FunctionDataDiffs, ObjDiff, ObjInsDiffKind, ObjSymbolDiff,
+        FunctionRelocDiffs, ObjDiff, ObjInsDiffKind, ObjSymbolDiff,
     },
     obj::{ObjInfo, ObjSectionKind, ObjSymbol, SymbolRef},
 };
@@ -368,20 +368,14 @@ impl UiView for FunctionDiffUi {
                         self.scroll_x = self.scroll_x.saturating_sub(1);
                         result.redraw = true;
                     }
-                    // Toggle relax relocation diffs
+                    // Cycle through function relocation diff mode
                     KeyCode::Char('x') => {
-                        state.diff_obj_config.relax_reloc_diffs =
-                            !state.diff_obj_config.relax_reloc_diffs;
-                        result.redraw = true;
-                        return EventControlFlow::Reload;
-                    }
-                    // Cycle through function data diff mode
-                    KeyCode::Char('s') => {
-                        state.diff_obj_config.function_data_diffs =
-                            match state.diff_obj_config.function_data_diffs {
-                                FunctionDataDiffs::AddressOnly => FunctionDataDiffs::ValueOnly,
-                                FunctionDataDiffs::ValueOnly => FunctionDataDiffs::All,
-                                FunctionDataDiffs::All => FunctionDataDiffs::AddressOnly,
+                        state.diff_obj_config.function_reloc_diffs =
+                            match state.diff_obj_config.function_reloc_diffs {
+                                FunctionRelocDiffs::None => FunctionRelocDiffs::NameAddress,
+                                FunctionRelocDiffs::NameAddress => FunctionRelocDiffs::DataValue,
+                                FunctionRelocDiffs::DataValue => FunctionRelocDiffs::All,
+                                FunctionRelocDiffs::All => FunctionRelocDiffs::None,
                             };
                         result.redraw = true;
                         return EventControlFlow::Reload;

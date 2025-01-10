@@ -169,7 +169,10 @@ fn report_object(
         }
         _ => {}
     }
-    let diff_config = diff::DiffObjConfig { relax_reloc_diffs: true, ..Default::default() };
+    let diff_config = diff::DiffObjConfig {
+        function_reloc_diffs: diff::FunctionRelocDiffs::None,
+        ..Default::default()
+    };
     let mapping_config = diff::MappingConfig::default();
     let target = object
         .target_path

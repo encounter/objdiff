@@ -4,7 +4,10 @@ use eframe::Storage;
 use globset::Glob;
 use objdiff_core::{
     config::ScratchConfig,
-    diff::{ArmArchVersion, ArmR9Usage, DiffObjConfig, MipsAbi, MipsInstrCategory, X86Formatter},
+    diff::{
+        ArmArchVersion, ArmR9Usage, DiffObjConfig, FunctionRelocDiffs, MipsAbi, MipsInstrCategory,
+        X86Formatter,
+    },
 };
 
 use crate::app::{AppConfig, ObjectConfig, CONFIG_KEY};
@@ -147,7 +150,11 @@ impl Default for DiffObjConfigV1 {
 impl DiffObjConfigV1 {
     fn into_config(self) -> DiffObjConfig {
         DiffObjConfig {
-            relax_reloc_diffs: self.relax_reloc_diffs,
+            function_reloc_diffs: if self.relax_reloc_diffs {
+                FunctionRelocDiffs::None
+            } else {
+                FunctionRelocDiffs::default()
+            },
             space_between_args: self.space_between_args,
             combine_data_sections: self.combine_data_sections,
             x86_formatter: self.x86_formatter,
@@ -160,7 +167,6 @@ impl DiffObjConfigV1 {
             arm_sl_usage: self.arm_sl_usage,
             arm_fp_usage: self.arm_fp_usage,
             arm_ip_usage: self.arm_ip_usage,
-            ..Default::default()
         }
     }
 }

@@ -3,7 +3,7 @@ use std::{cmp::max, collections::BTreeMap};
 use anyhow::{anyhow, Result};
 use similar::{capture_diff_slices_deadline, Algorithm};
 
-use super::FunctionDataDiffs;
+use super::FunctionRelocDiffs;
 use crate::{
     arch::ProcessCodeResult,
     diff::{
@@ -231,7 +231,7 @@ fn reloc_eq(
     if left.flags != right.flags {
         return false;
     }
-    if config.relax_reloc_diffs {
+    if config.function_reloc_diffs == FunctionRelocDiffs::None {
         return true;
     }
 
@@ -240,10 +240,10 @@ fn reloc_eq(
         (Some(sl), Some(sr)) => {
             // Match if section and name or address match
             section_name_eq(left_obj, right_obj, *sl, *sr)
-                && (symbol_name_matches
-                    || address_eq(left, right)
-                    || config.function_data_diffs == FunctionDataDiffs::ValueOnly)
-                && (config.function_data_diffs == FunctionDataDiffs::AddressOnly
+                && (config.function_reloc_diffs == FunctionRelocDiffs::DataValue
+                    || symbol_name_matches
+                    || address_eq(left, right))
+                && (config.function_reloc_diffs == FunctionRelocDiffs::NameAddress
                     || left.target.kind != ObjSymbolKind::Object
                     || left_obj.arch.display_ins_data(left_ins)
                         == left_obj.arch.display_ins_data(right_ins))
@@ -275,7 +275,7 @@ fn arg_eq(
             ObjInsArg::Arg(r) => l.loose_eq(r),
             // If relocations are relaxed, match if left is a constant and right is a reloc
             // Useful for instances where the target object is created without relocations
-            ObjInsArg::Reloc => config.relax_reloc_diffs,
+            ObjInsArg::Reloc => config.function_reloc_diffs == FunctionRelocDiffs::None,
             _ => false,
         },
         ObjInsArg::Reloc => {
@@ -296,7 +296,7 @@ fn arg_eq(
             }
             // If relocations are relaxed, match if left is a constant and right is a reloc
             // Useful for instances where the target object is created without relocations
-            ObjInsArg::Reloc => config.relax_reloc_diffs,
+            ObjInsArg::Reloc => config.function_reloc_diffs == FunctionRelocDiffs::None,
             _ => false,
         },
     }
