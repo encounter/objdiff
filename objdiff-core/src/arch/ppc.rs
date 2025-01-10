@@ -451,6 +451,12 @@ fn get_offset_and_addr_gpr_for_possible_pool_reference(
                 Argument::GPR(addr_src_gpr),
                 Argument::None,
             ) => Some((0, addr_src_gpr, Some(addr_dst_gpr))),
+            (
+                Opcode::Add,
+                Argument::GPR(addr_dst_gpr),
+                Argument::GPR(addr_src_gpr),
+                Argument::GPR(_offset_gpr),
+            ) => Some((0, addr_src_gpr, Some(addr_dst_gpr))),
             _ => None,
         }
     }
