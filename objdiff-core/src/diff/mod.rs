@@ -11,7 +11,9 @@ use crate::{
             diff_generic_section, no_diff_symbol,
         },
     },
-    obj::{ObjInfo, ObjIns, ObjSection, ObjSectionKind, ObjSymbol, SymbolRef, SECTION_COMMON},
+    obj::{
+        ObjInfo, ObjIns, ObjReloc, ObjSection, ObjSectionKind, ObjSymbol, SymbolRef, SECTION_COMMON,
+    },
 };
 
 pub mod code;
@@ -85,6 +87,7 @@ pub struct ObjDataDiff {
     pub kind: ObjDataDiffKind,
     pub len: usize,
     pub symbol: String,
+    pub reloc: Option<ObjReloc>,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
@@ -153,6 +156,7 @@ impl ObjDiff {
                     kind: ObjDataDiffKind::None,
                     len: section.data.len(),
                     symbol: section.name.clone(),
+                    ..Default::default()
                 }],
                 match_percent: None,
             });

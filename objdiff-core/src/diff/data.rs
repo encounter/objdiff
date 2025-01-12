@@ -1,11 +1,14 @@
-use std::cmp::{max, min, Ordering};
+use std::{
+    cmp::{max, min, Ordering},
+    ops::Range,
+};
 
 use anyhow::{anyhow, Result};
 use similar::{capture_diff_slices_deadline, get_diff_ratio, Algorithm};
 
 use crate::{
     diff::{ObjDataDiff, ObjDataDiffKind, ObjSectionDiff, ObjSymbolDiff},
-    obj::{ObjInfo, ObjSection, SymbolRef},
+    obj::{ObjInfo, ObjReloc, ObjSection, SymbolRef},
 };
 
 pub fn diff_bss_symbol(
@@ -35,6 +38,59 @@ pub fn diff_bss_symbol(
 
 pub fn no_diff_symbol(_obj: &ObjInfo, symbol_ref: SymbolRef) -> ObjSymbolDiff {
     ObjSymbolDiff { symbol_ref, target_symbol: None, instructions: vec![], match_percent: None }
+}
+
+fn diff_data_relocs_for_range(
+    left: &ObjSection,
+    right: &ObjSection,
+    left_range: Range<usize>,
+    right_range: Range<usize>,
+) -> Vec<(ObjDataDiffKind, Option<ObjReloc>, Option<ObjReloc>)> {
+    let mut diffs = Vec::new();
+    for left_reloc in left.relocations.iter() {
+        if !left_range.contains(&(left_reloc.address as usize)) {
+            continue;
+        }
+        let left_offset = left_reloc.address as usize - left_range.start;
+        let Some(right_reloc) = right.relocations.iter().find(|r| {
+            if !right_range.contains(&(r.address as usize)) {
+                return false;
+            }
+            let right_offset = r.address as usize - right_range.start;
+            right_offset == left_offset
+        }) else {
+            diffs.push((ObjDataDiffKind::Delete, Some(left_reloc.clone()), None));
+            continue;
+        };
+        if left_reloc.target.name != right_reloc.target.name {
+            diffs.push((
+                ObjDataDiffKind::Replace,
+                Some(left_reloc.clone()),
+                Some(right_reloc.clone()),
+            ));
+            continue;
+        }
+        diffs.push((ObjDataDiffKind::None, Some(left_reloc.clone()), Some(right_reloc.clone())));
+    }
+    for right_reloc in right.relocations.iter() {
+        if !right_range.contains(&(right_reloc.address as usize)) {
+            continue;
+        }
+        let right_offset = right_reloc.address as usize - right_range.start;
+        let Some(_) = left.relocations.iter().find(|r| {
+            if !left_range.contains(&(r.address as usize)) {
+                return false;
+            }
+            let left_offset = r.address as usize - left_range.start;
+            left_offset == right_offset
+        }) else {
+            diffs.push((ObjDataDiffKind::Insert, None, Some(right_reloc.clone())));
+            continue;
+        };
+        // No need to check the cases for ObjDataDiffKind::Replace and ObjDataDiffKind::None again.
+        // They were already handled in the loop over the left relocs.
+    }
+    diffs
 }
 
 /// Compare the data sections of two object files.
@@ -70,6 +126,92 @@ pub fn diff_data_section(
                 ObjDataDiffKind::Replace
             }
         };
+        if kind == ObjDataDiffKind::None {
+            let mut found_any_reloc_diffs = false;
+            let mut left_curr_addr = left_range.start;
+            let mut right_curr_addr = right_range.start;
+            for (diff_kind, left_reloc, right_reloc) in
+                diff_data_relocs_for_range(left, right, left_range.clone(), right_range.clone())
+            {
+                if diff_kind == ObjDataDiffKind::None {
+                    continue;
+                }
+                found_any_reloc_diffs = true;
+
+                if let Some(left_reloc) = left_reloc {
+                    let left_reloc_addr = left_reloc.address as usize;
+                    if left_reloc_addr > left_curr_addr {
+                        let len = left_reloc_addr - left_curr_addr;
+                        let left_data = &left.data[left_curr_addr..left_reloc_addr];
+                        left_diff.push(ObjDataDiff {
+                            data: left_data[..min(len, left_data.len())].to_vec(),
+                            kind: ObjDataDiffKind::None,
+                            len,
+                            ..Default::default()
+                        });
+                    }
+                    let reloc_diff_len = 4; // TODO don't hardcode
+                    let left_data = &left.data[left_reloc_addr..left_reloc_addr + reloc_diff_len];
+                    left_diff.push(ObjDataDiff {
+                        data: left_data[..min(reloc_diff_len, left_data.len())].to_vec(),
+                        kind: diff_kind,
+                        len: reloc_diff_len,
+                        reloc: Some(left_reloc.clone()),
+                        ..Default::default()
+                    });
+                    left_curr_addr = left_reloc_addr + reloc_diff_len;
+                }
+
+                if let Some(right_reloc) = right_reloc {
+                    let right_reloc_addr = right_reloc.address as usize;
+                    if right_reloc_addr > right_curr_addr {
+                        let len = right_reloc_addr - right_curr_addr;
+                        let right_data = &right.data[right_curr_addr..right_reloc_addr];
+                        right_diff.push(ObjDataDiff {
+                            data: right_data[..min(len, right_data.len())].to_vec(),
+                            kind: ObjDataDiffKind::None,
+                            len,
+                            ..Default::default()
+                        });
+                    }
+                    let reloc_diff_len = 4; // TODO don't hardcode
+                    let right_data =
+                        &right.data[right_reloc_addr..right_reloc_addr + reloc_diff_len];
+                    right_diff.push(ObjDataDiff {
+                        data: right_data[..min(reloc_diff_len, right_data.len())].to_vec(),
+                        kind: diff_kind,
+                        len: reloc_diff_len,
+                        reloc: Some(right_reloc.clone()),
+                        ..Default::default()
+                    });
+                    right_curr_addr = right_reloc_addr + reloc_diff_len;
+                }
+            }
+
+            if found_any_reloc_diffs {
+                if left_curr_addr < left_range.end - 1 {
+                    let len = left_range.end - left_curr_addr;
+                    let left_data = &left.data[left_curr_addr..left_range.end];
+                    left_diff.push(ObjDataDiff {
+                        data: left_data[..min(len, left_data.len())].to_vec(),
+                        kind: ObjDataDiffKind::None,
+                        len,
+                        ..Default::default()
+                    });
+                }
+                if right_curr_addr < right_range.end - 1 {
+                    let len = right_range.end - right_curr_addr;
+                    let right_data = &right.data[right_curr_addr..right_range.end];
+                    right_diff.push(ObjDataDiff {
+                        data: right_data[..min(len, right_data.len())].to_vec(),
+                        kind: ObjDataDiffKind::None,
+                        len,
+                        ..Default::default()
+                    });
+                }
+                continue;
+            }
+        }
         let left_data = &left.data[left_range];
         let right_data = &right.data[right_range];
         left_diff.push(ObjDataDiff {

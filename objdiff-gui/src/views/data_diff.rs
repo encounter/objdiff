@@ -117,8 +117,8 @@ fn split_diffs(diffs: &[ObjDataDiff]) -> Vec<Vec<ObjDataDiff>> {
                 },
                 kind: diff.kind,
                 len,
-                // TODO
-                symbol: String::new(),
+                symbol: String::new(), // TODO
+                reloc: diff.reloc.clone(),
             });
             remaining_in_row -= len;
             cur_len += len;
