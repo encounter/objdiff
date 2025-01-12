@@ -1,4 +1,8 @@
-use std::{cmp::min, default::Default, mem::take};
+use std::{
+    cmp::{min, Ordering},
+    default::Default,
+    mem::take,
+};
 
 use egui::{text::LayoutJob, Id, Label, RichText, Sense, Widget};
 use objdiff_core::{
@@ -23,7 +27,65 @@ fn find_section(obj: &ObjInfo, section_name: &str) -> Option<usize> {
     obj.sections.iter().position(|section| section.name == section_name)
 }
 
-fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], appearance: &Appearance) {
+fn data_row_hover_ui(
+    ui: &mut egui::Ui,
+    obj: &ObjInfo,
+    diffs: &[ObjDataDiff],
+    appearance: &Appearance,
+) {
+    ui.scope(|ui| {
+        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+
+        for diff in diffs {
+            let Some(reloc) = &diff.reloc else {
+                continue;
+            };
+
+            // TODO: Most of this code is copy-pasted from ins_hover_ui.
+            // Try to separate this out into a shared function.
+            ui.label(format!("Relocation type: {}", obj.arch.display_reloc(reloc.flags)));
+            let addend_str = match reloc.addend.cmp(&0i64) {
+                Ordering::Greater => format!("+{:x}", reloc.addend),
+                Ordering::Less => format!("-{:x}", -reloc.addend),
+                _ => "".to_string(),
+            };
+            ui.colored_label(
+                appearance.highlight_color,
+                format!("Name: {}{}", reloc.target.name, addend_str),
+            );
+            if let Some(orig_section_index) = reloc.target.orig_section_index {
+                if let Some(section) =
+                    obj.sections.iter().find(|s| s.orig_index == orig_section_index)
+                {
+                    ui.colored_label(
+                        appearance.highlight_color,
+                        format!("Section: {}", section.name),
+                    );
+                }
+                ui.colored_label(
+                    appearance.highlight_color,
+                    format!("Address: {:x}{}", reloc.target.address, addend_str),
+                );
+                ui.colored_label(
+                    appearance.highlight_color,
+                    format!("Size: {:x}", reloc.target.size),
+                );
+                if reloc.addend >= 0 && reloc.target.bytes.len() > reloc.addend as usize {}
+            } else {
+                ui.colored_label(appearance.highlight_color, "Extern".to_string());
+            }
+        }
+    });
+}
+
+fn data_row_ui(
+    ui: &mut egui::Ui,
+    obj: Option<&ObjInfo>,
+    address: usize,
+    diffs: &[ObjDataDiff],
+    appearance: &Appearance,
+) {
     if diffs.iter().any(|d| d.kind != ObjDataDiffKind::None) {
         ui.painter().rect_filled(ui.available_rect_before_wrap(), 0.0, ui.visuals().faint_bg_color);
     }
@@ -94,9 +156,12 @@ fn data_row_ui(ui: &mut egui::Ui, address: usize, diffs: &[ObjDataDiff], appeara
             write_text(text.as_str(), base_color, &mut job, appearance.code_font.clone());
         }
     }
-    Label::new(job).sense(Sense::click()).ui(ui);
-    //     .on_hover_ui_at_pointer(|ui| ins_hover_ui(ui, ins))
-    //     .context_menu(|ui| ins_context_menu(ui, ins));
+
+    let response = Label::new(job).sense(Sense::click()).ui(ui);
+    if let Some(obj) = obj {
+        response.on_hover_ui_at_pointer(|ui| data_row_hover_ui(ui, obj, diffs, appearance));
+        // .context_menu(|ui| data_row_context_menu(ui, ins)); // TODO
+    }
 }
 
 fn split_diffs(diffs: &[ObjDataDiff]) -> Vec<Vec<ObjDataDiff>> {
@@ -161,6 +226,8 @@ fn data_table_ui(
     right_ctx: Option<SectionDiffContext<'_>>,
     config: &Appearance,
 ) -> Option<()> {
+    let left_obj = left_ctx.map(|ctx| ctx.obj);
+    let right_obj = right_ctx.map(|ctx| ctx.obj);
     let left_section = left_ctx
         .and_then(|ctx| ctx.section_index.map(|i| (&ctx.obj.sections[i], &ctx.diff.sections[i])));
     let right_section = right_ctx
@@ -187,11 +254,11 @@ fn data_table_ui(
         row.col(|ui| {
             if column == 0 {
                 if let Some(left_diffs) = &left_diffs {
-                    data_row_ui(ui, address, &left_diffs[i], config);
+                    data_row_ui(ui, left_obj, address, &left_diffs[i], config);
                 }
             } else if column == 1 {
                 if let Some(right_diffs) = &right_diffs {
-                    data_row_ui(ui, address, &right_diffs[i], config);
+                    data_row_ui(ui, right_obj, address, &right_diffs[i], config);
                 }
             }
         });
