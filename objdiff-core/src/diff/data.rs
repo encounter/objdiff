@@ -265,14 +265,19 @@ pub fn diff_data_section(
 
     let (mut left_section_diff, mut right_section_diff) =
         diff_generic_section(left, right, left_section_diff, right_section_diff)?;
+    let all_left_relocs_match =
+        left_diff.iter().all(|d| d.kind == ObjDataDiffKind::None || d.reloc.is_none());
     left_section_diff.data_diff = left_diff;
     right_section_diff.data_diff = right_diff;
-    // Use the highest match percent between two options:
-    // - Left symbols matching right symbols by name
-    // - Diff of the data itself
-    if left_section_diff.match_percent.unwrap_or(-1.0) < match_percent {
-        left_section_diff.match_percent = Some(match_percent);
-        right_section_diff.match_percent = Some(match_percent);
+    if all_left_relocs_match {
+        // Use the highest match percent between two options:
+        // - Left symbols matching right symbols by name
+        // - Diff of the data itself
+        // We only do this when all relocations on the left side match.
+        if left_section_diff.match_percent.unwrap_or(-1.0) < match_percent {
+            left_section_diff.match_percent = Some(match_percent);
+            right_section_diff.match_percent = Some(match_percent);
+        }
     }
     Ok((left_section_diff, right_section_diff))
 }
@@ -289,13 +294,42 @@ pub fn diff_data_symbol(
     let left_section = left_section.ok_or_else(|| anyhow!("Data symbol section not found"))?;
     let right_section = right_section.ok_or_else(|| anyhow!("Data symbol section not found"))?;
 
-    let left_data = &left_section.data[left_symbol.section_address as usize
-        ..(left_symbol.section_address + left_symbol.size) as usize];
-    let right_data = &right_section.data[right_symbol.section_address as usize
-        ..(right_symbol.section_address + right_symbol.size) as usize];
+    let left_range = left_symbol.section_address as usize
+        ..(left_symbol.section_address + left_symbol.size) as usize;
+    let right_range = right_symbol.section_address as usize
+        ..(right_symbol.section_address + right_symbol.size) as usize;
+    let left_data = &left_section.data[left_range.clone()];
+    let right_data = &right_section.data[right_range.clone()];
+
+    let reloc_diffs =
+        diff_data_relocs_for_range(left_section, right_section, left_range, right_range);
 
     let ops = capture_diff_slices_deadline(Algorithm::Patience, left_data, right_data, None);
-    let match_percent = get_diff_ratio(&ops, left_data.len(), right_data.len()) * 100.0;
+    let bytes_match_ratio = get_diff_ratio(&ops, left_data.len(), right_data.len());
+
+    let mut match_ratio = bytes_match_ratio;
+    if !reloc_diffs.is_empty() {
+        let mut total_reloc_bytes = 0;
+        let mut matching_reloc_bytes = 0;
+        for (diff_kind, _, _) in reloc_diffs {
+            let reloc_diff_len: usize = 4; // TODO don't hardcode
+            total_reloc_bytes += reloc_diff_len;
+            if diff_kind == ObjDataDiffKind::None {
+                matching_reloc_bytes += reloc_diff_len;
+            }
+        }
+        let relocs_match_ratio = matching_reloc_bytes as f32 / total_reloc_bytes as f32;
+        // Adjust the overall match ratio to include relocation differences.
+        // We calculate it so that bytes that contain a relocation are counted twice: once for the
+        // byte's raw value, and once for its relocation.
+        // e.g. An 8 byte symbol that has 8 matching raw bytes and a single 4 byte relocation that
+        // doesn't match would show as 66% (weighted average of 100% and 0%).
+        match_ratio = ((bytes_match_ratio * (left_data.len() as f32))
+            + (relocs_match_ratio * total_reloc_bytes as f32))
+            / (left_data.len() + total_reloc_bytes) as f32;
+    }
+
+    let match_percent = match_ratio * 100.0;
 
     Ok((
         ObjSymbolDiff {
