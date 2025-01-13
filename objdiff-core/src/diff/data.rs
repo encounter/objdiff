@@ -77,6 +77,11 @@ fn reloc_eq(left_obj: &ObjInfo, right_obj: &ObjInfo, left: &ObjReloc, right: &Ob
     }
 }
 
+/// Compares relocations contained with a certain data range.
+/// The ObjDataDiffKind for each diff will either be `None`` (if the relocation matches),
+/// or `Replace` (if a relocation was changed, added, or removed).
+/// `Insert` and `Delete` are not used when a relocation is added or removed to avoid confusing diffs
+/// where it looks like the bytes themselves were changed but actually only the relocations changed.
 fn diff_data_relocs_for_range(
     left_obj: &ObjInfo,
     right_obj: &ObjInfo,
@@ -98,7 +103,7 @@ fn diff_data_relocs_for_range(
             let right_offset = r.address as usize - right_range.start;
             right_offset == left_offset
         }) else {
-            diffs.push((ObjDataDiffKind::Delete, Some(left_reloc.clone()), None));
+            diffs.push((ObjDataDiffKind::Replace, Some(left_reloc.clone()), None));
             continue;
         };
         if reloc_eq(left_obj, right_obj, left_reloc, right_reloc) {
@@ -127,10 +132,10 @@ fn diff_data_relocs_for_range(
             let left_offset = r.address as usize - left_range.start;
             left_offset == right_offset
         }) else {
-            diffs.push((ObjDataDiffKind::Insert, None, Some(right_reloc.clone())));
+            diffs.push((ObjDataDiffKind::Replace, None, Some(right_reloc.clone())));
             continue;
         };
-        // No need to check the cases for ObjDataDiffKind::Replace and ObjDataDiffKind::None again.
+        // No need to check the cases for relocations being deleted or matching again.
         // They were already handled in the loop over the left relocs.
     }
     diffs
