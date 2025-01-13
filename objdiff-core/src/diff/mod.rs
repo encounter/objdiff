@@ -349,6 +349,8 @@ pub fn diff_objs(
                     let left_section_diff = left_out.section_diff(left_section_idx);
                     let right_section_diff = right_out.section_diff(right_section_idx);
                     let (left_diff, right_diff) = diff_data_section(
+                        left_obj,
+                        right_obj,
                         left_section,
                         right_section,
                         left_section_diff,

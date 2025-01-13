@@ -192,7 +192,7 @@ fn address_eq(left: &ObjReloc, right: &ObjReloc) -> bool {
     left.target.address as i64 + left.addend == right.target.address as i64 + right.addend
 }
 
-fn section_name_eq(
+pub fn section_name_eq(
     left_obj: &ObjInfo,
     right_obj: &ObjInfo,
     left_orig_section_index: usize,

@@ -6,9 +6,10 @@ use std::{
 use anyhow::{anyhow, Result};
 use similar::{capture_diff_slices_deadline, get_diff_ratio, Algorithm};
 
+use super::code::section_name_eq;
 use crate::{
     diff::{ObjDataDiff, ObjDataDiffKind, ObjSectionDiff, ObjSymbolDiff},
-    obj::{ObjInfo, ObjReloc, ObjSection, SymbolRef},
+    obj::{ObjInfo, ObjReloc, ObjSection, ObjSymbolFlags, SymbolRef},
 };
 
 pub fn diff_bss_symbol(
@@ -40,7 +41,45 @@ pub fn no_diff_symbol(_obj: &ObjInfo, symbol_ref: SymbolRef) -> ObjSymbolDiff {
     ObjSymbolDiff { symbol_ref, target_symbol: None, instructions: vec![], match_percent: None }
 }
 
+fn address_eq(left: &ObjReloc, right: &ObjReloc) -> bool {
+    if right.target.size == 0 && left.target.size != 0 {
+        // The base relocation is against a pool but the target relocation isn't.
+        // This can happen in rare cases where the compiler will generate a pool+addend relocation
+        // in the base, but the one detected in the target is direct with no addend.
+        // Just check that the final address is the same so these count as a match.
+        left.target.address as i64 + left.addend == right.target.address as i64 + right.addend
+    } else {
+        // But otherwise, if the compiler isn't using a pool, we're more strict and check that the
+        // target symbol address and relocation addend both match exactly.
+        left.target.address == right.target.address && left.addend == right.addend
+    }
+}
+
+fn reloc_eq(left_obj: &ObjInfo, right_obj: &ObjInfo, left: &ObjReloc, right: &ObjReloc) -> bool {
+    if left.flags != right.flags {
+        return false;
+    }
+
+    let symbol_name_matches = left.target.name == right.target.name;
+    match (&left.target.orig_section_index, &right.target.orig_section_index) {
+        (Some(sl), Some(sr)) => {
+            // Match if section and name+addend or address match
+            section_name_eq(left_obj, right_obj, *sl, *sr)
+                && ((symbol_name_matches && left.addend == right.addend) || address_eq(left, right))
+        }
+        (Some(_), None) => false,
+        (None, Some(_)) => {
+            // Match if possibly stripped weak symbol
+            (symbol_name_matches && left.addend == right.addend)
+                && right.target.flags.0.contains(ObjSymbolFlags::Weak)
+        }
+        (None, None) => symbol_name_matches,
+    }
+}
+
 fn diff_data_relocs_for_range(
+    left_obj: &ObjInfo,
+    right_obj: &ObjInfo,
     left: &ObjSection,
     right: &ObjSection,
     left_range: Range<usize>,
@@ -62,15 +101,19 @@ fn diff_data_relocs_for_range(
             diffs.push((ObjDataDiffKind::Delete, Some(left_reloc.clone()), None));
             continue;
         };
-        if left_reloc.target.name != right_reloc.target.name {
+        if reloc_eq(left_obj, right_obj, left_reloc, right_reloc) {
+            diffs.push((
+                ObjDataDiffKind::None,
+                Some(left_reloc.clone()),
+                Some(right_reloc.clone()),
+            ));
+        } else {
             diffs.push((
                 ObjDataDiffKind::Replace,
                 Some(left_reloc.clone()),
                 Some(right_reloc.clone()),
             ));
-            continue;
         }
-        diffs.push((ObjDataDiffKind::None, Some(left_reloc.clone()), Some(right_reloc.clone())));
     }
     for right_reloc in right.relocations.iter() {
         if !right_range.contains(&(right_reloc.address as usize)) {
@@ -95,6 +138,8 @@ fn diff_data_relocs_for_range(
 
 /// Compare the data sections of two object files.
 pub fn diff_data_section(
+    left_obj: &ObjInfo,
+    right_obj: &ObjInfo,
     left: &ObjSection,
     right: &ObjSection,
     left_section_diff: &ObjSectionDiff,
@@ -130,9 +175,14 @@ pub fn diff_data_section(
             let mut found_any_reloc_diffs = false;
             let mut left_curr_addr = left_range.start;
             let mut right_curr_addr = right_range.start;
-            for (diff_kind, left_reloc, right_reloc) in
-                diff_data_relocs_for_range(left, right, left_range.clone(), right_range.clone())
-            {
+            for (diff_kind, left_reloc, right_reloc) in diff_data_relocs_for_range(
+                left_obj,
+                right_obj,
+                left,
+                right,
+                left_range.clone(),
+                right_range.clone(),
+            ) {
                 if diff_kind == ObjDataDiffKind::None {
                     continue;
                 }
@@ -301,8 +351,14 @@ pub fn diff_data_symbol(
     let left_data = &left_section.data[left_range.clone()];
     let right_data = &right_section.data[right_range.clone()];
 
-    let reloc_diffs =
-        diff_data_relocs_for_range(left_section, right_section, left_range, right_range);
+    let reloc_diffs = diff_data_relocs_for_range(
+        left_obj,
+        right_obj,
+        left_section,
+        right_section,
+        left_range,
+        right_range,
+    );
 
     let ops = capture_diff_slices_deadline(Algorithm::Patience, left_data, right_data, None);
     let bytes_match_ratio = get_diff_ratio(&ops, left_data.len(), right_data.len());
