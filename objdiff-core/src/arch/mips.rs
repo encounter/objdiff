@@ -271,6 +271,17 @@ impl ObjArch for ObjArchMips {
             _ => Cow::Owned(format!("<{flags:?}>")),
         }
     }
+
+    fn get_reloc_byte_size(&self, flags: RelocationFlags) -> usize {
+        match flags {
+            RelocationFlags::Elf { r_type } => match r_type {
+                elf::R_MIPS_16 => 2,
+                elf::R_MIPS_32 => 4,
+                _ => 1,
+            },
+            _ => 1,
+        }
+    }
 }
 
 fn push_reloc(args: &mut Vec<ObjInsArg>, reloc: &ObjReloc) -> Result<()> {

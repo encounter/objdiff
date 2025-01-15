@@ -173,6 +173,21 @@ impl ObjArch for ObjArchArm64 {
             _ => Cow::Owned(format!("<{flags:?}>")),
         }
     }
+
+    fn get_reloc_byte_size(&self, flags: RelocationFlags) -> usize {
+        match flags {
+            RelocationFlags::Elf { r_type } => match r_type {
+                elf::R_AARCH64_ABS64 => 8,
+                elf::R_AARCH64_ABS32 => 4,
+                elf::R_AARCH64_ABS16 => 2,
+                elf::R_AARCH64_PREL64 => 8,
+                elf::R_AARCH64_PREL32 => 4,
+                elf::R_AARCH64_PREL16 => 2,
+                _ => 1,
+            },
+            _ => 1,
+        }
+    }
 }
 
 struct DisplayCtx<'a> {

@@ -193,6 +193,17 @@ impl ObjArch for ObjArchPpc {
         }
     }
 
+    fn get_reloc_byte_size(&self, flags: RelocationFlags) -> usize {
+        match flags {
+            RelocationFlags::Elf { r_type } => match r_type {
+                elf::R_PPC_ADDR32 => 4,
+                elf::R_PPC_UADDR32 => 4,
+                _ => 1,
+            },
+            _ => 1,
+        }
+    }
+
     fn guess_data_type(&self, instruction: &ObjIns) -> Option<super::DataType> {
         if instruction.reloc.as_ref().is_some_and(|r| r.target.name.starts_with("@stringBase")) {
             return Some(DataType::String);

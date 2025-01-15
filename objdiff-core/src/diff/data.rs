@@ -205,7 +205,7 @@ pub fn diff_data_section(
                             ..Default::default()
                         });
                     }
-                    let reloc_diff_len = 4; // TODO don't hardcode
+                    let reloc_diff_len = left_obj.arch.get_reloc_byte_size(left_reloc.flags);
                     let left_data = &left.data[left_reloc_addr..left_reloc_addr + reloc_diff_len];
                     left_diff.push(ObjDataDiff {
                         data: left_data[..min(reloc_diff_len, left_data.len())].to_vec(),
@@ -229,7 +229,7 @@ pub fn diff_data_section(
                             ..Default::default()
                         });
                     }
-                    let reloc_diff_len = 4; // TODO don't hardcode
+                    let reloc_diff_len = right_obj.arch.get_reloc_byte_size(right_reloc.flags);
                     let right_data =
                         &right.data[right_reloc_addr..right_reloc_addr + reloc_diff_len];
                     right_diff.push(ObjDataDiff {
@@ -372,22 +372,28 @@ pub fn diff_data_symbol(
     if !reloc_diffs.is_empty() {
         let mut total_reloc_bytes = 0;
         let mut matching_reloc_bytes = 0;
-        for (diff_kind, _, _) in reloc_diffs {
-            let reloc_diff_len: usize = 4; // TODO don't hardcode
+        for (diff_kind, left_reloc, right_reloc) in reloc_diffs {
+            let reloc_diff_len = match (left_reloc, right_reloc) {
+                (None, None) => unreachable!(),
+                (None, Some(right_reloc)) => right_obj.arch.get_reloc_byte_size(right_reloc.flags),
+                (Some(left_reloc), _) => left_obj.arch.get_reloc_byte_size(left_reloc.flags),
+            };
             total_reloc_bytes += reloc_diff_len;
             if diff_kind == ObjDataDiffKind::None {
                 matching_reloc_bytes += reloc_diff_len;
             }
         }
-        let relocs_match_ratio = matching_reloc_bytes as f32 / total_reloc_bytes as f32;
-        // Adjust the overall match ratio to include relocation differences.
-        // We calculate it so that bytes that contain a relocation are counted twice: once for the
-        // byte's raw value, and once for its relocation.
-        // e.g. An 8 byte symbol that has 8 matching raw bytes and a single 4 byte relocation that
-        // doesn't match would show as 66% (weighted average of 100% and 0%).
-        match_ratio = ((bytes_match_ratio * (left_data.len() as f32))
-            + (relocs_match_ratio * total_reloc_bytes as f32))
-            / (left_data.len() + total_reloc_bytes) as f32;
+        if total_reloc_bytes > 0 {
+            let relocs_match_ratio = matching_reloc_bytes as f32 / total_reloc_bytes as f32;
+            // Adjust the overall match ratio to include relocation differences.
+            // We calculate it so that bytes that contain a relocation are counted twice: once for the
+            // byte's raw value, and once for its relocation.
+            // e.g. An 8 byte symbol that has 8 matching raw bytes and a single 4 byte relocation that
+            // doesn't match would show as 66% (weighted average of 100% and 0%).
+            match_ratio = ((bytes_match_ratio * (left_data.len() as f32))
+                + (relocs_match_ratio * total_reloc_bytes as f32))
+                / (left_data.len() + total_reloc_bytes) as f32;
+        }
     }
 
     let match_percent = match_ratio * 100.0;

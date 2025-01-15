@@ -148,6 +148,8 @@ pub trait ObjArch: Send + Sync {
 
     fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str>;
 
+    fn get_reloc_byte_size(&self, flags: RelocationFlags) -> usize;
+
     fn symbol_address(&self, symbol: &Symbol) -> u64 { symbol.address() }
 
     fn guess_data_type(&self, _instruction: &ObjIns) -> Option<DataType> { None }
