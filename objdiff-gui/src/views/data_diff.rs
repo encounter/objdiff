@@ -79,6 +79,32 @@ fn data_row_hover_ui(
     });
 }
 
+fn data_row_context_menu(ui: &mut egui::Ui, diffs: &[ObjDataDiff]) {
+    ui.scope(|ui| {
+        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+
+        for diff in diffs {
+            let Some(reloc) = &diff.reloc else {
+                continue;
+            };
+
+            // TODO: This code is copy-pasted from ins_context_menu.
+            // Try to separate this out into a shared function.
+            if let Some(name) = &reloc.target.demangled_name {
+                if ui.button(format!("Copy \"{name}\"")).clicked() {
+                    ui.output_mut(|output| output.copied_text.clone_from(name));
+                    ui.close_menu();
+                }
+            }
+            if ui.button(format!("Copy \"{}\"", reloc.target.name)).clicked() {
+                ui.output_mut(|output| output.copied_text.clone_from(&reloc.target.name));
+                ui.close_menu();
+            }
+        }
+    });
+}
+
 fn data_row_ui(
     ui: &mut egui::Ui,
     obj: Option<&ObjInfo>,
@@ -159,8 +185,9 @@ fn data_row_ui(
 
     let response = Label::new(job).sense(Sense::click()).ui(ui);
     if let Some(obj) = obj {
-        response.on_hover_ui_at_pointer(|ui| data_row_hover_ui(ui, obj, diffs, appearance));
-        // .context_menu(|ui| data_row_context_menu(ui, ins)); // TODO
+        response
+            .on_hover_ui_at_pointer(|ui| data_row_hover_ui(ui, obj, diffs, appearance))
+            .context_menu(|ui| data_row_context_menu(ui, diffs));
     }
 }
 
