@@ -42,6 +42,12 @@ fn data_row_hover_ui(
                 continue;
             };
 
+            // Use a slightly different font color for nonmatching relocations so they stand out.
+            let color = match diff.kind {
+                ObjDataDiffKind::None => appearance.highlight_color,
+                _ => appearance.replace_color,
+            };
+
             // TODO: Most of this code is copy-pasted from ins_hover_ui.
             // Try to separate this out into a shared function.
             ui.label(format!("Relocation type: {}", obj.arch.display_reloc(reloc.flags)));
@@ -50,30 +56,21 @@ fn data_row_hover_ui(
                 Ordering::Less => format!("-{:x}", -reloc.addend),
                 _ => "".to_string(),
             };
-            ui.colored_label(
-                appearance.highlight_color,
-                format!("Name: {}{}", reloc.target.name, addend_str),
-            );
+            ui.colored_label(color, format!("Name: {}{}", reloc.target.name, addend_str));
             if let Some(orig_section_index) = reloc.target.orig_section_index {
                 if let Some(section) =
                     obj.sections.iter().find(|s| s.orig_index == orig_section_index)
                 {
-                    ui.colored_label(
-                        appearance.highlight_color,
-                        format!("Section: {}", section.name),
-                    );
+                    ui.colored_label(color, format!("Section: {}", section.name));
                 }
                 ui.colored_label(
-                    appearance.highlight_color,
+                    color,
                     format!("Address: {:x}{}", reloc.target.address, addend_str),
                 );
-                ui.colored_label(
-                    appearance.highlight_color,
-                    format!("Size: {:x}", reloc.target.size),
-                );
+                ui.colored_label(color, format!("Size: {:x}", reloc.target.size));
                 if reloc.addend >= 0 && reloc.target.bytes.len() > reloc.addend as usize {}
             } else {
-                ui.colored_label(appearance.highlight_color, "Extern".to_string());
+                ui.colored_label(color, "Extern".to_string());
             }
         }
     });
