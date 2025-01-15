@@ -177,7 +177,7 @@ pub fn diff_data_section(
             }
         };
         if kind == ObjDataDiffKind::None {
-            let mut found_any_reloc_diffs = false;
+            let mut found_any_relocs = false;
             let mut left_curr_addr = left_range.start;
             let mut right_curr_addr = right_range.start;
             for (diff_kind, left_reloc, right_reloc) in diff_data_relocs_for_range(
@@ -188,10 +188,7 @@ pub fn diff_data_section(
                 left_range.clone(),
                 right_range.clone(),
             ) {
-                if diff_kind == ObjDataDiffKind::None {
-                    continue;
-                }
-                found_any_reloc_diffs = true;
+                found_any_relocs = true;
 
                 if let Some(left_reloc) = left_reloc {
                     let left_reloc_addr = left_reloc.address as usize;
@@ -243,7 +240,7 @@ pub fn diff_data_section(
                 }
             }
 
-            if found_any_reloc_diffs {
+            if found_any_relocs {
                 if left_curr_addr < left_range.end - 1 {
                     let len = left_range.end - left_curr_addr;
                     let left_data = &left.data[left_curr_addr..left_range.end];
