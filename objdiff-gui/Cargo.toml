@@ -93,4 +93,4 @@ tracing-wasm = "0.2"
 anyhow = "1.0"
 
 [target.'cfg(windows)'.build-dependencies]
-tauri-winres = "0.1"
+tauri-winres = "0.2"

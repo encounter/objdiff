@@ -149,7 +149,7 @@ gimli = { version = "0.31", default-features = false, features = ["read-all"], o
 
 # ppc
 cwdemangle = { version = "1.0", optional = true }
-cwextab = { version = "1.0.2", optional = true }
+cwextab = { version = "1.0", optional = true }
 ppc750cl = { version = "0.3", optional = true }
 
 # mips
@@ -169,10 +169,10 @@ yaxpeax-arch = { version = "0.3", default-features = false, features = ["std"], 
 yaxpeax-arm = { version = "0.3", default-features = false, features = ["std"], optional = true }
 
 # build
-notify = { git = "https://github.com/notify-rs/notify", rev = "128bf6230c03d39dbb7f301ff7b20e594e34c3a2", version = "6.1.1", optional = true }
-notify-debouncer-full = { git = "https://github.com/notify-rs/notify", rev = "128bf6230c03d39dbb7f301ff7b20e594e34c3a2", version = "0.4.0", optional = true }
+notify = { version = "8.0.0", optional = true }
+notify-debouncer-full = { version = "0.5.0", optional = true }
 shell-escape = { version = "0.1", optional = true }
-tempfile = { version = "3.14", optional = true }
+tempfile = { version = "3.15", optional = true }
 time = { version = "0.3", optional = true }
 
 [target.'cfg(windows)'.dependencies]

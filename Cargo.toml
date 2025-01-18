@@ -13,9 +13,9 @@ strip = "debuginfo"
 codegen-units = 1
 
 [workspace.package]
-version = "2.6.0"
+version = "2.7.0"
 authors = ["Luke Street <luke@street.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/encounter/objdiff"
-rust-version = "1.74"
+rust-version = "1.81"
