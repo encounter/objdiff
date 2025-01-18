@@ -162,6 +162,19 @@ impl ObjArch for ObjArchX86 {
             _ => Cow::Owned(format!("<{flags:?}>")),
         }
     }
+
+    fn get_reloc_byte_size(&self, flags: RelocationFlags) -> usize {
+        match flags {
+            RelocationFlags::Coff { typ } => match typ {
+                pe::IMAGE_REL_I386_DIR16 => 2,
+                pe::IMAGE_REL_I386_REL16 => 2,
+                pe::IMAGE_REL_I386_DIR32 => 4,
+                pe::IMAGE_REL_I386_REL32 => 4,
+                _ => 1,
+            },
+            _ => 1,
+        }
+    }
 }
 
 fn replace_arg(

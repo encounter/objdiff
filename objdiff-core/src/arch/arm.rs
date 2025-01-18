@@ -276,6 +276,19 @@ impl ObjArch for ObjArchArm {
     fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str> {
         Cow::Owned(format!("<{flags:?}>"))
     }
+
+    fn get_reloc_byte_size(&self, flags: RelocationFlags) -> usize {
+        match flags {
+            RelocationFlags::Elf { r_type } => match r_type {
+                elf::R_ARM_ABS32 => 4,
+                elf::R_ARM_REL32 => 4,
+                elf::R_ARM_ABS16 => 2,
+                elf::R_ARM_ABS8 => 1,
+                _ => 1,
+            },
+            _ => 1,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
