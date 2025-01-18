@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use eframe::Storage;
 use globset::Glob;
 use objdiff_core::{
-    config::ScratchConfig,
+    config::{ScratchConfig, SymbolMappings},
     diff::{
         ArmArchVersion, ArmR9Usage, DiffObjConfig, FunctionRelocDiffs, MipsAbi, MipsInstrCategory,
         X86Formatter,
@@ -18,7 +18,7 @@ pub struct AppConfigVersion {
 }
 
 impl Default for AppConfigVersion {
-    fn default() -> Self { Self { version: 2 } }
+    fn default() -> Self { Self { version: 3 } }
 }
 
 /// Deserialize the AppConfig from storage, handling upgrades from older versions.
@@ -26,7 +26,8 @@ pub fn deserialize_config(storage: &dyn Storage) -> Option<AppConfig> {
     let str = storage.get_string(CONFIG_KEY)?;
     match ron::from_str::<AppConfigVersion>(&str) {
         Ok(version) => match version.version {
-            2 => from_str::<AppConfig>(&str),
+            3 => from_str::<AppConfig>(&str),
+            2 => from_str::<AppConfigV2>(&str).map(|c| c.into_config()),
             1 => from_str::<AppConfigV1>(&str).map(|c| c.into_config()),
             _ => {
                 log::warn!("Unknown config version: {}", version.version);
@@ -48,6 +49,119 @@ where T: serde::de::DeserializeOwned {
         Err(err) => {
             log::warn!("Failed to decode config: {err}");
             None
+        }
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct ScratchConfigV2 {
+    #[serde(default)]
+    pub platform: Option<String>,
+    #[serde(default)]
+    pub compiler: Option<String>,
+    #[serde(default)]
+    pub c_flags: Option<String>,
+    #[serde(default)]
+    pub ctx_path: Option<PathBuf>,
+    #[serde(default)]
+    pub build_ctx: Option<bool>,
+    #[serde(default)]
+    pub preset_id: Option<u32>,
+}
+
+impl ScratchConfigV2 {
+    fn into_config(self) -> ScratchConfig {
+        ScratchConfig {
+            platform: self.platform,
+            compiler: self.compiler,
+            c_flags: self.c_flags,
+            ctx_path: self.ctx_path,
+            build_ctx: self.build_ctx,
+            preset_id: self.preset_id,
+        }
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct ObjectConfigV2 {
+    pub name: String,
+    pub target_path: Option<PathBuf>,
+    pub base_path: Option<PathBuf>,
+    pub reverse_fn_order: Option<bool>,
+    pub complete: Option<bool>,
+    pub scratch: Option<ScratchConfigV2>,
+    pub source_path: Option<String>,
+    #[serde(default)]
+    pub symbol_mappings: SymbolMappings,
+}
+
+impl ObjectConfigV2 {
+    fn into_config(self) -> ObjectConfig {
+        ObjectConfig {
+            name: self.name,
+            target_path: self.target_path,
+            base_path: self.base_path,
+            reverse_fn_order: self.reverse_fn_order,
+            complete: self.complete,
+            scratch: self.scratch.map(|scratch| scratch.into_config()),
+            source_path: self.source_path,
+            symbol_mappings: self.symbol_mappings,
+        }
+    }
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+pub struct AppConfigV2 {
+    pub version: u32,
+    #[serde(default)]
+    pub custom_make: Option<String>,
+    #[serde(default)]
+    pub custom_args: Option<Vec<String>>,
+    #[serde(default)]
+    pub selected_wsl_distro: Option<String>,
+    #[serde(default)]
+    pub project_dir: Option<PathBuf>,
+    #[serde(default)]
+    pub target_obj_dir: Option<PathBuf>,
+    #[serde(default)]
+    pub base_obj_dir: Option<PathBuf>,
+    #[serde(default)]
+    pub selected_obj: Option<ObjectConfigV2>,
+    #[serde(default = "bool_true")]
+    pub build_base: bool,
+    #[serde(default)]
+    pub build_target: bool,
+    #[serde(default = "bool_true")]
+    pub rebuild_on_changes: bool,
+    #[serde(default)]
+    pub auto_update_check: bool,
+    #[serde(default)]
+    pub watch_patterns: Vec<Glob>,
+    #[serde(default)]
+    pub recent_projects: Vec<PathBuf>,
+    #[serde(default)]
+    pub diff_obj_config: DiffObjConfigV1,
+}
+
+impl AppConfigV2 {
+    fn into_config(self) -> AppConfig {
+        log::info!("Upgrading configuration from v2");
+        AppConfig {
+            custom_make: self.custom_make,
+            custom_args: self.custom_args,
+            selected_wsl_distro: self.selected_wsl_distro,
+            project_dir: self.project_dir,
+            target_obj_dir: self.target_obj_dir,
+            base_obj_dir: self.base_obj_dir,
+            selected_obj: self.selected_obj.map(|obj| obj.into_config()),
+            build_base: self.build_base,
+            build_target: self.build_target,
+            rebuild_on_changes: self.rebuild_on_changes,
+            auto_update_check: self.auto_update_check,
+            watch_patterns: self.watch_patterns,
+            recent_projects: self.recent_projects,
+            diff_obj_config: self.diff_obj_config.into_config(),
+            ..Default::default()
         }
     }
 }
