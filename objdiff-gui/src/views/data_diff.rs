@@ -51,6 +51,7 @@ fn data_row_hover_ui(
             // TODO: Most of this code is copy-pasted from ins_hover_ui.
             // Try to separate this out into a shared function.
             ui.label(format!("Relocation type: {}", obj.arch.display_reloc(reloc.flags)));
+            ui.label(format!("Relocation address: {:x}", reloc.address));
             let addend_str = match reloc.addend.cmp(&0i64) {
                 Ordering::Greater => format!("+{:x}", reloc.addend),
                 Ordering::Less => format!("-{:x}", -reloc.addend),
