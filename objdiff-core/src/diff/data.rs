@@ -8,7 +8,7 @@ use similar::{capture_diff_slices_deadline, get_diff_ratio, Algorithm};
 
 use super::code::section_name_eq;
 use crate::{
-    diff::{ObjDataDiff, ObjDataDiffKind, ObjSectionDiff, ObjSymbolDiff},
+    diff::{ObjDataDiff, ObjDataDiffKind, ObjDataRelocDiff, ObjSectionDiff, ObjSymbolDiff},
     obj::{ObjInfo, ObjReloc, ObjSection, ObjSymbolFlags, SymbolRef},
 };
 
@@ -103,7 +103,7 @@ fn diff_data_relocs_for_range(
             let right_offset = r.address as usize - right_range.start;
             right_offset == left_offset
         }) else {
-            diffs.push((ObjDataDiffKind::Replace, Some(left_reloc.clone()), None));
+            diffs.push((ObjDataDiffKind::Delete, Some(left_reloc.clone()), None));
             continue;
         };
         if reloc_eq(left_obj, right_obj, left_reloc, right_reloc) {
@@ -132,7 +132,7 @@ fn diff_data_relocs_for_range(
             let left_offset = r.address as usize - left_range.start;
             left_offset == right_offset
         }) else {
-            diffs.push((ObjDataDiffKind::Replace, None, Some(right_reloc.clone())));
+            diffs.push((ObjDataDiffKind::Insert, None, Some(right_reloc.clone())));
             continue;
         };
         // No need to check the cases for relocations being deleted or matching again.
@@ -176,94 +176,6 @@ pub fn diff_data_section(
                 ObjDataDiffKind::Replace
             }
         };
-        if kind == ObjDataDiffKind::None {
-            let mut found_any_relocs = false;
-            let mut left_curr_addr = left_range.start;
-            let mut right_curr_addr = right_range.start;
-            for (diff_kind, left_reloc, right_reloc) in diff_data_relocs_for_range(
-                left_obj,
-                right_obj,
-                left,
-                right,
-                left_range.clone(),
-                right_range.clone(),
-            ) {
-                found_any_relocs = true;
-
-                if let Some(left_reloc) = left_reloc {
-                    let left_reloc_addr = left_reloc.address as usize;
-                    if left_reloc_addr > left_curr_addr {
-                        let len = left_reloc_addr - left_curr_addr;
-                        let left_data = &left.data[left_curr_addr..left_reloc_addr];
-                        left_diff.push(ObjDataDiff {
-                            data: left_data[..min(len, left_data.len())].to_vec(),
-                            kind: ObjDataDiffKind::None,
-                            len,
-                            ..Default::default()
-                        });
-                    }
-                    let reloc_diff_len = left_obj.arch.get_reloc_byte_size(left_reloc.flags);
-                    let left_data = &left.data[left_reloc_addr..left_reloc_addr + reloc_diff_len];
-                    left_diff.push(ObjDataDiff {
-                        data: left_data[..min(reloc_diff_len, left_data.len())].to_vec(),
-                        kind: diff_kind,
-                        len: reloc_diff_len,
-                        reloc: Some(left_reloc.clone()),
-                        ..Default::default()
-                    });
-                    left_curr_addr = left_reloc_addr + reloc_diff_len;
-                }
-
-                if let Some(right_reloc) = right_reloc {
-                    let right_reloc_addr = right_reloc.address as usize;
-                    if right_reloc_addr > right_curr_addr {
-                        let len = right_reloc_addr - right_curr_addr;
-                        let right_data = &right.data[right_curr_addr..right_reloc_addr];
-                        right_diff.push(ObjDataDiff {
-                            data: right_data[..min(len, right_data.len())].to_vec(),
-                            kind: ObjDataDiffKind::None,
-                            len,
-                            ..Default::default()
-                        });
-                    }
-                    let reloc_diff_len = right_obj.arch.get_reloc_byte_size(right_reloc.flags);
-                    let right_data =
-                        &right.data[right_reloc_addr..right_reloc_addr + reloc_diff_len];
-                    right_diff.push(ObjDataDiff {
-                        data: right_data[..min(reloc_diff_len, right_data.len())].to_vec(),
-                        kind: diff_kind,
-                        len: reloc_diff_len,
-                        reloc: Some(right_reloc.clone()),
-                        ..Default::default()
-                    });
-                    right_curr_addr = right_reloc_addr + reloc_diff_len;
-                }
-            }
-
-            if found_any_relocs {
-                if left_curr_addr < left_range.end - 1 {
-                    let len = left_range.end - left_curr_addr;
-                    let left_data = &left.data[left_curr_addr..left_range.end];
-                    left_diff.push(ObjDataDiff {
-                        data: left_data[..min(len, left_data.len())].to_vec(),
-                        kind: ObjDataDiffKind::None,
-                        len,
-                        ..Default::default()
-                    });
-                }
-                if right_curr_addr < right_range.end - 1 {
-                    let len = right_range.end - right_curr_addr;
-                    let right_data = &right.data[right_curr_addr..right_range.end];
-                    right_diff.push(ObjDataDiff {
-                        data: right_data[..min(len, right_data.len())].to_vec(),
-                        kind: ObjDataDiffKind::None,
-                        len,
-                        ..Default::default()
-                    });
-                }
-                continue;
-            }
-        }
         let left_data = &left.data[left_range];
         let right_data = &right.data[right_range];
         left_diff.push(ObjDataDiff {
@@ -315,12 +227,35 @@ pub fn diff_data_section(
         }
     }
 
+    let mut left_reloc_diffs = Vec::new();
+    let mut right_reloc_diffs = Vec::new();
+    for (diff_kind, left_reloc, right_reloc) in diff_data_relocs_for_range(
+        left_obj,
+        right_obj,
+        left,
+        right,
+        0..left_max as usize,
+        0..right_max as usize,
+    ) {
+        if let Some(left_reloc) = left_reloc {
+            let len = left_obj.arch.get_reloc_byte_size(left_reloc.flags);
+            let range = left_reloc.address as usize..left_reloc.address as usize + len;
+            left_reloc_diffs.push(ObjDataRelocDiff { reloc: left_reloc, kind: diff_kind, range });
+        }
+        if let Some(right_reloc) = right_reloc {
+            let len = right_obj.arch.get_reloc_byte_size(right_reloc.flags);
+            let range = right_reloc.address as usize..right_reloc.address as usize + len;
+            right_reloc_diffs.push(ObjDataRelocDiff { reloc: right_reloc, kind: diff_kind, range });
+        }
+    }
+
     let (mut left_section_diff, mut right_section_diff) =
         diff_generic_section(left, right, left_section_diff, right_section_diff)?;
-    let all_left_relocs_match =
-        left_diff.iter().all(|d| d.kind == ObjDataDiffKind::None || d.reloc.is_none());
+    let all_left_relocs_match = left_reloc_diffs.iter().all(|d| d.kind == ObjDataDiffKind::None);
     left_section_diff.data_diff = left_diff;
     right_section_diff.data_diff = right_diff;
+    left_section_diff.reloc_diff = left_reloc_diffs;
+    right_section_diff.reloc_diff = right_reloc_diffs;
     if all_left_relocs_match {
         // Use the highest match percent between two options:
         // - Left symbols matching right symbols by name
@@ -430,8 +365,18 @@ pub fn diff_generic_section(
             / left.size as f32
     };
     Ok((
-        ObjSectionDiff { symbols: vec![], data_diff: vec![], match_percent: Some(match_percent) },
-        ObjSectionDiff { symbols: vec![], data_diff: vec![], match_percent: Some(match_percent) },
+        ObjSectionDiff {
+            symbols: vec![],
+            data_diff: vec![],
+            reloc_diff: vec![],
+            match_percent: Some(match_percent),
+        },
+        ObjSectionDiff {
+            symbols: vec![],
+            data_diff: vec![],
+            reloc_diff: vec![],
+            match_percent: Some(match_percent),
+        },
     ))
 }
 
@@ -456,7 +401,17 @@ pub fn diff_bss_section(
     }
 
     Ok((
-        ObjSectionDiff { symbols: vec![], data_diff: vec![], match_percent: Some(match_percent) },
-        ObjSectionDiff { symbols: vec![], data_diff: vec![], match_percent: Some(match_percent) },
+        ObjSectionDiff {
+            symbols: vec![],
+            data_diff: vec![],
+            reloc_diff: vec![],
+            match_percent: Some(match_percent),
+        },
+        ObjSectionDiff {
+            symbols: vec![],
+            data_diff: vec![],
+            reloc_diff: vec![],
+            match_percent: Some(match_percent),
+        },
     ))
 }

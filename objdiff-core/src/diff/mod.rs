@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, ops::Range};
 
 use anyhow::Result;
 
@@ -36,6 +36,7 @@ impl DiffObjConfig {
 pub struct ObjSectionDiff {
     pub symbols: Vec<ObjSymbolDiff>,
     pub data_diff: Vec<ObjDataDiff>,
+    pub reloc_diff: Vec<ObjDataRelocDiff>,
     pub match_percent: Option<f32>,
 }
 
@@ -43,6 +44,7 @@ impl ObjSectionDiff {
     fn merge(&mut self, other: ObjSectionDiff) {
         // symbols ignored
         self.data_diff = other.data_diff;
+        self.reloc_diff = other.reloc_diff;
         self.match_percent = other.match_percent;
     }
 }
@@ -87,7 +89,13 @@ pub struct ObjDataDiff {
     pub kind: ObjDataDiffKind,
     pub len: usize,
     pub symbol: String,
-    pub reloc: Option<ObjReloc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ObjDataRelocDiff {
+    pub reloc: ObjReloc,
+    pub kind: ObjDataDiffKind,
+    pub range: Range<usize>,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
@@ -156,8 +164,8 @@ impl ObjDiff {
                     kind: ObjDataDiffKind::None,
                     len: section.data.len(),
                     symbol: section.name.clone(),
-                    ..Default::default()
                 }],
+                reloc_diff: vec![],
                 match_percent: None,
             });
         }

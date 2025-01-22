@@ -6,7 +6,7 @@ use std::{
 
 use egui::{text::LayoutJob, Id, Label, RichText, Sense, Widget};
 use objdiff_core::{
-    diff::{ObjDataDiff, ObjDataDiffKind, ObjDiff},
+    diff::{ObjDataDiff, ObjDataDiffKind, ObjDataRelocDiff, ObjDiff},
     obj::ObjInfo,
 };
 use time::format_description;
@@ -30,27 +30,31 @@ fn find_section(obj: &ObjInfo, section_name: &str) -> Option<usize> {
 fn data_row_hover_ui(
     ui: &mut egui::Ui,
     obj: &ObjInfo,
-    diffs: &[ObjDataDiff],
+    diffs: &[(ObjDataDiff, Vec<ObjDataRelocDiff>)],
     appearance: &Appearance,
 ) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
-        for diff in diffs {
-            let Some(reloc) = &diff.reloc else {
+        let reloc_diffs = diffs.iter().flat_map(|(_, reloc_diffs)| reloc_diffs);
+        let mut prev_reloc = None;
+        for reloc_diff in reloc_diffs {
+            let reloc = &reloc_diff.reloc;
+            if prev_reloc == Some(reloc) {
+                // Avoid showing consecutive duplicate relocations.
+                // We do this because a single relocation can span across multiple diffs if the
+                // bytes in the relocation changed (e.g. first byte is added, second is unchanged).
                 continue;
-            };
+            }
+            prev_reloc = Some(reloc);
 
-            // Use a slightly different font color for nonmatching relocations so they stand out.
-            let color = match diff.kind {
-                ObjDataDiffKind::None => appearance.highlight_color,
-                _ => appearance.replace_color,
-            };
+            let color = get_color_for_diff_kind(reloc_diff.kind, appearance);
 
             // TODO: Most of this code is copy-pasted from ins_hover_ui.
             // Try to separate this out into a shared function.
             ui.label(format!("Relocation type: {}", obj.arch.display_reloc(reloc.flags)));
+            ui.label(format!("Relocation address: {:x}", reloc.address));
             let addend_str = match reloc.addend.cmp(&0i64) {
                 Ordering::Greater => format!("+{:x}", reloc.addend),
                 Ordering::Less => format!("-{:x}", -reloc.addend),
@@ -76,15 +80,22 @@ fn data_row_hover_ui(
     });
 }
 
-fn data_row_context_menu(ui: &mut egui::Ui, diffs: &[ObjDataDiff]) {
+fn data_row_context_menu(ui: &mut egui::Ui, diffs: &[(ObjDataDiff, Vec<ObjDataRelocDiff>)]) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
-        for diff in diffs {
-            let Some(reloc) = &diff.reloc else {
+        let reloc_diffs = diffs.iter().flat_map(|(_, reloc_diffs)| reloc_diffs);
+        let mut prev_reloc = None;
+        for reloc_diff in reloc_diffs {
+            let reloc = &reloc_diff.reloc;
+            if prev_reloc == Some(reloc) {
+                // Avoid showing consecutive duplicate relocations.
+                // We do this because a single relocation can span across multiple diffs if the
+                // bytes in the relocation changed (e.g. first byte is added, second is unchanged).
                 continue;
-            };
+            }
+            prev_reloc = Some(reloc);
 
             // TODO: This code is copy-pasted from ins_context_menu.
             // Try to separate this out into a shared function.
@@ -102,14 +113,25 @@ fn data_row_context_menu(ui: &mut egui::Ui, diffs: &[ObjDataDiff]) {
     });
 }
 
+fn get_color_for_diff_kind(diff_kind: ObjDataDiffKind, appearance: &Appearance) -> egui::Color32 {
+    match diff_kind {
+        ObjDataDiffKind::None => appearance.text_color,
+        ObjDataDiffKind::Replace => appearance.replace_color,
+        ObjDataDiffKind::Delete => appearance.delete_color,
+        ObjDataDiffKind::Insert => appearance.insert_color,
+    }
+}
+
 fn data_row_ui(
     ui: &mut egui::Ui,
     obj: Option<&ObjInfo>,
     address: usize,
-    diffs: &[ObjDataDiff],
+    diffs: &[(ObjDataDiff, Vec<ObjDataRelocDiff>)],
     appearance: &Appearance,
 ) {
-    if diffs.iter().any(|d| d.kind != ObjDataDiffKind::None) {
+    if diffs.iter().any(|(dd, rds)| {
+        dd.kind != ObjDataDiffKind::None || rds.iter().any(|rd| rd.kind != ObjDataDiffKind::None)
+    }) {
         ui.painter().rect_filled(ui.available_rect_before_wrap(), 0.0, ui.visuals().faint_bg_color);
     }
     let mut job = LayoutJob::default();
@@ -119,29 +141,34 @@ fn data_row_ui(
         &mut job,
         appearance.code_font.clone(),
     );
+    // The offset shown on the side of the GUI, shifted by insertions/deletions.
     let mut cur_addr = 0usize;
-    for diff in diffs {
-        let base_color = match diff.kind {
-            ObjDataDiffKind::None => appearance.text_color,
-            ObjDataDiffKind::Replace => appearance.replace_color,
-            ObjDataDiffKind::Delete => appearance.delete_color,
-            ObjDataDiffKind::Insert => appearance.insert_color,
-        };
+    // The offset into the actual bytes of the section on this side, ignoring differences.
+    let mut cur_addr_actual = address;
+    for (diff, reloc_diffs) in diffs {
+        let base_color = get_color_for_diff_kind(diff.kind, appearance);
         if diff.data.is_empty() {
             let mut str = "   ".repeat(diff.len);
             str.push_str(" ".repeat(diff.len / 8).as_str());
             write_text(str.as_str(), base_color, &mut job, appearance.code_font.clone());
             cur_addr += diff.len;
         } else {
-            let mut text = String::new();
             for byte in &diff.data {
-                text.push_str(format!("{byte:02x} ").as_str());
+                let mut byte_color = base_color;
+                if let Some(reloc_diff) = reloc_diffs.iter().find(|reloc_diff| {
+                    reloc_diff.kind != ObjDataDiffKind::None
+                        && reloc_diff.range.contains(&cur_addr_actual)
+                }) {
+                    byte_color = get_color_for_diff_kind(reloc_diff.kind, appearance);
+                }
+                let byte_text = format!("{byte:02x} ");
+                write_text(byte_text.as_str(), byte_color, &mut job, appearance.code_font.clone());
                 cur_addr += 1;
+                cur_addr_actual += 1;
                 if cur_addr % 8 == 0 {
-                    text.push(' ');
+                    write_text(" ", base_color, &mut job, appearance.code_font.clone());
                 }
             }
-            write_text(text.as_str(), base_color, &mut job, appearance.code_font.clone());
         }
     }
     if cur_addr < BYTES_PER_ROW {
@@ -152,13 +179,8 @@ fn data_row_ui(
         write_text(str.as_str(), appearance.text_color, &mut job, appearance.code_font.clone());
     }
     write_text(" ", appearance.text_color, &mut job, appearance.code_font.clone());
-    for diff in diffs {
-        let base_color = match diff.kind {
-            ObjDataDiffKind::None => appearance.text_color,
-            ObjDataDiffKind::Replace => appearance.replace_color,
-            ObjDataDiffKind::Delete => appearance.delete_color,
-            ObjDataDiffKind::Insert => appearance.insert_color,
-        };
+    for (diff, _) in diffs {
+        let base_color = get_color_for_diff_kind(diff.kind, appearance);
         if diff.data.is_empty() {
             write_text(
                 " ".repeat(diff.len).as_str(),
@@ -188,17 +210,24 @@ fn data_row_ui(
     }
 }
 
-fn split_diffs(diffs: &[ObjDataDiff]) -> Vec<Vec<ObjDataDiff>> {
-    let mut split_diffs = Vec::<Vec<ObjDataDiff>>::new();
-    let mut row_diffs = Vec::<ObjDataDiff>::new();
+fn split_diffs(
+    diffs: &[ObjDataDiff],
+    reloc_diffs: &[ObjDataRelocDiff],
+) -> Vec<Vec<(ObjDataDiff, Vec<ObjDataRelocDiff>)>> {
+    let mut split_diffs = Vec::<Vec<(ObjDataDiff, Vec<ObjDataRelocDiff>)>>::new();
+    let mut row_diffs = Vec::<(ObjDataDiff, Vec<ObjDataRelocDiff>)>::new();
+    // The offset shown on the side of the GUI, shifted by insertions/deletions.
     let mut cur_addr = 0usize;
+    // The offset into the actual bytes of the section on this side, ignoring differences.
+    let mut cur_addr_actual = 0usize;
     for diff in diffs {
         let mut cur_len = 0usize;
         while cur_len < diff.len {
             let remaining_len = diff.len - cur_len;
             let mut remaining_in_row = BYTES_PER_ROW - (cur_addr % BYTES_PER_ROW);
             let len = min(remaining_len, remaining_in_row);
-            row_diffs.push(ObjDataDiff {
+
+            let data_diff = ObjDataDiff {
                 data: if diff.data.is_empty() {
                     Vec::new()
                 } else {
@@ -207,8 +236,27 @@ fn split_diffs(diffs: &[ObjDataDiff]) -> Vec<Vec<ObjDataDiff>> {
                 kind: diff.kind,
                 len,
                 symbol: String::new(), // TODO
-                reloc: diff.reloc.clone(),
-            });
+            };
+            let row_reloc_diffs: Vec<ObjDataRelocDiff> = if diff.data.is_empty() {
+                Vec::new()
+            } else {
+                let diff_range = cur_addr_actual + cur_len..cur_addr_actual + cur_len + len;
+                reloc_diffs
+                    .iter()
+                    .filter_map(|reloc_diff| {
+                        if reloc_diff.range.start < diff_range.end
+                            && diff_range.start < reloc_diff.range.end
+                        {
+                            Some(reloc_diff.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect()
+            };
+            let row_diff = (data_diff, row_reloc_diffs);
+
+            row_diffs.push(row_diff);
             remaining_in_row -= len;
             cur_len += len;
             cur_addr += len;
@@ -216,6 +264,7 @@ fn split_diffs(diffs: &[ObjDataDiff]) -> Vec<Vec<ObjDataDiff>> {
                 split_diffs.push(take(&mut row_diffs));
             }
         }
+        cur_addr_actual += diff.data.len();
     }
     if !row_diffs.is_empty() {
         split_diffs.push(take(&mut row_diffs));
@@ -267,8 +316,10 @@ fn data_table_ui(
     }
     let total_rows = (total_bytes - 1) / BYTES_PER_ROW + 1;
 
-    let left_diffs = left_section.map(|(_, section)| split_diffs(&section.data_diff));
-    let right_diffs = right_section.map(|(_, section)| split_diffs(&section.data_diff));
+    let left_diffs =
+        left_section.map(|(_, section)| split_diffs(&section.data_diff, &section.reloc_diff));
+    let right_diffs =
+        right_section.map(|(_, section)| split_diffs(&section.data_diff, &section.reloc_diff));
 
     hotkeys::check_scroll_hotkeys(ui, true);
 

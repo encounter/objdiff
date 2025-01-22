@@ -42,6 +42,7 @@ impl SectionDiff {
         let section = &obj.sections[section_index];
         let symbols = section_diff.symbols.iter().map(|d| SymbolDiff::new(obj, d)).collect();
         let data = section_diff.data_diff.iter().map(|d| DataDiff::new(obj, d)).collect();
+        // TODO: section_diff.reloc_diff
         Self {
             name: section.name.to_string(),
             kind: SectionKind::from(section.kind) as i32,
