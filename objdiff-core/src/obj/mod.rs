@@ -28,7 +28,7 @@ flags! {
         HasExtra,
     }
 }
-#[derive(Debug, Copy, Clone, Default)]
+#[derive(Debug, Copy, Clone, Default, PartialEq)]
 pub struct ObjSymbolFlagSet(pub FlagSet<ObjSymbolFlags>);
 
 #[derive(Debug, Clone)]
@@ -132,7 +132,7 @@ pub enum ObjSymbolKind {
     Section,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ObjSymbol {
     pub name: String,
     pub demangled_name: Option<String>,
@@ -161,7 +161,7 @@ pub struct ObjInfo {
     pub split_meta: Option<SplitMeta>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ObjReloc {
     pub flags: RelocationFlags,
     pub address: u64,
