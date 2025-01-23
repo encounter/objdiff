@@ -1,5 +1,3 @@
-use std::cmp::Ordering;
-
 use crate::{
     diff::{ObjInsArgDiff, ObjInsDiff},
     obj::{ObjInsArg, ObjInsArgValue, ObjReloc, ObjSymbol},
@@ -23,6 +21,8 @@ pub enum DiffText<'a> {
     BranchDest(u64, Option<&'a ObjInsArgDiff>),
     /// Symbol name
     Symbol(&'a ObjSymbol, Option<&'a ObjInsArgDiff>),
+    /// Relocation addend
+    Addend(i64, Option<&'a ObjInsArgDiff>),
     /// Number of spaces
     Spacing(usize),
     /// End of line
@@ -99,11 +99,7 @@ fn display_reloc_name<E>(
     diff: Option<&ObjInsArgDiff>,
 ) -> Result<(), E> {
     cb(DiffText::Symbol(&reloc.target, diff))?;
-    match reloc.addend.cmp(&0i64) {
-        Ordering::Greater => cb(DiffText::Basic(&format!("+{:#x}", reloc.addend))),
-        Ordering::Less => cb(DiffText::Basic(&format!("-{:#x}", -reloc.addend))),
-        _ => Ok(()),
-    }
+    cb(DiffText::Addend(reloc.addend, diff))
 }
 
 impl PartialEq<DiffText<'_>> for HighlightKind {

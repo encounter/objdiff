@@ -312,6 +312,18 @@ fn diff_text_ui(
                 base_color = appearance.emphasized_text_color;
             }
         }
+        DiffText::Addend(addend, diff) => {
+            label_text = match addend.cmp(&0i64) {
+                Ordering::Greater => format!("+{:#x}", addend),
+                Ordering::Less => format!("-{:#x}", -addend),
+                _ => "".to_string(),
+            };
+            if let Some(diff) = diff {
+                base_color = appearance.diff_colors[diff.idx % appearance.diff_colors.len()]
+            } else {
+                base_color = appearance.emphasized_text_color;
+            }
+        }
         DiffText::Spacing(n) => {
             ui.add_space(n as f32 * space_width);
             return ret;
