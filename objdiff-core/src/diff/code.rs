@@ -192,8 +192,18 @@ fn resolve_branches(vec: &mut [ObjInsDiff]) {
     }
 }
 
-fn address_eq(left: &ObjReloc, right: &ObjReloc) -> bool {
-    left.target.address as i64 + left.addend == right.target.address as i64 + right.addend
+pub fn address_eq(left: &ObjReloc, right: &ObjReloc) -> bool {
+    if right.target.size == 0 && left.target.size != 0 {
+        // The base relocation is against a pool but the target relocation isn't.
+        // This can happen in rare cases where the compiler will generate a pool+addend relocation
+        // in the base's data, but the one detected in the target is direct with no addend.
+        // Just check that the final address is the same so these count as a match.
+        left.target.address as i64 + left.addend == right.target.address as i64 + right.addend
+    } else {
+        // But otherwise, if the compiler isn't using a pool, we're more strict and check that the
+        // target symbol address and relocation addend both match exactly.
+        left.target.address == right.target.address && left.addend == right.addend
+    }
 }
 
 pub fn section_name_eq(
@@ -235,13 +245,14 @@ fn reloc_eq(
         return true;
     }
 
-    let symbol_name_matches = left.target.name == right.target.name;
+    let symbol_name_addend_matches =
+        left.target.name == right.target.name && left.addend == right.addend;
     match (&left.target.orig_section_index, &right.target.orig_section_index) {
         (Some(sl), Some(sr)) => {
-            // Match if section and name or address match
+            // Match if section and name+addend or address match
             section_name_eq(left_obj, right_obj, *sl, *sr)
                 && (config.function_reloc_diffs == FunctionRelocDiffs::DataValue
-                    || symbol_name_matches
+                    || symbol_name_addend_matches
                     || address_eq(left, right))
                 && (config.function_reloc_diffs == FunctionRelocDiffs::NameAddress
                     || left.target.kind != ObjSymbolKind::Object
@@ -251,9 +262,9 @@ fn reloc_eq(
         (Some(_), None) => false,
         (None, Some(_)) => {
             // Match if possibly stripped weak symbol
-            symbol_name_matches && right.target.flags.0.contains(ObjSymbolFlags::Weak)
+            symbol_name_addend_matches && right.target.flags.0.contains(ObjSymbolFlags::Weak)
         }
-        (None, None) => symbol_name_matches,
+        (None, None) => symbol_name_addend_matches,
     }
 }
 
