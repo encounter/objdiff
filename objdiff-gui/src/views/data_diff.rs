@@ -149,7 +149,9 @@ fn data_row_ui(
         let base_color = get_color_for_diff_kind(diff.kind, appearance);
         if diff.data.is_empty() {
             let mut str = "   ".repeat(diff.len);
-            str.push_str(" ".repeat(diff.len / 8).as_str());
+            let n1 = cur_addr / 8;
+            let n2 = (diff.len + cur_addr) / 8;
+            str.push_str(" ".repeat(n2 - n1).as_str());
             write_text(str.as_str(), base_color, &mut job, appearance.code_font.clone());
             cur_addr += diff.len;
         } else {
