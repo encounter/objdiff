@@ -33,16 +33,14 @@ use crate::{
             arch_config_window, config_ui, general_config_ui, project_window, ConfigViewState,
             CONFIG_DISABLED_TEXT,
         },
-        data_diff::data_diff_ui,
         debug::debug_window,
         demangle::{demangle_window, DemangleViewState},
-        extab_diff::extab_diff_ui,
+        diff::diff_view_ui,
         frame_history::FrameHistory,
-        function_diff::function_diff_ui,
         graphics::{graphics_window, GraphicsConfig, GraphicsViewState},
         jobs::{jobs_menu_ui, jobs_window},
         rlwinm::{rlwinm_decode_window, RlwinmDecodeViewState},
-        symbol_diff::{symbol_diff_ui, DiffViewAction, DiffViewNavigation, DiffViewState, View},
+        symbol_diff::{DiffViewAction, DiffViewNavigation, DiffViewState, View},
     },
 };
 
@@ -753,16 +751,7 @@ impl eframe::App for App {
 
         let mut action = None;
         egui::CentralPanel::default().show(ctx, |ui| {
-            let build_success = matches!(&diff_state.build, Some(b) if b.first_status.success && b.second_status.success);
-            action = if diff_state.current_view == View::FunctionDiff && build_success {
-                function_diff_ui(ui, diff_state, appearance)
-            } else if diff_state.current_view == View::DataDiff && build_success {
-                data_diff_ui(ui, diff_state, appearance)
-            } else if diff_state.current_view == View::ExtabDiff && build_success {
-                extab_diff_ui(ui, diff_state, appearance)
-            } else {
-                symbol_diff_ui(ui, diff_state, appearance)
-            };
+            action = diff_view_ui(ui, diff_state, appearance);
         });
 
         project_window(ctx, state, show_project_config, config_state, appearance);

@@ -18,4 +18,4 @@ authors = ["Luke Street <luke@street.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/encounter/objdiff"
-rust-version = "1.81"
+rust-version = "1.82"

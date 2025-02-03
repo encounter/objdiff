@@ -1,12 +1,11 @@
 use std::{collections::BTreeMap, mem::take, ops::Bound};
 
 use egui::{
-    style::ScrollAnimation, text::LayoutJob, CollapsingHeader, Color32, Id, Layout, OpenUrl,
-    ScrollArea, SelectableLabel, TextEdit, Ui, Widget,
+    style::ScrollAnimation, text::LayoutJob, CollapsingHeader, Color32, Id, OpenUrl, ScrollArea,
+    SelectableLabel, Ui, Widget,
 };
 use objdiff_core::{
     arch::ObjArch,
-    build::BuildStatus,
     diff::{display::HighlightKind, ObjDiff, ObjSymbolDiff},
     jobs::{create_scratch::CreateScratchResult, objdiff::ObjDiffResult, Job, JobQueue, JobResult},
     obj::{
@@ -19,15 +18,10 @@ use crate::{
     app::AppStateRef,
     hotkeys,
     jobs::{is_create_scratch_available, start_create_scratch},
-    views::{
-        appearance::Appearance,
-        column_layout::{render_header, render_strips},
-        function_diff::FunctionViewState,
-        write_text,
-    },
+    views::{appearance::Appearance, function_diff::FunctionViewState, write_text},
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SymbolRefByName {
     pub symbol_name: String,
     pub section_name: Option<String>,
@@ -79,16 +73,16 @@ pub enum DiffViewAction {
     SetShowMappedSymbols(bool),
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct DiffViewNavigation {
-    pub view: Option<View>,
+    pub view: View,
     pub left_symbol: Option<SymbolRefByName>,
     pub right_symbol: Option<SymbolRefByName>,
 }
 
 impl DiffViewNavigation {
     pub fn symbol_diff() -> Self {
-        Self { view: Some(View::SymbolDiff), left_symbol: None, right_symbol: None }
+        Self { view: View::SymbolDiff, left_symbol: None, right_symbol: None }
     }
 
     pub fn with_symbols(
@@ -107,8 +101,24 @@ impl DiffViewNavigation {
             })
         });
         match column {
-            0 => Self { view: Some(view), left_symbol: symbol1, right_symbol: symbol2 },
-            1 => Self { view: Some(view), left_symbol: symbol2, right_symbol: symbol1 },
+            0 => Self { view, left_symbol: symbol1, right_symbol: symbol2 },
+            1 => Self { view, left_symbol: symbol2, right_symbol: symbol1 },
+            _ => unreachable!("Invalid column index"),
+        }
+    }
+
+    pub fn data_diff(section: &ObjSection, column: usize) -> Self {
+        let symbol = Some(SymbolRefByName {
+            symbol_name: "".to_string(),
+            section_name: Some(section.name.clone()),
+        });
+        match column {
+            0 => Self {
+                view: View::DataDiff,
+                left_symbol: symbol.clone(),
+                right_symbol: symbol.clone(),
+            },
+            1 => Self { view: View::DataDiff, left_symbol: symbol.clone(), right_symbol: symbol },
             _ => unreachable!("Invalid column index"),
         }
     }
@@ -151,9 +161,7 @@ impl DiffViewState {
 
                 // TODO: where should this go?
                 if let Some(result) = self.post_build_nav.take() {
-                    if let Some(view) = result.view {
-                        self.current_view = view;
-                    }
+                    self.current_view = result.view;
                     self.symbol_state.left_symbol = result.left_symbol;
                     self.symbol_state.right_symbol = result.right_symbol;
                 }
@@ -219,7 +227,7 @@ impl DiffViewState {
                 };
                 if (nav.left_symbol.is_some() && nav.right_symbol.is_some())
                     || (nav.left_symbol.is_none() && nav.right_symbol.is_none())
-                    || nav.view != Some(View::FunctionDiff)
+                    || nav.view != View::FunctionDiff
                 {
                     // Regular navigation
                     if state.is_selecting_symbol() {
@@ -228,9 +236,7 @@ impl DiffViewState {
                         self.post_build_nav = Some(nav);
                     } else {
                         // Navigate immediately
-                        if let Some(view) = nav.view {
-                            self.current_view = view;
-                        }
+                        self.current_view = nav.view;
                         self.symbol_state.left_symbol = nav.left_symbol;
                         self.symbol_state.right_symbol = nav.right_symbol;
                     }
@@ -301,7 +307,7 @@ impl DiffViewState {
                 };
                 state.set_selecting_left(&right_ref.symbol_name);
                 self.post_build_nav = Some(DiffViewNavigation {
-                    view: Some(View::FunctionDiff),
+                    view: View::FunctionDiff,
                     left_symbol: None,
                     right_symbol: Some(right_ref),
                 });
@@ -316,7 +322,7 @@ impl DiffViewState {
                 };
                 state.set_selecting_right(&left_ref.symbol_name);
                 self.post_build_nav = Some(DiffViewNavigation {
-                    view: Some(View::FunctionDiff),
+                    view: View::FunctionDiff,
                     left_symbol: Some(left_ref),
                     right_symbol: None,
                 });
@@ -337,7 +343,7 @@ impl DiffViewState {
                     self.post_build_nav = Some(DiffViewNavigation::symbol_diff());
                 } else {
                     self.post_build_nav = Some(DiffViewNavigation {
-                        view: Some(view),
+                        view,
                         left_symbol: Some(left_ref),
                         right_symbol: Some(right_ref),
                     });
@@ -409,13 +415,13 @@ fn symbol_context_menu_ui(
                 let symbol_ref = SymbolRefByName::new(symbol, Some(section));
                 if column == 0 {
                     ret = Some(DiffViewNavigation {
-                        view: Some(View::FunctionDiff),
+                        view: View::FunctionDiff,
                         left_symbol: Some(symbol_ref),
                         right_symbol: None,
                     });
                 } else {
                     ret = Some(DiffViewNavigation {
-                        view: Some(View::FunctionDiff),
+                        view: View::FunctionDiff,
                         left_symbol: None,
                         right_symbol: Some(symbol_ref),
                     });
@@ -552,13 +558,8 @@ fn symbol_ui(
                     )));
                 }
                 ObjSectionKind::Data => {
-                    ret = Some(DiffViewAction::Navigate(DiffViewNavigation::with_symbols(
-                        View::DataDiff,
-                        other_ctx,
-                        symbol,
-                        section,
-                        symbol_diff,
-                        column,
+                    ret = Some(DiffViewAction::Navigate(DiffViewNavigation::data_diff(
+                        section, column,
                     )));
                 }
                 ObjSectionKind::Bss => {}
@@ -591,9 +592,15 @@ fn symbol_matches_filter(
         SymbolFilter::None => true,
         SymbolFilter::Search(regex) => {
             regex.is_match(&symbol.name)
-                || symbol.demangled_name.as_ref().map(|s| regex.is_match(s)).unwrap_or(false)
+                || symbol.demangled_name.as_deref().is_some_and(|s| regex.is_match(s))
         }
-        SymbolFilter::Mapping(symbol_ref) => diff.target_symbol == Some(symbol_ref),
+        SymbolFilter::Mapping(symbol_ref, regex) => {
+            diff.target_symbol == Some(symbol_ref)
+                && regex.is_none_or(|r| {
+                    r.is_match(&symbol.name)
+                        || symbol.demangled_name.as_deref().is_some_and(|s| r.is_match(s))
+                })
+        }
     }
 }
 
@@ -601,7 +608,7 @@ fn symbol_matches_filter(
 pub enum SymbolFilter<'a> {
     None,
     Search(&'a Regex),
-    Mapping(SymbolRef),
+    Mapping(SymbolRef, Option<&'a Regex>),
 }
 
 #[must_use]
@@ -619,21 +626,23 @@ pub fn symbol_list_ui(
     let mut ret = None;
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         let mut mapping = BTreeMap::new();
-        if let SymbolFilter::Mapping(target_ref) = filter {
+        if let SymbolFilter::Mapping(_, _) = filter {
             let mut show_mapped_symbols = state.show_mapped_symbols;
             if ui.checkbox(&mut show_mapped_symbols, "Show mapped symbols").changed() {
                 ret = Some(DiffViewAction::SetShowMappedSymbols(show_mapped_symbols));
             }
             for mapping_diff in &ctx.diff.mapping_symbols {
-                if mapping_diff.target_symbol == Some(target_ref) {
-                    if !show_mapped_symbols {
-                        let symbol_diff = ctx.diff.symbol_diff(mapping_diff.symbol_ref);
-                        if symbol_diff.target_symbol.is_some() {
-                            continue;
-                        }
-                    }
-                    mapping.insert(mapping_diff.symbol_ref, mapping_diff);
+                let symbol = ctx.obj.section_symbol(mapping_diff.symbol_ref).1;
+                if !symbol_matches_filter(symbol, mapping_diff, filter) {
+                    continue;
                 }
+                if !show_mapped_symbols {
+                    let symbol_diff = ctx.diff.symbol_diff(mapping_diff.symbol_ref);
+                    if symbol_diff.target_symbol.is_some() {
+                        continue;
+                    }
+                }
+                mapping.insert(mapping_diff.symbol_ref, mapping_diff);
             }
         } else {
             for (symbol, diff) in ctx.obj.common.iter().zip(&ctx.diff.common) {
@@ -819,206 +828,8 @@ pub fn symbol_list_ui(
     ret
 }
 
-fn build_log_ui(ui: &mut Ui, status: &BuildStatus, appearance: &Appearance) {
-    ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
-        ui.horizontal(|ui| {
-            if !status.cmdline.is_empty() && ui.button("Copy command").clicked() {
-                ui.output_mut(|output| output.copied_text.clone_from(&status.cmdline));
-            }
-            if ui.button("Copy log").clicked() {
-                ui.output_mut(|output| {
-                    output.copied_text = format!("{}\n{}", status.stdout, status.stderr)
-                });
-            }
-        });
-        ui.scope(|ui| {
-            ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-
-            if !status.cmdline.is_empty() {
-                ui.label(&status.cmdline);
-            }
-            if !status.stdout.is_empty() {
-                ui.colored_label(appearance.replace_color, &status.stdout);
-            }
-            if !status.stderr.is_empty() {
-                ui.colored_label(appearance.delete_color, &status.stderr);
-            }
-        });
-    });
-}
-
-fn missing_obj_ui(ui: &mut Ui, appearance: &Appearance) {
-    ui.scope(|ui| {
-        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-
-        ui.colored_label(appearance.replace_color, "No object configured");
-    });
-}
-
 #[derive(Copy, Clone)]
 pub struct SymbolDiffContext<'a> {
     pub obj: &'a ObjInfo,
     pub diff: &'a ObjDiff,
-}
-
-#[must_use]
-pub fn symbol_diff_ui(
-    ui: &mut Ui,
-    state: &mut DiffViewState,
-    appearance: &Appearance,
-) -> Option<DiffViewAction> {
-    let mut ret = None;
-    let Some(result) = &state.build else {
-        return ret;
-    };
-
-    // Header
-    let available_width = ui.available_width();
-    let mut open_sections = (None, None);
-    render_header(ui, available_width, 2, |ui, column| {
-        if column == 0 {
-            // Left column
-            ui.scope(|ui| {
-                ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-
-                ui.label("Target object");
-                if result.first_status.success {
-                    if result.first_obj.is_none() {
-                        ui.colored_label(appearance.replace_color, "Missing");
-                    } else {
-                        ui.colored_label(appearance.highlight_color, state.object_name.clone());
-                    }
-                } else {
-                    ui.colored_label(appearance.delete_color, "Fail");
-                }
-            });
-
-            ui.horizontal(|ui| {
-                let mut search = state.search.clone();
-                let response = TextEdit::singleline(&mut search).hint_text("Filter symbols").ui(ui);
-                if hotkeys::consume_symbol_filter_shortcut(ui.ctx()) {
-                    response.request_focus();
-                }
-                if response.changed() {
-                    ret = Some(DiffViewAction::SetSearch(search));
-                }
-
-                ui.with_layout(Layout::right_to_left(egui::Align::TOP), |ui| {
-                    if ui.small_button("⏷").on_hover_text_at_pointer("Expand all").clicked() {
-                        open_sections.0 = Some(true);
-                    }
-                    if ui.small_button("⏶").on_hover_text_at_pointer("Collapse all").clicked() {
-                        open_sections.0 = Some(false);
-                    }
-                })
-            });
-        } else if column == 1 {
-            // Right column
-            ui.horizontal(|ui| {
-                ui.scope(|ui| {
-                    ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-                    ui.label("Base object");
-                });
-                ui.separator();
-                if ui
-                    .add_enabled(state.source_path_available, egui::Button::new("🖹 Source file"))
-                    .on_hover_text_at_pointer("Open the source file in the default editor")
-                    .on_disabled_hover_text("Source file metadata missing")
-                    .clicked()
-                {
-                    ret = Some(DiffViewAction::OpenSourcePath);
-                }
-            });
-
-            ui.scope(|ui| {
-                ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-                if result.second_status.success {
-                    if result.second_obj.is_none() {
-                        ui.colored_label(appearance.replace_color, "Missing");
-                    } else {
-                        ui.colored_label(appearance.highlight_color, "OK");
-                    }
-                } else {
-                    ui.colored_label(appearance.delete_color, "Fail");
-                }
-            });
-
-            ui.horizontal(|ui| {
-                if ui.add_enabled(!state.build_running, egui::Button::new("Build")).clicked() {
-                    ret = Some(DiffViewAction::Build);
-                }
-
-                ui.with_layout(Layout::right_to_left(egui::Align::TOP), |ui| {
-                    if ui.small_button("⏷").on_hover_text_at_pointer("Expand all").clicked() {
-                        open_sections.1 = Some(true);
-                    }
-                    if ui.small_button("⏶").on_hover_text_at_pointer("Collapse all").clicked() {
-                        open_sections.1 = Some(false);
-                    }
-                })
-            });
-        }
-    });
-
-    // Table
-    let filter = match &state.search_regex {
-        Some(regex) => SymbolFilter::Search(regex),
-        _ => SymbolFilter::None,
-    };
-    render_strips(ui, available_width, 2, |ui, column| {
-        if column == 0 {
-            // Left column
-            if result.first_status.success {
-                if let Some((obj, diff)) = &result.first_obj {
-                    if let Some(result) = symbol_list_ui(
-                        ui,
-                        SymbolDiffContext { obj, diff },
-                        result
-                            .second_obj
-                            .as_ref()
-                            .map(|(obj, diff)| SymbolDiffContext { obj, diff }),
-                        &state.symbol_state,
-                        filter,
-                        appearance,
-                        column,
-                        open_sections.0,
-                    ) {
-                        ret = Some(result);
-                    }
-                } else {
-                    missing_obj_ui(ui, appearance);
-                }
-            } else {
-                build_log_ui(ui, &result.first_status, appearance);
-            }
-        } else if column == 1 {
-            // Right column
-            if result.second_status.success {
-                if let Some((obj, diff)) = &result.second_obj {
-                    if let Some(result) = symbol_list_ui(
-                        ui,
-                        SymbolDiffContext { obj, diff },
-                        result
-                            .first_obj
-                            .as_ref()
-                            .map(|(obj, diff)| SymbolDiffContext { obj, diff }),
-                        &state.symbol_state,
-                        filter,
-                        appearance,
-                        column,
-                        open_sections.1,
-                    ) {
-                        ret = Some(result);
-                    }
-                } else {
-                    missing_obj_ui(ui, appearance);
-                }
-            } else {
-                build_log_ui(ui, &result.second_status, appearance);
-            }
-        }
-    });
-    ret
 }
