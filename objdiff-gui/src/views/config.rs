@@ -1,9 +1,6 @@
 #[cfg(all(windows, feature = "wsl"))]
 use std::string::FromUtf16Error;
-use std::{
-    mem::take,
-    path::{Path, PathBuf, MAIN_SEPARATOR},
-};
+use std::{mem::take, path::MAIN_SEPARATOR};
 
 #[cfg(all(windows, feature = "wsl"))]
 use anyhow::{Context, Result};
@@ -13,13 +10,14 @@ use egui::{
 };
 use globset::Glob;
 use objdiff_core::{
-    config::{ProjectObject, DEFAULT_WATCH_PATTERNS},
+    config::{path::check_path_buf, DEFAULT_WATCH_PATTERNS},
     diff::{
         ConfigEnum, ConfigEnumVariantInfo, ConfigPropertyId, ConfigPropertyKind,
         ConfigPropertyValue, CONFIG_GROUPS,
     },
     jobs::{check_update::CheckUpdateResult, Job, JobQueue, JobResult},
 };
+use typed_path::Utf8PlatformPathBuf;
 
 use crate::{
     app::{AppConfig, AppState, AppStateRef, ObjectConfig},
@@ -89,7 +87,7 @@ impl ConfigViewState {
                     if let Ok(obj_path) = path.strip_prefix(base_dir) {
                         let target_path = target_dir.join(obj_path);
                         guard.set_selected_obj(ObjectConfig {
-                            name: obj_path.display().to_string(),
+                            name: obj_path.to_string(),
                             target_path: Some(target_path),
                             base_path: Some(path),
                             ..Default::default()
@@ -97,7 +95,7 @@ impl ConfigViewState {
                     } else if let Ok(obj_path) = path.strip_prefix(target_dir) {
                         let base_path = base_dir.join(obj_path);
                         guard.set_selected_obj(ObjectConfig {
-                            name: obj_path.display().to_string(),
+                            name: obj_path.to_string(),
                             target_path: Some(path),
                             base_path: Some(base_path),
                             ..Default::default()
@@ -169,10 +167,7 @@ pub fn config_ui(
 ) {
     let mut state_guard = state.write().unwrap();
     let AppState {
-        config:
-            AppConfig {
-                project_dir, target_obj_dir, base_obj_dir, selected_obj, auto_update_check, ..
-            },
+        config: AppConfig { target_obj_dir, base_obj_dir, selected_obj, auto_update_check, .. },
         objects,
         object_nodes,
         ..
@@ -223,9 +218,9 @@ pub fn config_ui(
         }
     });
 
-    let selected_index = selected_obj.as_ref().and_then(|selected_obj| {
-        objects.iter().position(|obj| obj.name.as_ref() == Some(&selected_obj.name))
-    });
+    let selected_index = selected_obj
+        .as_ref()
+        .and_then(|selected_obj| objects.iter().position(|obj| obj.name == selected_obj.name));
     let mut new_selected_index = selected_index;
     if objects.is_empty() {
         if let (Some(_base_dir), Some(target_dir)) = (base_obj_dir, target_obj_dir) {
@@ -324,22 +319,14 @@ pub fn config_ui(
                     config_state.show_hidden,
                 )
             }) {
-                display_node(
-                    ui,
-                    &mut new_selected_index,
-                    project_dir.as_deref(),
-                    objects,
-                    &node,
-                    appearance,
-                    node_open,
-                );
+                display_node(ui, &mut new_selected_index, objects, &node, appearance, node_open);
             }
         });
     }
     if new_selected_index != selected_index {
         if let Some(idx) = new_selected_index {
             // Will set obj_changed, which will trigger a rebuild
-            let config = ObjectConfig::from(&objects[idx]);
+            let config = objects[idx].clone();
             state_guard.set_selected_obj(config);
         }
     }
@@ -353,9 +340,8 @@ pub fn config_ui(
 fn display_unit(
     ui: &mut egui::Ui,
     selected_obj: &mut Option<usize>,
-    project_dir: Option<&Path>,
     name: &str,
-    units: &[ProjectObject],
+    units: &[ObjectConfig],
     index: usize,
     appearance: &Appearance,
 ) {
@@ -363,7 +349,7 @@ fn display_unit(
     let selected = *selected_obj == Some(index);
     let color = if selected {
         appearance.emphasized_text_color
-    } else if let Some(complete) = object.complete() {
+    } else if let Some(complete) = object.complete {
         if complete {
             appearance.insert_color
         } else {
@@ -382,26 +368,22 @@ fn display_unit(
             .color(color),
     )
     .ui(ui);
-    if get_source_path(project_dir, object).is_some() {
-        response.context_menu(|ui| object_context_ui(ui, object, project_dir));
+    if object.source_path.is_some() {
+        response.context_menu(|ui| object_context_ui(ui, object));
     }
     if response.clicked() {
         *selected_obj = Some(index);
     }
 }
 
-fn get_source_path(project_dir: Option<&Path>, object: &ProjectObject) -> Option<PathBuf> {
-    project_dir.and_then(|dir| object.source_path().map(|path| dir.join(path)))
-}
-
-fn object_context_ui(ui: &mut egui::Ui, object: &ProjectObject, project_dir: Option<&Path>) {
-    if let Some(source_path) = get_source_path(project_dir, object) {
+fn object_context_ui(ui: &mut egui::Ui, object: &ObjectConfig) {
+    if let Some(source_path) = &object.source_path {
         if ui
             .button("Open source file")
             .on_hover_text("Open the source file in the default editor")
             .clicked()
         {
-            log::info!("Opening file {}", source_path.display());
+            log::info!("Opening file {}", source_path);
             if let Err(e) = open::that_detached(&source_path) {
                 log::error!("Failed to open source file: {e}");
             }
@@ -422,15 +404,14 @@ enum NodeOpen {
 fn display_node(
     ui: &mut egui::Ui,
     selected_obj: &mut Option<usize>,
-    project_dir: Option<&Path>,
-    units: &[ProjectObject],
+    units: &[ObjectConfig],
     node: &ProjectObjectNode,
     appearance: &Appearance,
     node_open: NodeOpen,
 ) {
     match node {
         ProjectObjectNode::Unit(name, idx) => {
-            display_unit(ui, selected_obj, project_dir, name, units, *idx, appearance);
+            display_unit(ui, selected_obj, name, units, *idx, appearance);
         }
         ProjectObjectNode::Dir(name, children) => {
             let contains_obj = selected_obj.map(|idx| contains_node(node, idx));
@@ -456,7 +437,7 @@ fn display_node(
             .open(open)
             .show(ui, |ui| {
                 for node in children {
-                    display_node(ui, selected_obj, project_dir, units, node, appearance, node_open);
+                    display_node(ui, selected_obj, units, node, appearance, node_open);
                 }
             });
         }
@@ -473,7 +454,7 @@ fn contains_node(node: &ProjectObjectNode, selected_obj: usize) -> bool {
 }
 
 fn filter_node(
-    units: &[ProjectObject],
+    units: &[ObjectConfig],
     node: &ProjectObjectNode,
     search: &str,
     filter_diffable: bool,
@@ -485,8 +466,8 @@ fn filter_node(
             let unit = &units[*idx];
             if (search.is_empty() || name.to_ascii_lowercase().contains(search))
                 && (!filter_diffable || (unit.base_path.is_some() && unit.target_path.is_some()))
-                && (!filter_incomplete || matches!(unit.complete(), None | Some(false)))
-                && (show_hidden || !unit.hidden())
+                && (!filter_incomplete || matches!(unit.complete, None | Some(false)))
+                && (show_hidden || !unit.hidden)
             {
                 Some(node.clone())
             } else {
@@ -524,13 +505,16 @@ fn subheading(ui: &mut egui::Ui, text: &str, appearance: &Appearance) {
     );
 }
 
-fn format_path(path: &Option<PathBuf>, appearance: &Appearance) -> RichText {
+fn format_path(path: &Option<Utf8PlatformPathBuf>, appearance: &Appearance) -> RichText {
     let mut color = appearance.replace_color;
     let text = if let Some(dir) = path {
-        if let Some(rel) = dirs::home_dir().and_then(|home| dir.strip_prefix(&home).ok()) {
-            format!("~{}{}", MAIN_SEPARATOR, rel.display())
+        if let Some(rel) = dirs::home_dir()
+            .and_then(|home| check_path_buf(home).ok())
+            .and_then(|home| dir.strip_prefix(&home).ok())
+        {
+            format!("~{}{}", MAIN_SEPARATOR, rel)
         } else {
-            format!("{}", dir.display())
+            dir.to_string()
         }
     } else {
         color = appearance.delete_color;
@@ -544,7 +528,7 @@ pub const CONFIG_DISABLED_TEXT: &str =
 
 fn pick_folder_ui(
     ui: &mut egui::Ui,
-    dir: &Option<PathBuf>,
+    dir: &Option<Utf8PlatformPathBuf>,
     label: &str,
     tooltip: impl FnOnce(&mut egui::Ui),
     appearance: &Appearance,

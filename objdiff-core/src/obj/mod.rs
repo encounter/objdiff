@@ -1,9 +1,9 @@
 pub mod read;
 pub mod split_meta;
 
-use std::{borrow::Cow, collections::BTreeMap, fmt, path::PathBuf};
+use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, string::String, vec::Vec};
+use core::fmt;
 
-use filetime::FileTime;
 use flagset::{flags, FlagSet};
 use object::RelocationFlags;
 use split_meta::SplitMeta;
@@ -152,8 +152,9 @@ pub struct ObjSymbol {
 
 pub struct ObjInfo {
     pub arch: Box<dyn ObjArch>,
-    pub path: Option<PathBuf>,
-    pub timestamp: Option<FileTime>,
+    pub path: Option<String>,
+    #[cfg(feature = "std")]
+    pub timestamp: Option<filetime::FileTime>,
     pub sections: Vec<ObjSection>,
     /// Common BSS symbols
     pub common: Vec<ObjSymbol>,

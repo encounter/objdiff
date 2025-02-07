@@ -1,4 +1,12 @@
-use std::{borrow::Cow, collections::BTreeMap};
+use alloc::{
+    borrow::Cow,
+    boxed::Box,
+    collections::BTreeMap,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 
 use anyhow::{anyhow, bail, ensure, Result};
 use iced_x86::{

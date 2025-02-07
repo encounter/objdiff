@@ -54,11 +54,14 @@ fn compile_protos() {
         }
     }
 
-    let descriptor_set = std::fs::read(descriptor_path).expect("Failed to read descriptor set");
-    pbjson_build::Builder::new()
-        .register_descriptors(&descriptor_set)
-        .expect("Failed to register descriptors")
-        .preserve_proto_field_names()
-        .build(&[".objdiff"])
-        .expect("Failed to build pbjson");
+    #[cfg(feature = "serde")]
+    {
+        let descriptor_set = std::fs::read(descriptor_path).expect("Failed to read descriptor set");
+        pbjson_build::Builder::new()
+            .register_descriptors(&descriptor_set)
+            .expect("Failed to register descriptors")
+            .preserve_proto_field_names()
+            .build(&[".objdiff"])
+            .expect("Failed to build pbjson");
+    }
 }

@@ -29,7 +29,7 @@ bytes = "1.9"
 cfg-if = "1.0"
 const_format = "0.2"
 cwdemangle = "1.0"
-cwextab = "1.0"
+cwextab = { version = "1.0", git = "https://github.com/encounter/cwextab.git" }
 dirs = "5.0"
 egui = "0.30"
 egui_extras = "0.30"
@@ -51,6 +51,7 @@ serde_json = "1.0"
 shell-escape = "0.1"
 strum = { version = "0.26", features = ["derive"] }
 time = { version = "0.3", features = ["formatting", "local-offset"] }
+typed-path = "0.10"
 
 # Keep version in sync with egui
 [dependencies.eframe]

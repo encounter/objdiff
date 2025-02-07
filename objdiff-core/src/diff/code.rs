@@ -1,7 +1,12 @@
-use std::{cmp::max, collections::BTreeMap};
+use alloc::{
+    collections::BTreeMap,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 
 use anyhow::{anyhow, Result};
-use similar::{capture_diff_slices_deadline, Algorithm};
+use similar::{capture_diff_slices, Algorithm};
 
 use super::FunctionRelocDiffs;
 use crate::{
@@ -118,8 +123,7 @@ fn diff_instructions(
     left_code: &ProcessCodeResult,
     right_code: &ProcessCodeResult,
 ) -> Result<()> {
-    let ops =
-        capture_diff_slices_deadline(Algorithm::Patience, &left_code.ops, &right_code.ops, None);
+    let ops = capture_diff_slices(Algorithm::Patience, &left_code.ops, &right_code.ops);
     if ops.is_empty() {
         left_diff.extend(
             left_code
@@ -138,7 +142,7 @@ fn diff_instructions(
 
     for op in ops {
         let (_tag, left_range, right_range) = op.as_tag_tuple();
-        let len = max(left_range.len(), right_range.len());
+        let len = left_range.len().max(right_range.len());
         left_diff.extend(
             left_code.insts[left_range.clone()]
                 .iter()

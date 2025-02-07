@@ -1,4 +1,7 @@
 #![allow(clippy::needless_lifetimes)] // Generated serde code
+
+use alloc::string::ToString;
+
 use crate::{
     diff::{
         ObjDataDiff, ObjDataDiffKind, ObjDiff, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo,
@@ -13,6 +16,7 @@ use crate::{
 
 // Protobuf diff types
 include!(concat!(env!("OUT_DIR"), "/objdiff.diff.rs"));
+#[cfg(feature = "serde")]
 include!(concat!(env!("OUT_DIR"), "/objdiff.diff.serde.rs"));
 
 impl DiffResult {

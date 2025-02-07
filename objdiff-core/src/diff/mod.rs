@@ -1,9 +1,14 @@
-use std::{collections::HashSet, ops::Range};
+use alloc::{
+    collections::{BTreeMap, BTreeSet},
+    string::String,
+    vec,
+    vec::Vec,
+};
+use core::ops::Range;
 
 use anyhow::Result;
 
 use crate::{
-    config::SymbolMappings,
     diff::{
         code::{diff_code, no_diff_code, process_code_symbol},
         data::{
@@ -473,12 +478,11 @@ struct SectionMatch {
     section_kind: ObjSectionKind,
 }
 
-#[derive(Debug, Clone, Default, serde::Deserialize, serde::Serialize)]
-#[cfg_attr(feature = "wasm", derive(tsify_next::Tsify), tsify(from_wasm_abi))]
-#[serde(default)]
+#[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(default))]
 pub struct MappingConfig {
     /// Manual symbol mappings
-    pub mappings: SymbolMappings,
+    pub mappings: BTreeMap<String, String>,
     /// The right object symbol name that we're selecting a left symbol for
     pub selecting_left: Option<String>,
     /// The left object symbol name that we're selecting a right symbol for
@@ -500,8 +504,8 @@ fn apply_symbol_mappings(
     left: &ObjInfo,
     right: &ObjInfo,
     mapping_config: &MappingConfig,
-    left_used: &mut HashSet<SymbolRef>,
-    right_used: &mut HashSet<SymbolRef>,
+    left_used: &mut BTreeSet<SymbolRef>,
+    right_used: &mut BTreeSet<SymbolRef>,
     matches: &mut Vec<SymbolMatch>,
 ) -> Result<()> {
     // If we're selecting a symbol to use as a comparison, mark it as used
@@ -563,8 +567,8 @@ fn matching_symbols(
     mappings: &MappingConfig,
 ) -> Result<Vec<SymbolMatch>> {
     let mut matches = Vec::new();
-    let mut left_used = HashSet::new();
-    let mut right_used = HashSet::new();
+    let mut left_used = BTreeSet::new();
+    let mut right_used = BTreeSet::new();
     if let Some(left) = left {
         if let Some(right) = right {
             apply_symbol_mappings(
@@ -645,7 +649,7 @@ fn matching_symbols(
 fn unmatched_symbols<'section, 'used>(
     section: &'section ObjSection,
     section_idx: usize,
-    used: Option<&'used HashSet<SymbolRef>>,
+    used: Option<&'used BTreeSet<SymbolRef>>,
 ) -> impl Iterator<Item = (usize, &'section ObjSymbol)> + 'used
 where
     'section: 'used,
@@ -660,7 +664,7 @@ fn find_symbol(
     obj: Option<&ObjInfo>,
     in_symbol: &ObjSymbol,
     in_section: &ObjSection,
-    used: Option<&HashSet<SymbolRef>>,
+    used: Option<&BTreeSet<SymbolRef>>,
 ) -> Option<SymbolRef> {
     let obj = obj?;
     // Try to find an exact name match

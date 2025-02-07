@@ -1,4 +1,8 @@
-use std::cmp::Ordering;
+use alloc::{
+    format,
+    string::{String, ToString},
+};
+use core::cmp::Ordering;
 
 use crate::{
     diff::{ObjInsArgDiff, ObjInsDiff},

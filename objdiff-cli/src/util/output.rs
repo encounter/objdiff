@@ -34,9 +34,12 @@ impl OutputFormat {
     }
 }
 
-pub fn write_output<T>(input: &T, output: Option<&Path>, format: OutputFormat) -> Result<()>
-where T: serde::Serialize + prost::Message {
-    match output {
+pub fn write_output<T, P>(input: &T, output: Option<P>, format: OutputFormat) -> Result<()>
+where
+    T: serde::Serialize + prost::Message,
+    P: AsRef<Path>,
+{
+    match output.as_ref().map(|p| p.as_ref()) {
         Some(output) if output != Path::new("-") => {
             info!("Writing to {}", output.display());
             let file = File::options()

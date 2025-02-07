@@ -1,14 +1,18 @@
-use std::{
+use alloc::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap},
+    collections::BTreeMap,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
 };
 
 use anyhow::{bail, Result};
 use arm_attr::{enums::CpuArch, tag::Tag, BuildAttrs};
 use object::{
     elf::{self, SHT_ARM_ATTRIBUTES},
-    Endian, File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, SectionIndex,
-    SectionKind, Symbol, SymbolKind,
+    Endian, File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, SectionKind,
+    Symbol, SymbolKind,
 };
 use unarm::{
     args::{Argument, OffsetImm, OffsetReg, Register},
@@ -24,7 +28,7 @@ use crate::{
 
 pub struct ObjArchArm {
     /// Maps section index, to list of disasm modes (arm, thumb or data) sorted by address
-    disasm_modes: HashMap<SectionIndex, Vec<DisasmMode>>,
+    disasm_modes: BTreeMap<usize, Vec<DisasmMode>>,
     detected_version: Option<ArmVersion>,
     endianness: object::Endianness,
 }
@@ -78,7 +82,7 @@ impl ObjArchArm {
         Ok(None)
     }
 
-    fn elf_get_mapping_symbols(file: &File) -> HashMap<SectionIndex, Vec<DisasmMode>> {
+    fn elf_get_mapping_symbols(file: &File) -> BTreeMap<usize, Vec<DisasmMode>> {
         file.sections()
             .filter(|s| s.kind() == SectionKind::Text)
             .map(|s| {
@@ -89,7 +93,7 @@ impl ObjArchArm {
                     .filter_map(|s| DisasmMode::from_symbol(&s))
                     .collect();
                 mapping_symbols.sort_unstable_by_key(|x| x.address);
-                (s.index(), mapping_symbols)
+                (s.index().0, mapping_symbols)
             })
             .collect()
     }
@@ -121,7 +125,7 @@ impl ObjArch for ObjArchArm {
         let fallback_mappings = [DisasmMode { address: start_addr, mapping: ParseMode::Arm }];
         let mapping_symbols = self
             .disasm_modes
-            .get(&SectionIndex(section_index))
+            .get(&section_index)
             .map(|x| x.as_slice())
             .unwrap_or(&fallback_mappings);
         let first_mapping_idx = mapping_symbols

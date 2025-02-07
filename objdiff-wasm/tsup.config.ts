@@ -28,6 +28,7 @@ export default defineConfig([
         // https://github.com/egoist/tsup/issues/278
         async onSuccess() {
             await fs.copyFile('pkg/objdiff_core_bg.wasm', 'dist/objdiff_core_bg.wasm');
+            await fs.copyFile('../objdiff-core/config-schema.json', 'dist/config-schema.json');
         }
     }
 ]);

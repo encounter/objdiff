@@ -280,12 +280,10 @@ impl DiffViewState {
                 let Ok(state) = state.read() else {
                     return;
                 };
-                if let (Some(project_dir), Some(source_path)) = (
-                    &state.config.project_dir,
-                    state.config.selected_obj.as_ref().and_then(|obj| obj.source_path.as_ref()),
-                ) {
-                    let source_path = project_dir.join(source_path);
-                    log::info!("Opening file {}", source_path.display());
+                if let Some(source_path) =
+                    state.config.selected_obj.as_ref().and_then(|obj| obj.source_path.as_ref())
+                {
+                    log::info!("Opening file {}", source_path);
                     open::that_detached(source_path).unwrap_or_else(|err| {
                         log::error!("Failed to open source file: {err}");
                     });

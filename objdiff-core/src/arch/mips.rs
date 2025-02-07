@@ -1,4 +1,5 @@
-use std::{borrow::Cow, collections::BTreeMap, sync::Mutex};
+use alloc::{borrow::Cow, collections::BTreeMap, format, vec::Vec};
+use std::sync::Mutex;
 
 use anyhow::{anyhow, bail, Result};
 use object::{
