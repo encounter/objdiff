@@ -262,11 +262,8 @@ impl DiffViewState {
             DiffViewAction::SetSearch(search) => {
                 self.search_regex = if search.is_empty() {
                     None
-                } else if let Ok(regex) = RegexBuilder::new(&search).case_insensitive(true).build()
-                {
-                    Some(regex)
                 } else {
-                    None
+                    RegexBuilder::new(&search).case_insensitive(true).build().ok()
                 };
                 self.search = search;
             }
