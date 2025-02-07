@@ -384,7 +384,7 @@ fn object_context_ui(ui: &mut egui::Ui, object: &ObjectConfig) {
             .clicked()
         {
             log::info!("Opening file {}", source_path);
-            if let Err(e) = open::that_detached(&source_path) {
+            if let Err(e) = open::that_detached(source_path) {
                 log::error!("Failed to open source file: {e}");
             }
             ui.close_menu();

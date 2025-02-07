@@ -386,7 +386,7 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection], obj_data: &[u8]) 
                 .index()
                 .0;
 
-            let mut section_data = &reader[..];
+            let mut section_data = reader;
             let size = read_u32(obj_file, &mut section_data)? as usize;
             if size > reader.len() {
                 bail!("Line info size {size} exceeds remaining size {}", reader.len());

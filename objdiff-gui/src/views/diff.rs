@@ -150,7 +150,7 @@ pub fn diff_view_ui(
         navigation.view = View::SymbolDiff;
     }
     // Execute navigation if it changed
-    if navigation != current_navigation && !state.post_build_nav.is_some() {
+    if navigation != current_navigation && state.post_build_nav.is_none() {
         ret = Some(DiffViewAction::Navigate(navigation));
     }
 

@@ -39,13 +39,13 @@ impl SplitMeta {
             }
             match note.n_type {
                 NT_SPLIT_GENERATOR => {
-                    let string = String::from_utf8(note.desc.to_vec())
-                        .map_err(|e| anyhow::Error::from(e))?;
+                    let string =
+                        String::from_utf8(note.desc.to_vec()).map_err(anyhow::Error::new)?;
                     result.generator = Some(string);
                 }
                 NT_SPLIT_MODULE_NAME => {
-                    let string = String::from_utf8(note.desc.to_vec())
-                        .map_err(|e| anyhow::Error::from(e))?;
+                    let string =
+                        String::from_utf8(note.desc.to_vec()).map_err(anyhow::Error::new)?;
                     result.module_name = Some(string);
                 }
                 NT_SPLIT_MODULE_ID => {

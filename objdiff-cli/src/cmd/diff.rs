@@ -315,19 +315,15 @@ impl ObjectConfig {
             (target_obj_dir, &object.path, &object.target_path)
         {
             Some(target_obj_dir.join(path.with_platform_encoding()))
-        } else if let Some(path) = &object.target_path {
-            Some(project_dir.join(path.with_platform_encoding()))
         } else {
-            None
+            object.target_path.as_ref().map(|path| project_dir.join(path.with_platform_encoding()))
         };
         let base_path = if let (Some(base_obj_dir), Some(path), None) =
             (base_obj_dir, &object.path, &object.base_path)
         {
             Some(base_obj_dir.join(path.with_platform_encoding()))
-        } else if let Some(path) = &object.base_path {
-            Some(project_dir.join(path.with_platform_encoding()))
         } else {
-            None
+            object.base_path.as_ref().map(|path| project_dir.join(path.with_platform_encoding()))
         };
         Self {
             name: object.name().to_string(),
