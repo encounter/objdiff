@@ -1,10 +1,8 @@
-use std::{
-    cmp::{max, min, Ordering},
-    ops::Range,
-};
+use alloc::{vec, vec::Vec};
+use core::{cmp::Ordering, ops::Range};
 
 use anyhow::{anyhow, Result};
-use similar::{capture_diff_slices_deadline, get_diff_ratio, Algorithm};
+use similar::{capture_diff_slices, get_diff_ratio, Algorithm};
 
 use super::code::{address_eq, section_name_eq};
 use crate::{
@@ -142,7 +140,7 @@ pub fn diff_data_section(
         right.symbols.iter().map(|s| s.section_address + s.size).max().unwrap_or(0).min(right.size);
     let left_data = &left.data[..left_max as usize];
     let right_data = &right.data[..right_max as usize];
-    let ops = capture_diff_slices_deadline(Algorithm::Patience, left_data, right_data, None);
+    let ops = capture_diff_slices(Algorithm::Patience, left_data, right_data);
     let match_percent = get_diff_ratio(&ops, left_data.len(), right_data.len()) * 100.0;
 
     let mut left_diff = Vec::<ObjDataDiff>::new();
@@ -151,27 +149,27 @@ pub fn diff_data_section(
         let (tag, left_range, right_range) = op.as_tag_tuple();
         let left_len = left_range.len();
         let right_len = right_range.len();
-        let mut len = max(left_len, right_len);
+        let mut len = left_len.max(right_len);
         let kind = match tag {
             similar::DiffTag::Equal => ObjDataDiffKind::None,
             similar::DiffTag::Delete => ObjDataDiffKind::Delete,
             similar::DiffTag::Insert => ObjDataDiffKind::Insert,
             similar::DiffTag::Replace => {
                 // Ensure replacements are equal length
-                len = min(left_len, right_len);
+                len = left_len.min(right_len);
                 ObjDataDiffKind::Replace
             }
         };
         let left_data = &left.data[left_range];
         let right_data = &right.data[right_range];
         left_diff.push(ObjDataDiff {
-            data: left_data[..min(len, left_data.len())].to_vec(),
+            data: left_data[..len.min(left_data.len())].to_vec(),
             kind,
             len,
             ..Default::default()
         });
         right_diff.push(ObjDataDiff {
-            data: right_data[..min(len, right_data.len())].to_vec(),
+            data: right_data[..len.min(right_data.len())].to_vec(),
             kind,
             len,
             ..Default::default()
@@ -283,7 +281,7 @@ pub fn diff_data_symbol(
         right_range,
     );
 
-    let ops = capture_diff_slices_deadline(Algorithm::Patience, left_data, right_data, None);
+    let ops = capture_diff_slices(Algorithm::Patience, left_data, right_data);
     let bytes_match_ratio = get_diff_ratio(&ops, left_data.len(), right_data.len());
 
     let mut match_ratio = bytes_match_ratio;
@@ -375,7 +373,7 @@ pub fn diff_bss_section(
 ) -> Result<(ObjSectionDiff, ObjSectionDiff)> {
     let left_sizes = left.symbols.iter().map(|s| (s.section_address, s.size)).collect::<Vec<_>>();
     let right_sizes = right.symbols.iter().map(|s| (s.section_address, s.size)).collect::<Vec<_>>();
-    let ops = capture_diff_slices_deadline(Algorithm::Patience, &left_sizes, &right_sizes, None);
+    let ops = capture_diff_slices(Algorithm::Patience, &left_sizes, &right_sizes);
     let mut match_percent = get_diff_ratio(&ops, left_sizes.len(), right_sizes.len()) * 100.0;
 
     // Use the highest match percent between two options:

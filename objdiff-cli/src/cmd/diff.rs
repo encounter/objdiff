@@ -1,8 +1,6 @@
 use std::{
-    fs,
     io::stdout,
     mem,
-    path::{Path, PathBuf},
     str::FromStr,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -27,7 +25,11 @@ use objdiff_core::{
         watcher::{create_watcher, Watcher},
         BuildConfig,
     },
-    config::{build_globset, ProjectConfig, ProjectObject},
+    config::{
+        build_globset,
+        path::{check_path_buf, platform_path, platform_path_serde_option},
+        ProjectConfig, ProjectObject, ProjectObjectMetadata,
+    },
     diff,
     diff::{
         ConfigEnum, ConfigPropertyId, ConfigPropertyKind, DiffObjConfig, MappingConfig, ObjDiff,
@@ -40,6 +42,7 @@ use objdiff_core::{
     obj::ObjInfo,
 };
 use ratatui::prelude::*;
+use typed_path::{Utf8PlatformPath, Utf8PlatformPathBuf};
 
 use crate::{
     util::{
@@ -53,21 +56,21 @@ use crate::{
 /// Diff two object files. (Interactive or one-shot mode)
 #[argp(subcommand, name = "diff")]
 pub struct Args {
-    #[argp(option, short = '1')]
+    #[argp(option, short = '1', from_str_fn(platform_path))]
     /// Target object file
-    target: Option<PathBuf>,
-    #[argp(option, short = '2')]
+    target: Option<Utf8PlatformPathBuf>,
+    #[argp(option, short = '2', from_str_fn(platform_path))]
     /// Base object file
-    base: Option<PathBuf>,
-    #[argp(option, short = 'p')]
+    base: Option<Utf8PlatformPathBuf>,
+    #[argp(option, short = 'p', from_str_fn(platform_path))]
     /// Project directory
-    project: Option<PathBuf>,
+    project: Option<Utf8PlatformPathBuf>,
     #[argp(option, short = 'u')]
     /// Unit name within project
     unit: Option<String>,
-    #[argp(option, short = 'o')]
+    #[argp(option, short = 'o', from_str_fn(platform_path))]
     /// Output file (one-shot mode) ("-" for stdout)
-    output: Option<PathBuf>,
+    output: Option<Utf8PlatformPathBuf>,
     #[argp(option)]
     /// Output format (json, json-pretty, proto) (default: json)
     format: Option<String>,
@@ -89,86 +92,61 @@ pub struct Args {
 }
 
 pub fn run(args: Args) -> Result<()> {
-    let (target_path, base_path, project_config) = match (
-        &args.target,
-        &args.base,
-        &args.project,
-        &args.unit,
-    ) {
-        (Some(_), Some(_), None, None)
-        | (Some(_), None, None, None)
-        | (None, Some(_), None, None) => (args.target.clone(), args.base.clone(), None),
-        (None, None, p, u) => {
-            let project = match p {
-                Some(project) => project.clone(),
-                _ => std::env::current_dir().context("Failed to get the current directory")?,
-            };
-            let Some((project_config, project_config_info)) =
-                objdiff_core::config::try_project_config(&project)
-            else {
-                bail!("Project config not found in {}", &project.display())
-            };
-            let mut project_config = project_config.with_context(|| {
-                format!("Reading project config {}", project_config_info.path.display())
-            })?;
-            let object = {
-                let resolve_paths = |o: &mut ProjectObject| {
-                    o.resolve_paths(
-                        &project,
-                        project_config.target_dir.as_deref(),
-                        project_config.base_dir.as_deref(),
+    let (target_path, base_path, project_config) =
+        match (&args.target, &args.base, &args.project, &args.unit) {
+            (Some(_), Some(_), None, None)
+            | (Some(_), None, None, None)
+            | (None, Some(_), None, None) => (args.target.clone(), args.base.clone(), None),
+            (None, None, p, u) => {
+                let project = match p {
+                    Some(project) => project.clone(),
+                    _ => check_path_buf(
+                        std::env::current_dir().context("Failed to get the current directory")?,
                     )
+                    .context("Current directory is not valid UTF-8")?,
                 };
-                if let Some(u) = u {
-                    let unit_path =
-                        PathBuf::from_str(u).ok().and_then(|p| fs::canonicalize(p).ok());
-
-                    let Some(object) = project_config
-                        .units
-                        .as_deref_mut()
-                        .unwrap_or_default()
-                        .iter_mut()
-                        .find_map(|obj| {
-                            if obj.name.as_deref() == Some(u) {
-                                resolve_paths(obj);
-                                return Some(obj);
-                            }
-
-                            let up = unit_path.as_deref()?;
-
-                            resolve_paths(obj);
-
-                            if [&obj.base_path, &obj.target_path]
-                                .into_iter()
-                                .filter_map(|p| p.as_ref().and_then(|p| p.canonicalize().ok()))
-                                .any(|p| p == up)
-                            {
-                                return Some(obj);
-                            }
-
-                            None
-                        })
-                    else {
-                        bail!("Unit not found: {}", u)
-                    };
-
-                    object
+                let Some((project_config, project_config_info)) =
+                    objdiff_core::config::try_project_config(project.as_ref())
+                else {
+                    bail!("Project config not found in {}", &project)
+                };
+                let project_config = project_config.with_context(|| {
+                    format!("Reading project config {}", project_config_info.path.display())
+                })?;
+                let target_obj_dir = project_config
+                    .target_dir
+                    .as_ref()
+                    .map(|p| project.join(p.with_platform_encoding()));
+                let base_obj_dir = project_config
+                    .base_dir
+                    .as_ref()
+                    .map(|p| project.join(p.with_platform_encoding()));
+                let objects = project_config
+                    .units
+                    .iter()
+                    .flatten()
+                    .map(|o| {
+                        ObjectConfig::new(
+                            o,
+                            &project,
+                            target_obj_dir.as_deref(),
+                            base_obj_dir.as_deref(),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let object = if let Some(u) = u {
+                    objects
+                        .iter()
+                        .find(|obj| obj.name == *u)
+                        .ok_or_else(|| anyhow!("Unit not found: {}", u))?
                 } else if let Some(symbol_name) = &args.symbol {
                     let mut idx = None;
                     let mut count = 0usize;
-                    for (i, obj) in project_config
-                        .units
-                        .as_deref_mut()
-                        .unwrap_or_default()
-                        .iter_mut()
-                        .enumerate()
-                    {
-                        resolve_paths(obj);
-
+                    for (i, obj) in objects.iter().enumerate() {
                         if obj
                             .target_path
                             .as_deref()
-                            .map(|o| obj::read::has_function(o, symbol_name))
+                            .map(|o| obj::read::has_function(o.as_ref(), symbol_name))
                             .transpose()?
                             .unwrap_or(false)
                         {
@@ -181,7 +159,7 @@ pub fn run(args: Args) -> Result<()> {
                     }
                     match (count, idx) {
                         (0, None) => bail!("Symbol not found: {}", symbol_name),
-                        (1, Some(i)) => &mut project_config.units_mut()[i],
+                        (1, Some(i)) => &objects[i],
                         (2.., Some(_)) => bail!(
                             "Multiple instances of {} were found, try specifying a unit",
                             symbol_name
@@ -190,14 +168,13 @@ pub fn run(args: Args) -> Result<()> {
                     }
                 } else {
                     bail!("Must specify one of: symbol, project and unit, target and base objects")
-                }
-            };
-            let target_path = object.target_path.clone();
-            let base_path = object.base_path.clone();
-            (target_path, base_path, Some(project_config))
-        }
-        _ => bail!("Either target and base or project and unit must be specified"),
-    };
+                };
+                let target_path = object.target_path.clone();
+                let base_path = object.base_path.clone();
+                (target_path, base_path, Some(project_config))
+            }
+            _ => bail!("Either target and base or project and unit must be specified"),
+        };
 
     if let Some(output) = &args.output {
         run_oneshot(&args, output, target_path.as_deref(), base_path.as_deref())
@@ -245,20 +222,20 @@ fn build_config_from_args(args: &Args) -> Result<(DiffObjConfig, MappingConfig)>
 
 fn run_oneshot(
     args: &Args,
-    output: &Path,
-    target_path: Option<&Path>,
-    base_path: Option<&Path>,
+    output: &Utf8PlatformPath,
+    target_path: Option<&Utf8PlatformPath>,
+    base_path: Option<&Utf8PlatformPath>,
 ) -> Result<()> {
     let output_format = OutputFormat::from_option(args.format.as_deref())?;
     let (diff_config, mapping_config) = build_config_from_args(args)?;
     let target = target_path
         .map(|p| {
-            obj::read::read(p, &diff_config).with_context(|| format!("Loading {}", p.display()))
+            obj::read::read(p.as_ref(), &diff_config).with_context(|| format!("Loading {}", p))
         })
         .transpose()?;
     let base = base_path
         .map(|p| {
-            obj::read::read(p, &diff_config).with_context(|| format!("Loading {}", p.display()))
+            obj::read::read(p.as_ref(), &diff_config).with_context(|| format!("Loading {}", p))
         })
         .transpose()?;
     let result =
@@ -272,10 +249,10 @@ fn run_oneshot(
 pub struct AppState {
     pub jobs: JobQueue,
     pub waker: Arc<TermWaker>,
-    pub project_dir: Option<PathBuf>,
+    pub project_dir: Option<Utf8PlatformPathBuf>,
     pub project_config: Option<ProjectConfig>,
-    pub target_path: Option<PathBuf>,
-    pub base_path: Option<PathBuf>,
+    pub target_path: Option<Utf8PlatformPathBuf>,
+    pub base_path: Option<Utf8PlatformPathBuf>,
     pub left_obj: Option<(ObjInfo, ObjDiff)>,
     pub right_obj: Option<(ObjInfo, ObjDiff)>,
     pub prev_obj: Option<(ObjInfo, ObjDiff)>,
@@ -312,6 +289,53 @@ fn create_objdiff_config(state: &AppState) -> ObjDiffConfig {
         base_path: state.base_path.clone(),
         diff_obj_config: state.diff_obj_config.clone(),
         mapping_config: state.mapping_config.clone(),
+    }
+}
+
+/// The configuration for a single object file.
+#[derive(Default, Clone, serde::Deserialize, serde::Serialize)]
+pub struct ObjectConfig {
+    pub name: String,
+    #[serde(default, with = "platform_path_serde_option")]
+    pub target_path: Option<Utf8PlatformPathBuf>,
+    #[serde(default, with = "platform_path_serde_option")]
+    pub base_path: Option<Utf8PlatformPathBuf>,
+    pub metadata: ProjectObjectMetadata,
+    pub complete: Option<bool>,
+}
+
+impl ObjectConfig {
+    pub fn new(
+        object: &ProjectObject,
+        project_dir: &Utf8PlatformPath,
+        target_obj_dir: Option<&Utf8PlatformPath>,
+        base_obj_dir: Option<&Utf8PlatformPath>,
+    ) -> Self {
+        let target_path = if let (Some(target_obj_dir), Some(path), None) =
+            (target_obj_dir, &object.path, &object.target_path)
+        {
+            Some(target_obj_dir.join(path.with_platform_encoding()))
+        } else if let Some(path) = &object.target_path {
+            Some(project_dir.join(path.with_platform_encoding()))
+        } else {
+            None
+        };
+        let base_path = if let (Some(base_obj_dir), Some(path), None) =
+            (base_obj_dir, &object.path, &object.base_path)
+        {
+            Some(base_obj_dir.join(path.with_platform_encoding()))
+        } else if let Some(path) = &object.base_path {
+            Some(project_dir.join(path.with_platform_encoding()))
+        } else {
+            None
+        };
+        Self {
+            name: object.name().to_string(),
+            target_path,
+            base_path,
+            metadata: object.metadata.clone().unwrap_or_default(),
+            complete: object.complete(),
+        }
     }
 }
 
@@ -355,8 +379,8 @@ impl Wake for TermWaker {
 
 fn run_interactive(
     args: Args,
-    target_path: Option<PathBuf>,
-    base_path: Option<PathBuf>,
+    target_path: Option<Utf8PlatformPathBuf>,
+    base_path: Option<Utf8PlatformPathBuf>,
     project_config: Option<ProjectConfig>,
 ) -> Result<()> {
     let Some(symbol_name) = &args.symbol else { bail!("Interactive mode requires a symbol name") };
@@ -384,7 +408,7 @@ fn run_interactive(
         let watch_patterns = project_config.build_watch_patterns()?;
         state.watcher = Some(create_watcher(
             state.modified.clone(),
-            project_dir,
+            project_dir.as_ref(),
             build_globset(&watch_patterns)?,
             Waker::from(state.waker.clone()),
         )?);

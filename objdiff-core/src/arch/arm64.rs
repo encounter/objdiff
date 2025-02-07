@@ -1,4 +1,12 @@
-use std::{borrow::Cow, cmp::Ordering, collections::BTreeMap};
+use alloc::{
+    borrow::Cow,
+    collections::BTreeMap,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
+use core::cmp::Ordering;
 
 use anyhow::{bail, Result};
 use object::{elf, File, Relocation, RelocationFlags};

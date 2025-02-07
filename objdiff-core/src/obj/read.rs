@@ -1,13 +1,12 @@
-use std::{
-    collections::{HashMap, HashSet},
-    fs,
-    io::Cursor,
-    mem::size_of,
-    path::Path,
+use alloc::{
+    collections::{BTreeMap, BTreeSet},
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
 };
 
 use anyhow::{anyhow, bail, ensure, Context, Result};
-use filetime::FileTime;
 use flagset::Flags;
 use object::{
     endian::LittleEndian as LE,
@@ -160,7 +159,7 @@ fn symbols_by_section(
     section: &ObjSection,
     section_symbols: &[Symbol<'_, '_>],
     split_meta: Option<&SplitMeta>,
-    name_counts: &mut HashMap<String, u32>,
+    name_counts: &mut BTreeMap<String, u32>,
 ) -> Result<Vec<ObjSymbol>> {
     let mut result = Vec::<ObjSymbol>::new();
     for symbol in section_symbols {
@@ -377,33 +376,37 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection], obj_data: &[u8]) 
     // DWARF 1.1
     if let Some(section) = obj_file.section_by_name(".line") {
         let data = section.uncompressed_data()?;
-        let mut reader = Cursor::new(data.as_ref());
+        let mut reader: &[u8] = data.as_ref();
 
         let mut text_sections = obj_file.sections().filter(|s| s.kind() == SectionKind::Text);
-        while reader.position() < data.len() as u64 {
+        while !reader.is_empty() {
             let text_section_index = text_sections
                 .next()
                 .ok_or_else(|| anyhow!("Next text section not found for line info"))?
                 .index()
                 .0;
-            let start = reader.position();
-            let size = read_u32(obj_file, &mut reader)?;
-            let base_address = read_u32(obj_file, &mut reader)? as u64;
+
+            let mut section_data = &reader[..];
+            let size = read_u32(obj_file, &mut section_data)? as usize;
+            if size > reader.len() {
+                bail!("Line info size {size} exceeds remaining size {}", reader.len());
+            }
+            (section_data, reader) = reader.split_at(size);
+
+            let base_address = read_u32(obj_file, &mut section_data)? as u64;
             let Some(out_section) =
                 sections.iter_mut().find(|s| s.orig_index == text_section_index)
             else {
                 // Skip line info for sections we filtered out
-                reader.set_position(start + size as u64);
                 continue;
             };
-            let end = start + size as u64;
-            while reader.position() < end {
-                let line_number = read_u32(obj_file, &mut reader)?;
-                let statement_pos = read_u16(obj_file, &mut reader)?;
+            while !section_data.is_empty() {
+                let line_number = read_u32(obj_file, &mut section_data)?;
+                let statement_pos = read_u16(obj_file, &mut section_data)?;
                 if statement_pos != 0xFFFF {
                     log::warn!("Unhandled statement pos {}", statement_pos);
                 }
-                let address_delta = read_u32(obj_file, &mut reader)? as u64;
+                let address_delta = read_u32(obj_file, &mut section_data)? as u64;
                 out_section.line_info.insert(base_address + address_delta, line_number);
                 log::debug!("Line: {:#x} -> {}", base_address + address_delta, line_number);
             }
@@ -413,22 +416,24 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection], obj_data: &[u8]) 
     // DWARF 2+
     #[cfg(feature = "dwarf")]
     {
+        fn gimli_error(e: gimli::Error) -> anyhow::Error { anyhow::anyhow!("DWARF error: {e:?}") }
         let dwarf_cow = gimli::DwarfSections::load(|id| {
             Ok::<_, gimli::Error>(
                 obj_file
                     .section_by_name(id.name())
                     .and_then(|section| section.uncompressed_data().ok())
-                    .unwrap_or(std::borrow::Cow::Borrowed(&[][..])),
+                    .unwrap_or(alloc::borrow::Cow::Borrowed(&[][..])),
             )
-        })?;
+        })
+        .map_err(gimli_error)?;
         let endian = match obj_file.endianness() {
             object::Endianness::Little => gimli::RunTimeEndian::Little,
             object::Endianness::Big => gimli::RunTimeEndian::Big,
         };
         let dwarf = dwarf_cow.borrow(|section| gimli::EndianSlice::new(section, endian));
         let mut iter = dwarf.units();
-        if let Some(header) = iter.next()? {
-            let unit = dwarf.unit(header)?;
+        if let Some(header) = iter.next().map_err(gimli_error)? {
+            let unit = dwarf.unit(header).map_err(gimli_error)?;
             if let Some(program) = unit.line_program.clone() {
                 let mut text_sections =
                     obj_file.sections().filter(|s| s.kind() == SectionKind::Text);
@@ -438,7 +443,7 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection], obj_data: &[u8]) 
                     .map(|s| &mut s.line_info);
 
                 let mut rows = program.rows();
-                while let Some((_header, row)) = rows.next_row()? {
+                while let Some((_header, row)) = rows.next_row().map_err(gimli_error)? {
                     if let (Some(line), Some(lines)) = (row.line(), &mut lines) {
                         lines.insert(row.address(), line.get() as u32);
                     }
@@ -453,7 +458,7 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection], obj_data: &[u8]) 
                 }
             }
         }
-        if iter.next()?.is_some() {
+        if iter.next().map_err(gimli_error)?.is_some() {
             log::warn!("Multiple units found in DWARF data, only processing the first");
         }
     }
@@ -638,7 +643,7 @@ fn combine_sections(section: ObjSection, combine: ObjSection) -> Result<ObjSecti
 }
 
 fn combine_data_sections(sections: &mut Vec<ObjSection>) -> Result<()> {
-    let names_to_combine: HashSet<_> = sections
+    let names_to_combine: BTreeSet<_> = sections
         .iter()
         .filter(|s| s.kind == ObjSectionKind::Data)
         .map(|s| s.name.clone())
@@ -677,14 +682,15 @@ fn combine_data_sections(sections: &mut Vec<ObjSection>) -> Result<()> {
     Ok(())
 }
 
-pub fn read(obj_path: &Path, config: &DiffObjConfig) -> Result<ObjInfo> {
+#[cfg(feature = "std")]
+pub fn read(obj_path: &std::path::Path, config: &DiffObjConfig) -> Result<ObjInfo> {
     let (data, timestamp) = {
-        let file = fs::File::open(obj_path)?;
-        let timestamp = FileTime::from_last_modification_time(&file.metadata()?);
+        let file = std::fs::File::open(obj_path)?;
+        let timestamp = filetime::FileTime::from_last_modification_time(&file.metadata()?);
         (unsafe { memmap2::Mmap::map(&file) }?, timestamp)
     };
     let mut obj = parse(&data, config)?;
-    obj.path = Some(obj_path.to_owned());
+    obj.path = Some(obj_path.to_string_lossy().into_owned());
     obj.timestamp = Some(timestamp);
     Ok(obj)
 }
@@ -710,7 +716,7 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<ObjInfo> {
     }
 
     let mut sections = filter_sections(&obj_file, split_meta.as_ref())?;
-    let mut section_name_counts: HashMap<String, u32> = HashMap::new();
+    let mut section_name_counts: BTreeMap<String, u32> = BTreeMap::new();
     for section in &mut sections {
         section.symbols = symbols_by_section(
             arch.as_ref(),
@@ -733,12 +739,21 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<ObjInfo> {
     }
     line_info(&obj_file, &mut sections, data)?;
     let common = common_symbols(arch.as_ref(), &obj_file, split_meta.as_ref())?;
-    Ok(ObjInfo { arch, path: None, timestamp: None, sections, common, split_meta })
+    Ok(ObjInfo {
+        arch,
+        path: None,
+        #[cfg(feature = "std")]
+        timestamp: None,
+        sections,
+        common,
+        split_meta,
+    })
 }
 
-pub fn has_function(obj_path: &Path, symbol_name: &str) -> Result<bool> {
+#[cfg(feature = "std")]
+pub fn has_function(obj_path: &std::path::Path, symbol_name: &str) -> Result<bool> {
     let data = {
-        let file = fs::File::open(obj_path)?;
+        let file = std::fs::File::open(obj_path)?;
         unsafe { memmap2::Mmap::map(&file) }?
     };
     Ok(File::parse(&*data)?

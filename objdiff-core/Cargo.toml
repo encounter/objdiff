@@ -16,12 +16,14 @@ documentation = "https://docs.rs/objdiff-core"
 crate-type = ["cdylib", "rlib"]
 
 [features]
+default = ["std"]
 all = [
     # Features
     "bindings",
     "build",
     "config",
     "dwarf",
+    "serde",
     # Architectures
     "mips",
     "ppc",
@@ -31,30 +33,21 @@ all = [
 ]
 # Implicit, used to check if any arch is enabled
 any-arch = [
-    "config",
-    "dep:bimap",
     "dep:byteorder",
     "dep:flagset",
     "dep:heck",
     "dep:log",
-    "dep:memmap2",
     "dep:num-traits",
     "dep:prettyplease",
     "dep:proc-macro2",
     "dep:quote",
-    "dep:serde",
-    "dep:serde_json",
     "dep:similar",
     "dep:strum",
     "dep:syn",
 ]
 bindings = [
-    "dep:pbjson",
-    "dep:pbjson-build",
     "dep:prost",
     "dep:prost-build",
-    "dep:serde",
-    "dep:serde_json",
 ]
 build = [
     "dep:notify",
@@ -68,15 +61,31 @@ build = [
     "dep:winapi",
 ]
 config = [
-    "dep:bimap",
-    "dep:filetime",
     "dep:globset",
     "dep:semver",
-    "dep:serde",
-    "dep:serde_json",
-    "dep:serde_yaml",
+    "dep:typed-path",
 ]
 dwarf = ["dep:gimli"]
+serde = [
+    "dep:pbjson",
+    "dep:pbjson-build",
+    "dep:serde",
+    "dep:serde_json",
+]
+std = [
+    "anyhow/std",
+    "byteorder?/std",
+    "flagset?/std",
+    "log?/std",
+    "num-traits?/std",
+    "object/std",
+    "prost?/std",
+    "serde?/std",
+    "strum?/std",
+    "typed-path?/std",
+    "dep:filetime",
+    "dep:memmap2",
+]
 mips = [
     "any-arch",
     "dep:rabbitizer",
@@ -108,65 +117,66 @@ arm64 = [
 wasm = [
     "any-arch",
     "bindings",
-    "dep:console_error_panic_hook",
-    "dep:console_log",
     "dep:log",
-    "dep:tsify-next",
-    "dep:wasm-bindgen",
+    "dep:talc",
+    "dep:spin",
+    "dep:wit-bindgen",
 ]
 
 [package.metadata.docs.rs]
 features = ["all"]
 
 [dependencies]
-anyhow = "1.0"
-bimap = { version = "0.6", features = ["serde"], optional = true }
-byteorder = { version = "1.5", optional = true }
+anyhow = { version = "1.0", default-features = false }
+byteorder = { version = "1.5", default-features = false, optional = true }
 filetime = { version = "0.2", optional = true }
-flagset = { version = "0.4", optional = true }
-log = { version = "0.4", optional = true }
+flagset = { version = "0.4", default-features = false, optional = true }
+log = { version = "0.4", default-features = false, optional = true }
 memmap2 = { version = "0.9", optional = true }
-num-traits = { version = "0.2", optional = true }
-object = { version = "0.36", features = ["read_core", "std", "elf", "pe"], default-features = false }
-pbjson = { version = "0.7", optional = true }
-prost = { version = "0.13", optional = true }
-serde = { version = "1.0", features = ["derive"], optional = true }
-similar = { version = "2.6", default-features = false, optional = true }
-strum = { version = "0.26", features = ["derive"], optional = true }
-wasm-bindgen = { version = "0.2", optional = true }
-tsify-next = { version = "0.5", default-features = false, features = ["js"], optional = true }
-console_log = { version = "1.0", optional = true }
-console_error_panic_hook = { version = "0.1", optional = true }
+num-traits = { version = "0.2", default-features = false, optional = true }
+object = { version = "0.36", default-features = false, features = ["read_core", "elf", "pe"] }
+pbjson = { version = "0.7", default-features = false, optional = true }
+prost = { version = "0.13", default-features = false, features = ["prost-derive"], optional = true }
+serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
+similar = { version = "2.7", default-features = false, optional = true, git = "https://github.com/encounter/similar.git", branch = "no_std" }
+strum = { version = "0.26", default-features = false, features = ["derive"], optional = true }
+typed-path = { version = "0.10", default-features = false, optional = true }
 
 # config
-globset = { version = "0.4", features = ["serde1"], optional = true }
-semver = { version = "1.0", optional = true }
-serde_json = { version = "1.0", optional = true }
-serde_yaml = { version = "0.9", optional = true }
+globset = { version = "0.4", default-features = false, optional = true }
+semver = { version = "1.0", default-features = false, optional = true }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"], optional = true }
 
 # dwarf
-gimli = { version = "0.31", default-features = false, features = ["read-all"], optional = true }
+gimli = { version = "0.31", default-features = false, features = ["read"], optional = true }
 
 # ppc
 cwdemangle = { version = "1.0", optional = true }
-cwextab = { version = "1.0", optional = true }
+cwextab = { version = "1.0", optional = true, git = "https://github.com/encounter/cwextab.git" }
 ppc750cl = { version = "0.3", optional = true }
 
 # mips
 rabbitizer = { version = "1.12", optional = true }
 
 # x86
-cpp_demangle = { version = "0.4", optional = true }
-iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "intel", "gas", "masm", "nasm", "exhaustive_enums"], optional = true }
-msvc-demangler = { version = "0.10", optional = true }
+cpp_demangle = { version = "0.4", default-features = false, features = ["alloc"], optional = true }
+iced-x86 = { version = "1.21", default-features = false, features = ["decoder", "intel", "gas", "masm", "nasm", "exhaustive_enums", "no_std"], optional = true }
+msvc-demangler = { version = "0.11", optional = true }
 
 # arm
-unarm = { version = "1.6", optional = true }
-arm-attr = { version = "0.1", optional = true }
+unarm = { version = "1.7", optional = true }
+arm-attr = { version = "0.2", optional = true }
 
 # arm64
-yaxpeax-arch = { version = "0.3", default-features = false, features = ["std"], optional = true }
-yaxpeax-arm = { version = "0.3", default-features = false, features = ["std"], optional = true }
+yaxpeax-arch = { version = "0.3", default-features = false, optional = true }
+yaxpeax-arm = { version = "0.3", default-features = false, optional = true }
+
+# wasm
+#console_error_panic_hook = { version = "0.1", optional = true }
+#console_log = { version = "1.0", optional = true }
+talc = { version = "4.4", optional = true }
+spin = { version = "0.9", optional = true }
+wit-bindgen = { version = "0.38", default-features = false, features = ["macros"], optional = true }
 
 # build
 notify = { version = "8.0.0", optional = true }
@@ -196,6 +206,6 @@ prettyplease = { version = "0.2", optional = true }
 proc-macro2 = { version = "1.0", optional = true }
 prost-build = { version = "0.13", optional = true }
 quote = { version = "1.0", optional = true }
-serde = { version = "1.0", features = ["derive"], optional = true }
-serde_json = { version = "1.0", optional = true }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
 syn = { version = "2.0", optional = true }

@@ -100,7 +100,7 @@ pub fn generate_diff_config() {
             }
             let value = &item.value;
             variants.extend(quote! {
-                #[serde(rename = #value, alias = #variant_name)]
+                #[cfg_attr(feature = "serde", serde(rename = #value, alias = #variant_name))]
                 #variant_ident,
             });
             full_variants.extend(quote! { #enum_ident::#variant_ident, });
@@ -134,8 +134,8 @@ pub fn generate_diff_config() {
             });
         }
         enums.extend(quote! {
-            #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash, serde::Deserialize, serde::Serialize)]
-            #[cfg_attr(feature = "wasm", derive(tsify_next::Tsify), tsify(from_wasm_abi))]
+            #[derive(Copy, Clone, Debug, Default, Eq, PartialEq, Hash)]
+            #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
             pub enum #enum_ident {
                 #variants
             }
@@ -168,7 +168,7 @@ pub fn generate_diff_config() {
                     }
                 }
             }
-            impl std::str::FromStr for #enum_ident {
+            impl core::str::FromStr for #enum_ident {
                 type Err = ();
                 fn from_str(s: &str) -> Result<Self, Self::Err> {
                     #variant_from_str
@@ -244,7 +244,7 @@ pub fn generate_diff_config() {
                 let default = b.default;
                 if default {
                     property_fields.extend(quote! {
-                        #[serde(default = "default_true")]
+                        #[cfg_attr(feature = "serde", serde(default = "default_true"))]
                     });
                 }
                 property_fields.extend(quote! {
@@ -412,7 +412,7 @@ pub fn generate_diff_config() {
                 }
             }
         }
-        impl std::str::FromStr for ConfigPropertyId {
+        impl core::str::FromStr for ConfigPropertyId {
             type Err = ();
             fn from_str(s: &str) -> Result<Self, Self::Err> {
                 #config_property_id_from_str
@@ -433,10 +433,19 @@ pub fn generate_diff_config() {
             Choice(&'static str),
         }
         impl ConfigPropertyValue {
+            #[cfg(feature = "serde")]
             pub fn to_json(&self) -> serde_json::Value {
                 match self {
                     ConfigPropertyValue::Boolean(value) => serde_json::Value::Bool(*value),
                     ConfigPropertyValue::Choice(value) => serde_json::Value::String(value.to_string()),
+                }
+            }
+        }
+        impl core::fmt::Display for ConfigPropertyValue {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                match self {
+                    ConfigPropertyValue::Boolean(value) => write!(f, "{}", value),
+                    ConfigPropertyValue::Choice(value) => write!(f, "{}", value),
                 }
             }
         }
@@ -446,11 +455,11 @@ pub fn generate_diff_config() {
             Choice(&'static [ConfigEnumVariantInfo]),
         }
         #enums
+        #[cfg(feature = "serde")]
         #[inline(always)]
         fn default_true() -> bool { true }
-        #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
-        #[cfg_attr(feature = "wasm", derive(tsify_next::Tsify), tsify(from_wasm_abi))]
-        #[serde(default)]
+        #[derive(Clone, Debug)]
+        #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize), serde(default))]
         pub struct DiffObjConfig {
             #property_fields
         }

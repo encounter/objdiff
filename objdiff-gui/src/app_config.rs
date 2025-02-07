@@ -1,14 +1,15 @@
-use std::path::PathBuf;
+use std::collections::BTreeMap;
 
 use eframe::Storage;
 use globset::Glob;
 use objdiff_core::{
-    config::{ScratchConfig, SymbolMappings},
+    config::ScratchConfig,
     diff::{
         ArmArchVersion, ArmR9Usage, DiffObjConfig, FunctionRelocDiffs, MipsAbi, MipsInstrCategory,
         X86Formatter,
     },
 };
+use typed_path::{Utf8PlatformPathBuf, Utf8UnixPathBuf};
 
 use crate::app::{AppConfig, ObjectConfig, CONFIG_KEY};
 
@@ -62,7 +63,7 @@ pub struct ScratchConfigV2 {
     #[serde(default)]
     pub c_flags: Option<String>,
     #[serde(default)]
-    pub ctx_path: Option<PathBuf>,
+    pub ctx_path: Option<String>,
     #[serde(default)]
     pub build_ctx: Option<bool>,
     #[serde(default)]
@@ -75,7 +76,7 @@ impl ScratchConfigV2 {
             platform: self.platform,
             compiler: self.compiler,
             c_flags: self.c_flags,
-            ctx_path: self.ctx_path,
+            ctx_path: self.ctx_path.map(Utf8UnixPathBuf::from),
             build_ctx: self.build_ctx,
             preset_id: self.preset_id,
         }
@@ -85,26 +86,27 @@ impl ScratchConfigV2 {
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct ObjectConfigV2 {
     pub name: String,
-    pub target_path: Option<PathBuf>,
-    pub base_path: Option<PathBuf>,
+    pub target_path: Option<String>,
+    pub base_path: Option<String>,
     pub reverse_fn_order: Option<bool>,
     pub complete: Option<bool>,
     pub scratch: Option<ScratchConfigV2>,
     pub source_path: Option<String>,
     #[serde(default)]
-    pub symbol_mappings: SymbolMappings,
+    pub symbol_mappings: BTreeMap<String, String>,
 }
 
 impl ObjectConfigV2 {
     fn into_config(self) -> ObjectConfig {
         ObjectConfig {
             name: self.name,
-            target_path: self.target_path,
-            base_path: self.base_path,
+            target_path: self.target_path.map(Utf8PlatformPathBuf::from),
+            base_path: self.base_path.map(Utf8PlatformPathBuf::from),
             reverse_fn_order: self.reverse_fn_order,
             complete: self.complete,
+            hidden: false,
             scratch: self.scratch.map(|scratch| scratch.into_config()),
-            source_path: self.source_path,
+            source_path: None,
             symbol_mappings: self.symbol_mappings,
         }
     }
@@ -120,11 +122,11 @@ pub struct AppConfigV2 {
     #[serde(default)]
     pub selected_wsl_distro: Option<String>,
     #[serde(default)]
-    pub project_dir: Option<PathBuf>,
+    pub project_dir: Option<String>,
     #[serde(default)]
-    pub target_obj_dir: Option<PathBuf>,
+    pub target_obj_dir: Option<String>,
     #[serde(default)]
-    pub base_obj_dir: Option<PathBuf>,
+    pub base_obj_dir: Option<String>,
     #[serde(default)]
     pub selected_obj: Option<ObjectConfigV2>,
     #[serde(default = "bool_true")]
@@ -138,7 +140,7 @@ pub struct AppConfigV2 {
     #[serde(default)]
     pub watch_patterns: Vec<Glob>,
     #[serde(default)]
-    pub recent_projects: Vec<PathBuf>,
+    pub recent_projects: Vec<String>,
     #[serde(default)]
     pub diff_obj_config: DiffObjConfigV1,
 }
@@ -150,9 +152,9 @@ impl AppConfigV2 {
             custom_make: self.custom_make,
             custom_args: self.custom_args,
             selected_wsl_distro: self.selected_wsl_distro,
-            project_dir: self.project_dir,
-            target_obj_dir: self.target_obj_dir,
-            base_obj_dir: self.base_obj_dir,
+            project_dir: self.project_dir.map(Utf8PlatformPathBuf::from),
+            target_obj_dir: self.target_obj_dir.map(Utf8PlatformPathBuf::from),
+            base_obj_dir: self.base_obj_dir.map(Utf8PlatformPathBuf::from),
             selected_obj: self.selected_obj.map(|obj| obj.into_config()),
             build_base: self.build_base,
             build_target: self.build_target,
@@ -175,7 +177,7 @@ pub struct ScratchConfigV1 {
     #[serde(default)]
     pub c_flags: Option<String>,
     #[serde(default)]
-    pub ctx_path: Option<PathBuf>,
+    pub ctx_path: Option<String>,
     #[serde(default)]
     pub build_ctx: bool,
 }
@@ -186,7 +188,7 @@ impl ScratchConfigV1 {
             platform: self.platform,
             compiler: self.compiler,
             c_flags: self.c_flags,
-            ctx_path: self.ctx_path,
+            ctx_path: self.ctx_path.map(Utf8UnixPathBuf::from),
             build_ctx: self.build_ctx.then_some(true),
             preset_id: None,
         }
@@ -196,8 +198,8 @@ impl ScratchConfigV1 {
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct ObjectConfigV1 {
     pub name: String,
-    pub target_path: Option<PathBuf>,
-    pub base_path: Option<PathBuf>,
+    pub target_path: Option<String>,
+    pub base_path: Option<String>,
     pub reverse_fn_order: Option<bool>,
     pub complete: Option<bool>,
     pub scratch: Option<ScratchConfigV1>,
@@ -208,12 +210,12 @@ impl ObjectConfigV1 {
     fn into_config(self) -> ObjectConfig {
         ObjectConfig {
             name: self.name,
-            target_path: self.target_path,
-            base_path: self.base_path,
+            target_path: self.target_path.map(Utf8PlatformPathBuf::from),
+            base_path: self.base_path.map(Utf8PlatformPathBuf::from),
             reverse_fn_order: self.reverse_fn_order,
             complete: self.complete,
             scratch: self.scratch.map(|scratch| scratch.into_config()),
-            source_path: self.source_path,
+            source_path: None,
             ..Default::default()
         }
     }
@@ -298,11 +300,11 @@ pub struct AppConfigV1 {
     #[serde(default)]
     pub selected_wsl_distro: Option<String>,
     #[serde(default)]
-    pub project_dir: Option<PathBuf>,
+    pub project_dir: Option<String>,
     #[serde(default)]
-    pub target_obj_dir: Option<PathBuf>,
+    pub target_obj_dir: Option<String>,
     #[serde(default)]
-    pub base_obj_dir: Option<PathBuf>,
+    pub base_obj_dir: Option<String>,
     #[serde(default)]
     pub selected_obj: Option<ObjectConfigV1>,
     #[serde(default = "bool_true")]
@@ -316,7 +318,7 @@ pub struct AppConfigV1 {
     #[serde(default)]
     pub watch_patterns: Vec<Glob>,
     #[serde(default)]
-    pub recent_projects: Vec<PathBuf>,
+    pub recent_projects: Vec<String>,
     #[serde(default)]
     pub diff_obj_config: DiffObjConfigV1,
 }
@@ -328,9 +330,9 @@ impl AppConfigV1 {
             custom_make: self.custom_make,
             custom_args: self.custom_args,
             selected_wsl_distro: self.selected_wsl_distro,
-            project_dir: self.project_dir,
-            target_obj_dir: self.target_obj_dir,
-            base_obj_dir: self.base_obj_dir,
+            project_dir: self.project_dir.map(Utf8PlatformPathBuf::from),
+            target_obj_dir: self.target_obj_dir.map(Utf8PlatformPathBuf::from),
+            base_obj_dir: self.base_obj_dir.map(Utf8PlatformPathBuf::from),
             selected_obj: self.selected_obj.map(|obj| obj.into_config()),
             build_base: self.build_base,
             build_target: self.build_target,
@@ -347,8 +349,8 @@ impl AppConfigV1 {
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct ObjectConfigV0 {
     pub name: String,
-    pub target_path: PathBuf,
-    pub base_path: PathBuf,
+    pub target_path: String,
+    pub base_path: String,
     pub reverse_fn_order: Option<bool>,
 }
 
@@ -356,8 +358,8 @@ impl ObjectConfigV0 {
     fn into_config(self) -> ObjectConfig {
         ObjectConfig {
             name: self.name,
-            target_path: Some(self.target_path),
-            base_path: Some(self.base_path),
+            target_path: Some(Utf8PlatformPathBuf::from(self.target_path)),
+            base_path: Some(Utf8PlatformPathBuf::from(self.base_path)),
             reverse_fn_order: self.reverse_fn_order,
             ..Default::default()
         }
@@ -368,9 +370,9 @@ impl ObjectConfigV0 {
 pub struct AppConfigV0 {
     pub custom_make: Option<String>,
     pub selected_wsl_distro: Option<String>,
-    pub project_dir: Option<PathBuf>,
-    pub target_obj_dir: Option<PathBuf>,
-    pub base_obj_dir: Option<PathBuf>,
+    pub project_dir: Option<String>,
+    pub target_obj_dir: Option<String>,
+    pub base_obj_dir: Option<String>,
     pub selected_obj: Option<ObjectConfigV0>,
     pub build_target: bool,
     pub auto_update_check: bool,
@@ -383,9 +385,9 @@ impl AppConfigV0 {
         AppConfig {
             custom_make: self.custom_make,
             selected_wsl_distro: self.selected_wsl_distro,
-            project_dir: self.project_dir,
-            target_obj_dir: self.target_obj_dir,
-            base_obj_dir: self.base_obj_dir,
+            project_dir: self.project_dir.map(Utf8PlatformPathBuf::from),
+            target_obj_dir: self.target_obj_dir.map(Utf8PlatformPathBuf::from),
+            base_obj_dir: self.base_obj_dir.map(Utf8PlatformPathBuf::from),
             selected_obj: self.selected_obj.map(|obj| obj.into_config()),
             build_target: self.build_target,
             auto_update_check: self.auto_update_check,

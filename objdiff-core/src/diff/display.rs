@@ -1,3 +1,5 @@
+use alloc::string::{String, ToString};
+
 use crate::{
     diff::{ObjInsArgDiff, ObjInsDiff},
     obj::{ObjInsArg, ObjInsArgValue, ObjReloc, ObjSymbol},

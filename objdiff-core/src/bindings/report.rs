@@ -1,12 +1,18 @@
 #![allow(clippy::needless_lifetimes)] // Generated serde code
-use std::ops::AddAssign;
+
+use alloc::{
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
+use core::ops::AddAssign;
 
 use anyhow::{bail, Result};
 use prost::Message;
-use serde_json::error::Category;
 
 // Protobuf report types
 include!(concat!(env!("OUT_DIR"), "/objdiff.report.rs"));
+#[cfg(feature = "serde")]
 include!(concat!(env!("OUT_DIR"), "/objdiff.report.serde.rs"));
 
 pub const REPORT_VERSION: u32 = 2;
@@ -15,23 +21,30 @@ impl Report {
     /// Attempts to parse the report as binary protobuf or JSON.
     pub fn parse(data: &[u8]) -> Result<Self> {
         if data.is_empty() {
-            bail!(std::io::Error::from(std::io::ErrorKind::UnexpectedEof));
+            bail!("Empty data");
         }
         let report = if data[0] == b'{' {
             // Load as JSON
-            Self::from_json(data)?
+            #[cfg(feature = "serde")]
+            {
+                Self::from_json(data)?
+            }
+            #[cfg(not(feature = "serde"))]
+            bail!("JSON report parsing requires the `serde` feature")
         } else {
             // Load as binary protobuf
-            Self::decode(data)?
+            Self::decode(data).map_err(|e| anyhow::Error::msg(e.to_string()))?
         };
         Ok(report)
     }
 
+    #[cfg(feature = "serde")]
     /// Attempts to parse the report as JSON, migrating from the legacy report format if necessary.
     fn from_json(bytes: &[u8]) -> Result<Self, serde_json::Error> {
         match serde_json::from_slice::<Self>(bytes) {
             Ok(report) => Ok(report),
             Err(e) => {
+                use serde_json::error::Category;
                 match e.classify() {
                     Category::Io | Category::Eof | Category::Syntax => Err(e),
                     Category::Data => {
@@ -304,7 +317,8 @@ impl FromIterator<Measures> for Measures {
 }
 
 // Older JSON report types
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct LegacyReport {
     fuzzy_match_percent: f32,
     total_code: u64,
@@ -341,7 +355,8 @@ impl From<LegacyReport> for Report {
     }
 }
 
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct LegacyReportUnit {
     name: String,
     fuzzy_match_percent: f32,
@@ -351,11 +366,11 @@ struct LegacyReportUnit {
     matched_data: u64,
     total_functions: u32,
     matched_functions: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     complete: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     module_name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     module_id: Option<u32>,
     sections: Vec<LegacyReportItem>,
     functions: Vec<LegacyReportItem>,
@@ -389,16 +404,20 @@ impl From<LegacyReportUnit> for ReportUnit {
     }
 }
 
-#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 struct LegacyReportItem {
     name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     demangled_name: Option<String>,
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        serialize_with = "serialize_hex",
-        deserialize_with = "deserialize_hex"
+    #[cfg_attr(
+        feature = "serde",
+        serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            serialize_with = "serialize_hex",
+            deserialize_with = "deserialize_hex"
+        )
     )]
     address: Option<u64>,
     size: u64,
@@ -419,6 +438,7 @@ impl From<LegacyReportItem> for ReportItem {
     }
 }
 
+#[cfg(feature = "serde")]
 fn serialize_hex<S>(x: &Option<u64>, s: S) -> Result<S::Ok, S::Error>
 where S: serde::Serializer {
     if let Some(x) = x {
@@ -428,6 +448,7 @@ where S: serde::Serializer {
     }
 }
 
+#[cfg(feature = "serde")]
 fn deserialize_hex<'de, D>(d: D) -> Result<Option<u64>, D::Error>
 where D: serde::Deserializer<'de> {
     use serde::Deserialize;

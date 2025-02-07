@@ -2,7 +2,6 @@ import wasmInit, * as exports from '../pkg';
 
 const handlers = {
     init: init,
-    // run_diff_json: run_diff_json,
     run_diff_proto: run_diff_proto,
 } as const;
 type ExtractData<T> = T extends (arg: infer U) => Promise<unknown> ? U : never;
@@ -29,24 +28,16 @@ async function initIfNeeded() {
     return wasmReady;
 }
 
-// async function run_diff_json({left, right, config}: {
-//     left: Uint8Array | undefined,
-//     right: Uint8Array | undefined,
-//     config?: exports.DiffObjConfig,
-// }): Promise<string> {
-//     config = config || exports.default_diff_obj_config();
-//     return exports.run_diff_json(left, right, cfg);
-// }
-
-async function run_diff_proto({left, right, diff_config, mapping_config}: {
-    left: Uint8Array | undefined,
-    right: Uint8Array | undefined,
-    diff_config?: exports.DiffObjConfig,
-    mapping_config?: exports.MappingConfig,
+async function run_diff_proto({left, right, properties, mappingConfig}: {
+    left: Uint8Array | null | undefined,
+    right: Uint8Array | null | undefined,
+    properties?: exports.ConfigProperty[],
+    mappingConfig?: exports.MappingConfig,
 }): Promise<Uint8Array> {
-    diff_config = diff_config || {};
-    mapping_config = mapping_config || {};
-    return exports.run_diff_proto(left, right, diff_config, mapping_config);
+    const diffConfig = exports.config_from_properties(properties || []);
+    const leftObj = left ? exports.parse_object(left, diffConfig) : null;
+    const rightObj = right ? exports.parse_object(right, diffConfig) : null;
+    return exports.run_diff(leftObj, rightObj, diffConfig, mappingConfig || {});
 }
 
 export type AnyHandlerData = HandlerData[keyof HandlerData];

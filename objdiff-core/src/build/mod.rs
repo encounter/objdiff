@@ -1,9 +1,8 @@
 pub mod watcher;
 
-use std::{
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::process::Command;
+
+use typed_path::Utf8PlatformPathBuf;
 
 pub struct BuildStatus {
     pub success: bool,
@@ -25,14 +24,14 @@ impl Default for BuildStatus {
 
 #[derive(Debug, Clone)]
 pub struct BuildConfig {
-    pub project_dir: Option<PathBuf>,
+    pub project_dir: Option<Utf8PlatformPathBuf>,
     pub custom_make: Option<String>,
     pub custom_args: Option<Vec<String>>,
     #[allow(unused)]
     pub selected_wsl_distro: Option<String>,
 }
 
-pub fn run_make(config: &BuildConfig, arg: &Path) -> BuildStatus {
+pub fn run_make(config: &BuildConfig, arg: &str) -> BuildStatus {
     let Some(cwd) = &config.project_dir else {
         return BuildStatus {
             success: false,

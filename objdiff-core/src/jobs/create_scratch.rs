@@ -1,6 +1,7 @@
-use std::{fs, path::PathBuf, sync::mpsc::Receiver, task::Waker};
+use std::{fs, sync::mpsc::Receiver, task::Waker};
 
 use anyhow::{anyhow, bail, Context, Result};
+use typed_path::{Utf8PlatformPathBuf, Utf8UnixPathBuf};
 
 use crate::{
     build::{run_make, BuildConfig, BuildStatus},
@@ -10,7 +11,7 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct CreateScratchConfig {
     pub build_config: BuildConfig,
-    pub context_path: Option<PathBuf>,
+    pub context_path: Option<Utf8UnixPathBuf>,
     pub build_context: bool,
 
     // Scratch fields
@@ -18,7 +19,7 @@ pub struct CreateScratchConfig {
     pub platform: String,
     pub compiler_flags: String,
     pub function_name: String,
-    pub target_obj: PathBuf,
+    pub target_obj: Utf8PlatformPathBuf,
     pub preset_id: Option<u32>,
 }
 
@@ -47,26 +48,25 @@ fn run_create_scratch(
     if let Some(context_path) = &config.context_path {
         if config.build_context {
             update_status(status, "Building context".to_string(), 0, 2, &cancel)?;
-            match run_make(&config.build_config, context_path) {
+            match run_make(&config.build_config, context_path.as_ref()) {
                 BuildStatus { success: true, .. } => {}
                 BuildStatus { success: false, stdout, stderr, .. } => {
                     bail!("Failed to build context:\n{stdout}\n{stderr}")
                 }
             }
         }
-        let context_path = project_dir.join(context_path);
+        let context_path = project_dir.join(context_path.with_platform_encoding());
         context = Some(
             fs::read_to_string(&context_path)
-                .map_err(|e| anyhow!("Failed to read {}: {}", context_path.display(), e))?,
+                .map_err(|e| anyhow!("Failed to read {}: {}", context_path, e))?,
         );
     }
 
     update_status(status, "Creating scratch".to_string(), 1, 2, &cancel)?;
     let diff_flags = [format!("--disassemble={}", config.function_name)];
     let diff_flags = serde_json::to_string(&diff_flags)?;
-    let obj_path = project_dir.join(&config.target_obj);
-    let file = reqwest::blocking::multipart::Part::file(&obj_path)
-        .with_context(|| format!("Failed to open {}", obj_path.display()))?;
+    let file = reqwest::blocking::multipart::Part::file(&config.target_obj)
+        .with_context(|| format!("Failed to open {}", config.target_obj))?;
     let mut form = reqwest::blocking::multipart::Form::new()
         .text("compiler", config.compiler.clone())
         .text("platform", config.platform.clone())

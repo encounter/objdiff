@@ -1,4 +1,5 @@
-use std::{borrow::Cow, collections::BTreeMap, ffi::CStr};
+use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, format, string::String, vec::Vec};
+use core::ffi::CStr;
 
 use anyhow::{bail, Result};
 use byteorder::ByteOrder;

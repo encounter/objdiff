@@ -1,6 +1,10 @@
-use std::{
+use alloc::{
     borrow::Cow,
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet},
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
 };
 
 use anyhow::{bail, ensure, Result};
@@ -479,7 +483,7 @@ fn get_offset_and_addr_gpr_for_possible_pool_reference(
 
 // Remove the relocation we're keeping track of in a particular register when an instruction reuses
 // that register to hold some other value, unrelated to pool relocation addresses.
-fn clear_overwritten_gprs(ins: Ins, gpr_pool_relocs: &mut HashMap<u8, ObjReloc>) {
+fn clear_overwritten_gprs(ins: Ins, gpr_pool_relocs: &mut BTreeMap<u8, ObjReloc>) {
     let mut def_args = Arguments::default();
     ins.parse_defs(&mut def_args);
     for arg in def_args {
@@ -576,11 +580,11 @@ fn generate_fake_pool_reloc_for_addr_mapping(
     func_address: u64,
     code: &[u8],
     relocations: &[ObjReloc],
-) -> HashMap<u32, ObjReloc> {
-    let mut visited_ins_addrs = HashSet::new();
-    let mut pool_reloc_for_addr = HashMap::new();
+) -> BTreeMap<u32, ObjReloc> {
+    let mut visited_ins_addrs = BTreeSet::new();
+    let mut pool_reloc_for_addr = BTreeMap::new();
     let mut ins_iters_with_gpr_state =
-        vec![(InsIter::new(code, func_address as u32), HashMap::new())];
+        vec![(InsIter::new(code, func_address as u32), BTreeMap::new())];
     let mut gpr_state_at_bctr = BTreeMap::new();
     while let Some((ins_iter, mut gpr_pool_relocs)) = ins_iters_with_gpr_state.pop() {
         for (cur_addr, ins) in ins_iter {

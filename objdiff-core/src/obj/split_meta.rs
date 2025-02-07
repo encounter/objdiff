@@ -1,5 +1,6 @@
-use std::{io, io::Write};
+use alloc::{string::String, vec, vec::Vec};
 
+use anyhow::{anyhow, Result};
 use object::{elf::SHT_NOTE, Endian, ObjectSection};
 
 pub const SPLITMETA_SECTION: &str = ".note.split";
@@ -27,10 +28,10 @@ const NT_SPLIT_MODULE_ID: u32 = u32::from_be_bytes(*b"MODI");
 const NT_SPLIT_VIRTUAL_ADDRESSES: u32 = u32::from_be_bytes(*b"VIRT");
 
 impl SplitMeta {
-    pub fn from_section<E>(section: object::Section, e: E, is_64: bool) -> io::Result<Self>
+    pub fn from_section<E>(section: object::Section, e: E, is_64: bool) -> Result<Self>
     where E: Endian {
         let mut result = SplitMeta::default();
-        let data = section.uncompressed_data().map_err(object_io_error)?;
+        let data = section.uncompressed_data().map_err(object_error)?;
         let mut iter = NoteIterator::new(data.as_ref(), section.align(), e, is_64)?;
         while let Some(note) = iter.next(e)? {
             if note.name != ELF_NOTE_SPLIT {
@@ -39,19 +40,18 @@ impl SplitMeta {
             match note.n_type {
                 NT_SPLIT_GENERATOR => {
                     let string = String::from_utf8(note.desc.to_vec())
-                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                        .map_err(|e| anyhow::Error::from(e))?;
                     result.generator = Some(string);
                 }
                 NT_SPLIT_MODULE_NAME => {
                     let string = String::from_utf8(note.desc.to_vec())
-                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                        .map_err(|e| anyhow::Error::from(e))?;
                     result.module_name = Some(string);
                 }
                 NT_SPLIT_MODULE_ID => {
-                    result.module_id =
-                        Some(e.read_u32_bytes(note.desc.try_into().map_err(|_| {
-                            io::Error::new(io::ErrorKind::InvalidData, "Invalid module ID size")
-                        })?));
+                    result.module_id = Some(e.read_u32_bytes(
+                        note.desc.try_into().map_err(|_| anyhow!("Invalid module ID size"))?,
+                    ));
                 }
                 NT_SPLIT_VIRTUAL_ADDRESSES => {
                     let vec = if is_64 {
@@ -79,10 +79,11 @@ impl SplitMeta {
         Ok(result)
     }
 
-    pub fn to_writer<E, W>(&self, writer: &mut W, e: E, is_64: bool) -> io::Result<()>
+    #[cfg(feature = "std")]
+    pub fn to_writer<E, W>(&self, writer: &mut W, e: E, is_64: bool) -> std::io::Result<()>
     where
         E: Endian,
-        W: Write + ?Sized,
+        W: std::io::Write + ?Sized,
     {
         if let Some(generator) = &self.generator {
             write_note_header(writer, e, NT_SPLIT_GENERATOR, generator.len())?;
@@ -137,10 +138,9 @@ impl SplitMeta {
     }
 }
 
-/// Convert an object::read::Error to an io::Error.
-fn object_io_error(err: object::read::Error) -> io::Error {
-    io::Error::new(io::ErrorKind::InvalidData, err)
-}
+/// Convert an object::read::Error to a String.
+#[inline]
+fn object_error(err: object::read::Error) -> anyhow::Error { anyhow::Error::new(err) }
 
 /// An ELF note entry.
 struct Note<'data> {
@@ -161,27 +161,27 @@ where E: Endian
 impl<'data, E> NoteIterator<'data, E>
 where E: Endian
 {
-    fn new(data: &'data [u8], align: u64, e: E, is_64: bool) -> io::Result<Self> {
+    fn new(data: &'data [u8], align: u64, e: E, is_64: bool) -> Result<Self> {
         Ok(if is_64 {
             NoteIterator::B64(
-                object::read::elf::NoteIterator::new(e, align, data).map_err(object_io_error)?,
+                object::read::elf::NoteIterator::new(e, align, data).map_err(object_error)?,
             )
         } else {
             NoteIterator::B32(
                 object::read::elf::NoteIterator::new(e, align as u32, data)
-                    .map_err(object_io_error)?,
+                    .map_err(object_error)?,
             )
         })
     }
 
-    fn next(&mut self, e: E) -> io::Result<Option<Note<'data>>> {
+    fn next(&mut self, e: E) -> Result<Option<Note<'data>>> {
         match self {
-            NoteIterator::B32(iter) => Ok(iter.next().map_err(object_io_error)?.map(|note| Note {
+            NoteIterator::B32(iter) => Ok(iter.next().map_err(object_error)?.map(|note| Note {
                 n_type: note.n_type(e),
                 name: note.name(),
                 desc: note.desc(),
             })),
-            NoteIterator::B64(iter) => Ok(iter.next().map_err(object_io_error)?.map(|note| Note {
+            NoteIterator::B64(iter) => Ok(iter.next().map_err(object_error)?.map(|note| Note {
                 n_type: note.n_type(e),
                 name: note.name(),
                 desc: note.desc(),
@@ -192,7 +192,8 @@ where E: Endian
 
 fn align_size_to_4(size: usize) -> usize { (size + 3) & !3 }
 
-fn align_data_to_4<W: Write + ?Sized>(writer: &mut W, len: usize) -> io::Result<()> {
+#[cfg(feature = "std")]
+fn align_data_to_4<W: std::io::Write + ?Sized>(writer: &mut W, len: usize) -> std::io::Result<()> {
     const ALIGN_BYTES: &[u8] = &[0; 4];
     if len % 4 != 0 {
         writer.write_all(&ALIGN_BYTES[..4 - len % 4])?;
@@ -208,10 +209,11 @@ fn align_data_to_4<W: Write + ?Sized>(writer: &mut W, len: usize) -> io::Result<
 // Desc | variable size, padded to a 4 byte boundary
 const NOTE_HEADER_SIZE: usize = 12 + ((ELF_NOTE_SPLIT.len() + 4) & !3);
 
-fn write_note_header<E, W>(writer: &mut W, e: E, kind: u32, desc_len: usize) -> io::Result<()>
+#[cfg(feature = "std")]
+fn write_note_header<E, W>(writer: &mut W, e: E, kind: u32, desc_len: usize) -> std::io::Result<()>
 where
     E: Endian,
-    W: Write + ?Sized,
+    W: std::io::Write + ?Sized,
 {
     writer.write_all(&e.write_u32_bytes(ELF_NOTE_SPLIT.len() as u32 + 1))?; // Name Size
     writer.write_all(&e.write_u32_bytes(desc_len as u32))?; // Desc Size

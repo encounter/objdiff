@@ -73,7 +73,7 @@ fn create_scratch_config(
         platform: scratch_config.platform.clone().unwrap_or_default(),
         compiler_flags: scratch_config.c_flags.clone().unwrap_or_default(),
         function_name,
-        target_obj: target_path.to_path_buf(),
+        target_obj: target_path.clone(),
         preset_id: scratch_config.preset_id,
     })
 }

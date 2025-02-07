@@ -1,7 +1,8 @@
-use std::{path::PathBuf, sync::mpsc::Receiver, task::Waker};
+use std::{sync::mpsc::Receiver, task::Waker};
 
 use anyhow::{anyhow, Error, Result};
 use time::OffsetDateTime;
+use typed_path::Utf8PlatformPathBuf;
 
 use crate::{
     build::{run_make, BuildConfig, BuildStatus},
@@ -14,8 +15,8 @@ pub struct ObjDiffConfig {
     pub build_config: BuildConfig,
     pub build_base: bool,
     pub build_target: bool,
-    pub target_path: Option<PathBuf>,
-    pub base_path: Option<PathBuf>,
+    pub target_path: Option<Utf8PlatformPathBuf>,
+    pub base_path: Option<Utf8PlatformPathBuf>,
     pub diff_obj_config: DiffObjConfig,
     pub mapping_config: MappingConfig,
 }
@@ -43,20 +44,12 @@ fn run_build(
             .ok_or_else(|| Error::msg("Missing project dir"))?;
         if let Some(target_path) = &config.target_path {
             target_path_rel = Some(target_path.strip_prefix(project_dir).map_err(|_| {
-                anyhow!(
-                    "Target path '{}' doesn't begin with '{}'",
-                    target_path.display(),
-                    project_dir.display()
-                )
+                anyhow!("Target path '{}' doesn't begin with '{}'", target_path, project_dir)
             })?);
         }
         if let Some(base_path) = &config.base_path {
             base_path_rel = Some(base_path.strip_prefix(project_dir).map_err(|_| {
-                anyhow!(
-                    "Base path '{}' doesn't begin with '{}'",
-                    base_path.display(),
-                    project_dir.display()
-                )
+                anyhow!("Base path '{}' doesn't begin with '{}'", base_path, project_dir)
             })?);
         };
     }
@@ -80,13 +73,13 @@ fn run_build(
         Some(target_path_rel) if config.build_target => {
             update_status(
                 context,
-                format!("Building target {}", target_path_rel.display()),
+                format!("Building target {}", target_path_rel),
                 step_idx,
                 total,
                 &cancel,
             )?;
             step_idx += 1;
-            run_make(&config.build_config, target_path_rel)
+            run_make(&config.build_config, target_path_rel.as_ref())
         }
         _ => BuildStatus::default(),
     };
@@ -95,13 +88,13 @@ fn run_build(
         Some(base_path_rel) if config.build_base => {
             update_status(
                 context,
-                format!("Building base {}", base_path_rel.display()),
+                format!("Building base {}", base_path_rel),
                 step_idx,
                 total,
                 &cancel,
             )?;
             step_idx += 1;
-            run_make(&config.build_config, base_path_rel)
+            run_make(&config.build_config, base_path_rel.as_ref())
         }
         _ => BuildStatus::default(),
     };
@@ -112,18 +105,18 @@ fn run_build(
         Some(target_path) if first_status.success => {
             update_status(
                 context,
-                format!("Loading target {}", target_path.display()),
+                format!("Loading target {}", target_path),
                 step_idx,
                 total,
                 &cancel,
             )?;
             step_idx += 1;
-            match read::read(target_path, &config.diff_obj_config) {
+            match read::read(target_path.as_ref(), &config.diff_obj_config) {
                 Ok(obj) => Some(obj),
                 Err(e) => {
                     first_status = BuildStatus {
                         success: false,
-                        stdout: format!("Loading object '{}'", target_path.display()),
+                        stdout: format!("Loading object '{}'", target_path),
                         stderr: format!("{:#}", e),
                         ..Default::default()
                     };
@@ -142,18 +135,18 @@ fn run_build(
         Some(base_path) if second_status.success => {
             update_status(
                 context,
-                format!("Loading base {}", base_path.display()),
+                format!("Loading base {}", base_path),
                 step_idx,
                 total,
                 &cancel,
             )?;
             step_idx += 1;
-            match read::read(base_path, &config.diff_obj_config) {
+            match read::read(base_path.as_ref(), &config.diff_obj_config) {
                 Ok(obj) => Some(obj),
                 Err(e) => {
                     second_status = BuildStatus {
                         success: false,
-                        stdout: format!("Loading object '{}'", base_path.display()),
+                        stdout: format!("Loading object '{}'", base_path),
                         stderr: format!("{:#}", e),
                         ..Default::default()
                     };

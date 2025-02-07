@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     default::Default,
     fs,
     path::{Path, PathBuf},
@@ -15,13 +16,15 @@ use globset::Glob;
 use objdiff_core::{
     build::watcher::{create_watcher, Watcher},
     config::{
-        build_globset, default_watch_patterns, save_project_config, ProjectConfig,
-        ProjectConfigInfo, ProjectObject, ScratchConfig, SymbolMappings, DEFAULT_WATCH_PATTERNS,
+        build_globset, default_watch_patterns, path::platform_path_serde_option,
+        save_project_config, ProjectConfig, ProjectConfigInfo, ProjectObject, ScratchConfig,
+        DEFAULT_WATCH_PATTERNS,
     },
     diff::DiffObjConfig,
     jobs::{Job, JobQueue, JobResult},
 };
 use time::UtcOffset;
+use typed_path::{Utf8PlatformPath, Utf8PlatformPathBuf};
 
 use crate::{
     app_config::{deserialize_config, AppConfigVersion},
@@ -90,26 +93,57 @@ impl Default for ViewState {
 #[derive(Default, Clone, Eq, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct ObjectConfig {
     pub name: String,
-    pub target_path: Option<PathBuf>,
-    pub base_path: Option<PathBuf>,
+    #[serde(default, with = "platform_path_serde_option")]
+    pub target_path: Option<Utf8PlatformPathBuf>,
+    #[serde(default, with = "platform_path_serde_option")]
+    pub base_path: Option<Utf8PlatformPathBuf>,
     pub reverse_fn_order: Option<bool>,
     pub complete: Option<bool>,
-    pub scratch: Option<ScratchConfig>,
-    pub source_path: Option<String>,
     #[serde(default)]
-    pub symbol_mappings: SymbolMappings,
+    pub hidden: bool,
+    pub scratch: Option<ScratchConfig>,
+    #[serde(default, with = "platform_path_serde_option")]
+    pub source_path: Option<Utf8PlatformPathBuf>,
+    #[serde(default)]
+    pub symbol_mappings: BTreeMap<String, String>,
 }
 
-impl From<&ProjectObject> for ObjectConfig {
-    fn from(object: &ProjectObject) -> Self {
+impl ObjectConfig {
+    pub fn new(
+        object: &ProjectObject,
+        project_dir: &Utf8PlatformPath,
+        target_obj_dir: Option<&Utf8PlatformPath>,
+        base_obj_dir: Option<&Utf8PlatformPath>,
+    ) -> Self {
+        let target_path = if let (Some(target_obj_dir), Some(path), None) =
+            (target_obj_dir, &object.path, &object.target_path)
+        {
+            Some(target_obj_dir.join(path.with_platform_encoding()))
+        } else if let Some(path) = &object.target_path {
+            Some(project_dir.join(path.with_platform_encoding()))
+        } else {
+            None
+        };
+        let base_path = if let (Some(base_obj_dir), Some(path), None) =
+            (base_obj_dir, &object.path, &object.base_path)
+        {
+            Some(base_obj_dir.join(path.with_platform_encoding()))
+        } else if let Some(path) = &object.base_path {
+            Some(project_dir.join(path.with_platform_encoding()))
+        } else {
+            None
+        };
+        let source_path =
+            object.source_path().map(|s| project_dir.join(s.with_platform_encoding()));
         Self {
             name: object.name().to_string(),
-            target_path: object.target_path.clone(),
-            base_path: object.base_path.clone(),
+            target_path,
+            base_path,
             reverse_fn_order: object.reverse_fn_order(),
             complete: object.complete(),
+            hidden: object.hidden(),
             scratch: object.scratch.clone(),
-            source_path: object.source_path().cloned(),
+            source_path,
             symbol_mappings: object.symbol_mappings.clone().unwrap_or_default(),
         }
     }
@@ -120,7 +154,7 @@ fn bool_true() -> bool { true }
 
 pub struct AppState {
     pub config: AppConfig,
-    pub objects: Vec<ProjectObject>,
+    pub objects: Vec<ObjectConfig>,
     pub object_nodes: Vec<ProjectObjectNode>,
     pub watcher_change: bool,
     pub config_change: bool,
@@ -170,12 +204,12 @@ pub struct AppConfig {
     pub custom_args: Option<Vec<String>>,
     #[serde(default)]
     pub selected_wsl_distro: Option<String>,
-    #[serde(default)]
-    pub project_dir: Option<PathBuf>,
-    #[serde(default)]
-    pub target_obj_dir: Option<PathBuf>,
-    #[serde(default)]
-    pub base_obj_dir: Option<PathBuf>,
+    #[serde(default, with = "platform_path_serde_option")]
+    pub project_dir: Option<Utf8PlatformPathBuf>,
+    #[serde(default, with = "platform_path_serde_option")]
+    pub target_obj_dir: Option<Utf8PlatformPathBuf>,
+    #[serde(default, with = "platform_path_serde_option")]
+    pub base_obj_dir: Option<Utf8PlatformPathBuf>,
     #[serde(default)]
     pub selected_obj: Option<ObjectConfig>,
     #[serde(default = "bool_true")]
@@ -189,7 +223,7 @@ pub struct AppConfig {
     #[serde(default = "default_watch_patterns")]
     pub watch_patterns: Vec<Glob>,
     #[serde(default)]
-    pub recent_projects: Vec<PathBuf>,
+    pub recent_projects: Vec<String>,
     #[serde(default)]
     pub diff_obj_config: DiffObjConfig,
 }
@@ -217,12 +251,12 @@ impl Default for AppConfig {
 }
 
 impl AppState {
-    pub fn set_project_dir(&mut self, path: PathBuf) {
+    pub fn set_project_dir(&mut self, path: Utf8PlatformPathBuf) {
         self.config.recent_projects.retain(|p| p != &path);
         if self.config.recent_projects.len() > 9 {
             self.config.recent_projects.truncate(9);
         }
-        self.config.recent_projects.insert(0, path.clone());
+        self.config.recent_projects.insert(0, path.to_string());
         self.config.project_dir = Some(path);
         self.config.target_obj_dir = None;
         self.config.base_obj_dir = None;
@@ -240,7 +274,7 @@ impl AppState {
         self.selecting_right = None;
     }
 
-    pub fn set_target_obj_dir(&mut self, path: PathBuf) {
+    pub fn set_target_obj_dir(&mut self, path: Utf8PlatformPathBuf) {
         self.config.target_obj_dir = Some(path);
         self.config.selected_obj = None;
         self.obj_change = true;
@@ -249,7 +283,7 @@ impl AppState {
         self.selecting_right = None;
     }
 
-    pub fn set_base_obj_dir(&mut self, path: PathBuf) {
+    pub fn set_base_obj_dir(&mut self, path: Utf8PlatformPathBuf) {
         self.config.base_obj_dir = Some(path);
         self.config.selected_obj = None;
         self.obj_change = true;
@@ -360,14 +394,8 @@ impl AppState {
                     Some(object.symbol_mappings.clone())
                 };
             }
-            if let Some(existing) =
-                self.objects.iter_mut().find(|u| u.name.as_ref().is_some_and(|n| n == &object.name))
-            {
-                existing.symbol_mappings = if object.symbol_mappings.is_empty() {
-                    None
-                } else {
-                    Some(object.symbol_mappings.clone())
-                };
+            if let Some(existing) = self.objects.iter_mut().find(|u| u.name == object.name) {
+                existing.symbol_mappings = object.symbol_mappings.clone();
             }
         }
         // Save the updated project config
@@ -530,8 +558,13 @@ impl App {
                 match build_globset(&state.config.watch_patterns)
                     .map_err(anyhow::Error::new)
                     .and_then(|globset| {
-                        create_watcher(self.modified.clone(), project_dir, globset, egui_waker(ctx))
-                            .map_err(anyhow::Error::new)
+                        create_watcher(
+                            self.modified.clone(),
+                            project_dir.as_ref(),
+                            globset,
+                            egui_waker(ctx),
+                        )
+                        .map_err(anyhow::Error::new)
                     }) {
                     Ok(watcher) => self.watcher = Some(watcher),
                     Err(e) => log::error!("Failed to create watcher: {e}"),
@@ -672,8 +705,11 @@ impl eframe::App for App {
                             };
                             ui.separator();
                             for path in recent_projects {
-                                if ui.button(format!("{}", path.display())).clicked() {
-                                    state.write().unwrap().set_project_dir(path);
+                                if ui.button(&path).clicked() {
+                                    state
+                                        .write()
+                                        .unwrap()
+                                        .set_project_dir(Utf8PlatformPathBuf::from(path));
                                     ui.close_menu();
                                 }
                             }
@@ -776,8 +812,8 @@ impl eframe::App for App {
 }
 
 #[inline]
-fn file_modified(path: &Path, last_ts: FileTime) -> bool {
-    if let Ok(metadata) = fs::metadata(path) {
+fn file_modified<P: AsRef<Path>>(path: P, last_ts: FileTime) -> bool {
+    if let Ok(metadata) = fs::metadata(path.as_ref()) {
         FileTime::from_last_modification_time(&metadata) != last_ts
     } else {
         false

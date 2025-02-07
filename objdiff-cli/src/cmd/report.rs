@@ -1,10 +1,4 @@
-use std::{
-    collections::HashSet,
-    fs::File,
-    io::Read,
-    path::{Path, PathBuf},
-    time::Instant,
-};
+use std::{collections::HashSet, fs::File, io::Read, time::Instant};
 
 use anyhow::{bail, Context, Result};
 use argp::FromArgs;
@@ -14,15 +8,19 @@ use objdiff_core::{
         ReportCategory, ReportItem, ReportItemMetadata, ReportUnit, ReportUnitMetadata,
         REPORT_VERSION,
     },
-    config::ProjectObject,
+    config::path::platform_path,
     diff, obj,
     obj::{ObjSectionKind, ObjSymbolFlags},
 };
 use prost::Message;
-use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use tracing::{info, warn};
+use typed_path::{Utf8PlatformPath, Utf8PlatformPathBuf};
 
-use crate::util::output::{write_output, OutputFormat};
+use crate::{
+    cmd::diff::ObjectConfig,
+    util::output::{write_output, OutputFormat},
+};
 
 #[derive(FromArgs, PartialEq, Debug)]
 /// Generate a progress report for a project.
@@ -43,12 +41,12 @@ pub enum SubCommand {
 /// Generate a progress report for a project.
 #[argp(subcommand, name = "generate")]
 pub struct GenerateArgs {
-    #[argp(option, short = 'p')]
+    #[argp(option, short = 'p', from_str_fn(platform_path))]
     /// Project directory
-    project: Option<PathBuf>,
-    #[argp(option, short = 'o')]
+    project: Option<Utf8PlatformPathBuf>,
+    #[argp(option, short = 'o', from_str_fn(platform_path))]
     /// Output file
-    output: Option<PathBuf>,
+    output: Option<Utf8PlatformPathBuf>,
     #[argp(switch, short = 'd')]
     /// Deduplicate global and weak symbols (runs single-threaded)
     deduplicate: bool,
@@ -61,15 +59,15 @@ pub struct GenerateArgs {
 /// List any changes from a previous report.
 #[argp(subcommand, name = "changes")]
 pub struct ChangesArgs {
-    #[argp(positional)]
+    #[argp(positional, from_str_fn(platform_path))]
     /// Previous report file
-    previous: PathBuf,
-    #[argp(positional)]
+    previous: Utf8PlatformPathBuf,
+    #[argp(positional, from_str_fn(platform_path))]
     /// Current report file
-    current: PathBuf,
-    #[argp(option, short = 'o')]
+    current: Utf8PlatformPathBuf,
+    #[argp(option, short = 'o', from_str_fn(platform_path))]
     /// Output file
-    output: Option<PathBuf>,
+    output: Option<Utf8PlatformPathBuf>,
     #[argp(option, short = 'f')]
     /// Output format (json, json-pretty, proto) (default: json)
     format: Option<String>,
@@ -84,10 +82,10 @@ pub fn run(args: Args) -> Result<()> {
 
 fn generate(args: GenerateArgs) -> Result<()> {
     let output_format = OutputFormat::from_option(args.format.as_deref())?;
-    let project_dir = args.project.as_deref().unwrap_or_else(|| Path::new("."));
-    info!("Loading project {}", project_dir.display());
+    let project_dir = args.project.as_deref().unwrap_or_else(|| Utf8PlatformPath::new("."));
+    info!("Loading project {}", project_dir);
 
-    let mut project = match objdiff_core::config::try_project_config(project_dir) {
+    let project = match objdiff_core::config::try_project_config(project_dir.as_ref()) {
         Some((Ok(config), _)) => config,
         Some((Err(err), _)) => bail!("Failed to load project configuration: {}", err),
         None => bail!("No project configuration found"),
@@ -98,37 +96,33 @@ fn generate(args: GenerateArgs) -> Result<()> {
         if args.deduplicate { 1 } else { rayon::current_num_threads() }
     );
 
+    let target_obj_dir =
+        project.target_dir.as_ref().map(|p| project_dir.join(p.with_platform_encoding()));
+    let base_obj_dir =
+        project.base_dir.as_ref().map(|p| project_dir.join(p.with_platform_encoding()));
+    let objects = project
+        .units
+        .iter()
+        .flatten()
+        .map(|o| {
+            ObjectConfig::new(o, project_dir, target_obj_dir.as_deref(), base_obj_dir.as_deref())
+        })
+        .collect::<Vec<_>>();
+
     let start = Instant::now();
     let mut units = vec![];
     let mut existing_functions: HashSet<String> = HashSet::new();
     if args.deduplicate {
         // If deduplicating, we need to run single-threaded
-        for object in project.units.as_deref_mut().unwrap_or_default() {
-            if let Some(unit) = report_object(
-                object,
-                project_dir,
-                project.target_dir.as_deref(),
-                project.base_dir.as_deref(),
-                Some(&mut existing_functions),
-            )? {
+        for object in &objects {
+            if let Some(unit) = report_object(object, Some(&mut existing_functions))? {
                 units.push(unit);
             }
         }
     } else {
-        let vec = project
-            .units
-            .as_deref_mut()
-            .unwrap_or_default()
-            .par_iter_mut()
-            .map(|object| {
-                report_object(
-                    object,
-                    project_dir,
-                    project.target_dir.as_deref(),
-                    project.base_dir.as_deref(),
-                    None,
-                )
-            })
+        let vec = objects
+            .par_iter()
+            .map(|object| report_object(object, None))
             .collect::<Result<Vec<Option<ReportUnit>>>>()?;
         units = vec.into_iter().flatten().collect();
     }
@@ -151,20 +145,16 @@ fn generate(args: GenerateArgs) -> Result<()> {
 }
 
 fn report_object(
-    object: &mut ProjectObject,
-    project_dir: &Path,
-    target_dir: Option<&Path>,
-    base_dir: Option<&Path>,
+    object: &ObjectConfig,
     mut existing_functions: Option<&mut HashSet<String>>,
 ) -> Result<Option<ReportUnit>> {
-    object.resolve_paths(project_dir, target_dir, base_dir);
     match (&object.target_path, &object.base_path) {
-        (None, Some(_)) if !object.complete().unwrap_or(false) => {
-            warn!("Skipping object without target: {}", object.name());
+        (None, Some(_)) if !object.complete.unwrap_or(false) => {
+            warn!("Skipping object without target: {}", object.name);
             return Ok(None);
         }
         (None, None) => {
-            warn!("Skipping object without target or base: {}", object.name());
+            warn!("Skipping object without target or base: {}", object.name);
             return Ok(None);
         }
         _ => {}
@@ -178,35 +168,31 @@ fn report_object(
         .target_path
         .as_ref()
         .map(|p| {
-            obj::read::read(p, &diff_config)
-                .with_context(|| format!("Failed to open {}", p.display()))
+            obj::read::read(p.as_ref(), &diff_config)
+                .with_context(|| format!("Failed to open {}", p))
         })
         .transpose()?;
     let base = object
         .base_path
         .as_ref()
         .map(|p| {
-            obj::read::read(p, &diff_config)
-                .with_context(|| format!("Failed to open {}", p.display()))
+            obj::read::read(p.as_ref(), &diff_config)
+                .with_context(|| format!("Failed to open {}", p))
         })
         .transpose()?;
     let result =
         diff::diff_objs(&diff_config, &mapping_config, target.as_ref(), base.as_ref(), None)?;
 
     let metadata = ReportUnitMetadata {
-        complete: object.complete(),
+        complete: object.metadata.complete,
         module_name: target
             .as_ref()
             .and_then(|o| o.split_meta.as_ref())
             .and_then(|m| m.module_name.clone()),
         module_id: target.as_ref().and_then(|o| o.split_meta.as_ref()).and_then(|m| m.module_id),
-        source_path: object.metadata.as_ref().and_then(|m| m.source_path.clone()),
-        progress_categories: object
-            .metadata
-            .as_ref()
-            .and_then(|m| m.progress_categories.clone())
-            .unwrap_or_default(),
-        auto_generated: object.metadata.as_ref().and_then(|m| m.auto_generated),
+        source_path: object.metadata.source_path.as_ref().map(|p| p.to_string()),
+        progress_categories: object.metadata.progress_categories.clone().unwrap_or_default(),
+        auto_generated: object.metadata.auto_generated,
     };
     let mut measures = Measures { total_units: 1, ..Default::default() };
     let mut sections = vec![];
@@ -218,7 +204,7 @@ fn report_object(
         let section_match_percent = section_diff.match_percent.unwrap_or_else(|| {
             // Support cases where we don't have a target object,
             // assume complete means 100% match
-            if object.complete().unwrap_or(false) {
+            if object.complete.unwrap_or(false) {
                 100.0
             } else {
                 0.0
@@ -260,7 +246,7 @@ fn report_object(
             let match_percent = symbol_diff.match_percent.unwrap_or_else(|| {
                 // Support cases where we don't have a target object,
                 // assume complete means 100% match
-                if object.complete().unwrap_or(false) {
+                if object.complete.unwrap_or(false) {
                     100.0
                 } else {
                     0.0
@@ -294,7 +280,7 @@ fn report_object(
     measures.calc_fuzzy_match_percent();
     measures.calc_matched_percent();
     Ok(Some(ReportUnit {
-        name: object.name().to_string(),
+        name: object.name.clone(),
         measures: Some(measures),
         sections,
         functions,
@@ -304,7 +290,7 @@ fn report_object(
 
 fn changes(args: ChangesArgs) -> Result<()> {
     let output_format = OutputFormat::from_option(args.format.as_deref())?;
-    let (previous, current) = if args.previous == Path::new("-") && args.current == Path::new("-") {
+    let (previous, current) = if args.previous == "-" && args.current == "-" {
         // Special case for comparing two reports from stdin
         let mut data = vec![];
         std::io::stdin().read_to_end(&mut data)?;
@@ -419,15 +405,14 @@ fn process_new_items(items: &[ReportItem]) -> Vec<ChangeItem> {
         .collect()
 }
 
-fn read_report(path: &Path) -> Result<Report> {
-    if path == Path::new("-") {
+fn read_report(path: &Utf8PlatformPath) -> Result<Report> {
+    if path == Utf8PlatformPath::new("-") {
         let mut data = vec![];
         std::io::stdin().read_to_end(&mut data)?;
         return Report::parse(&data).with_context(|| "Failed to load report from stdin");
     }
-    let file = File::open(path).with_context(|| format!("Failed to open {}", path.display()))?;
-    let mmap = unsafe { memmap2::Mmap::map(&file) }
-        .with_context(|| format!("Failed to map {}", path.display()))?;
-    Report::parse(mmap.as_ref())
-        .with_context(|| format!("Failed to load report {}", path.display()))
+    let file = File::open(path).with_context(|| format!("Failed to open {}", path))?;
+    let mmap =
+        unsafe { memmap2::Mmap::map(&file) }.with_context(|| format!("Failed to map {}", path))?;
+    Report::parse(mmap.as_ref()).with_context(|| format!("Failed to load report {}", path))
 }
