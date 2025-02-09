@@ -1,6 +1,6 @@
 use std::{sync::mpsc::Receiver, task::Waker};
 
-use anyhow::{anyhow, Error, Result};
+use anyhow::{bail, Error, Result};
 use time::OffsetDateTime;
 use typed_path::Utf8PlatformPathBuf;
 
@@ -43,14 +43,20 @@ fn run_build(
             .as_ref()
             .ok_or_else(|| Error::msg("Missing project dir"))?;
         if let Some(target_path) = &config.target_path {
-            target_path_rel = Some(target_path.strip_prefix(project_dir).map_err(|_| {
-                anyhow!("Target path '{}' doesn't begin with '{}'", target_path, project_dir)
-            })?);
+            target_path_rel = match target_path.strip_prefix(project_dir) {
+                Ok(p) => Some(p.with_unix_encoding()),
+                Err(_) => {
+                    bail!("Target path '{}' doesn't begin with '{}'", target_path, project_dir);
+                }
+            };
         }
         if let Some(base_path) = &config.base_path {
-            base_path_rel = Some(base_path.strip_prefix(project_dir).map_err(|_| {
-                anyhow!("Base path '{}' doesn't begin with '{}'", base_path, project_dir)
-            })?);
+            base_path_rel = match base_path.strip_prefix(project_dir) {
+                Ok(p) => Some(p.with_unix_encoding()),
+                Err(_) => {
+                    bail!("Base path '{}' doesn't begin with '{}'", base_path, project_dir);
+                }
+            };
         };
     }
 

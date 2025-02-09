@@ -52,7 +52,6 @@ bindings = [
 build = [
     "dep:notify",
     "dep:notify-debouncer-full",
-    "dep:path-slash",
     "dep:reqwest",
     "dep:self_update",
     "dep:shell-escape",
@@ -186,7 +185,6 @@ tempfile = { version = "3.15", optional = true }
 time = { version = "0.3", optional = true }
 
 [target.'cfg(windows)'.dependencies]
-path-slash = { version = "0.2", optional = true }
 winapi = { version = "0.3", optional = true }
 
 # For Linux static binaries, use rustls

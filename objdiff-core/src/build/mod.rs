@@ -2,7 +2,7 @@ pub mod watcher;
 
 use std::process::Command;
 
-use typed_path::Utf8PlatformPathBuf;
+use typed_path::{Utf8PlatformPathBuf, Utf8UnixPath};
 
 pub struct BuildStatus {
     pub success: bool,
@@ -31,7 +31,7 @@ pub struct BuildConfig {
     pub selected_wsl_distro: Option<String>,
 }
 
-pub fn run_make(config: &BuildConfig, arg: &str) -> BuildStatus {
+pub fn run_make(config: &BuildConfig, arg: &Utf8UnixPath) -> BuildStatus {
     let Some(cwd) = &config.project_dir else {
         return BuildStatus {
             success: false,
@@ -51,7 +51,6 @@ pub fn run_make(config: &BuildConfig, arg: &str) -> BuildStatus {
     let mut command = {
         use std::os::windows::process::CommandExt;
 
-        use path_slash::PathExt;
         let mut command = if config.selected_wsl_distro.is_some() {
             Command::new("wsl")
         } else {
@@ -61,21 +60,21 @@ pub fn run_make(config: &BuildConfig, arg: &str) -> BuildStatus {
             // Strip distro root prefix \\wsl.localhost\{distro}
             let wsl_path_prefix = format!("\\\\wsl.localhost\\{}", distro);
             let cwd = match cwd.strip_prefix(wsl_path_prefix) {
-                Ok(new_cwd) => format!("/{}", new_cwd.to_slash_lossy().as_ref()),
-                Err(_) => cwd.to_string_lossy().to_string(),
+                Ok(new_cwd) => Utf8UnixPath::new("/").join(new_cwd.with_unix_encoding()),
+                Err(_) => cwd.with_unix_encoding(),
             };
 
             command
                 .arg("--cd")
-                .arg(cwd)
+                .arg(cwd.as_str())
                 .arg("-d")
                 .arg(distro)
                 .arg("--")
                 .arg(make)
                 .args(make_args)
-                .arg(arg.to_slash_lossy().as_ref());
+                .arg(arg.as_str());
         } else {
-            command.current_dir(cwd).args(make_args).arg(arg.to_slash_lossy().as_ref());
+            command.current_dir(cwd).args(make_args).arg(arg.as_str());
         }
         command.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
         command

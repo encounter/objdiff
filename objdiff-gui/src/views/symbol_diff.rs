@@ -281,7 +281,7 @@ impl DiffViewState {
                     state.config.selected_obj.as_ref().and_then(|obj| obj.source_path.as_ref())
                 {
                     log::info!("Opening file {}", source_path);
-                    open::that_detached(source_path).unwrap_or_else(|err| {
+                    open::that_detached(source_path.as_str()).unwrap_or_else(|err| {
                         log::error!("Failed to open source file: {err}");
                     });
                 }
