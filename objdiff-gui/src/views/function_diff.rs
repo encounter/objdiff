@@ -149,8 +149,8 @@ fn ins_hover_ui(
                     appearance.highlight_color,
                     format!("Size: {:x}", reloc.target.size),
                 );
-                if let Some(s) = obj.arch.display_ins_data(ins) {
-                    ui.colored_label(appearance.highlight_color, s);
+                for label in obj.arch.display_ins_data_labels(ins) {
+                    ui.colored_label(appearance.highlight_color, label);
                 }
             } else {
                 ui.colored_label(appearance.highlight_color, "Extern".to_string());
@@ -163,7 +163,13 @@ fn ins_hover_ui(
     });
 }
 
-fn ins_context_menu(ui: &mut egui::Ui, section: &ObjSection, ins: &ObjIns, symbol: &ObjSymbol) {
+fn ins_context_menu(
+    ui: &mut egui::Ui,
+    obj: &ObjInfo,
+    section: &ObjSection,
+    ins: &ObjIns,
+    symbol: &ObjSymbol,
+) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
@@ -219,6 +225,12 @@ fn ins_context_menu(ui: &mut egui::Ui, section: &ObjSection, ins: &ObjIns, symbo
             }
         }
         if let Some(reloc) = &ins.reloc {
+            for literal in obj.arch.display_ins_data_literals(ins) {
+                if ui.button(format!("Copy \"{literal}\"")).clicked() {
+                    ui.output_mut(|output| output.copied_text.clone_from(&literal));
+                    ui.close_menu();
+                }
+            }
             if let Some(name) = &reloc.target.demangled_name {
                 if ui.button(format!("Copy \"{name}\"")).clicked() {
                     ui.output_mut(|output| output.copied_text.clone_from(name));
@@ -390,7 +402,7 @@ fn asm_col_ui(
     let ins_diff = &ctx.diff.symbol_diff(symbol_ref).instructions[row.index()];
     let response_cb = |response: Response| {
         if let Some(ins) = &ins_diff.ins {
-            response.context_menu(|ui| ins_context_menu(ui, section, ins, symbol));
+            response.context_menu(|ui| ins_context_menu(ui, ctx.obj, section, ins, symbol));
             response.on_hover_ui_at_pointer(|ui| {
                 ins_hover_ui(ui, ctx.obj, section, ins, symbol, appearance)
             })
