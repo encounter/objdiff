@@ -56,7 +56,7 @@ impl DataType {
         for literal in self.display_literals::<Endian>(bytes) {
             strs.push(format!("{}: {}", self, literal))
         }
-        return strs;
+        strs
     }
 
     pub fn display_literals<Endian: ByteOrder>(&self, bytes: &[u8]) -> Vec<String> {
@@ -129,13 +129,13 @@ impl DataType {
                 strs.push(format!("{:#?}", bytes));
             }
             DataType::String => {
-                if let Some(cstr) = CStr::from_bytes_until_nul(bytes).ok() {
+                if let Ok(cstr) = CStr::from_bytes_until_nul(bytes) {
                     strs.push(format!("{:?}", cstr));
                 }
             }
         }
 
-        return strs;
+        strs
     }
 
     fn required_len(&self) -> Option<usize> {
@@ -200,9 +200,9 @@ pub trait ObjArch: Send + Sync {
                 .map(|ty| {
                     self.display_data_labels(ty, &reloc.target.bytes[reloc.addend as usize..])
                 })
-                .unwrap_or_else(Vec::new);
+                .unwrap_or_default();
         }
-        return Vec::new();
+        Vec::new()
     }
 
     fn display_ins_data_literals(&self, ins: &ObjIns) -> Vec<String> {
@@ -215,9 +215,9 @@ pub trait ObjArch: Send + Sync {
                 .map(|ty| {
                     self.display_data_literals(ty, &reloc.target.bytes[reloc.addend as usize..])
                 })
-                .unwrap_or_else(Vec::new);
+                .unwrap_or_default();
         }
-        return Vec::new();
+        Vec::new()
     }
 
     // Downcast methods
