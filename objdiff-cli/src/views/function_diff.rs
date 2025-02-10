@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use anyhow::{bail, Result};
 use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind};
 use objdiff_core::{
@@ -557,6 +559,18 @@ impl FunctionDiffUi {
                     DiffText::Symbol(sym, diff) => {
                         let name = sym.demangled_name.as_ref().unwrap_or(&sym.name);
                         label_text = name.clone();
+                        if let Some(diff) = diff {
+                            base_color = COLOR_ROTATION[diff.idx % COLOR_ROTATION.len()]
+                        } else {
+                            base_color = Color::White;
+                        }
+                    }
+                    DiffText::Addend(addend, diff) => {
+                        label_text = match addend.cmp(&0i64) {
+                            Ordering::Greater => format!("+{:#x}", addend),
+                            Ordering::Less => format!("-{:#x}", -addend),
+                            _ => "".to_string(),
+                        };
                         if let Some(diff) = diff {
                             base_color = COLOR_ROTATION[diff.idx % COLOR_ROTATION.len()]
                         } else {
