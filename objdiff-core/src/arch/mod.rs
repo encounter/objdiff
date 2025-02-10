@@ -34,11 +34,36 @@ pub enum DataType {
     String,
 }
 
+impl std::fmt::Display for DataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DataType::Int8 => write!(f, "Int8"),
+            DataType::Int16 => write!(f, "Int16"),
+            DataType::Int32 => write!(f, "Int32"),
+            DataType::Int64 => write!(f, "Int64"),
+            DataType::Int128 => write!(f, "Int128"),
+            DataType::Float => write!(f, "Float"),
+            DataType::Double => write!(f, "Double"),
+            DataType::Bytes => write!(f, "Bytes"),
+            DataType::String => write!(f, "String"),
+        }
+    }
+}
+
 impl DataType {
-    pub fn display_bytes<Endian: ByteOrder>(&self, bytes: &[u8]) -> Option<String> {
+    pub fn display_labels<Endian: ByteOrder>(&self, bytes: &[u8]) -> Vec<String> {
+        let mut strs = Vec::new();
+        for literal in self.display_literals::<Endian>(bytes) {
+            strs.push(format!("{}: {}", self, literal))
+        }
+        strs
+    }
+
+    pub fn display_literals<Endian: ByteOrder>(&self, bytes: &[u8]) -> Vec<String> {
+        let mut strs = Vec::new();
         if self.required_len().is_some_and(|l| bytes.len() < l) {
             log::warn!("Failed to display a symbol value for a symbol whose size is too small for instruction referencing it.");
-            return None;
+            return strs;
         }
         let mut bytes = bytes;
         if self.required_len().is_some_and(|l| bytes.len() > l) {
@@ -56,58 +81,61 @@ impl DataType {
         match self {
             DataType::Int8 => {
                 let i = i8::from_ne_bytes(bytes.try_into().unwrap());
+                strs.push(format!("{:#x}", i));
+
                 if i < 0 {
-                    format!("Int8: {:#x} ({:#x})", i, ReallySigned(i))
-                } else {
-                    format!("Int8: {:#x}", i)
+                    strs.push(format!("{:#x}", ReallySigned(i)));
                 }
             }
             DataType::Int16 => {
                 let i = Endian::read_i16(bytes);
+                strs.push(format!("{:#x}", i));
+
                 if i < 0 {
-                    format!("Int16: {:#x} ({:#x})", i, ReallySigned(i))
-                } else {
-                    format!("Int16: {:#x}", i)
+                    strs.push(format!("{:#x}", ReallySigned(i)));
                 }
             }
             DataType::Int32 => {
                 let i = Endian::read_i32(bytes);
+                strs.push(format!("{:#x}", i));
+
                 if i < 0 {
-                    format!("Int32: {:#x} ({:#x})", i, ReallySigned(i))
-                } else {
-                    format!("Int32: {:#x}", i)
+                    strs.push(format!("{:#x}", ReallySigned(i)));
                 }
             }
             DataType::Int64 => {
                 let i = Endian::read_i64(bytes);
+                strs.push(format!("{:#x}", i));
+
                 if i < 0 {
-                    format!("Int64: {:#x} ({:#x})", i, ReallySigned(i))
-                } else {
-                    format!("Int64: {:#x}", i)
+                    strs.push(format!("{:#x}", ReallySigned(i)));
                 }
             }
             DataType::Int128 => {
                 let i = Endian::read_i128(bytes);
+                strs.push(format!("{:#x}", i));
+
                 if i < 0 {
-                    format!("Int128: {:#x} ({:#x})", i, ReallySigned(i))
-                } else {
-                    format!("Int128: {:#x}", i)
+                    strs.push(format!("{:#x}", ReallySigned(i)));
                 }
             }
             DataType::Float => {
-                format!("Float: {:?}f", Endian::read_f32(bytes))
+                strs.push(format!("{:?}f", Endian::read_f32(bytes)));
             }
             DataType::Double => {
-                format!("Double: {:?}", Endian::read_f64(bytes))
+                strs.push(format!("{:?}", Endian::read_f64(bytes)));
             }
             DataType::Bytes => {
-                format!("Bytes: {:#?}", bytes)
+                strs.push(format!("{:#?}", bytes));
             }
             DataType::String => {
-                format!("String: {:?}", CStr::from_bytes_until_nul(bytes).ok()?)
+                if let Ok(cstr) = CStr::from_bytes_until_nul(bytes) {
+                    strs.push(format!("{:?}", cstr));
+                }
             }
         }
-        .into()
+
+        strs
     }
 
     fn required_len(&self) -> Option<usize> {
@@ -154,19 +182,42 @@ pub trait ObjArch: Send + Sync {
 
     fn guess_data_type(&self, _instruction: &ObjIns) -> Option<DataType> { None }
 
-    fn display_data_type(&self, _ty: DataType, bytes: &[u8]) -> Option<String> {
-        Some(format!("Bytes: {:#x?}", bytes))
+    fn display_data_labels(&self, _ty: DataType, bytes: &[u8]) -> Vec<String> {
+        vec![format!("Bytes: {:#x?}", bytes)]
     }
 
-    fn display_ins_data(&self, ins: &ObjIns) -> Option<String> {
-        let reloc = ins.reloc.as_ref()?;
+    fn display_data_literals(&self, _ty: DataType, bytes: &[u8]) -> Vec<String> {
+        vec![format!("{:#?}", bytes)]
+    }
+
+    fn display_ins_data_labels(&self, ins: &ObjIns) -> Vec<String> {
+        let Some(reloc) = ins.reloc.as_ref() else {
+            return Vec::new();
+        };
         if reloc.addend >= 0 && reloc.target.bytes.len() > reloc.addend as usize {
-            self.guess_data_type(ins).and_then(|ty| {
-                self.display_data_type(ty, &reloc.target.bytes[reloc.addend as usize..])
-            })
-        } else {
-            None
+            return self
+                .guess_data_type(ins)
+                .map(|ty| {
+                    self.display_data_labels(ty, &reloc.target.bytes[reloc.addend as usize..])
+                })
+                .unwrap_or_default();
         }
+        Vec::new()
+    }
+
+    fn display_ins_data_literals(&self, ins: &ObjIns) -> Vec<String> {
+        let Some(reloc) = ins.reloc.as_ref() else {
+            return Vec::new();
+        };
+        if reloc.addend >= 0 && reloc.target.bytes.len() > reloc.addend as usize {
+            return self
+                .guess_data_type(ins)
+                .map(|ty| {
+                    self.display_data_literals(ty, &reloc.target.bytes[reloc.addend as usize..])
+                })
+                .unwrap_or_default();
+        }
+        Vec::new()
     }
 
     // Downcast methods

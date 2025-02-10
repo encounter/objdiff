@@ -245,8 +245,8 @@ fn reloc_eq(
                     || address_eq(left, right))
                 && (config.function_reloc_diffs == FunctionRelocDiffs::NameAddress
                     || left.target.kind != ObjSymbolKind::Object
-                    || left_obj.arch.display_ins_data(left_ins)
-                        == left_obj.arch.display_ins_data(right_ins))
+                    || left_obj.arch.display_ins_data_labels(left_ins)
+                        == left_obj.arch.display_ins_data_labels(right_ins))
         }
         (Some(_), None) => false,
         (None, Some(_)) => {

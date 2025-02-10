@@ -221,8 +221,12 @@ impl ObjArch for ObjArchPpc {
         guess_data_type_from_load_store_inst_op(Opcode::from(instruction.op as u8))
     }
 
-    fn display_data_type(&self, ty: DataType, bytes: &[u8]) -> Option<String> {
-        ty.display_bytes::<BigEndian>(bytes)
+    fn display_data_labels(&self, ty: DataType, bytes: &[u8]) -> Vec<String> {
+        ty.display_labels::<BigEndian>(bytes)
+    }
+
+    fn display_data_literals(&self, ty: DataType, bytes: &[u8]) -> Vec<String> {
+        ty.display_literals::<BigEndian>(bytes)
     }
 
     fn ppc(&self) -> Option<&ObjArchPpc> { Some(self) }
