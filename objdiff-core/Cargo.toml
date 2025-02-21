@@ -12,9 +12,6 @@ A local diffing tool for decompilation projects.
 """
 documentation = "https://docs.rs/objdiff-core"
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
 [features]
 default = ["std"]
 all = [
@@ -25,11 +22,11 @@ all = [
     "dwarf",
     "serde",
     # Architectures
+    "arm",
+    "arm64",
     "mips",
     "ppc",
     "x86",
-    "arm",
-    "arm64",
 ]
 # Implicit, used to check if any arch is enabled
 any-arch = [
@@ -41,6 +38,7 @@ any-arch = [
     "dep:prettyplease",
     "dep:proc-macro2",
     "dep:quote",
+    "dep:regex",
     "dep:similar",
     "dep:strum",
     "dep:syn",
@@ -113,14 +111,6 @@ arm64 = [
     "dep:yaxpeax-arch",
     "dep:yaxpeax-arm",
 ]
-wasm = [
-    "any-arch",
-    "bindings",
-    "dep:log",
-    "dep:talc",
-    "dep:spin",
-    "dep:wit-bindgen",
-]
 
 [package.metadata.docs.rs]
 features = ["all"]
@@ -140,6 +130,8 @@ serde = { version = "1.0", default-features = false, features = ["derive"], opti
 similar = { version = "2.7", default-features = false, optional = true, git = "https://github.com/encounter/similar.git", branch = "no_std" }
 strum = { version = "0.26", default-features = false, features = ["derive"], optional = true }
 typed-path = { version = "0.10", default-features = false, optional = true }
+regex = { version = "1.11", default-features = false, features = [], optional = true }
+itertools = { version = "0.14", default-features = false, features = ["use_alloc"] }
 
 # config
 globset = { version = "0.4", default-features = false, optional = true }
@@ -169,13 +161,6 @@ arm-attr = { version = "0.2", optional = true }
 # arm64
 yaxpeax-arch = { version = "0.3", default-features = false, optional = true }
 yaxpeax-arm = { version = "0.3", default-features = false, optional = true }
-
-# wasm
-#console_error_panic_hook = { version = "0.1", optional = true }
-#console_log = { version = "1.0", optional = true }
-talc = { version = "4.4", optional = true }
-spin = { version = "0.9", optional = true }
-wit-bindgen = { version = "0.38", default-features = false, features = ["macros"], optional = true }
 
 # build
 notify = { version = "8.0.0", optional = true }
@@ -207,3 +192,21 @@ quote = { version = "1.0", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }
 syn = { version = "2.0", optional = true }
+
+# Enable all features for tests
+[dev-dependencies]
+objdiff-core = { path = ".", features = [
+    # Features
+    "bindings",
+    "build",
+    "config",
+    "dwarf",
+    "serde",
+    # Architectures
+    "mips",
+    "ppc",
+#    "x86",
+    "arm",
+    "arm64",
+] }
+insta = "1.42.1"

@@ -4,10 +4,10 @@ use anyhow::{bail, Result};
 use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind};
 use objdiff_core::{
     diff::{
-        display::{display_diff, DiffText, HighlightKind},
-        FunctionRelocDiffs, ObjDiff, ObjInsDiffKind, ObjSymbolDiff,
+        display::{display_row, DiffText, HighlightKind},
+        DiffObjConfig, FunctionRelocDiffs, InstructionDiffKind, ObjectDiff, SymbolDiff,
     },
-    obj::{ObjInfo, ObjSectionKind, ObjSymbol, SymbolRef},
+    obj::Object,
 };
 use ratatui::{
     prelude::*,
@@ -30,9 +30,9 @@ pub struct FunctionDiffUi {
     pub scroll_state_y: ScrollbarState,
     pub per_page: usize,
     pub num_rows: usize,
-    pub left_sym: Option<SymbolRef>,
-    pub right_sym: Option<SymbolRef>,
-    pub prev_sym: Option<SymbolRef>,
+    pub left_sym: Option<usize>,
+    pub right_sym: Option<usize>,
+    pub prev_sym: Option<usize>,
     pub open_options: bool,
     pub three_way: bool,
 }
@@ -82,8 +82,8 @@ impl UiView for FunctionDiffUi {
         f.render_widget(line_l, header_chunks[0]);
 
         let mut line_r = Line::default();
-        if let Some(percent) =
-            get_symbol(state.right_obj.as_ref(), self.right_sym).and_then(|(_, d)| d.match_percent)
+        if let Some(percent) = get_symbol(state.right_obj.as_ref(), self.right_sym)
+            .and_then(|(_, _, d)| d.match_percent)
         {
             line_r.spans.push(Span::styled(
                 format!("{:.2}% ", percent),
@@ -108,13 +108,17 @@ impl UiView for FunctionDiffUi {
         let mut left_text = None;
         let mut left_highlight = None;
         let mut max_width = 0;
-        if let Some((symbol, symbol_diff)) = get_symbol(state.left_obj.as_ref(), self.left_sym) {
+        if let Some((obj, symbol_idx, symbol_diff)) =
+            get_symbol(state.left_obj.as_ref(), self.left_sym)
+        {
             let mut text = Text::default();
             let rect = content_chunks[0].inner(Margin::new(0, 1));
             left_highlight = self.print_sym(
                 &mut text,
-                symbol,
+                obj,
+                symbol_idx,
                 symbol_diff,
+                &state.diff_obj_config,
                 rect,
                 &self.left_highlight,
                 result,
@@ -127,13 +131,17 @@ impl UiView for FunctionDiffUi {
         let mut right_text = None;
         let mut right_highlight = None;
         let mut margin_text = None;
-        if let Some((symbol, symbol_diff)) = get_symbol(state.right_obj.as_ref(), self.right_sym) {
+        if let Some((obj, symbol_idx, symbol_diff)) =
+            get_symbol(state.right_obj.as_ref(), self.right_sym)
+        {
             let mut text = Text::default();
             let rect = content_chunks[2].inner(Margin::new(0, 1));
             right_highlight = self.print_sym(
                 &mut text,
-                symbol,
+                obj,
+                symbol_idx,
                 symbol_diff,
+                &state.diff_obj_config,
                 rect,
                 &self.right_highlight,
                 result,
@@ -152,14 +160,17 @@ impl UiView for FunctionDiffUi {
         let mut prev_text = None;
         let mut prev_margin_text = None;
         if self.three_way {
-            if let Some((symbol, symbol_diff)) = get_symbol(state.prev_obj.as_ref(), self.prev_sym)
+            if let Some((obj, symbol_idx, symbol_diff)) =
+                get_symbol(state.prev_obj.as_ref(), self.prev_sym)
             {
                 let mut text = Text::default();
                 let rect = content_chunks[4].inner(Margin::new(0, 1));
                 self.print_sym(
                     &mut text,
-                    symbol,
+                    obj,
+                    symbol_idx,
                     symbol_diff,
+                    &state.diff_obj_config,
                     rect,
                     &self.right_highlight,
                     result,
@@ -437,9 +448,11 @@ impl UiView for FunctionDiffUi {
             get_symbol(state.left_obj.as_ref(), left_sym),
             get_symbol(state.right_obj.as_ref(), right_sym),
         ) {
-            (Some((_l, ld)), Some((_r, rd))) => ld.instructions.len().max(rd.instructions.len()),
-            (Some((_l, ld)), None) => ld.instructions.len(),
-            (None, Some((_r, rd))) => rd.instructions.len(),
+            (Some((_l, _ls, ld)), Some((_r, _rs, rd))) => {
+                ld.instruction_rows.len().max(rd.instruction_rows.len())
+            }
+            (Some((_l, _ls, ld)), None) => ld.instruction_rows.len(),
+            (None, Some((_r, _rs, rd))) => rd.instruction_rows.len(),
             (None, None) => bail!("Symbol not found: {}", self.symbol_name),
         };
         self.left_sym = left_sym;
@@ -482,51 +495,50 @@ impl FunctionDiffUi {
         self.scroll_y += self.per_page / if half { 2 } else { 1 };
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn print_sym(
         &self,
         out: &mut Text<'static>,
-        symbol: &ObjSymbol,
-        symbol_diff: &ObjSymbolDiff,
+        obj: &Object,
+        symbol_index: usize,
+        symbol_diff: &SymbolDiff,
+        diff_config: &DiffObjConfig,
         rect: Rect,
         highlight: &HighlightKind,
         result: &EventResult,
         only_changed: bool,
     ) -> Option<HighlightKind> {
-        let base_addr = symbol.address;
         let mut new_highlight = None;
-        for (y, ins_diff) in symbol_diff
-            .instructions
+        for (y, ins_row) in symbol_diff
+            .instruction_rows
             .iter()
             .skip(self.scroll_y)
             .take(rect.height as usize)
             .enumerate()
         {
-            if only_changed && ins_diff.kind == ObjInsDiffKind::None {
+            if only_changed && ins_row.kind == InstructionDiffKind::None {
                 out.lines.push(Line::default());
                 continue;
             }
             let mut sx = rect.x;
             let sy = rect.y + y as u16;
             let mut line = Line::default();
-            display_diff(ins_diff, base_addr, |text| -> Result<()> {
+            display_row(obj, symbol_index, ins_row, diff_config, |text, diff_idx| {
                 let label_text;
-                let mut base_color = match ins_diff.kind {
-                    ObjInsDiffKind::None
-                    | ObjInsDiffKind::OpMismatch
-                    | ObjInsDiffKind::ArgMismatch => Color::Gray,
-                    ObjInsDiffKind::Replace => Color::Cyan,
-                    ObjInsDiffKind::Delete => Color::Red,
-                    ObjInsDiffKind::Insert => Color::Green,
+                let mut base_color = match ins_row.kind {
+                    InstructionDiffKind::None
+                    | InstructionDiffKind::OpMismatch
+                    | InstructionDiffKind::ArgMismatch => Color::Gray,
+                    InstructionDiffKind::Replace => Color::Cyan,
+                    InstructionDiffKind::Delete => Color::Red,
+                    InstructionDiffKind::Insert => Color::Green,
                 };
+                if let Some(idx) = diff_idx.get() {
+                    base_color = COLOR_ROTATION[idx as usize % COLOR_ROTATION.len()];
+                }
                 let mut pad_to = 0;
                 match text {
                     DiffText::Basic(text) => {
                         label_text = text.to_string();
-                    }
-                    DiffText::BasicColor(s, idx) => {
-                        label_text = s.to_string();
-                        base_color = COLOR_ROTATION[idx % COLOR_ROTATION.len()];
                     }
                     DiffText::Line(num) => {
                         label_text = format!("{num} ");
@@ -539,41 +551,31 @@ impl FunctionDiffUi {
                     }
                     DiffText::Opcode(mnemonic, _op) => {
                         label_text = mnemonic.to_string();
-                        if ins_diff.kind == ObjInsDiffKind::OpMismatch {
+                        if ins_row.kind == InstructionDiffKind::OpMismatch {
                             base_color = Color::Blue;
                         }
                         pad_to = 8;
                     }
-                    DiffText::Argument(arg, diff) => {
+                    DiffText::Argument(arg) => {
                         label_text = arg.to_string();
-                        if let Some(diff) = diff {
-                            base_color = COLOR_ROTATION[diff.idx % COLOR_ROTATION.len()]
-                        }
                     }
-                    DiffText::BranchDest(addr, diff) => {
+                    DiffText::BranchDest(addr) => {
                         label_text = format!("{addr:x}");
-                        if let Some(diff) = diff {
-                            base_color = COLOR_ROTATION[diff.idx % COLOR_ROTATION.len()]
-                        }
                     }
-                    DiffText::Symbol(sym, diff) => {
+                    DiffText::Symbol(sym) => {
                         let name = sym.demangled_name.as_ref().unwrap_or(&sym.name);
                         label_text = name.clone();
-                        if let Some(diff) = diff {
-                            base_color = COLOR_ROTATION[diff.idx % COLOR_ROTATION.len()]
-                        } else {
+                        if diff_idx.is_none() {
                             base_color = Color::White;
                         }
                     }
-                    DiffText::Addend(addend, diff) => {
+                    DiffText::Addend(addend) => {
                         label_text = match addend.cmp(&0i64) {
                             Ordering::Greater => format!("+{:#x}", addend),
                             Ordering::Less => format!("-{:#x}", -addend),
                             _ => "".to_string(),
                         };
-                        if let Some(diff) = diff {
-                            base_color = COLOR_ROTATION[diff.idx % COLOR_ROTATION.len()]
-                        } else {
+                        if diff_idx.is_none() {
                             base_color = Color::White;
                         }
                     }
@@ -612,12 +614,13 @@ impl FunctionDiffUi {
         new_highlight
     }
 
-    fn print_margin(&self, out: &mut Text, symbol: &ObjSymbolDiff, rect: Rect) {
-        for ins_diff in symbol.instructions.iter().skip(self.scroll_y).take(rect.height as usize) {
-            if ins_diff.kind != ObjInsDiffKind::None {
-                out.lines.push(Line::raw(match ins_diff.kind {
-                    ObjInsDiffKind::Delete => "<",
-                    ObjInsDiffKind::Insert => ">",
+    fn print_margin(&self, out: &mut Text, symbol: &SymbolDiff, rect: Rect) {
+        for ins_row in symbol.instruction_rows.iter().skip(self.scroll_y).take(rect.height as usize)
+        {
+            if ins_row.kind != InstructionDiffKind::None {
+                out.lines.push(Line::raw(match ins_row.kind {
+                    InstructionDiffKind::Delete => "<",
+                    InstructionDiffKind::Insert => ">",
                     _ => "|",
                 }));
             } else {
@@ -649,23 +652,18 @@ pub fn match_percent_color(match_percent: f32) -> Color {
 
 #[inline]
 fn get_symbol(
-    obj: Option<&(ObjInfo, ObjDiff)>,
-    sym: Option<SymbolRef>,
-) -> Option<(&ObjSymbol, &ObjSymbolDiff)> {
+    obj: Option<&(Object, ObjectDiff)>,
+    sym: Option<usize>,
+) -> Option<(&Object, usize, &SymbolDiff)> {
     let (obj, diff) = obj?;
     let sym = sym?;
-    Some((obj.section_symbol(sym).1, diff.symbol_diff(sym)))
+    Some((obj, sym, &diff.symbols[sym]))
 }
 
-fn find_function(obj: &ObjInfo, name: &str) -> Option<SymbolRef> {
-    for (section_idx, section) in obj.sections.iter().enumerate() {
-        if section.kind != ObjSectionKind::Code {
-            continue;
-        }
-        for (symbol_idx, symbol) in section.symbols.iter().enumerate() {
-            if symbol.name == name {
-                return Some(SymbolRef { section_idx, symbol_idx });
-            }
+fn find_function(obj: &Object, name: &str) -> Option<usize> {
+    for (symbol_idx, symbol) in obj.symbols.iter().enumerate() {
+        if symbol.name == name {
+            return Some(symbol_idx);
         }
     }
     None

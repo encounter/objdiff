@@ -1,134 +1,140 @@
 use alloc::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     format,
     string::{String, ToString},
-    vec,
     vec::Vec,
 };
 
-use anyhow::{anyhow, bail, ensure, Context, Result};
-use flagset::Flags;
-use object::{
-    endian::LittleEndian as LE,
-    pe::{ImageAuxSymbolFunctionBeginEnd, ImageLinenumber},
-    read::coff::{CoffFile, CoffHeader, ImageSymbol},
-    BinaryFormat, File, Object, ObjectSection, ObjectSymbol, RelocationTarget, Section,
-    SectionIndex, SectionKind, Symbol, SymbolIndex, SymbolKind, SymbolScope,
-};
+use anyhow::{bail, ensure, Context, Result};
+use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
 
 use crate::{
-    arch::{new_arch, ObjArch},
+    arch::{new_arch, Arch},
     diff::DiffObjConfig,
     obj::{
         split_meta::{SplitMeta, SPLITMETA_SECTION},
-        ObjInfo, ObjReloc, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlagSet, ObjSymbolFlags,
-        ObjSymbolKind,
+        Object, Relocation, RelocationFlags, Section, SectionData, SectionFlag, SectionKind,
+        Symbol, SymbolFlag, SymbolKind,
     },
     util::{read_u16, read_u32},
 };
 
-fn to_obj_section_kind(kind: SectionKind) -> Option<ObjSectionKind> {
-    match kind {
-        SectionKind::Text => Some(ObjSectionKind::Code),
-        SectionKind::Data | SectionKind::ReadOnlyData => Some(ObjSectionKind::Data),
-        SectionKind::UninitializedData => Some(ObjSectionKind::Bss),
-        _ => None,
+fn map_section_kind(section: &object::Section) -> SectionKind {
+    match section.kind() {
+        object::SectionKind::Text => SectionKind::Code,
+        object::SectionKind::Data | object::SectionKind::ReadOnlyData => SectionKind::Data,
+        object::SectionKind::UninitializedData => SectionKind::Bss,
+        _ => SectionKind::Unknown,
     }
 }
 
-fn to_obj_symbol(
-    arch: &dyn ObjArch,
-    obj_file: &File<'_>,
-    symbol: &Symbol<'_, '_>,
+fn map_symbol(
+    arch: &dyn Arch,
+    file: &object::File,
+    symbol: &object::Symbol,
     split_meta: Option<&SplitMeta>,
-) -> Result<ObjSymbol> {
-    let mut name = symbol.name().context("Failed to process symbol name")?;
-    if name.is_empty() {
-        log::warn!("Found empty sym: {symbol:?}");
-        name = "?";
+) -> Result<Symbol> {
+    let mut name = symbol.name().context("Failed to process symbol name")?.to_string();
+    let size = symbol.size();
+    if let (object::SymbolKind::Section, Some(section)) =
+        (symbol.kind(), symbol.section_index().and_then(|i| file.section_by_index(i).ok()))
+    {
+        let section_name = section.name().context("Failed to process section name")?;
+        name = format!("[{}]", section_name);
+        // size = section.size();
     }
-    let mut flags = ObjSymbolFlagSet(ObjSymbolFlags::none());
+
+    let mut flags = arch.extra_symbol_flags(symbol);
     if symbol.is_global() {
-        flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Global);
+        flags |= SymbolFlag::Global;
     }
     if symbol.is_local() {
-        flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Local);
+        flags |= SymbolFlag::Local;
     }
     if symbol.is_common() {
-        flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Common);
+        flags |= SymbolFlag::Common;
     }
     if symbol.is_weak() {
-        flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Weak);
+        flags |= SymbolFlag::Weak;
     }
-    if obj_file.format() == BinaryFormat::Elf && symbol.scope() == SymbolScope::Linkage {
-        flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::Hidden);
-    }
-    #[cfg(feature = "ppc")]
-    if arch.ppc().and_then(|a| a.extab.as_ref()).is_some_and(|e| e.contains_key(&symbol.index().0))
+    if file.format() == object::BinaryFormat::Elf && symbol.scope() == object::SymbolScope::Linkage
     {
-        flags = ObjSymbolFlagSet(flags.0 | ObjSymbolFlags::HasExtra);
+        flags |= SymbolFlag::Hidden;
     }
-    let address = arch.symbol_address(symbol);
-    let section_address = if let Some(section) =
-        symbol.section_index().and_then(|idx| obj_file.section_by_index(idx).ok())
-    {
-        address - section.address()
-    } else {
-        address
+
+    let kind = match symbol.kind() {
+        object::SymbolKind::Text => SymbolKind::Function,
+        object::SymbolKind::Data => SymbolKind::Object,
+        object::SymbolKind::Section => SymbolKind::Section,
+        _ => SymbolKind::Unknown,
     };
-    let demangled_name = arch.demangle(name);
+    let address = arch.symbol_address(symbol.address(), kind);
+    let demangled_name = arch.demangle(&name);
     // Find the virtual address for the symbol if available
     let virtual_address = split_meta
         .and_then(|m| m.virtual_addresses.as_ref())
         .and_then(|v| v.get(symbol.index().0).cloned());
+    let section = symbol.section_index().map(|i| map_section_index(file, i));
 
-    let bytes = symbol
-        .section_index()
-        .and_then(|idx| obj_file.section_by_index(idx).ok())
-        .and_then(|section| section.data().ok())
-        .and_then(|data| {
-            data.get(section_address as usize..(section_address + symbol.size()) as usize)
-        })
-        .unwrap_or(&[]);
-
-    let kind = match symbol.kind() {
-        SymbolKind::Text => ObjSymbolKind::Function,
-        SymbolKind::Data => ObjSymbolKind::Object,
-        SymbolKind::Section => ObjSymbolKind::Section,
-        _ => ObjSymbolKind::Unknown,
-    };
-
-    Ok(ObjSymbol {
-        name: name.to_string(),
+    Ok(Symbol {
+        name,
         demangled_name,
         address,
-        section_address,
-        size: symbol.size(),
-        size_known: symbol.size() != 0,
+        size,
         kind,
+        section,
         flags,
-        orig_section_index: symbol.section_index().map(|i| i.0),
+        align: None, // TODO parse .comment
         virtual_address,
-        original_index: Some(symbol.index().0),
-        bytes: bytes.to_vec(),
     })
 }
 
-fn filter_sections(obj_file: &File<'_>, split_meta: Option<&SplitMeta>) -> Result<Vec<ObjSection>> {
-    let mut result = Vec::<ObjSection>::new();
+fn map_section_index(file: &object::File, idx: object::SectionIndex) -> usize {
+    match file.format() {
+        object::BinaryFormat::Elf => idx.0 - 1,
+        _ => idx.0,
+    }
+}
+
+fn map_symbol_index(file: &object::File, idx: object::SymbolIndex) -> usize {
+    match file.format() {
+        object::BinaryFormat::Elf => idx.0 - 1,
+        _ => idx.0,
+    }
+}
+
+fn map_symbols(
+    arch: &dyn Arch,
+    obj_file: &object::File,
+    split_meta: Option<&SplitMeta>,
+) -> Result<Vec<Symbol>> {
+    let mut symbols = Vec::<Symbol>::with_capacity(obj_file.symbols().count());
+    for symbol in obj_file.symbols() {
+        symbols.push(map_symbol(arch, obj_file, &symbol, split_meta)?);
+    }
+    Ok(symbols)
+}
+
+fn map_sections(
+    arch: &dyn Arch,
+    obj_file: &object::File,
+    split_meta: Option<&SplitMeta>,
+) -> Result<Vec<Section>> {
+    let mut section_names = BTreeMap::<String, usize>::new();
+    let mut result = Vec::<Section>::with_capacity(obj_file.sections().count());
     for section in obj_file.sections() {
-        if section.size() == 0 {
-            continue;
-        }
-        let Some(kind) = to_obj_section_kind(section.kind()) else {
-            continue;
-        };
         let name = section.name().context("Failed to process section name")?;
-        let data = section.uncompressed_data().context("Failed to read section data")?;
+        let kind = map_section_kind(&section);
+        let data = if kind == SectionKind::Unknown {
+            // Don't need to read data for unknown sections
+            Vec::new()
+        } else {
+            section.uncompressed_data().context("Failed to read section data")?.into_owned()
+        };
 
         // Find the virtual address for the section symbol if available
         let section_symbol = obj_file.symbols().find(|s| {
-            s.kind() == SymbolKind::Section && s.section_index() == Some(section.index())
+            s.kind() == object::SymbolKind::Section && s.section_index() == Some(section.index())
         });
         let virtual_address = section_symbol.and_then(|s| {
             split_meta
@@ -136,111 +142,54 @@ fn filter_sections(obj_file: &File<'_>, split_meta: Option<&SplitMeta>) -> Resul
                 .and_then(|v| v.get(s.index().0).cloned())
         });
 
-        result.push(ObjSection {
+        let relocations = map_relocations(arch, obj_file, &section)?;
+
+        let unique_id = section_names.entry(name.to_string()).or_insert(0);
+        let id = format!("{}-{}", name, unique_id);
+        *unique_id += 1;
+
+        result.push(Section {
+            id,
             name: name.to_string(),
-            kind,
             address: section.address(),
             size: section.size(),
-            data: data.to_vec(),
-            orig_index: section.index().0,
-            symbols: Vec::new(),
-            relocations: Vec::new(),
+            kind,
+            data: SectionData(data),
+            flags: Default::default(),
+            relocations,
             virtual_address,
             line_info: Default::default(),
         });
     }
-    result.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(result)
 }
 
-fn symbols_by_section(
-    arch: &dyn ObjArch,
-    obj_file: &File<'_>,
-    section: &ObjSection,
-    section_symbols: &[Symbol<'_, '_>],
-    split_meta: Option<&SplitMeta>,
-    name_counts: &mut BTreeMap<String, u32>,
-) -> Result<Vec<ObjSymbol>> {
-    let mut result = Vec::<ObjSymbol>::new();
-    for symbol in section_symbols {
-        if symbol.kind() == SymbolKind::Section {
-            continue;
-        }
-        if symbol.is_local() && section.kind == ObjSectionKind::Code {
-            // TODO strip local syms in diff?
-            let name = symbol.name().context("Failed to process symbol name")?;
-            if symbol.size() == 0 || name.starts_with("lbl_") {
-                continue;
-            }
-        }
-        result.push(to_obj_symbol(arch, obj_file, symbol, split_meta)?);
-    }
-    result.sort_by(|a, b| a.address.cmp(&b.address).then(a.size.cmp(&b.size)));
-    let mut iter = result.iter_mut().peekable();
-    while let Some(symbol) = iter.next() {
-        if symbol.size == 0 {
-            if let Some(next_symbol) = iter.peek() {
-                symbol.size = next_symbol.address - symbol.address;
-            } else {
-                symbol.size = (section.address + section.size) - symbol.address;
-            }
-            // Set symbol kind if we ended up with a non-zero size
-            if symbol.kind == ObjSymbolKind::Unknown && symbol.size > 0 {
-                symbol.kind = match section.kind {
-                    ObjSectionKind::Code => ObjSymbolKind::Function,
-                    ObjSectionKind::Data | ObjSectionKind::Bss => ObjSymbolKind::Object,
-                };
-            }
-        }
-    }
-    if result.is_empty() {
-        // Dummy symbol for empty sections
-        *name_counts.entry(section.name.clone()).or_insert(0) += 1;
-        let current_count: u32 = *name_counts.get(&section.name).unwrap();
-        result.push(ObjSymbol {
-            name: if current_count > 1 {
-                format!("[{} ({})]", section.name, current_count)
-            } else {
-                format!("[{}]", section.name)
-            },
-            demangled_name: None,
-            address: 0,
-            section_address: 0,
-            size: section.size,
-            size_known: true,
-            kind: match section.kind {
-                ObjSectionKind::Code => ObjSymbolKind::Function,
-                ObjSectionKind::Data | ObjSectionKind::Bss => ObjSymbolKind::Object,
-            },
-            flags: Default::default(),
-            orig_section_index: Some(section.orig_index),
-            virtual_address: None,
-            original_index: None,
-            bytes: Vec::new(),
-        });
-    }
-    Ok(result)
-}
-
-fn common_symbols(
-    arch: &dyn ObjArch,
-    obj_file: &File<'_>,
-    split_meta: Option<&SplitMeta>,
-) -> Result<Vec<ObjSymbol>> {
-    obj_file
-        .symbols()
-        .filter(Symbol::is_common)
-        .map(|symbol| to_obj_symbol(arch, obj_file, &symbol, split_meta))
-        .collect::<Result<Vec<ObjSymbol>>>()
-}
+//     result.sort_by(|a, b| a.address.cmp(&b.address).then(a.size.cmp(&b.size)));
+//     let mut iter = result.iter_mut().peekable();
+//     while let Some(symbol) = iter.next() {
+//         if symbol.size == 0 {
+//             if let Some(next_symbol) = iter.peek() {
+//                 symbol.size = next_symbol.address - symbol.address;
+//             } else {
+//                 symbol.size = (section.address + section.size) - symbol.address;
+//             }
+//             // Set symbol kind if we ended up with a non-zero size
+//             if symbol.kind == ObjSymbolKind::Unknown && symbol.size > 0 {
+//                 symbol.kind = match section.kind {
+//                     ObjSectionKind::Code => ObjSymbolKind::Function,
+//                     ObjSectionKind::Data | ObjSectionKind::Bss => ObjSymbolKind::Object,
+//                 };
+//             }
+//         }
+//     }
 
 const LOW_PRIORITY_SYMBOLS: &[&str] =
     &["__gnu_compiled_c", "__gnu_compiled_cplusplus", "gcc2_compiled."];
 
 fn best_symbol<'r, 'data, 'file>(
-    symbols: &'r [Symbol<'data, 'file>],
+    symbols: &'r [object::Symbol<'data, 'file>],
     address: u64,
-) -> Option<&'r Symbol<'data, 'file>> {
+) -> Option<object::SymbolIndex> {
     let mut closest_symbol_index = match symbols.binary_search_by_key(&address, |s| s.address()) {
         Ok(index) => Some(index),
         Err(index) => index.checked_sub(1),
@@ -253,12 +202,12 @@ fn best_symbol<'r, 'data, 'file>(
         }
         closest_symbol_index = prev_index;
     }
-    let mut best_symbol: Option<&'r Symbol<'data, 'file>> = None;
+    let mut best_symbol: Option<&'r object::Symbol<'data, 'file>> = None;
     for symbol in symbols.iter().skip(closest_symbol_index) {
         if symbol.address() > address {
             break;
         }
-        if symbol.kind() == SymbolKind::Section
+        if symbol.kind() == object::SymbolKind::Section
             || (symbol.size() > 0 && (symbol.address() + symbol.size()) <= address)
         {
             continue;
@@ -274,118 +223,91 @@ fn best_symbol<'r, 'data, 'file>(
             best_symbol = Some(symbol);
         }
     }
-    best_symbol
+    best_symbol.map(|s| s.index())
 }
 
-fn find_section_symbol(
-    arch: &dyn ObjArch,
-    obj_file: &File<'_>,
-    section: &Section,
-    section_symbols: &[Symbol<'_, '_>],
-    address: u64,
-    split_meta: Option<&SplitMeta>,
-) -> Result<ObjSymbol> {
-    if let Some(symbol) = best_symbol(section_symbols, address) {
-        return to_obj_symbol(arch, obj_file, symbol, split_meta);
-    }
-    // Fallback to section symbol
-    Ok(ObjSymbol {
-        name: section.name()?.to_string(),
-        demangled_name: None,
-        address: section.address(),
-        section_address: 0,
-        size: 0,
-        size_known: false,
-        kind: ObjSymbolKind::Section,
-        flags: Default::default(),
-        orig_section_index: Some(section.index().0),
-        virtual_address: None,
-        original_index: None,
-        bytes: Vec::new(),
-    })
-}
-
-fn relocations_by_section(
-    arch: &dyn ObjArch,
-    obj_file: &File<'_>,
-    section: &ObjSection,
-    section_symbols: &[Vec<Symbol<'_, '_>>],
-    split_meta: Option<&SplitMeta>,
-) -> Result<Vec<ObjReloc>> {
-    let obj_section = obj_file.section_by_index(SectionIndex(section.orig_index))?;
-    let mut relocations = Vec::<ObjReloc>::new();
+fn map_relocations(
+    arch: &dyn Arch,
+    obj_file: &object::File,
+    obj_section: &object::Section,
+) -> Result<Vec<Relocation>> {
+    let mut relocations = Vec::<Relocation>::with_capacity(obj_section.relocations().count());
+    let mut ordered_symbols = None;
     for (address, reloc) in obj_section.relocations() {
-        let symbol = match reloc.target() {
-            RelocationTarget::Symbol(idx) => {
+        let target_symbol = match reloc.target() {
+            object::RelocationTarget::Symbol(idx) => {
                 if idx.0 == u32::MAX as usize {
                     // ???
                     continue;
                 }
-                let Ok(symbol) = obj_file.symbol_by_index(idx) else {
-                    log::warn!(
-                        "Failed to locate relocation {:#x} target symbol {}",
-                        address,
-                        idx.0
-                    );
-                    continue;
+                // If the target is a section symbol, try to resolve a better symbol as the target
+                let idx = if let Some(section_symbol) = obj_file
+                    .symbol_by_index(idx)
+                    .ok()
+                    .take_if(|s| s.kind() == object::SymbolKind::Section)
+                {
+                    let section_index =
+                        section_symbol.section_index().context("Section symbol without section")?;
+                    let ordered_symbols = ordered_symbols.get_or_insert_with(|| {
+                        let mut vec = obj_file
+                            .symbols()
+                            .filter(|s| {
+                                s.section_index() == Some(section_index)
+                                    && s.kind() != object::SymbolKind::Section
+                            })
+                            .collect::<Vec<_>>();
+                        vec.sort_by(|a, b| {
+                            a.address().cmp(&b.address()).then(a.size().cmp(&b.size()))
+                        });
+                        vec
+                    });
+                    best_symbol(
+                        ordered_symbols,
+                        section_symbol.address().wrapping_add_signed(reloc.addend()),
+                    )
+                    .unwrap_or(idx)
+                } else {
+                    idx
                 };
-                symbol
+                map_symbol_index(obj_file, idx)
             }
-            RelocationTarget::Absolute => {
-                log::warn!("Ignoring absolute relocation @ {}:{:#x}", section.name, address);
+            object::RelocationTarget::Absolute => {
+                let section_name = obj_section.name()?;
+                log::warn!("Ignoring absolute relocation @ {}:{:#x}", section_name, address);
                 continue;
             }
             _ => bail!("Unhandled relocation target: {:?}", reloc.target()),
         };
-        let flags = reloc.flags(); // TODO validate reloc here?
-        let mut addend = if reloc.has_implicit_addend() {
-            arch.implcit_addend(obj_file, section, address, &reloc)?
+        let flags = match reloc.flags() {
+            object::RelocationFlags::Elf { r_type } => RelocationFlags::Elf(r_type),
+            object::RelocationFlags::Coff { typ } => RelocationFlags::Coff(typ),
+            flags => {
+                bail!("Unhandled relocation flags: {:?}", flags);
+            }
+        };
+        // TODO validate reloc here?
+        let addend = if reloc.has_implicit_addend() {
+            arch.implcit_addend(obj_file, obj_section, address, &reloc, flags)?
         } else {
             reloc.addend()
         };
-        let target = match symbol.kind() {
-            SymbolKind::Text | SymbolKind::Data | SymbolKind::Label | SymbolKind::Unknown => {
-                to_obj_symbol(arch, obj_file, &symbol, split_meta)?
-            }
-            SymbolKind::Section => {
-                ensure!(addend >= 0, "Negative addend in section reloc: {addend}");
-                let section_index = symbol
-                    .section_index()
-                    .ok_or_else(|| anyhow!("Section symbol {symbol:?} has no section index"))?;
-                let section = obj_file.section_by_index(section_index)?;
-                let symbol = find_section_symbol(
-                    arch,
-                    obj_file,
-                    &section,
-                    &section_symbols[section_index.0],
-                    addend as u64,
-                    split_meta,
-                )?;
-                // Adjust addend to be relative to the selected symbol
-                addend = (symbol.address - section.address()) as i64;
-                symbol
-            }
-            kind => bail!("Unhandled relocation symbol type {kind:?}"),
-        };
-        relocations.push(ObjReloc { flags, address, target, addend });
+        relocations.push(Relocation { address, flags, target_symbol, addend });
     }
     Ok(relocations)
 }
 
-fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection], obj_data: &[u8]) -> Result<()> {
+fn parse_line_info(
+    obj_file: &object::File,
+    sections: &mut [Section],
+    obj_data: &[u8],
+) -> Result<()> {
     // DWARF 1.1
     if let Some(section) = obj_file.section_by_name(".line") {
         let data = section.uncompressed_data()?;
         let mut reader: &[u8] = data.as_ref();
 
-        let mut text_sections = obj_file.sections().filter(|s| s.kind() == SectionKind::Text);
+        let mut text_sections = sections.iter_mut().filter(|s| s.kind == SectionKind::Code);
         while !reader.is_empty() {
-            let text_section_index = text_sections
-                .next()
-                .ok_or_else(|| anyhow!("Next text section not found for line info"))?
-                .index()
-                .0;
-
             let mut section_data = reader;
             let size = read_u32(obj_file, &mut section_data)? as usize;
             if size > reader.len() {
@@ -393,13 +315,9 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection], obj_data: &[u8]) 
             }
             (section_data, reader) = reader.split_at(size);
 
+            section_data = &section_data[4..]; // Skip the size field
             let base_address = read_u32(obj_file, &mut section_data)? as u64;
-            let Some(out_section) =
-                sections.iter_mut().find(|s| s.orig_index == text_section_index)
-            else {
-                // Skip line info for sections we filtered out
-                continue;
-            };
+            let out_section = text_sections.next().context("No text section for line info")?;
             while !section_data.is_empty() {
                 let line_number = read_u32(obj_file, &mut section_data)?;
                 let statement_pos = read_u16(obj_file, &mut section_data)?;
@@ -435,12 +353,8 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection], obj_data: &[u8]) 
         if let Some(header) = iter.next().map_err(gimli_error)? {
             let unit = dwarf.unit(header).map_err(gimli_error)?;
             if let Some(program) = unit.line_program.clone() {
-                let mut text_sections =
-                    obj_file.sections().filter(|s| s.kind() == SectionKind::Text);
-                let section_index = text_sections.next().map(|s| s.index().0);
-                let mut lines = section_index
-                    .and_then(|index| sections.iter_mut().find(|s| s.orig_index == index))
-                    .map(|s| &mut s.line_info);
+                let mut text_sections = sections.iter_mut().filter(|s| s.kind == SectionKind::Code);
+                let mut lines = text_sections.next().map(|section| &mut section.line_info);
 
                 let mut rows = program.rows();
                 while let Some((_header, row)) = rows.next_row().map_err(gimli_error)? {
@@ -450,10 +364,7 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection], obj_data: &[u8]) 
                     if row.end_sequence() {
                         // The next row is the start of a new sequence, which means we must
                         // advance to the next .text section.
-                        let section_index = text_sections.next().map(|s| s.index().0);
-                        lines = section_index
-                            .and_then(|index| sections.iter_mut().find(|s| s.orig_index == index))
-                            .map(|s| &mut s.line_info);
+                        lines = text_sections.next().map(|section| &mut section.line_info);
                     }
                 }
             }
@@ -464,14 +375,22 @@ fn line_info(obj_file: &File<'_>, sections: &mut [ObjSection], obj_data: &[u8]) 
     }
 
     // COFF
-    if let File::Coff(coff) = obj_file {
-        line_info_coff(coff, sections, obj_data)?;
+    if let object::File::Coff(coff) = obj_file {
+        parse_line_info_coff(coff, sections, obj_data)?;
     }
 
     Ok(())
 }
 
-fn line_info_coff(coff: &CoffFile, sections: &mut [ObjSection], obj_data: &[u8]) -> Result<()> {
+fn parse_line_info_coff(
+    coff: &object::coff::CoffFile,
+    sections: &mut [Section],
+    obj_data: &[u8],
+) -> Result<()> {
+    use object::{
+        coff::{CoffHeader as _, ImageSymbol as _},
+        endian::LittleEndian as LE,
+    };
     let symbol_table = coff.coff_header().symbols(obj_data)?;
 
     // Enumerate over all sections.
@@ -486,17 +405,19 @@ fn line_info_coff(coff: &CoffFile, sections: &mut [ObjSection], obj_data: &[u8])
 
         // Find this section in our out_section. If it's not in out_section,
         // skip it.
-        let Some(out_section) = sections.iter_mut().find(|s| s.orig_index == sect.index().0) else {
+        let Some(out_section) = sections.get_mut(sect.index().0) else {
             continue;
         };
 
         // Turn the line numbers into an ImageLinenumber slice.
-        let Some(linenums) =
-            &obj_data.get(ptr_linenums..ptr_linenums + num_linenums * size_of::<ImageLinenumber>())
-        else {
+        let Some(linenums) = &obj_data.get(
+            ptr_linenums..ptr_linenums + num_linenums * size_of::<object::pe::ImageLinenumber>(),
+        ) else {
             continue;
         };
-        let Ok(linenums) = object::pod::slice_from_all_bytes::<ImageLinenumber>(linenums) else {
+        let Ok(linenums) =
+            object::pod::slice_from_all_bytes::<object::pe::ImageLinenumber>(linenums)
+        else {
             continue;
         };
 
@@ -528,10 +449,12 @@ fn line_info_coff(coff: &CoffFile, sections: &mut [ObjSection], obj_data: &[u8])
                 // for logging purposes, but also to acquire its Function
                 // Auxillary Record, which tells us where to find our .bf symbol.
                 let symtable_entry = linenum.symbol_table_index_or_virtual_address.get(LE);
-                let Ok(symbol) = symbol_table.symbol(SymbolIndex(symtable_entry as usize)) else {
+                let Ok(symbol) = symbol_table.symbol(object::SymbolIndex(symtable_entry as usize))
+                else {
                     continue;
                 };
-                let Ok(aux_fun) = symbol_table.aux_function(SymbolIndex(symtable_entry as usize))
+                let Ok(aux_fun) =
+                    symbol_table.aux_function(object::SymbolIndex(symtable_entry as usize))
                 else {
                     continue;
                 };
@@ -543,7 +466,7 @@ fn line_info_coff(coff: &CoffFile, sections: &mut [ObjSection], obj_data: &[u8])
                     continue;
                 }
                 let Ok(bf_symbol) =
-                    symbol_table.symbol(SymbolIndex(aux_fun.tag_index.get(LE) as usize))
+                    symbol_table.symbol(object::SymbolIndex(aux_fun.tag_index.get(LE) as usize))
                 else {
                     continue;
                 };
@@ -555,8 +478,8 @@ fn line_info_coff(coff: &CoffFile, sections: &mut [ObjSection], obj_data: &[u8])
                 // Get the Function Begin/End Auxillary Record associated with
                 // our .bf symbol, where we'll fine the linenumber of the start
                 // of our function.
-                let Ok(bf_aux) = symbol_table.get::<ImageAuxSymbolFunctionBeginEnd>(
-                    SymbolIndex(aux_fun.tag_index.get(LE) as usize),
+                let Ok(bf_aux) = symbol_table.get::<object::pe::ImageAuxSymbolFunctionBeginEnd>(
+                    object::SymbolIndex(aux_fun.tag_index.get(LE) as usize),
                     1,
                 ) else {
                     continue;
@@ -581,172 +504,176 @@ fn line_info_coff(coff: &CoffFile, sections: &mut [ObjSection], obj_data: &[u8])
     Ok(())
 }
 
-fn update_combined_symbol(symbol: ObjSymbol, address_change: i64) -> Result<ObjSymbol> {
-    Ok(ObjSymbol {
-        name: symbol.name,
-        demangled_name: symbol.demangled_name,
-        address: (symbol.address as i64 + address_change).try_into()?,
-        section_address: (symbol.section_address as i64 + address_change).try_into()?,
-        size: symbol.size,
-        size_known: symbol.size_known,
-        kind: symbol.kind,
-        flags: symbol.flags,
-        orig_section_index: symbol.orig_section_index,
-        virtual_address: if let Some(virtual_address) = symbol.virtual_address {
-            Some((virtual_address as i64 + address_change).try_into()?)
-        } else {
-            None
-        },
-        original_index: symbol.original_index,
-        bytes: symbol.bytes,
-    })
-}
-
-fn combine_sections(section: ObjSection, combine: ObjSection) -> Result<ObjSection> {
-    let mut data = section.data;
-    data.extend(combine.data);
-
-    let address_change: i64 = (section.address + section.size) as i64 - combine.address as i64;
-    let mut symbols = section.symbols;
-    for symbol in combine.symbols {
-        symbols.push(update_combined_symbol(symbol, address_change)?);
-    }
-
-    let mut relocations = section.relocations;
-    for reloc in combine.relocations {
-        relocations.push(ObjReloc {
-            flags: reloc.flags,
-            address: (reloc.address as i64 + address_change).try_into()?,
-            target: reloc.target, // TODO: Should be updated?
-            addend: reloc.addend,
-        });
-    }
-
-    let mut line_info = section.line_info;
-    for (addr, line) in combine.line_info {
-        let key = (addr as i64 + address_change).try_into()?;
-        line_info.insert(key, line);
-    }
-
-    Ok(ObjSection {
-        name: section.name,
-        kind: section.kind,
-        address: section.address,
-        size: section.size + combine.size,
-        data,
-        orig_index: section.orig_index,
-        symbols,
-        relocations,
-        virtual_address: section.virtual_address,
-        line_info,
-    })
-}
-
-fn combine_data_sections(sections: &mut Vec<ObjSection>) -> Result<()> {
-    let names_to_combine: BTreeSet<_> = sections
-        .iter()
-        .filter(|s| s.kind == ObjSectionKind::Data)
-        .map(|s| s.name.clone())
-        .collect();
-
-    for name in names_to_combine {
-        // Take section with lowest index
-        let (mut section_index, _) = sections
-            .iter()
-            .enumerate()
-            .filter(|(_, s)| s.name == name)
-            .min_by_key(|(_, s)| s.orig_index)
-            // Should not happen
-            .context("No combine section found with name")?;
-        let mut section = sections.remove(section_index);
-
-        // Remove equally named sections
-        let mut combines = vec![];
-        for i in (0..sections.len()).rev() {
-            if sections[i].name != name || sections[i].orig_index == section.orig_index {
-                continue;
+fn combine_sections(
+    sections: &mut [Section],
+    symbols: &mut [Symbol],
+    config: &DiffObjConfig,
+) -> Result<()> {
+    let mut data_sections = BTreeMap::<String, Vec<usize>>::new();
+    let mut text_sections = Vec::<usize>::new();
+    for (i, section) in sections.iter().enumerate() {
+        match section.kind {
+            SectionKind::Data | SectionKind::Bss => {
+                data_sections.entry(section.name.clone()).or_default().push(i);
             }
-            combines.push(sections.remove(i));
-            if i < section_index {
-                section_index -= 1;
+            SectionKind::Code => {
+                text_sections.push(i);
             }
+            _ => {}
         }
-
-        // Combine sections ordered by index
-        combines.sort_unstable_by_key(|c| c.orig_index);
-        for combine in combines {
-            section = combine_sections(section, combine)?;
+    }
+    if config.combine_data_sections {
+        for (_, section_indices) in data_sections {
+            do_combine_sections(sections, symbols, &section_indices)?;
         }
-        sections.insert(section_index, section);
+    }
+    if config.combine_text_sections {
+        do_combine_sections(sections, symbols, &text_sections)?;
     }
     Ok(())
 }
 
+fn do_combine_sections(
+    sections: &mut [Section],
+    symbols: &mut [Symbol],
+    section_indices: &[usize],
+) -> Result<()> {
+    if section_indices.len() < 2 {
+        return Ok(());
+    }
+    let first_section_idx = section_indices[0];
+
+    // Calculate the new offset for each section
+    let mut offsets = Vec::<u64>::with_capacity(section_indices.len());
+    let mut current_offset = 0;
+    let mut data_size = 0;
+    let mut num_relocations = 0;
+    for &i in section_indices {
+        let section = &sections[i];
+        if section.address != 0 {
+            bail!("Section {} ({}) has non-zero address", i, section.name);
+        }
+        offsets.push(current_offset);
+        current_offset += section.size;
+        data_size += section.data.len();
+        num_relocations += section.relocations.len();
+    }
+    if data_size > 0 {
+        ensure!(data_size == current_offset as usize, "Data size mismatch");
+    }
+
+    // Combine section data
+    let mut data = Vec::<u8>::with_capacity(data_size);
+    let mut relocations = Vec::<Relocation>::with_capacity(num_relocations);
+    let mut line_info = BTreeMap::<u64, u32>::new();
+    for (&i, &offset) in section_indices.iter().zip(&offsets) {
+        let section = &mut sections[i];
+        section.size = 0;
+        data.append(&mut section.data.0);
+        section.relocations.iter_mut().for_each(|r| r.address += offset);
+        relocations.append(&mut section.relocations);
+        line_info.append(&mut section.line_info.iter().map(|(&a, &l)| (a + offset, l)).collect());
+        section.line_info.clear();
+        if offset > 0 {
+            section.flags |= SectionFlag::Hidden;
+        }
+    }
+    {
+        let first_section = &mut sections[first_section_idx];
+        first_section.size = current_offset;
+        first_section.data = SectionData(data);
+        first_section.flags |= SectionFlag::Combined;
+        first_section.relocations = relocations;
+        first_section.line_info = line_info;
+    }
+
+    // Find all section symbols for the merged sections
+    let mut section_symbols = symbols
+        .iter()
+        .enumerate()
+        .filter(|&(_, s)| {
+            s.kind == SymbolKind::Section && s.section.is_some_and(|i| section_indices.contains(&i))
+        })
+        .map(|(i, _)| i)
+        .collect::<Vec<_>>();
+    section_symbols.sort_by_key(|&i| symbols[i].section.unwrap());
+    let target_section_symbol = section_symbols.first().copied();
+
+    // Adjust symbol addresses and section indices
+    for symbol in symbols.iter_mut() {
+        let Some(section_index) = symbol.section else {
+            continue;
+        };
+        let Some(merge_index) = section_indices.iter().position(|&i| i == section_index) else {
+            continue;
+        };
+        symbol.address += offsets[merge_index];
+        symbol.section = Some(first_section_idx);
+    }
+
+    // Adjust relocations to section symbols
+    for relocation in sections.iter_mut().flat_map(|s| s.relocations.iter_mut()) {
+        let target_symbol = &symbols[relocation.target_symbol];
+        if target_symbol.kind != SymbolKind::Section {
+            continue;
+        }
+        if !target_symbol.section.is_some_and(|i| section_indices.contains(&i)) {
+            continue;
+        }
+        // The section symbol's address will have the offset applied
+        relocation.target_symbol = target_section_symbol.context("No target section symbol")?;
+        relocation.addend = relocation
+            .addend
+            .checked_add_unsigned(target_symbol.address)
+            .context("Relocation addend overflow")?;
+    }
+
+    // Reset section symbols
+    for (i, &symbol_index) in section_symbols.iter().enumerate() {
+        let symbol = &mut symbols[symbol_index];
+        symbol.address = 0;
+        if i > 0 {
+            // Remove the section symbol
+            symbol.kind = SymbolKind::Unknown;
+            symbol.section = None;
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(feature = "std")]
-pub fn read(obj_path: &std::path::Path, config: &DiffObjConfig) -> Result<ObjInfo> {
+pub fn read(obj_path: &std::path::Path, config: &DiffObjConfig) -> Result<Object> {
     let (data, timestamp) = {
         let file = std::fs::File::open(obj_path)?;
         let timestamp = filetime::FileTime::from_last_modification_time(&file.metadata()?);
         (unsafe { memmap2::Mmap::map(&file) }?, timestamp)
     };
     let mut obj = parse(&data, config)?;
-    obj.path = Some(obj_path.to_string_lossy().into_owned());
+    obj.path = Some(obj_path.to_path_buf());
     obj.timestamp = Some(timestamp);
     Ok(obj)
 }
 
-pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<ObjInfo> {
-    let obj_file = File::parse(data)?;
+pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<Object> {
+    let obj_file = object::File::parse(data)?;
     let arch = new_arch(&obj_file)?;
-    let split_meta = split_meta(&obj_file)?;
-
-    // Create sorted symbol list for each section
-    let mut section_symbols = Vec::with_capacity(obj_file.sections().count());
-    for section in obj_file.sections() {
-        let mut symbols = obj_file
-            .symbols()
-            .filter(|s| s.section_index() == Some(section.index()))
-            .collect::<Vec<_>>();
-        symbols.sort_by_key(|s| s.address());
-        let section_index = section.index().0;
-        if section_index >= section_symbols.len() {
-            section_symbols.resize_with(section_index + 1, Vec::new);
-        }
-        section_symbols[section_index] = symbols;
+    let split_meta = parse_split_meta(&obj_file)?;
+    let mut symbols = map_symbols(arch.as_ref(), &obj_file, split_meta.as_ref())?;
+    let mut sections = map_sections(arch.as_ref(), &obj_file, split_meta.as_ref())?;
+    parse_line_info(&obj_file, &mut sections, data)?;
+    if config.combine_data_sections || config.combine_text_sections {
+        combine_sections(&mut sections, &mut symbols, config)?;
     }
-
-    let mut sections = filter_sections(&obj_file, split_meta.as_ref())?;
-    let mut section_name_counts: BTreeMap<String, u32> = BTreeMap::new();
-    for section in &mut sections {
-        section.symbols = symbols_by_section(
-            arch.as_ref(),
-            &obj_file,
-            section,
-            &section_symbols[section.orig_index],
-            split_meta.as_ref(),
-            &mut section_name_counts,
-        )?;
-        section.relocations = relocations_by_section(
-            arch.as_ref(),
-            &obj_file,
-            section,
-            &section_symbols,
-            split_meta.as_ref(),
-        )?;
-    }
-    if config.combine_data_sections {
-        combine_data_sections(&mut sections)?;
-    }
-    line_info(&obj_file, &mut sections, data)?;
-    let common = common_symbols(arch.as_ref(), &obj_file, split_meta.as_ref())?;
-    Ok(ObjInfo {
+    Ok(Object {
         arch,
+        symbols,
+        sections,
+        split_meta,
+        #[cfg(feature = "std")]
         path: None,
         #[cfg(feature = "std")]
         timestamp: None,
-        sections,
-        common,
-        split_meta,
     })
 }
 
@@ -756,16 +683,128 @@ pub fn has_function(obj_path: &std::path::Path, symbol_name: &str) -> Result<boo
         let file = std::fs::File::open(obj_path)?;
         unsafe { memmap2::Mmap::map(&file) }?
     };
-    Ok(File::parse(&*data)?
+    Ok(object::File::parse(&*data)?
         .symbol_by_name(symbol_name)
-        .filter(|o| o.kind() == SymbolKind::Text)
+        .filter(|o| o.kind() == object::SymbolKind::Text)
         .is_some())
 }
 
-fn split_meta(obj_file: &File<'_>) -> Result<Option<SplitMeta>> {
+fn parse_split_meta(obj_file: &object::File) -> Result<Option<SplitMeta>> {
     Ok(if let Some(section) = obj_file.section_by_name(SPLITMETA_SECTION) {
         Some(SplitMeta::from_section(section, obj_file.endianness(), obj_file.is_64())?)
     } else {
         None
     })
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_combine_sections() {
+        let mut sections = vec![
+            Section {
+                id: ".text-0".to_string(),
+                name: ".text".to_string(),
+                size: 8,
+                kind: SectionKind::Code,
+                data: SectionData(vec![0; 8]),
+                relocations: vec![
+                    Relocation {
+                        address: 0,
+                        flags: RelocationFlags::Elf(0),
+                        target_symbol: 0,
+                        addend: 0,
+                    },
+                    Relocation {
+                        address: 2,
+                        flags: RelocationFlags::Elf(0),
+                        target_symbol: 1,
+                        addend: 0,
+                    },
+                    Relocation {
+                        address: 4,
+                        flags: RelocationFlags::Elf(0),
+                        target_symbol: 3,
+                        addend: 2,
+                    },
+                ],
+                ..Default::default()
+            },
+            Section {
+                id: ".data-0".to_string(),
+                name: ".data".to_string(),
+                size: 4,
+                kind: SectionKind::Data,
+                data: SectionData(vec![1, 2, 3, 4]),
+                relocations: vec![Relocation {
+                    address: 0,
+                    flags: RelocationFlags::Elf(0),
+                    target_symbol: 2,
+                    addend: 0,
+                }],
+                line_info: [(0, 1)].into_iter().collect(),
+                ..Default::default()
+            },
+            Section {
+                id: ".data-1".to_string(),
+                name: ".data".to_string(),
+                size: 4,
+                kind: SectionKind::Data,
+                data: SectionData(vec![5, 6, 7, 8]),
+                relocations: vec![Relocation {
+                    address: 0,
+                    flags: RelocationFlags::Elf(0),
+                    target_symbol: 2,
+                    addend: 0,
+                }],
+                ..Default::default()
+            },
+            Section {
+                id: ".data-2".to_string(),
+                name: ".data".to_string(),
+                size: 4,
+                kind: SectionKind::Data,
+                data: SectionData(vec![9, 10, 11, 12]),
+                line_info: [(0, 2)].into_iter().collect(),
+                ..Default::default()
+            },
+        ];
+        let mut symbols = vec![
+            Symbol {
+                name: ".data".to_string(),
+                address: 0,
+                kind: SymbolKind::Section,
+                section: Some(2),
+                ..Default::default()
+            },
+            Symbol {
+                name: "symbol".to_string(),
+                address: 0,
+                kind: SymbolKind::Object,
+                size: 4,
+                section: Some(2),
+                ..Default::default()
+            },
+            Symbol {
+                name: "function".to_string(),
+                address: 0,
+                size: 8,
+                kind: SymbolKind::Function,
+                section: Some(0),
+                ..Default::default()
+            },
+            Symbol {
+                name: ".data".to_string(),
+                address: 0,
+                kind: SymbolKind::Section,
+                section: Some(3),
+                ..Default::default()
+            },
+        ];
+        do_combine_sections(&mut sections, &mut symbols, &[1, 2, 3]).unwrap();
+        assert_eq!(sections[1].data.0, (1..=12).collect::<Vec<_>>());
+        insta::assert_debug_snapshot!((sections, symbols));
+    }
 }

@@ -1,0 +1,161 @@
+---
+source: objdiff-core/src/obj/read.rs
+expression: "(sections, symbols)"
+---
+(
+    [
+        Section {
+            id: ".text-0",
+            name: ".text",
+            address: 0,
+            size: 8,
+            kind: Code,
+            data: SectionData(
+                8,
+            ),
+            flags: FlagSet(),
+            relocations: [
+                Relocation {
+                    flags: Elf(
+                        0,
+                    ),
+                    address: 0,
+                    target_symbol: 0,
+                    addend: 4,
+                },
+                Relocation {
+                    flags: Elf(
+                        0,
+                    ),
+                    address: 2,
+                    target_symbol: 1,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        0,
+                    ),
+                    address: 4,
+                    target_symbol: 0,
+                    addend: 10,
+                },
+            ],
+            line_info: {},
+            virtual_address: None,
+        },
+        Section {
+            id: ".data-0",
+            name: ".data",
+            address: 0,
+            size: 12,
+            kind: Data,
+            data: SectionData(
+                12,
+            ),
+            flags: FlagSet(Combined),
+            relocations: [
+                Relocation {
+                    flags: Elf(
+                        0,
+                    ),
+                    address: 0,
+                    target_symbol: 2,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        0,
+                    ),
+                    address: 4,
+                    target_symbol: 2,
+                    addend: 0,
+                },
+            ],
+            line_info: {
+                0: 1,
+                8: 2,
+            },
+            virtual_address: None,
+        },
+        Section {
+            id: ".data-1",
+            name: ".data",
+            address: 0,
+            size: 0,
+            kind: Data,
+            data: SectionData(
+                0,
+            ),
+            flags: FlagSet(Hidden),
+            relocations: [],
+            line_info: {},
+            virtual_address: None,
+        },
+        Section {
+            id: ".data-2",
+            name: ".data",
+            address: 0,
+            size: 0,
+            kind: Data,
+            data: SectionData(
+                0,
+            ),
+            flags: FlagSet(Hidden),
+            relocations: [],
+            line_info: {},
+            virtual_address: None,
+        },
+    ],
+    [
+        Symbol {
+            name: ".data",
+            demangled_name: None,
+            address: 0,
+            size: 0,
+            kind: Section,
+            section: Some(
+                1,
+            ),
+            flags: FlagSet(),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "symbol",
+            demangled_name: None,
+            address: 4,
+            size: 4,
+            kind: Object,
+            section: Some(
+                1,
+            ),
+            flags: FlagSet(),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "function",
+            demangled_name: None,
+            address: 0,
+            size: 8,
+            kind: Function,
+            section: Some(
+                0,
+            ),
+            flags: FlagSet(),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: ".data",
+            demangled_name: None,
+            address: 0,
+            size: 0,
+            kind: Unknown,
+            section: None,
+            flags: FlagSet(),
+            align: None,
+            virtual_address: None,
+        },
+    ],
+)

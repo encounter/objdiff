@@ -87,11 +87,11 @@ message Relocation {
 }
 
 message RelocationTarget {
-  Symbol symbol = 1;
+  uint32 symbol_index = 1;
   int64 addend = 2;
 }
 
-message InstructionDiff {
+message InstructionDiffRow {
   DiffKind diff_kind = 1;
   optional Instruction instruction = 2;
   optional InstructionBranchFrom branch_from = 3;
@@ -122,17 +122,12 @@ message InstructionBranchTo {
   uint32 branch_index = 2;
 }
 
-message SymbolRef {
-  optional uint32 section_index = 1;
-  uint32 symbol_index = 2;
-}
-
 message SymbolDiff {
   Symbol symbol = 1;
-  repeated InstructionDiff instructions = 2;
+  repeated InstructionDiffRow instruction_rows = 2;
   optional float match_percent = 3;
-  // The symbol ref in the _other_ object that this symbol was diffed against
-  optional SymbolRef target = 5;
+  // The symbol index in the _other_ object that this symbol was diffed against
+  optional uint32 target_symbol = 5;
 }
 
 message DataDiff {
@@ -147,7 +142,7 @@ message SectionDiff {
   SectionKind kind = 2;
   uint64 size = 3;
   uint64 address = 4;
-  repeated SymbolDiff symbols = 5;
+  reserved 5;
   repeated DataDiff data = 6;
   optional float match_percent = 7;
 }
@@ -157,11 +152,11 @@ enum SectionKind {
   SECTION_TEXT = 1;
   SECTION_DATA = 2;
   SECTION_BSS = 3;
-  SECTION_COMMON = 4;
 }
 
 message ObjectDiff {
   repeated SectionDiff sections = 1;
+  repeated SymbolDiff symbols = 2;
 }
 
 message DiffResult {

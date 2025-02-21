@@ -10,7 +10,7 @@ use objdiff_core::{
     },
     config::path::platform_path,
     diff, obj,
-    obj::{ObjSectionKind, ObjSymbolFlags},
+    obj::{SectionKind, SymbolFlag},
 };
 use prost::Message;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -181,7 +181,7 @@ fn report_object(
         })
         .transpose()?;
     let result =
-        diff::diff_objs(&diff_config, &mapping_config, target.as_ref(), base.as_ref(), None)?;
+        diff::diff_objs(target.as_ref(), base.as_ref(), None, &diff_config, &mapping_config)?;
 
     let metadata = ReportUnitMetadata {
         complete: object.metadata.complete,
@@ -200,7 +200,9 @@ fn report_object(
 
     let obj = target.as_ref().or(base.as_ref()).unwrap();
     let obj_diff = result.left.as_ref().or(result.right.as_ref()).unwrap();
-    for (section, section_diff) in obj.sections.iter().zip(&obj_diff.sections) {
+    for ((section_idx, section), section_diff) in
+        obj.sections.iter().enumerate().zip(&obj_diff.sections)
+    {
         let section_match_percent = section_diff.match_percent.unwrap_or_else(|| {
             // Support cases where we don't have a target object,
             // assume complete means 100% match
@@ -221,23 +223,26 @@ fn report_object(
         });
 
         match section.kind {
-            ObjSectionKind::Data | ObjSectionKind::Bss => {
+            SectionKind::Data | SectionKind::Bss => {
                 measures.total_data += section.size;
                 if section_match_percent == 100.0 {
                     measures.matched_data += section.size;
                 }
                 continue;
             }
-            ObjSectionKind::Code => (),
+            _ => {}
         }
 
-        for (symbol, symbol_diff) in section.symbols.iter().zip(&section_diff.symbols) {
-            if symbol.size == 0 || symbol.flags.0.contains(ObjSymbolFlags::Hidden) {
+        for (symbol, symbol_diff) in obj.symbols.iter().zip(&obj_diff.symbols) {
+            if symbol.section != Some(section_idx)
+                || symbol.size == 0
+                || symbol.flags.contains(SymbolFlag::Hidden)
+            {
                 continue;
             }
             if let Some(existing_functions) = &mut existing_functions {
-                if (symbol.flags.0.contains(ObjSymbolFlags::Global)
-                    || symbol.flags.0.contains(ObjSymbolFlags::Weak))
+                if (symbol.flags.contains(SymbolFlag::Global)
+                    || symbol.flags.contains(SymbolFlag::Weak))
                     && !existing_functions.insert(symbol.name.clone())
                 {
                     continue;

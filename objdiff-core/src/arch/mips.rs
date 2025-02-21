@@ -1,25 +1,27 @@
-use alloc::{borrow::Cow, collections::BTreeMap, format, string::ToString, vec::Vec};
+use alloc::{borrow::Cow, format, string::ToString, vec::Vec};
+use core::ops::Range;
 
 use anyhow::{bail, Result};
-use object::{
-    elf, Endian, Endianness, File, FileFlags, Object, ObjectSection, ObjectSymbol, Relocation,
-    RelocationFlags, RelocationTarget,
-};
+use object::{elf, Endian as _, Object as _, ObjectSection as _, ObjectSymbol as _};
 use rabbitizer::{
     abi::Abi,
     operands::{ValuedOperand, IU16},
     registers_meta::Register,
-    Instruction, InstructionDisplayFlags, InstructionFlags, IsaExtension, IsaVersion, Vram,
+    IsaExtension, IsaVersion, Vram,
 };
 
 use crate::{
-    arch::{ObjArch, ProcessCodeResult},
-    diff::{DiffObjConfig, MipsAbi, MipsInstrCategory},
-    obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
+    arch::Arch,
+    diff::{display::InstructionPart, DiffObjConfig, MipsAbi, MipsInstrCategory},
+    obj::{
+        InstructionArg, InstructionArgValue, InstructionRef, Relocation, RelocationFlags,
+        ResolvedRelocation, ScannedInstruction,
+    },
 };
 
-pub struct ObjArchMips {
-    pub endianness: Endianness,
+#[derive(Debug)]
+pub struct ArchMips {
+    pub endianness: object::Endianness,
     pub abi: Abi,
     pub isa_extension: Option<IsaExtension>,
     pub ri_gp_value: i32,
@@ -33,13 +35,13 @@ const EF_MIPS_MACH_5900: u32 = 0x00920000;
 
 const R_MIPS15_S3: u32 = 119;
 
-impl ObjArchMips {
-    pub fn new(object: &File) -> Result<Self> {
+impl ArchMips {
+    pub fn new(object: &object::File) -> Result<Self> {
         let mut abi = Abi::O32;
         let mut isa_extension = None;
         match object.flags() {
-            FileFlags::None => {}
-            FileFlags::Elf { e_flags, .. } => {
+            object::FileFlags::None => {}
+            object::FileFlags::Elf { e_flags, .. } => {
                 abi = match e_flags & EF_MIPS_ABI {
                     elf::EF_MIPS_ABI_O32 | elf::EF_MIPS_ABI_O64 => Abi::O32,
                     elf::EF_MIPS_ABI_EABI32 | elf::EF_MIPS_ABI_EABI64 => Abi::N32,
@@ -73,19 +75,9 @@ impl ObjArchMips {
 
         Ok(Self { endianness: object.endianness(), abi, isa_extension, ri_gp_value })
     }
-}
 
-impl ObjArch for ObjArchMips {
-    fn process_code(
-        &self,
-        address: u64,
-        code: &[u8],
-        section_index: usize,
-        relocations: &[ObjReloc],
-        line_info: &BTreeMap<u64, u32>,
-        config: &DiffObjConfig,
-    ) -> Result<ProcessCodeResult> {
-        let isa_extension = match config.mips_instr_category {
+    fn instruction_flags(&self, diff_config: &DiffObjConfig) -> rabbitizer::InstructionFlags {
+        let isa_extension = match diff_config.mips_instr_category {
             MipsInstrCategory::Auto => self.isa_extension,
             MipsInstrCategory::Cpu => None,
             MipsInstrCategory::Rsp => Some(IsaExtension::RSP),
@@ -93,158 +85,105 @@ impl ObjArch for ObjArchMips {
             MipsInstrCategory::R4000allegrex => Some(IsaExtension::R4000ALLEGREX),
             MipsInstrCategory::R5900 => Some(IsaExtension::R5900),
         };
-        let instruction_flags = match isa_extension {
-            Some(extension) => InstructionFlags::new_extension(extension),
-            None => InstructionFlags::new_isa(IsaVersion::MIPS_III, None),
+        match isa_extension {
+            Some(extension) => rabbitizer::InstructionFlags::new_extension(extension),
+            None => rabbitizer::InstructionFlags::new_isa(IsaVersion::MIPS_III, None),
         }
-        .with_abi(match config.mips_abi {
+        .with_abi(match diff_config.mips_abi {
             MipsAbi::Auto => self.abi,
             MipsAbi::O32 => Abi::O32,
             MipsAbi::N32 => Abi::N32,
             MipsAbi::N64 => Abi::N64,
-        });
-        let display_flags = InstructionDisplayFlags::default().with_unknown_instr_comment(false);
+        })
+    }
 
+    fn instruction_display_flags(
+        &self,
+        _diff_config: &DiffObjConfig,
+    ) -> rabbitizer::InstructionDisplayFlags {
+        rabbitizer::InstructionDisplayFlags::default().with_unknown_instr_comment(false)
+    }
+
+    fn parse_ins_ref(
+        &self,
+        ins_ref: InstructionRef,
+        code: &[u8],
+        diff_config: &DiffObjConfig,
+    ) -> Result<rabbitizer::Instruction> {
+        Ok(rabbitizer::Instruction::new(
+            self.endianness.read_u32_bytes(code.try_into()?),
+            Vram::new(ins_ref.address as u32),
+            self.instruction_flags(diff_config),
+        ))
+    }
+}
+
+impl Arch for ArchMips {
+    fn scan_instructions(
+        &self,
+        address: u64,
+        code: &[u8],
+        _section_index: usize,
+        diff_config: &DiffObjConfig,
+    ) -> Result<Vec<ScannedInstruction>> {
+        let instruction_flags = self.instruction_flags(diff_config);
         let start_address = address;
-        let end_address = address + code.len() as u64;
-        let ins_count = code.len() / 4;
-        let mut ops = Vec::<u16>::with_capacity(ins_count);
-        let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
+        let mut ops = Vec::<ScannedInstruction>::with_capacity(code.len() / 4);
         let mut cur_addr = start_address as u32;
         for chunk in code.chunks_exact(4) {
-            let reloc = relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
             let code = self.endianness.read_u32_bytes(chunk.try_into()?);
-            let instruction = Instruction::new(code, Vram::new(cur_addr), instruction_flags);
-
-            let formatted = instruction.display(&display_flags, None::<&str>, 0).to_string();
-            let op = instruction.opcode() as u16;
-            ops.push(op);
-
-            let mnemonic = instruction.opcode().name();
-            let mut branch_dest = instruction.get_branch_offset_generic().map(|a| a.inner() as u64);
-
-            let operands = instruction.valued_operands_iter();
-
-            let mut args = Vec::with_capacity(6);
-            for (idx, op) in operands.enumerate() {
-                if idx > 0 {
-                    args.push(ObjInsArg::PlainText(config.separator().into()));
-                }
-
-                match op {
-                    ValuedOperand::core_immediate(imm) => {
-                        if let Some(reloc) = reloc {
-                            push_reloc(&mut args, reloc)?;
-                        } else {
-                            args.push(ObjInsArg::Arg(match imm {
-                                IU16::Integer(s) => ObjInsArgValue::Signed(s as i64),
-                                IU16::Unsigned(u) => ObjInsArgValue::Unsigned(u as u64),
-                            }));
-                        }
-                    }
-                    ValuedOperand::core_label(..) | ValuedOperand::core_branch_target_label(..) => {
-                        if let Some(reloc) = reloc {
-                            // If the relocation target is within the current function, we can
-                            // convert it into a relative branch target. Note that we check
-                            // target_address > start_address instead of >= so that recursive
-                            // tail calls are not considered branch targets.
-                            let target_address =
-                                reloc.target.address.checked_add_signed(reloc.addend);
-                            if reloc.target.orig_section_index == Some(section_index)
-                                && matches!(target_address, Some(addr) if addr > start_address && addr < end_address)
-                            {
-                                let target_address = target_address.unwrap();
-                                args.push(ObjInsArg::BranchDest(target_address));
-                                branch_dest = Some(target_address);
-                            } else {
-                                push_reloc(&mut args, reloc)?;
-                                branch_dest = None;
-                            }
-                        } else if let Some(branch_dest) = branch_dest {
-                            args.push(ObjInsArg::BranchDest(branch_dest));
-                        } else {
-                            args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                                op.display(&instruction, &display_flags, None::<&str>)
-                                    .to_string()
-                                    .into(),
-                            )));
-                        }
-                    }
-                    ValuedOperand::core_immediate_base(imm, base) => {
-                        if let Some(reloc) = reloc {
-                            push_reloc(&mut args, reloc)?;
-                        } else {
-                            args.push(ObjInsArg::Arg(match imm {
-                                IU16::Integer(s) => ObjInsArgValue::Signed(s as i64),
-                                IU16::Unsigned(u) => ObjInsArgValue::Unsigned(u as u64),
-                            }));
-                        }
-                        args.push(ObjInsArg::PlainText("(".into()));
-                        args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                            base.either_name(instruction.flags().abi(), display_flags.named_gpr())
-                                .into(),
-                        )));
-                        args.push(ObjInsArg::PlainText(")".into()));
-                    }
-                    // ValuedOperand::r5900_immediate15(..) => match reloc {
-                    //     Some(reloc)
-                    //         if reloc.flags == RelocationFlags::Elf { r_type: R_MIPS15_S3 } =>
-                    //     {
-                    //         push_reloc(&mut args, reloc)?;
-                    //     }
-                    //     _ => {
-                    //         args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                    //             op.disassemble(&instruction, None).into(),
-                    //         )));
-                    //     }
-                    // },
-                    _ => {
-                        args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                            op.display(&instruction, &display_flags, None::<&str>)
-                                .to_string()
-                                .into(),
-                        )));
-                    }
-                }
-            }
-            let line = line_info.range(..=cur_addr as u64).last().map(|(_, &b)| b);
-            insts.push(ObjIns {
-                address: cur_addr as u64,
-                size: 4,
-                op,
-                mnemonic: Cow::Borrowed(mnemonic),
-                args,
-                reloc: reloc.cloned(),
+            let vram = Vram::new(cur_addr);
+            let instruction = rabbitizer::Instruction::new(code, vram, instruction_flags);
+            let opcode = instruction.opcode() as u16;
+            let branch_dest =
+                instruction.get_branch_offset_generic().map(|o| (vram + o).inner() as u64);
+            ops.push(ScannedInstruction {
+                ins_ref: InstructionRef { address, size: 4, opcode },
                 branch_dest,
-                line,
-                formatted,
-                orig: None,
             });
             cur_addr += 4;
         }
-        Ok(ProcessCodeResult { ops, insts })
+        Ok(ops)
+    }
+
+    fn display_instruction(
+        &self,
+        ins_ref: InstructionRef,
+        code: &[u8],
+        relocation: Option<ResolvedRelocation>,
+        function_range: Range<u64>,
+        section_index: usize,
+        diff_config: &DiffObjConfig,
+        cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
+    ) -> Result<()> {
+        let instruction = self.parse_ins_ref(ins_ref, code, diff_config)?;
+        let display_flags = self.instruction_display_flags(diff_config);
+        let opcode = instruction.opcode();
+        cb(InstructionPart::Opcode(Cow::Borrowed(opcode.name()), opcode as u16))?;
+        push_args(&instruction, relocation, function_range, section_index, &display_flags, cb)?;
+        Ok(())
     }
 
     fn implcit_addend(
         &self,
-        file: &File<'_>,
-        section: &ObjSection,
+        file: &object::File<'_>,
+        section: &object::Section,
         address: u64,
-        reloc: &Relocation,
+        reloc: &object::Relocation,
+        flags: RelocationFlags,
     ) -> Result<i64> {
-        let data = section.data[address as usize..address as usize + 4].try_into()?;
-        let addend = self.endianness.read_u32_bytes(data);
-        Ok(match reloc.flags() {
-            RelocationFlags::Elf { r_type: elf::R_MIPS_32 } => addend as i64,
-            RelocationFlags::Elf { r_type: elf::R_MIPS_26 } => ((addend & 0x03FFFFFF) << 2) as i64,
-            RelocationFlags::Elf { r_type: elf::R_MIPS_HI16 } => {
-                ((addend & 0x0000FFFF) << 16) as i32 as i64
+        let data = section.data()?;
+        let code = data[address as usize..address as usize + 4].try_into()?;
+        let addend = self.endianness.read_u32_bytes(code);
+        Ok(match flags {
+            RelocationFlags::Elf(elf::R_MIPS_32) => addend as i64,
+            RelocationFlags::Elf(elf::R_MIPS_26) => ((addend & 0x03FFFFFF) << 2) as i64,
+            RelocationFlags::Elf(elf::R_MIPS_HI16) => ((addend & 0x0000FFFF) << 16) as i32 as i64,
+            RelocationFlags::Elf(elf::R_MIPS_LO16 | elf::R_MIPS_GOT16 | elf::R_MIPS_CALL16) => {
+                (addend & 0x0000FFFF) as i16 as i64
             }
-            RelocationFlags::Elf {
-                r_type: elf::R_MIPS_LO16 | elf::R_MIPS_GOT16 | elf::R_MIPS_CALL16,
-            } => (addend & 0x0000FFFF) as i16 as i64,
-            RelocationFlags::Elf { r_type: elf::R_MIPS_GPREL16 | elf::R_MIPS_LITERAL } => {
-                let RelocationTarget::Symbol(idx) = reloc.target() else {
+            RelocationFlags::Elf(elf::R_MIPS_GPREL16 | elf::R_MIPS_LITERAL) => {
+                let object::RelocationTarget::Symbol(idx) = reloc.target() else {
                     bail!("Unsupported R_MIPS_GPREL16 relocation against a non-symbol");
                 };
                 let sym = file.symbol_by_index(idx)?;
@@ -257,15 +196,15 @@ impl ObjArch for ObjArchMips {
                     (addend & 0x0000FFFF) as i16 as i64
                 }
             }
-            RelocationFlags::Elf { r_type: elf::R_MIPS_PC16 } => 0, // PC-relative relocation
-            RelocationFlags::Elf { r_type: R_MIPS15_S3 } => ((addend & 0x001FFFC0) >> 3) as i64,
+            RelocationFlags::Elf(elf::R_MIPS_PC16) => 0, // PC-relative relocation
+            RelocationFlags::Elf(R_MIPS15_S3) => ((addend & 0x001FFFC0) >> 3) as i64,
             flags => bail!("Unsupported MIPS implicit relocation {flags:?}"),
         })
     }
 
     fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str> {
         match flags {
-            RelocationFlags::Elf { r_type } => match r_type {
+            RelocationFlags::Elf(r_type) => match r_type {
                 elf::R_MIPS_32 => Cow::Borrowed("R_MIPS_32"),
                 elf::R_MIPS_26 => Cow::Borrowed("R_MIPS_26"),
                 elf::R_MIPS_HI16 => Cow::Borrowed("R_MIPS_HI16"),
@@ -284,7 +223,7 @@ impl ObjArch for ObjArchMips {
 
     fn get_reloc_byte_size(&self, flags: RelocationFlags) -> usize {
         match flags {
-            RelocationFlags::Elf { r_type } => match r_type {
+            RelocationFlags::Elf(r_type) => match r_type {
                 elf::R_MIPS_16 => 2,
                 elf::R_MIPS_32 => 4,
                 _ => 1,
@@ -294,40 +233,139 @@ impl ObjArch for ObjArchMips {
     }
 }
 
-fn push_reloc(args: &mut Vec<ObjInsArg>, reloc: &ObjReloc) -> Result<()> {
+fn push_args(
+    instruction: &rabbitizer::Instruction,
+    relocation: Option<ResolvedRelocation>,
+    function_range: Range<u64>,
+    section_index: usize,
+    display_flags: &rabbitizer::InstructionDisplayFlags,
+    mut arg_cb: impl FnMut(InstructionPart) -> Result<()>,
+) -> Result<()> {
+    let operands = instruction.valued_operands_iter();
+    for (idx, op) in operands.enumerate() {
+        if idx > 0 {
+            arg_cb(InstructionPart::Separator)?;
+        }
+
+        match op {
+            ValuedOperand::core_immediate(imm) => {
+                if let Some(resolved) = relocation {
+                    push_reloc(resolved.relocation, &mut arg_cb)?;
+                } else {
+                    arg_cb(InstructionPart::Arg(InstructionArg::Value(match imm {
+                        IU16::Integer(s) => InstructionArgValue::Signed(s as i64),
+                        IU16::Unsigned(u) => InstructionArgValue::Unsigned(u as u64),
+                    })))?;
+                }
+            }
+            ValuedOperand::core_label(..) | ValuedOperand::core_branch_target_label(..) => {
+                if let Some(resolved) = relocation {
+                    // If the relocation target is within the current function, we can
+                    // convert it into a relative branch target. Note that we check
+                    // target_address > start_address instead of >= so that recursive
+                    // tail calls are not considered branch targets.
+                    let target_address =
+                        resolved.symbol.address.checked_add_signed(resolved.relocation.addend);
+                    if resolved.symbol.section == Some(section_index)
+                        && target_address.is_some_and(|addr| {
+                            addr > function_range.start && addr < function_range.end
+                        })
+                    {
+                        // TODO move this logic up a level
+                        let target_address = target_address.unwrap();
+                        arg_cb(InstructionPart::Arg(InstructionArg::BranchDest(target_address)))?;
+                    } else {
+                        push_reloc(resolved.relocation, &mut arg_cb)?;
+                    }
+                } else if let Some(branch_dest) = instruction
+                    .get_branch_offset_generic()
+                    .map(|o| (instruction.vram() + o).inner() as u64)
+                {
+                    arg_cb(InstructionPart::Arg(InstructionArg::BranchDest(branch_dest)))?;
+                } else {
+                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                        InstructionArgValue::Opaque(
+                            op.display(instruction, display_flags, None::<&str>)
+                                .to_string()
+                                .into(),
+                        ),
+                    )))?;
+                }
+            }
+            ValuedOperand::core_immediate_base(imm, base) => {
+                if let Some(resolved) = relocation {
+                    push_reloc(resolved.relocation, &mut arg_cb)?;
+                } else {
+                    arg_cb(InstructionPart::Arg(InstructionArg::Value(match imm {
+                        IU16::Integer(s) => InstructionArgValue::Signed(s as i64),
+                        IU16::Unsigned(u) => InstructionArgValue::Unsigned(u as u64),
+                    })))?;
+                }
+                arg_cb(InstructionPart::Basic("("))?;
+                arg_cb(InstructionPart::Arg(InstructionArg::Value(InstructionArgValue::Opaque(
+                    base.either_name(instruction.flags().abi(), display_flags.named_gpr()).into(),
+                ))))?;
+                arg_cb(InstructionPart::Basic(")"))?;
+            }
+            // ValuedOperand::r5900_immediate15(..) => match relocation {
+            //     Some(resolved)
+            //         if resolved.relocation.flags == RelocationFlags::Elf(R_MIPS15_S3) =>
+            //     {
+            //         push_reloc(&resolved.relocation, &mut arg_cb, &mut plain_cb)?;
+            //     }
+            //     _ => {
+            //         arg_cb(InstructionArg::Value(InstructionArgValue::Opaque(
+            //             op.disassemble(&instruction, None).into(),
+            //         )))?;
+            //     }
+            // },
+            _ => {
+                arg_cb(InstructionPart::Arg(InstructionArg::Value(InstructionArgValue::Opaque(
+                    op.display(instruction, display_flags, None::<&str>).to_string().into(),
+                ))))?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn push_reloc(
+    reloc: &Relocation,
+    mut arg_cb: impl FnMut(InstructionPart) -> Result<()>,
+) -> Result<()> {
     match reloc.flags {
-        RelocationFlags::Elf { r_type } => match r_type {
+        RelocationFlags::Elf(r_type) => match r_type {
             elf::R_MIPS_HI16 => {
-                args.push(ObjInsArg::PlainText("%hi(".into()));
-                args.push(ObjInsArg::Reloc);
-                args.push(ObjInsArg::PlainText(")".into()));
+                arg_cb(InstructionPart::Basic("%hi("))?;
+                arg_cb(InstructionPart::Arg(InstructionArg::Reloc))?;
+                arg_cb(InstructionPart::Basic(")"))?;
             }
             elf::R_MIPS_LO16 => {
-                args.push(ObjInsArg::PlainText("%lo(".into()));
-                args.push(ObjInsArg::Reloc);
-                args.push(ObjInsArg::PlainText(")".into()));
+                arg_cb(InstructionPart::Basic("%lo("))?;
+                arg_cb(InstructionPart::Arg(InstructionArg::Reloc))?;
+                arg_cb(InstructionPart::Basic(")"))?;
             }
             elf::R_MIPS_GOT16 => {
-                args.push(ObjInsArg::PlainText("%got(".into()));
-                args.push(ObjInsArg::Reloc);
-                args.push(ObjInsArg::PlainText(")".into()));
+                arg_cb(InstructionPart::Basic("%got("))?;
+                arg_cb(InstructionPart::Arg(InstructionArg::Reloc))?;
+                arg_cb(InstructionPart::Basic(")"))?;
             }
             elf::R_MIPS_CALL16 => {
-                args.push(ObjInsArg::PlainText("%call16(".into()));
-                args.push(ObjInsArg::Reloc);
-                args.push(ObjInsArg::PlainText(")".into()));
+                arg_cb(InstructionPart::Basic("%call16("))?;
+                arg_cb(InstructionPart::Arg(InstructionArg::Reloc))?;
+                arg_cb(InstructionPart::Basic(")"))?;
             }
             elf::R_MIPS_GPREL16 => {
-                args.push(ObjInsArg::PlainText("%gp_rel(".into()));
-                args.push(ObjInsArg::Reloc);
-                args.push(ObjInsArg::PlainText(")".into()));
+                arg_cb(InstructionPart::Basic("%gp_rel("))?;
+                arg_cb(InstructionPart::Arg(InstructionArg::Reloc))?;
+                arg_cb(InstructionPart::Basic(")"))?;
             }
             elf::R_MIPS_32
             | elf::R_MIPS_26
             | elf::R_MIPS_LITERAL
             | elf::R_MIPS_PC16
             | R_MIPS15_S3 => {
-                args.push(ObjInsArg::Reloc);
+                arg_cb(InstructionPart::Arg(InstructionArg::Reloc))?;
             }
             _ => bail!("Unsupported ELF MIPS relocation type {r_type}"),
         },

@@ -3,41 +3,37 @@ use alloc::{
     collections::BTreeMap,
     format,
     string::{String, ToString},
-    vec,
     vec::Vec,
 };
+use core::ops::Range;
 
 use anyhow::{bail, Result};
 use arm_attr::{enums::CpuArch, tag::Tag, BuildAttrs};
-use object::{
-    elf::{self, SHT_ARM_ATTRIBUTES},
-    Endian, File, Object, ObjectSection, ObjectSymbol, Relocation, RelocationFlags, SectionKind,
-    Symbol, SymbolKind,
-};
-use unarm::{
-    args::{Argument, OffsetImm, OffsetReg, Register},
-    parse::{ArmVersion, ParseMode, Parser},
-    DisplayOptions, ParseFlags, ParsedIns, RegNames,
-};
+use object::{elf, Endian as _, Object as _, ObjectSection as _, ObjectSymbol as _};
+use unarm::{args, arm, thumb};
 
 use crate::{
-    arch::{ObjArch, ProcessCodeResult},
-    diff::{ArmArchVersion, ArmR9Usage, DiffObjConfig},
-    obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
+    arch::Arch,
+    diff::{display::InstructionPart, ArmArchVersion, ArmR9Usage, DiffObjConfig},
+    obj::{
+        InstructionArg, InstructionArgValue, InstructionRef, RelocationFlags, ResolvedRelocation,
+        ScannedInstruction, SymbolFlag, SymbolFlagSet, SymbolKind,
+    },
 };
 
-pub struct ObjArchArm {
+#[derive(Debug)]
+pub struct ArchArm {
     /// Maps section index, to list of disasm modes (arm, thumb or data) sorted by address
     disasm_modes: BTreeMap<usize, Vec<DisasmMode>>,
-    detected_version: Option<ArmVersion>,
+    detected_version: Option<unarm::ArmVersion>,
     endianness: object::Endianness,
 }
 
-impl ObjArchArm {
-    pub fn new(file: &File) -> Result<Self> {
+impl ArchArm {
+    pub fn new(file: &object::File) -> Result<Self> {
         let endianness = file.endianness();
         match file {
-            File::Elf32(_) => {
+            object::File::Elf32(_) => {
                 let disasm_modes = Self::elf_get_mapping_symbols(file);
                 let detected_version = Self::elf_detect_arm_version(file)?;
                 Ok(Self { disasm_modes, detected_version, endianness })
@@ -46,10 +42,11 @@ impl ObjArchArm {
         }
     }
 
-    fn elf_detect_arm_version(file: &File) -> Result<Option<ArmVersion>> {
+    fn elf_detect_arm_version(file: &object::File) -> Result<Option<unarm::ArmVersion>> {
         // Check ARM attributes
         if let Some(arm_attrs) = file.sections().find(|s| {
-            s.kind() == SectionKind::Elf(SHT_ARM_ATTRIBUTES) && s.name() == Ok(".ARM.attributes")
+            s.kind() == object::SectionKind::Elf(elf::SHT_ARM_ATTRIBUTES)
+                && s.name() == Ok(".ARM.attributes")
         }) {
             let attr_data = arm_attrs.uncompressed_data()?;
             let build_attrs = BuildAttrs::new(&attr_data, match file.endianness() {
@@ -70,9 +67,9 @@ impl ObjArchArm {
                     }
                 });
                 match cpu_arch {
-                    Some(CpuArch::V4T) => return Ok(Some(ArmVersion::V4T)),
-                    Some(CpuArch::V5TE) => return Ok(Some(ArmVersion::V5Te)),
-                    Some(CpuArch::V6K) => return Ok(Some(ArmVersion::V6K)),
+                    Some(CpuArch::V4T) => return Ok(Some(unarm::ArmVersion::V4T)),
+                    Some(CpuArch::V5TE) => return Ok(Some(unarm::ArmVersion::V5Te)),
+                    Some(CpuArch::V6K) => return Ok(Some(unarm::ArmVersion::V6K)),
                     Some(arch) => bail!("ARM arch {} not supported", arch),
                     None => {}
                 };
@@ -82,9 +79,9 @@ impl ObjArchArm {
         Ok(None)
     }
 
-    fn elf_get_mapping_symbols(file: &File) -> BTreeMap<usize, Vec<DisasmMode>> {
+    fn elf_get_mapping_symbols(file: &object::File) -> BTreeMap<usize, Vec<DisasmMode>> {
         file.sections()
-            .filter(|s| s.kind() == SectionKind::Text)
+            .filter(|s| s.kind() == object::SectionKind::Text)
             .map(|s| {
                 let index = s.index();
                 let mut mapping_symbols: Vec<_> = file
@@ -97,32 +94,95 @@ impl ObjArchArm {
             })
             .collect()
     }
-}
 
-impl ObjArch for ObjArchArm {
-    fn symbol_address(&self, symbol: &Symbol) -> u64 {
-        let address = symbol.address();
-        if symbol.kind() == SymbolKind::Text {
-            address & !1
-        } else {
-            address
+    fn endian(&self) -> unarm::Endian {
+        match self.endianness {
+            object::Endianness::Little => unarm::Endian::Little,
+            object::Endianness::Big => unarm::Endian::Big,
         }
     }
 
-    fn process_code(
+    fn parse_flags(&self, diff_config: &DiffObjConfig) -> unarm::ParseFlags {
+        unarm::ParseFlags {
+            ual: diff_config.arm_unified_syntax,
+            version: match diff_config.arm_arch_version {
+                ArmArchVersion::Auto => self.detected_version.unwrap_or(unarm::ArmVersion::V5Te),
+                ArmArchVersion::V4t => unarm::ArmVersion::V4T,
+                ArmArchVersion::V5te => unarm::ArmVersion::V5Te,
+                ArmArchVersion::V6k => unarm::ArmVersion::V6K,
+            },
+        }
+    }
+
+    fn display_options(&self, diff_config: &DiffObjConfig) -> unarm::DisplayOptions {
+        unarm::DisplayOptions {
+            reg_names: unarm::RegNames {
+                av_registers: diff_config.arm_av_registers,
+                r9_use: match diff_config.arm_r9_usage {
+                    ArmR9Usage::GeneralPurpose => unarm::R9Use::GeneralPurpose,
+                    ArmR9Usage::Sb => unarm::R9Use::Pid,
+                    ArmR9Usage::Tr => unarm::R9Use::Tls,
+                },
+                explicit_stack_limit: diff_config.arm_sl_usage,
+                frame_pointer: diff_config.arm_fp_usage,
+                ip: diff_config.arm_ip_usage,
+            },
+        }
+    }
+
+    fn parse_ins_ref(
+        &self,
+        ins_ref: InstructionRef,
+        code: &[u8],
+        diff_config: &DiffObjConfig,
+    ) -> Result<(unarm::Ins, unarm::ParsedIns)> {
+        let code = match (self.endianness, ins_ref.size) {
+            (object::Endianness::Little, 2) => u16::from_le_bytes([code[0], code[1]]) as u32,
+            (object::Endianness::Little, 4) => {
+                u32::from_le_bytes([code[0], code[1], code[2], code[3]])
+            }
+            (object::Endianness::Big, 2) => u16::from_be_bytes([code[0], code[1]]) as u32,
+            (object::Endianness::Big, 4) => {
+                u32::from_be_bytes([code[0], code[1], code[2], code[3]])
+            }
+            _ => bail!("Invalid instruction size {}", ins_ref.size),
+        };
+        let (ins, parsed_ins) = if ins_ref.opcode == u16::MAX {
+            let mut args = args::Arguments::default();
+            args[0] = args::Argument::UImm(code);
+            let mnemonic = if ins_ref.size == 4 { ".word" } else { ".hword" };
+            (unarm::Ins::Data, unarm::ParsedIns { mnemonic, args })
+        } else if ins_ref.opcode & (1 << 15) != 0 {
+            let ins = arm::Ins { code, op: arm::Opcode::from(ins_ref.opcode as u8) };
+            let parsed = ins.parse(&self.parse_flags(diff_config));
+            (unarm::Ins::Arm(ins), parsed)
+        } else {
+            let ins = thumb::Ins { code, op: thumb::Opcode::from(ins_ref.opcode as u8) };
+            let parsed = ins.parse(&self.parse_flags(diff_config));
+            if ins.is_half_bl() {
+                todo!("Combine thumb BL instructions");
+            } else {
+                (unarm::Ins::Thumb(ins), parsed)
+            }
+        };
+        Ok((ins, parsed_ins))
+    }
+}
+
+impl Arch for ArchArm {
+    fn scan_instructions(
         &self,
         address: u64,
         code: &[u8],
         section_index: usize,
-        relocations: &[ObjReloc],
-        line_info: &BTreeMap<u64, u32>,
-        config: &DiffObjConfig,
-    ) -> Result<ProcessCodeResult> {
+        diff_config: &DiffObjConfig,
+    ) -> Result<Vec<ScannedInstruction>> {
         let start_addr = address as u32;
         let end_addr = start_addr + code.len() as u32;
 
         // Mapping symbols decide what kind of data comes after it. $a for ARM code, $t for Thumb code and $d for data.
-        let fallback_mappings = [DisasmMode { address: start_addr, mapping: ParseMode::Arm }];
+        let fallback_mappings =
+            [DisasmMode { address: start_addr, mapping: unarm::ParseMode::Arm }];
         let mapping_symbols = self
             .disasm_modes
             .get(&section_index)
@@ -138,39 +198,14 @@ impl ObjArch for ObjArchArm {
         let mut next_mapping = mappings_iter.next();
 
         let ins_count = code.len() / first_mapping.instruction_size(start_addr);
-        let mut ops = Vec::<u16>::with_capacity(ins_count);
-        let mut insts = Vec::<ObjIns>::with_capacity(ins_count);
+        let mut ops = Vec::<ScannedInstruction>::with_capacity(ins_count);
 
-        let version = match config.arm_arch_version {
-            ArmArchVersion::Auto => self.detected_version.unwrap_or(ArmVersion::V5Te),
-            ArmArchVersion::V4t => ArmVersion::V4T,
-            ArmArchVersion::V5te => ArmVersion::V5Te,
-            ArmArchVersion::V6k => ArmVersion::V6K,
-        };
-        let endian = match self.endianness {
-            object::Endianness::Little => unarm::Endian::Little,
-            object::Endianness::Big => unarm::Endian::Big,
-        };
+        let endian = self.endian();
+        let parse_flags = self.parse_flags(diff_config);
+        let mut parser = unarm::Parser::new(first_mapping, start_addr, endian, parse_flags, code);
 
-        let parse_flags = ParseFlags { ual: config.arm_unified_syntax, version };
-
-        let mut parser = Parser::new(first_mapping, start_addr, endian, parse_flags, code);
-
-        let display_options = DisplayOptions {
-            reg_names: RegNames {
-                av_registers: config.arm_av_registers,
-                r9_use: match config.arm_r9_usage {
-                    ArmR9Usage::GeneralPurpose => unarm::R9Use::GeneralPurpose,
-                    ArmR9Usage::Sb => unarm::R9Use::Pid,
-                    ArmR9Usage::Tr => unarm::R9Use::Tls,
-                },
-                explicit_stack_limit: config.arm_sl_usage,
-                frame_pointer: config.arm_fp_usage,
-                ip: config.arm_ip_usage,
-            },
-        };
-
-        while let Some((address, ins, parsed_ins)) = parser.next() {
+        while let Some((address, ins, _parsed_ins)) = parser.next() {
+            let size = parser.mode.instruction_size(address);
             if let Some(next) = next_mapping {
                 let next_address = parser.address;
                 if next_address >= next.address {
@@ -179,82 +214,95 @@ impl ObjArch for ObjArchArm {
                     next_mapping = mappings_iter.next();
                 }
             }
-            let line = line_info.range(..=address as u64).last().map(|(_, &b)| b);
-
-            let reloc = relocations.iter().find(|r| (r.address as u32 & !1) == address).cloned();
-
-            let mut reloc_arg = None;
-            if let Some(reloc) = &reloc {
-                match reloc.flags {
-                    // Calls
-                    RelocationFlags::Elf { r_type: elf::R_ARM_THM_XPC22 }
-                    | RelocationFlags::Elf { r_type: elf::R_ARM_THM_PC22 }
-                    | RelocationFlags::Elf { r_type: elf::R_ARM_PC24 }
-                    | RelocationFlags::Elf { r_type: elf::R_ARM_XPC25 }
-                    | RelocationFlags::Elf { r_type: elf::R_ARM_CALL } => {
-                        reloc_arg = parsed_ins
-                            .args
-                            .iter()
-                            .rposition(|a| matches!(a, Argument::BranchDest(_)));
-                    }
-                    // Data
-                    RelocationFlags::Elf { r_type: elf::R_ARM_ABS32 } => {
-                        reloc_arg =
-                            parsed_ins.args.iter().rposition(|a| matches!(a, Argument::UImm(_)));
-                    }
-                    _ => (),
+            let (opcode, branch_dest) = match ins {
+                unarm::Ins::Arm(x) => {
+                    let opcode = x.op as u16 | (1 << 15);
+                    let branch_dest = match x.op {
+                        arm::Opcode::B | arm::Opcode::Bl => {
+                            address.checked_add_signed(x.field_branch_offset())
+                        }
+                        arm::Opcode::BlxI => address.checked_add_signed(x.field_blx_offset()),
+                        _ => None,
+                    };
+                    (opcode, branch_dest)
                 }
+                unarm::Ins::Thumb(x) => {
+                    let opcode = x.op as u16;
+                    let branch_dest = match x.op {
+                        thumb::Opcode::B | thumb::Opcode::Bl => {
+                            address.checked_add_signed(x.field_branch_offset_8())
+                        }
+                        thumb::Opcode::BLong => {
+                            address.checked_add_signed(x.field_branch_offset_11())
+                        }
+                        _ => None,
+                    };
+                    (opcode, branch_dest)
+                }
+                unarm::Ins::Data => (u16::MAX, None),
             };
-
-            let (args, branch_dest) = if reloc.is_some() && parser.mode == ParseMode::Data {
-                (vec![ObjInsArg::Reloc], None)
-            } else {
-                push_args(&parsed_ins, config, reloc_arg, address, display_options)?
-            };
-
-            ops.push(ins.opcode_id());
-            insts.push(ObjIns {
-                address: address as u64,
-                size: (parser.address - address) as u8,
-                op: ins.opcode_id(),
-                mnemonic: Cow::Borrowed(parsed_ins.mnemonic),
-                args,
-                reloc,
-                branch_dest,
-                line,
-                formatted: parsed_ins.display(display_options).to_string(),
-                orig: None,
+            ops.push(ScannedInstruction {
+                ins_ref: InstructionRef { address: address as u64, size: size as u8, opcode },
+                branch_dest: branch_dest.map(|x| x as u64),
             });
         }
 
-        Ok(ProcessCodeResult { ops, insts })
+        Ok(ops)
+    }
+
+    fn display_instruction(
+        &self,
+        ins_ref: InstructionRef,
+        code: &[u8],
+        relocation: Option<ResolvedRelocation>,
+        _function_range: Range<u64>,
+        _section_index: usize,
+        diff_config: &DiffObjConfig,
+        cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
+    ) -> Result<()> {
+        let (ins, parsed_ins) = self.parse_ins_ref(ins_ref, code, diff_config)?;
+        cb(InstructionPart::Opcode(Cow::Borrowed(parsed_ins.mnemonic), ins_ref.opcode))?;
+        if ins == unarm::Ins::Data && relocation.is_some() {
+            cb(InstructionPart::Arg(InstructionArg::Reloc))?;
+        } else {
+            push_args(
+                &parsed_ins,
+                relocation,
+                ins_ref.address as u32,
+                self.display_options(diff_config),
+                cb,
+            )?;
+        }
+        Ok(())
     }
 
     fn implcit_addend(
         &self,
-        _file: &File<'_>,
-        section: &ObjSection,
+        _file: &object::File<'_>,
+        section: &object::Section,
         address: u64,
-        reloc: &Relocation,
+        _relocation: &object::Relocation,
+        flags: RelocationFlags,
     ) -> Result<i64> {
+        let section_data = section.data()?;
         let address = address as usize;
-        Ok(match reloc.flags() {
+        Ok(match flags {
             // ARM calls
-            RelocationFlags::Elf { r_type: elf::R_ARM_PC24 }
-            | RelocationFlags::Elf { r_type: elf::R_ARM_XPC25 }
-            | RelocationFlags::Elf { r_type: elf::R_ARM_CALL } => {
-                let data = section.data[address..address + 4].try_into()?;
+            RelocationFlags::Elf(elf::R_ARM_PC24)
+            | RelocationFlags::Elf(elf::R_ARM_XPC25)
+            | RelocationFlags::Elf(elf::R_ARM_CALL) => {
+                let data = section_data[address..address + 4].try_into()?;
                 let addend = self.endianness.read_i32_bytes(data);
                 let imm24 = addend & 0xffffff;
                 (imm24 << 2) << 8 >> 8
             }
 
             // Thumb calls
-            RelocationFlags::Elf { r_type: elf::R_ARM_THM_PC22 }
-            | RelocationFlags::Elf { r_type: elf::R_ARM_THM_XPC22 } => {
-                let data = section.data[address..address + 2].try_into()?;
+            RelocationFlags::Elf(elf::R_ARM_THM_PC22)
+            | RelocationFlags::Elf(elf::R_ARM_THM_XPC22) => {
+                let data = section_data[address..address + 2].try_into()?;
                 let high = self.endianness.read_i16_bytes(data) as i32;
-                let data = section.data[address + 2..address + 4].try_into()?;
+                let data = section_data[address + 2..address + 4].try_into()?;
                 let low = self.endianness.read_i16_bytes(data) as i32;
 
                 let imm22 = ((high & 0x7ff) << 11) | (low & 0x7ff);
@@ -262,8 +310,8 @@ impl ObjArch for ObjArchArm {
             }
 
             // Data
-            RelocationFlags::Elf { r_type: elf::R_ARM_ABS32 } => {
-                let data = section.data[address..address + 4].try_into()?;
+            RelocationFlags::Elf(elf::R_ARM_ABS32) => {
+                let data = section_data[address..address + 4].try_into()?;
                 self.endianness.read_i32_bytes(data)
             }
 
@@ -283,7 +331,7 @@ impl ObjArch for ObjArchArm {
 
     fn get_reloc_byte_size(&self, flags: RelocationFlags) -> usize {
         match flags {
-            RelocationFlags::Elf { r_type } => match r_type {
+            RelocationFlags::Elf(r_type) => match r_type {
                 elf::R_ARM_ABS32 => 4,
                 elf::R_ARM_REL32 => 4,
                 elf::R_ARM_ABS16 => 2,
@@ -293,48 +341,67 @@ impl ObjArch for ObjArchArm {
             _ => 1,
         }
     }
+
+    fn symbol_address(&self, address: u64, kind: SymbolKind) -> u64 {
+        if kind == SymbolKind::Function {
+            address & !1
+        } else {
+            address
+        }
+    }
+
+    fn extra_symbol_flags(&self, symbol: &object::Symbol) -> SymbolFlagSet {
+        let mut flags = SymbolFlagSet::default();
+        if DisasmMode::from_symbol(symbol).is_some() {
+            flags |= SymbolFlag::Hidden;
+        }
+        flags
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
 struct DisasmMode {
     address: u32,
-    mapping: ParseMode,
+    mapping: unarm::ParseMode,
 }
 
 impl DisasmMode {
-    fn from_symbol<'a>(sym: &Symbol<'a, '_, &'a [u8]>) -> Option<Self> {
-        if let Ok(name) = sym.name() {
-            ParseMode::from_mapping_symbol(name)
-                .map(|mapping| DisasmMode { address: sym.address() as u32, mapping })
-        } else {
-            None
-        }
+    fn from_symbol<'a>(sym: &object::Symbol<'a, '_, &'a [u8]>) -> Option<Self> {
+        sym.name()
+            .ok()
+            .and_then(unarm::ParseMode::from_mapping_symbol)
+            .map(|mapping| DisasmMode { address: sym.address() as u32, mapping })
     }
 }
 
 fn push_args(
-    parsed_ins: &ParsedIns,
-    config: &DiffObjConfig,
-    reloc_arg: Option<usize>,
+    parsed_ins: &unarm::ParsedIns,
+    relocation: Option<ResolvedRelocation>,
     cur_addr: u32,
-    display_options: DisplayOptions,
-) -> Result<(Vec<ObjInsArg>, Option<u64>)> {
-    let mut args = vec![];
-    let mut branch_dest = None;
+    display_options: unarm::DisplayOptions,
+    mut arg_cb: impl FnMut(InstructionPart) -> Result<()>,
+) -> Result<()> {
+    let reloc_arg = find_reloc_arg(parsed_ins, relocation);
     let mut writeback = false;
     let mut deref = false;
     for (i, arg) in parsed_ins.args_iter().enumerate() {
         // Emit punctuation before separator
         if deref {
             match arg {
-                Argument::OffsetImm(OffsetImm { post_indexed: true, value: _ })
-                | Argument::OffsetReg(OffsetReg { add: _, post_indexed: true, reg: _ })
-                | Argument::CoOption(_) => {
+                args::Argument::OffsetImm(args::OffsetImm { post_indexed: true, value: _ })
+                | args::Argument::OffsetReg(args::OffsetReg {
+                    add: _,
+                    post_indexed: true,
+                    reg: _,
+                })
+                | args::Argument::CoOption(_) => {
                     deref = false;
-                    args.push(ObjInsArg::PlainText("]".into()));
+                    arg_cb(InstructionPart::Basic("]"))?;
                     if writeback {
                         writeback = false;
-                        args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque("!".into())));
+                        arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                            InstructionArgValue::Opaque("!".into()),
+                        )))?;
                     }
                 }
                 _ => {}
@@ -342,117 +409,179 @@ fn push_args(
         }
 
         if i > 0 {
-            args.push(ObjInsArg::PlainText(config.separator().into()));
+            arg_cb(InstructionPart::Separator)?;
         }
 
         if reloc_arg == Some(i) {
-            args.push(ObjInsArg::Reloc);
+            arg_cb(InstructionPart::Arg(InstructionArg::Reloc))?;
         } else {
             match arg {
-                Argument::None => {}
-                Argument::Reg(reg) => {
+                args::Argument::None => {}
+                args::Argument::Reg(reg) => {
                     if reg.deref {
                         deref = true;
-                        args.push(ObjInsArg::PlainText("[".into()));
+                        arg_cb(InstructionPart::Basic("["))?;
                     }
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                        reg.reg.display(display_options.reg_names).to_string().into(),
-                    )));
+                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                        InstructionArgValue::Opaque(
+                            reg.reg.display(display_options.reg_names).to_string().into(),
+                        ),
+                    )))?;
                     if reg.writeback {
                         if reg.deref {
                             writeback = true;
                         } else {
-                            args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque("!".into())));
+                            arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                                InstructionArgValue::Opaque("!".into()),
+                            )))?;
                         }
                     }
                 }
-                Argument::RegList(reg_list) => {
-                    args.push(ObjInsArg::PlainText("{".into()));
+                args::Argument::RegList(reg_list) => {
+                    arg_cb(InstructionPart::Basic("{"))?;
                     let mut first = true;
                     for i in 0..16 {
                         if (reg_list.regs & (1 << i)) != 0 {
                             if !first {
-                                args.push(ObjInsArg::PlainText(config.separator().into()));
+                                arg_cb(InstructionPart::Separator)?;
                             }
-                            args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                                Register::parse(i)
-                                    .display(display_options.reg_names)
-                                    .to_string()
-                                    .into(),
-                            )));
+                            arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                                InstructionArgValue::Opaque(
+                                    args::Register::parse(i)
+                                        .display(display_options.reg_names)
+                                        .to_string()
+                                        .into(),
+                                ),
+                            )))?;
                             first = false;
                         }
                     }
-                    args.push(ObjInsArg::PlainText("}".into()));
+                    arg_cb(InstructionPart::Basic("}"))?;
                     if reg_list.user_mode {
-                        args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque("^".to_string().into())));
+                        arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                            InstructionArgValue::Opaque("^".into()),
+                        )))?;
                     }
                 }
-                Argument::UImm(value) | Argument::CoOpcode(value) | Argument::SatImm(value) => {
-                    args.push(ObjInsArg::PlainText("#".into()));
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Unsigned(*value as u64)));
+                args::Argument::UImm(value)
+                | args::Argument::CoOpcode(value)
+                | args::Argument::SatImm(value) => {
+                    arg_cb(InstructionPart::Basic("#"))?;
+                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                        InstructionArgValue::Unsigned(*value as u64),
+                    )))?;
                 }
-                Argument::SImm(value)
-                | Argument::OffsetImm(OffsetImm { post_indexed: _, value }) => {
-                    args.push(ObjInsArg::PlainText("#".into()));
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Signed(*value as i64)));
+                args::Argument::SImm(value)
+                | args::Argument::OffsetImm(args::OffsetImm { post_indexed: _, value }) => {
+                    arg_cb(InstructionPart::Basic("#"))?;
+                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                        InstructionArgValue::Signed(*value as i64),
+                    )))?;
                 }
-                Argument::BranchDest(value) => {
+                args::Argument::BranchDest(value) => {
                     let dest = cur_addr.wrapping_add_signed(*value) as u64;
-                    args.push(ObjInsArg::BranchDest(dest));
-                    branch_dest = Some(dest);
+                    arg_cb(InstructionPart::Arg(InstructionArg::BranchDest(dest)))?;
                 }
-                Argument::CoOption(value) => {
-                    args.push(ObjInsArg::PlainText("{".into()));
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Unsigned(*value as u64)));
-                    args.push(ObjInsArg::PlainText("}".into()));
+                args::Argument::CoOption(value) => {
+                    arg_cb(InstructionPart::Basic("{"))?;
+                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                        InstructionArgValue::Unsigned(*value as u64),
+                    )))?;
+                    arg_cb(InstructionPart::Basic("}"))?;
                 }
-                Argument::CoprocNum(value) => {
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(format!("p{}", value).into())));
+                args::Argument::CoprocNum(value) => {
+                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                        InstructionArgValue::Opaque(format!("p{}", value).into()),
+                    )))?;
                 }
-                Argument::ShiftImm(shift) => {
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(shift.op.to_string().into())));
-                    args.push(ObjInsArg::PlainText(" #".into()));
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Unsigned(shift.imm as u64)));
+                args::Argument::ShiftImm(shift) => {
+                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                        InstructionArgValue::Opaque(shift.op.to_string().into()),
+                    )))?;
+                    arg_cb(InstructionPart::Basic(" #"))?;
+                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                        InstructionArgValue::Unsigned(shift.imm as u64),
+                    )))?;
                 }
-                Argument::ShiftReg(shift) => {
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(shift.op.to_string().into())));
-                    args.push(ObjInsArg::PlainText(" ".into()));
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                        shift.reg.display(display_options.reg_names).to_string().into(),
-                    )));
+                args::Argument::ShiftReg(shift) => {
+                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                        InstructionArgValue::Opaque(shift.op.to_string().into()),
+                    )))?;
+                    arg_cb(InstructionPart::Basic(" "))?;
+                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                        InstructionArgValue::Opaque(
+                            shift.reg.display(display_options.reg_names).to_string().into(),
+                        ),
+                    )))?;
                 }
-                Argument::OffsetReg(offset) => {
+                args::Argument::OffsetReg(offset) => {
                     if !offset.add {
-                        args.push(ObjInsArg::PlainText("-".into()));
+                        arg_cb(InstructionPart::Basic("-"))?;
                     }
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                        offset.reg.display(display_options.reg_names).to_string().into(),
-                    )));
+                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                        InstructionArgValue::Opaque(
+                            offset.reg.display(display_options.reg_names).to_string().into(),
+                        ),
+                    )))?;
                 }
-                Argument::CpsrMode(mode) => {
-                    args.push(ObjInsArg::PlainText("#".into()));
-                    args.push(ObjInsArg::Arg(ObjInsArgValue::Unsigned(mode.mode as u64)));
+                args::Argument::CpsrMode(mode) => {
+                    arg_cb(InstructionPart::Basic("#"))?;
+                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                        InstructionArgValue::Unsigned(mode.mode as u64),
+                    )))?;
                     if mode.writeback {
-                        args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque("!".into())));
+                        arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                            InstructionArgValue::Opaque("!".into()),
+                        )))?;
                     }
                 }
-                Argument::CoReg(_)
-                | Argument::StatusReg(_)
-                | Argument::StatusMask(_)
-                | Argument::Shift(_)
-                | Argument::CpsrFlags(_)
-                | Argument::Endian(_) => args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(
-                    arg.display(display_options, None).to_string().into(),
-                ))),
+                args::Argument::CoReg(_)
+                | args::Argument::StatusReg(_)
+                | args::Argument::StatusMask(_)
+                | args::Argument::Shift(_)
+                | args::Argument::CpsrFlags(_)
+                | args::Argument::Endian(_) => {
+                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                        InstructionArgValue::Opaque(
+                            arg.display(display_options, None).to_string().into(),
+                        ),
+                    )))?;
+                }
             }
         }
     }
     if deref {
-        args.push(ObjInsArg::PlainText("]".into()));
+        arg_cb(InstructionPart::Basic("]"))?;
         if writeback {
-            args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque("!".into())));
+            arg_cb(InstructionPart::Arg(InstructionArg::Value(InstructionArgValue::Opaque(
+                "!".into(),
+            ))))?;
         }
     }
-    Ok((args, branch_dest))
+    Ok(())
+}
+
+fn find_reloc_arg(
+    parsed_ins: &unarm::ParsedIns,
+    relocation: Option<ResolvedRelocation>,
+) -> Option<usize> {
+    if let Some(resolved) = relocation {
+        match resolved.relocation.flags {
+            // Calls
+            RelocationFlags::Elf(elf::R_ARM_THM_XPC22)
+            | RelocationFlags::Elf(elf::R_ARM_THM_PC22)
+            | RelocationFlags::Elf(elf::R_ARM_PC24)
+            | RelocationFlags::Elf(elf::R_ARM_XPC25)
+            | RelocationFlags::Elf(elf::R_ARM_CALL) => {
+                parsed_ins.args.iter().rposition(|a| matches!(a, args::Argument::BranchDest(_)))
+            }
+            // Data
+            RelocationFlags::Elf(elf::R_ARM_ABS32) => {
+                parsed_ins.args.iter().rposition(|a| matches!(a, args::Argument::UImm(_)))
+            }
+            _ => None,
+        }
+    } else {
+        None
+    }
 }

@@ -1,57 +1,56 @@
 use alloc::{
     borrow::Cow,
-    collections::BTreeMap,
     format,
     string::{String, ToString},
-    vec,
     vec::Vec,
 };
-use core::cmp::Ordering;
+use core::{cmp::Ordering, ops::Range};
 
 use anyhow::{bail, Result};
-use object::{elf, File, Relocation, RelocationFlags};
-use yaxpeax_arch::{Arch, Decoder, Reader, U8Reader};
+use object::elf;
+use yaxpeax_arch::{Arch as YaxpeaxArch, Decoder, Reader, U8Reader};
 use yaxpeax_arm::armv8::a64::{
     ARMv8, DecodeError, InstDecoder, Instruction, Opcode, Operand, SIMDSizeCode, ShiftStyle,
     SizeCode,
 };
 
 use crate::{
-    arch::{ObjArch, ProcessCodeResult},
-    diff::DiffObjConfig,
-    obj::{ObjIns, ObjInsArg, ObjInsArgValue, ObjReloc, ObjSection},
+    arch::Arch,
+    diff::{display::InstructionPart, DiffObjConfig},
+    obj::{
+        InstructionArg, InstructionArgValue, InstructionRef, RelocationFlags, ResolvedRelocation,
+        ScannedInstruction,
+    },
 };
 
-pub struct ObjArchArm64 {}
+#[derive(Debug)]
+pub struct ArchArm64 {}
 
-impl ObjArchArm64 {
-    pub fn new(_file: &File) -> Result<Self> { Ok(Self {}) }
+impl ArchArm64 {
+    pub fn new(_file: &object::File) -> Result<Self> { Ok(Self {}) }
 }
 
-impl ObjArch for ObjArchArm64 {
-    fn process_code(
+impl Arch for ArchArm64 {
+    fn scan_instructions(
         &self,
         address: u64,
         code: &[u8],
-        section_index: usize,
-        relocations: &[ObjReloc],
-        line_info: &BTreeMap<u64, u32>,
-        config: &DiffObjConfig,
-    ) -> Result<ProcessCodeResult> {
+        _section_index: usize,
+        _diff_config: &DiffObjConfig,
+    ) -> Result<Vec<ScannedInstruction>> {
         let start_address = address;
-        let end_address = address + code.len() as u64;
-        let ins_count = code.len() / 4;
-
-        let mut ops = Vec::with_capacity(ins_count);
-        let mut insts = Vec::with_capacity(ins_count);
+        let mut ops = Vec::<ScannedInstruction>::with_capacity(code.len() / 4);
 
         let mut reader = U8Reader::new(code);
         let decoder = InstDecoder::default();
         let mut ins = Instruction::default();
         loop {
             // This is ridiculous...
-            let address =
-                start_address + <U8Reader<'_> as Reader<<ARMv8 as Arch>::Address, <ARMv8 as Arch>::Word>>::total_offset(&mut reader);
+            let offset = <U8Reader<'_> as Reader<
+                <ARMv8 as YaxpeaxArch>::Address,
+                <ARMv8 as YaxpeaxArch>::Word,
+            >>::total_offset(&mut reader);
+            let address = start_address + offset;
             match decoder.decode_into(&mut ins, &mut reader) {
                 Ok(()) => {}
                 Err(e) => match e {
@@ -59,94 +58,182 @@ impl ObjArch for ObjArchArm64 {
                     DecodeError::InvalidOpcode
                     | DecodeError::InvalidOperand
                     | DecodeError::IncompleteDecoder => {
-                        ops.push(u16::MAX);
-                        insts.push(ObjIns {
-                            address,
-                            size: 4,
-                            op: u16::MAX,
-                            mnemonic: Cow::Borrowed("<invalid>"),
-                            args: vec![],
-                            reloc: None,
+                        ops.push(ScannedInstruction {
+                            ins_ref: InstructionRef { address, size: 4, opcode: u16::MAX },
                             branch_dest: None,
-                            line: None,
-                            formatted: "".to_string(),
-                            orig: None,
                         });
                         continue;
                     }
                 },
             }
 
-            let line = line_info.range(..=address).last().map(|(_, &b)| b);
-            let reloc = relocations.iter().find(|r| (r.address & !3) == address).cloned();
-
-            let mut args = vec![];
-            let mut ctx = DisplayCtx {
-                address,
-                section_index,
-                start_address,
-                end_address,
-                reloc: reloc.as_ref(),
-                config,
-                branch_dest: None,
-            };
-            // Simplify instruction and process args
-            let mnemonic = display_instruction(&mut args, &ins, &mut ctx);
-
-            // Format the instruction without simplification
-            let mut orig = ins.opcode.to_string();
-            for (i, o) in ins.operands.iter().enumerate() {
-                if let Operand::Nothing = o {
-                    break;
-                }
-                if i == 0 {
-                    orig.push(' ');
-                } else {
-                    orig.push_str(", ");
-                }
-                orig.push_str(o.to_string().as_str());
-            }
-
-            if let Some(reloc) = &reloc {
-                if !args.iter().any(|a| matches!(a, ObjInsArg::Reloc)) {
-                    args.push(ObjInsArg::PlainText(Cow::Borrowed(" <unhandled relocation>")));
-                    log::warn!(
-                        "Unhandled ARM64 relocation {:?}: {} @ {:#X}",
-                        reloc.flags,
-                        orig,
-                        address
-                    );
-                }
-            };
-
-            let op = opcode_to_u16(ins.opcode);
-            ops.push(op);
-            let branch_dest = ctx.branch_dest;
-            insts.push(ObjIns {
-                address,
-                size: 4,
-                op,
-                mnemonic: Cow::Borrowed(mnemonic),
-                args,
-                reloc,
-                branch_dest,
-                line,
-                formatted: ins.to_string(),
-                orig: Some(orig),
-            });
+            let opcode = opcode_to_u16(ins.opcode);
+            let ins_ref = InstructionRef { address, size: 4, opcode };
+            let branch_dest = branch_dest(ins_ref, &code[offset as usize..offset as usize + 4]);
+            ops.push(ScannedInstruction { ins_ref, branch_dest });
         }
 
-        Ok(ProcessCodeResult { ops, insts })
+        Ok(ops)
     }
+
+    fn display_instruction(
+        &self,
+        ins_ref: InstructionRef,
+        code: &[u8],
+        relocation: Option<ResolvedRelocation>,
+        function_range: Range<u64>,
+        _section_index: usize,
+        diff_config: &DiffObjConfig,
+        cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
+    ) -> Result<()> {
+        let mut reader = U8Reader::new(code);
+        let decoder = InstDecoder::default();
+        let mut ins = Instruction::default();
+        if decoder.decode_into(&mut ins, &mut reader).is_err() {
+            cb(InstructionPart::Opcode(Cow::Borrowed("<invalid>"), u16::MAX))?;
+            return Ok(());
+        }
+
+        let mut ctx = DisplayCtx {
+            address: ins_ref.address,
+            section_index: 0,
+            start_address: function_range.start,
+            end_address: function_range.end,
+            reloc: relocation,
+            config: diff_config,
+        };
+
+        let mut display_args = Vec::with_capacity(16);
+        let mnemonic = display_instruction(&mut |ret| display_args.push(ret), &ins, &mut ctx);
+        cb(InstructionPart::Opcode(Cow::Borrowed(mnemonic), ins_ref.opcode))?;
+        for arg in display_args {
+            cb(arg)?;
+        }
+        Ok(())
+    }
+
+    // fn process_code(
+    //     &self,
+    //     address: u64,
+    //     code: &[u8],
+    //     section_index: usize,
+    //     relocations: &[ObjReloc],
+    //     line_info: &BTreeMap<u64, u32>,
+    //     config: &DiffObjConfig,
+    // ) -> Result<ProcessCodeResult> {
+    //     let start_address = address;
+    //     let end_address = address + code.len() as u64;
+    //     let ins_count = code.len() / 4;
+    //
+    //     let mut ops = Vec::with_capacity(ins_count);
+    //     let mut insts = Vec::with_capacity(ins_count);
+    //
+    //     let mut reader = U8Reader::new(code);
+    //     let decoder = InstDecoder::default();
+    //     let mut ins = Instruction::default();
+    //     loop {
+    //         // This is ridiculous...
+    //         let address = start_address
+    //             + <U8Reader<'_> as Reader<
+    //                 <ARMv8 as YaxpeaxArch>::Address,
+    //                 <ARMv8 as YaxpeaxArch>::Word,
+    //             >>::total_offset(&mut reader);
+    //         match decoder.decode_into(&mut ins, &mut reader) {
+    //             Ok(()) => {}
+    //             Err(e) => match e {
+    //                 DecodeError::ExhaustedInput => break,
+    //                 DecodeError::InvalidOpcode
+    //                 | DecodeError::InvalidOperand
+    //                 | DecodeError::IncompleteDecoder => {
+    //                     ops.push(u16::MAX);
+    //                     insts.push(ObjIns {
+    //                         address,
+    //                         size: 4,
+    //                         op: u16::MAX,
+    //                         mnemonic: Cow::Borrowed("<invalid>"),
+    //                         args: vec![],
+    //                         reloc: None,
+    //                         branch_dest: None,
+    //                         line: None,
+    //                         formatted: "".to_string(),
+    //                         orig: None,
+    //                     });
+    //                     continue;
+    //                 }
+    //             },
+    //         }
+    //
+    //         let line = line_info.range(..=address).last().map(|(_, &b)| b);
+    //         let reloc = relocations.iter().find(|r| (r.address & !3) == address).cloned();
+    //
+    //         let mut args = vec![];
+    //         let mut ctx = DisplayCtx {
+    //             address,
+    //             section_index,
+    //             start_address,
+    //             end_address,
+    //             reloc: reloc.as_ref(),
+    //             config,
+    //             branch_dest: None,
+    //         };
+    //         // Simplify instruction and process args
+    //         let mnemonic = display_instruction(&mut args, &ins, &mut ctx);
+    //
+    //         // Format the instruction without simplification
+    //         let mut orig = ins.opcode.to_string();
+    //         for (i, o) in ins.operands.iter().enumerate() {
+    //             if let Operand::Nothing = o {
+    //                 break;
+    //             }
+    //             if i == 0 {
+    //                 orig.push(' ');
+    //             } else {
+    //                 orig.push_str(", ");
+    //             }
+    //             orig.push_str(o.to_string().as_str());
+    //         }
+    //
+    //         if let Some(reloc) = &reloc {
+    //             if !args.iter().any(|a| matches!(a, InstructionArg::Reloc)) {
+    //                 push_arg(args, InstructionArg::PlainText(Cow::Borrowed(" <unhandled relocation>")));
+    //                 log::warn!(
+    //                     "Unhandled ARM64 relocation {:?}: {} @ {:#X}",
+    //                     reloc.flags,
+    //                     orig,
+    //                     address
+    //                 );
+    //             }
+    //         };
+    //
+    //         let op = opcode_to_u16(ins.opcode);
+    //         ops.push(op);
+    //         let branch_dest = ctx.branch_dest;
+    //         insts.push(ObjIns {
+    //             address,
+    //             size: 4,
+    //             op,
+    //             mnemonic: Cow::Borrowed(mnemonic),
+    //             args,
+    //             reloc,
+    //             branch_dest,
+    //             line,
+    //             formatted: ins.to_string(),
+    //             orig: Some(orig),
+    //         });
+    //     }
+    //
+    //     Ok(ProcessCodeResult { ops, insts })
+    // }
 
     fn implcit_addend(
         &self,
-        _file: &File<'_>,
-        _section: &ObjSection,
+        _file: &object::File<'_>,
+        _section: &object::Section,
         address: u64,
-        reloc: &Relocation,
+        _relocation: &object::Relocation,
+        flags: RelocationFlags,
     ) -> Result<i64> {
-        bail!("Unsupported ARM64 implicit relocation {:#x}:{:?}", address, reloc.flags())
+        bail!("Unsupported ARM64 implicit relocation {:#x}:{:?}", address, flags)
     }
 
     fn demangle(&self, name: &str) -> Option<String> {
@@ -157,25 +244,21 @@ impl ObjArch for ObjArchArm64 {
 
     fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str> {
         match flags {
-            RelocationFlags::Elf { r_type: elf::R_AARCH64_ADR_PREL_PG_HI21 } => {
+            RelocationFlags::Elf(elf::R_AARCH64_ADR_PREL_PG_HI21) => {
                 Cow::Borrowed("R_AARCH64_ADR_PREL_PG_HI21")
             }
-            RelocationFlags::Elf { r_type: elf::R_AARCH64_ADD_ABS_LO12_NC } => {
+            RelocationFlags::Elf(elf::R_AARCH64_ADD_ABS_LO12_NC) => {
                 Cow::Borrowed("R_AARCH64_ADD_ABS_LO12_NC")
             }
-            RelocationFlags::Elf { r_type: elf::R_AARCH64_JUMP26 } => {
-                Cow::Borrowed("R_AARCH64_JUMP26")
-            }
-            RelocationFlags::Elf { r_type: elf::R_AARCH64_CALL26 } => {
-                Cow::Borrowed("R_AARCH64_CALL26")
-            }
-            RelocationFlags::Elf { r_type: elf::R_AARCH64_LDST32_ABS_LO12_NC } => {
+            RelocationFlags::Elf(elf::R_AARCH64_JUMP26) => Cow::Borrowed("R_AARCH64_JUMP26"),
+            RelocationFlags::Elf(elf::R_AARCH64_CALL26) => Cow::Borrowed("R_AARCH64_CALL26"),
+            RelocationFlags::Elf(elf::R_AARCH64_LDST32_ABS_LO12_NC) => {
                 Cow::Borrowed("R_AARCH64_LDST32_ABS_LO12_NC")
             }
-            RelocationFlags::Elf { r_type: elf::R_AARCH64_ADR_GOT_PAGE } => {
+            RelocationFlags::Elf(elf::R_AARCH64_ADR_GOT_PAGE) => {
                 Cow::Borrowed("R_AARCH64_ADR_GOT_PAGE")
             }
-            RelocationFlags::Elf { r_type: elf::R_AARCH64_LD64_GOT_LO12_NC } => {
+            RelocationFlags::Elf(elf::R_AARCH64_LD64_GOT_LO12_NC) => {
                 Cow::Borrowed("R_AARCH64_LD64_GOT_LO12_NC")
             }
             _ => Cow::Owned(format!("<{flags:?}>")),
@@ -184,7 +267,7 @@ impl ObjArch for ObjArchArm64 {
 
     fn get_reloc_byte_size(&self, flags: RelocationFlags) -> usize {
         match flags {
-            RelocationFlags::Elf { r_type } => match r_type {
+            RelocationFlags::Elf(r_type) => match r_type {
                 elf::R_AARCH64_ABS64 => 8,
                 elf::R_AARCH64_ABS32 => 4,
                 elf::R_AARCH64_ABS16 => 2,
@@ -198,25 +281,51 @@ impl ObjArch for ObjArchArm64 {
     }
 }
 
+fn branch_dest(ins_ref: InstructionRef, code: &[u8]) -> Option<u64> {
+    const OPCODE_B: u16 = opcode_to_u16(Opcode::B);
+    const OPCODE_BL: u16 = opcode_to_u16(Opcode::BL);
+    const OPCODE_BCC: u16 = opcode_to_u16(Opcode::Bcc(0));
+    const OPCODE_CBZ: u16 = opcode_to_u16(Opcode::CBZ);
+    const OPCODE_CBNZ: u16 = opcode_to_u16(Opcode::CBNZ);
+    const OPCODE_TBZ: u16 = opcode_to_u16(Opcode::TBZ);
+    const OPCODE_TBNZ: u16 = opcode_to_u16(Opcode::TBNZ);
+
+    let word = u32::from_le_bytes(code.try_into().ok()?);
+    match ins_ref.opcode {
+        OPCODE_B | OPCODE_BL => {
+            let offset = ((word & 0x03ff_ffff) << 2) as i32;
+            let extended_offset = (offset << 4) >> 4;
+            ins_ref.address.checked_add_signed(extended_offset as i64)
+        }
+        OPCODE_BCC | OPCODE_CBZ | OPCODE_CBNZ => {
+            let offset = (word as i32 & 0x00ff_ffe0) >> 3;
+            let extended_offset = (offset << 11) >> 11;
+            ins_ref.address.checked_add_signed(extended_offset as i64)
+        }
+        OPCODE_TBZ | OPCODE_TBNZ => {
+            let offset = (word as i32 & 0x0007_ffe0) >> 3;
+            let extended_offset = (offset << 16) >> 16;
+            ins_ref.address.checked_add_signed(extended_offset as i64)
+        }
+        _ => None,
+    }
+}
+
 struct DisplayCtx<'a> {
     address: u64,
     section_index: usize,
     start_address: u64,
     end_address: u64,
-    reloc: Option<&'a ObjReloc>,
+    reloc: Option<ResolvedRelocation<'a>>,
     config: &'a DiffObjConfig,
-    branch_dest: Option<u64>,
 }
 
 // Source: https://github.com/iximeow/yaxpeax-arm/blob/716a6e3fc621f5fe3300f3309e56943b8e1e65ad/src/armv8/a64.rs#L317
 // License: 0BSD
 // Reworked for more structured output. The library only gives us a Display impl, and no way to
 // capture any of this information, so it needs to be reimplemented here.
-fn display_instruction(
-    args: &mut Vec<ObjInsArg>,
-    ins: &Instruction,
-    ctx: &mut DisplayCtx,
-) -> &'static str {
+fn display_instruction<Cb>(args: &mut Cb, ins: &Instruction, ctx: &mut DisplayCtx) -> &'static str
+where Cb: FnMut(InstructionPart) {
     let mnemonic = match ins.opcode {
         Opcode::Invalid => return "<invalid>",
         Opcode::UDF => "udf",
@@ -2025,12 +2134,14 @@ fn condition_code(cond: u8) -> &'static str {
 }
 
 #[inline]
-fn push_register(args: &mut Vec<ObjInsArg>, size: SizeCode, reg: u16, sp: bool) {
+fn push_register<Cb>(args: &mut Cb, size: SizeCode, reg: u16, sp: bool)
+where Cb: FnMut(InstructionPart) {
     push_opaque(args, reg_name(size, reg, sp));
 }
 
 #[inline]
-fn push_shift(args: &mut Vec<ObjInsArg>, style: ShiftStyle, amount: u8) {
+fn push_shift<Cb>(args: &mut Cb, style: ShiftStyle, amount: u8)
+where Cb: FnMut(InstructionPart) {
     push_opaque(args, shift_style(style));
     if amount != 0 {
         push_plain(args, " ");
@@ -2039,11 +2150,13 @@ fn push_shift(args: &mut Vec<ObjInsArg>, style: ShiftStyle, amount: u8) {
 }
 
 #[inline]
-fn push_condition_code(args: &mut Vec<ObjInsArg>, cond: u8) {
+fn push_condition_code<Cb>(args: &mut Cb, cond: u8)
+where Cb: FnMut(InstructionPart) {
     push_opaque(args, condition_code(cond));
 }
 
-fn push_barrier(args: &mut Vec<ObjInsArg>, option: u8) {
+fn push_barrier<Cb>(args: &mut Cb, option: u8)
+where Cb: FnMut(InstructionPart) {
     match option {
         0b0001 => push_opaque(args, "oshld"),
         0b0010 => push_opaque(args, "oshst"),
@@ -2062,89 +2175,104 @@ fn push_barrier(args: &mut Vec<ObjInsArg>, option: u8) {
 }
 
 #[inline]
-fn push_opaque(args: &mut Vec<ObjInsArg>, text: &'static str) {
-    args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(Cow::Borrowed(text))));
+fn push_opaque<Cb>(args: &mut Cb, text: &'static str)
+where Cb: FnMut(InstructionPart) {
+    push_arg(args, InstructionArg::Value(InstructionArgValue::Opaque(Cow::Borrowed(text))));
 }
 
 #[inline]
-fn push_plain(args: &mut Vec<ObjInsArg>, text: &'static str) {
-    args.push(ObjInsArg::PlainText(Cow::Borrowed(text)));
+fn push_plain<Cb>(args: &mut Cb, text: &'static str)
+where Cb: FnMut(InstructionPart) {
+    args(InstructionPart::Basic(text));
 }
 
 #[inline]
-fn push_separator(args: &mut Vec<ObjInsArg>, config: &DiffObjConfig) {
-    args.push(ObjInsArg::PlainText(Cow::Borrowed(config.separator())));
+fn push_separator<Cb>(args: &mut Cb, _config: &DiffObjConfig)
+where Cb: FnMut(InstructionPart) {
+    args(InstructionPart::Separator);
 }
 
 #[inline]
-fn push_unsigned(args: &mut Vec<ObjInsArg>, v: u64) {
+fn push_unsigned<Cb>(args: &mut Cb, v: u64)
+where Cb: FnMut(InstructionPart) {
     push_plain(args, "#");
-    args.push(ObjInsArg::Arg(ObjInsArgValue::Unsigned(v)));
+    push_arg(args, InstructionArg::Value(InstructionArgValue::Unsigned(v)));
 }
 
 #[inline]
-fn push_signed(args: &mut Vec<ObjInsArg>, v: i64) {
+fn push_signed<Cb>(args: &mut Cb, v: i64)
+where Cb: FnMut(InstructionPart) {
     push_plain(args, "#");
-    args.push(ObjInsArg::Arg(ObjInsArgValue::Signed(v)));
+    push_arg(args, InstructionArg::Value(InstructionArgValue::Signed(v)));
+}
+
+#[inline]
+fn push_arg<Cb>(args: &mut Cb, arg: InstructionArg)
+where Cb: FnMut(InstructionPart) {
+    args(InstructionPart::Arg(arg));
 }
 
 /// Relocations that appear in Operand::PCOffset.
-fn is_pc_offset_reloc(reloc: Option<&ObjReloc>) -> Option<&ObjReloc> {
-    if let Some(reloc) = reloc {
-        if let RelocationFlags::Elf {
-            r_type:
-                elf::R_AARCH64_ADR_PREL_PG_HI21
-                | elf::R_AARCH64_JUMP26
-                | elf::R_AARCH64_CALL26
-                | elf::R_AARCH64_ADR_GOT_PAGE,
-        } = reloc.flags
+fn is_pc_offset_reloc(reloc: Option<ResolvedRelocation>) -> Option<ResolvedRelocation> {
+    if let Some(resolved) = reloc {
+        if let RelocationFlags::Elf(
+            elf::R_AARCH64_ADR_PREL_PG_HI21
+            | elf::R_AARCH64_JUMP26
+            | elf::R_AARCH64_CALL26
+            | elf::R_AARCH64_ADR_GOT_PAGE,
+        ) = resolved.relocation.flags
         {
-            return Some(reloc);
+            return Some(resolved);
         }
     }
     None
 }
 
 /// Relocations that appear in Operand::Immediate.
-fn is_imm_reloc(reloc: Option<&ObjReloc>) -> bool {
-    matches!(reloc, Some(reloc) if matches!(reloc.flags, RelocationFlags::Elf {
-        r_type: elf::R_AARCH64_ADD_ABS_LO12_NC,
-    }))
+fn is_imm_reloc(resolved: Option<ResolvedRelocation>) -> bool {
+    resolved.is_some_and(|r| {
+        matches!(r.relocation.flags, RelocationFlags::Elf(elf::R_AARCH64_ADD_ABS_LO12_NC))
+    })
 }
 
 /// Relocations that appear in Operand::RegPreIndex/RegPostIndex.
-fn is_reg_index_reloc(reloc: Option<&ObjReloc>) -> bool {
-    matches!(reloc, Some(reloc) if matches!(reloc.flags, RelocationFlags::Elf {
-        r_type: elf::R_AARCH64_LDST32_ABS_LO12_NC | elf::R_AARCH64_LD64_GOT_LO12_NC,
-    }))
+fn is_reg_index_reloc(resolved: Option<ResolvedRelocation>) -> bool {
+    resolved.is_some_and(|r| {
+        matches!(
+            r.relocation.flags,
+            RelocationFlags::Elf(
+                elf::R_AARCH64_LDST32_ABS_LO12_NC | elf::R_AARCH64_LD64_GOT_LO12_NC
+            )
+        )
+    })
 }
 
-fn push_operand(args: &mut Vec<ObjInsArg>, o: &Operand, ctx: &mut DisplayCtx) {
+fn push_operand<Cb>(args: &mut Cb, o: &Operand, ctx: &mut DisplayCtx)
+where Cb: FnMut(InstructionPart) {
     match o {
         Operand::Nothing => unreachable!(),
         Operand::PCOffset(off) => {
-            if let Some(reloc) = is_pc_offset_reloc(ctx.reloc) {
-                let target_address = reloc.target.address.checked_add_signed(reloc.addend);
-                if reloc.target.orig_section_index == Some(ctx.section_index)
+            if let Some(resolved) = is_pc_offset_reloc(ctx.reloc) {
+                let target_address =
+                    resolved.symbol.address.checked_add_signed(resolved.relocation.addend);
+                if resolved.symbol.section == Some(ctx.section_index)
                     && matches!(target_address, Some(addr) if addr > ctx.start_address && addr < ctx.end_address)
                 {
                     let dest = target_address.unwrap();
                     push_plain(args, "$");
-                    args.push(ObjInsArg::BranchDest(dest));
-                    ctx.branch_dest = Some(dest);
+                    push_arg(args, InstructionArg::BranchDest(dest));
                 } else {
-                    args.push(ObjInsArg::Reloc);
+                    push_arg(args, InstructionArg::Reloc);
                 }
             } else {
                 let dest = ctx.address.saturating_add_signed(*off);
                 push_plain(args, "$");
-                args.push(ObjInsArg::BranchDest(dest));
-                ctx.branch_dest = Some(dest);
+                push_arg(args, InstructionArg::BranchDest(dest));
             }
         }
         Operand::Immediate(imm) => {
             if is_imm_reloc(ctx.reloc) {
-                args.push(ObjInsArg::Reloc);
+                push_arg(args, InstructionArg::Reloc);
             } else {
                 push_unsigned(args, *imm as u64);
             }
@@ -2249,7 +2377,7 @@ fn push_operand(args: &mut Vec<ObjInsArg>, o: &Operand, ctx: &mut DisplayCtx) {
             push_register(args, SizeCode::X, *reg, true);
             if is_reg_index_reloc(ctx.reloc) {
                 push_separator(args, ctx.config);
-                args.push(ObjInsArg::Reloc);
+                push_arg(args, InstructionArg::Reloc);
             } else if *offset != 0 || *wback_bit {
                 push_separator(args, ctx.config);
                 push_signed(args, *offset as i64);
@@ -2265,7 +2393,7 @@ fn push_operand(args: &mut Vec<ObjInsArg>, o: &Operand, ctx: &mut DisplayCtx) {
             push_plain(args, "]");
             push_separator(args, ctx.config);
             if is_reg_index_reloc(ctx.reloc) {
-                args.push(ObjInsArg::Reloc);
+                push_arg(args, InstructionArg::Reloc);
             } else {
                 push_signed(args, *offset as i64);
             }
@@ -2276,10 +2404,13 @@ fn push_operand(args: &mut Vec<ObjInsArg>, o: &Operand, ctx: &mut DisplayCtx) {
             push_plain(args, "]");
             push_separator(args, ctx.config);
             // TODO does 31 have to be handled separate?
-            args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(Cow::Owned(format!(
-                "x{}",
-                offset_reg
-            )))));
+            push_arg(
+                args,
+                InstructionArg::Value(InstructionArgValue::Opaque(Cow::Owned(format!(
+                    "x{}",
+                    offset_reg
+                )))),
+            );
         }
         // Fall back to original logic
         Operand::SIMDRegister(_, _)
@@ -2293,13 +2424,16 @@ fn push_operand(args: &mut Vec<ObjInsArg>, o: &Operand, ctx: &mut DisplayCtx) {
         | Operand::SystemReg(_)
         | Operand::ControlReg(_)
         | Operand::PstateField(_) => {
-            args.push(ObjInsArg::Arg(ObjInsArgValue::Opaque(Cow::Owned(o.to_string()))));
+            push_arg(
+                args,
+                InstructionArg::Value(InstructionArgValue::Opaque(Cow::Owned(o.to_string()))),
+            );
         }
     }
 }
 
 // Opcode is #[repr(u16)], but the tuple variants negate that, so we have to do this instead.
-fn opcode_to_u16(opcode: Opcode) -> u16 {
+const fn opcode_to_u16(opcode: Opcode) -> u16 {
     match opcode {
         Opcode::Invalid => u16::MAX,
         Opcode::UDF => 0,

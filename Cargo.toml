@@ -3,6 +3,7 @@ members = [
     "objdiff-cli",
     "objdiff-core",
     "objdiff-gui",
+    "objdiff-wasm",
 ]
 resolver = "2"
 
@@ -13,7 +14,7 @@ strip = "debuginfo"
 codegen-units = 1
 
 [workspace.package]
-version = "2.7.1"
+version = "3.0.0-alpha.1"
 authors = ["Luke Street <luke@street.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"

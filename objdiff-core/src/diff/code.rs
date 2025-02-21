@@ -1,428 +1,561 @@
 use alloc::{
-    collections::BTreeMap,
+    collections::{btree_map, BTreeMap},
     string::{String, ToString},
     vec,
     vec::Vec,
 };
 
-use anyhow::{anyhow, Result};
-use similar::{capture_diff_slices, Algorithm};
+use anyhow::{anyhow, ensure, Result};
 
-use super::FunctionRelocDiffs;
-use crate::{
-    arch::ProcessCodeResult,
-    diff::{
-        DiffObjConfig, ObjInsArgDiff, ObjInsBranchFrom, ObjInsBranchTo, ObjInsDiff, ObjInsDiffKind,
-        ObjSymbolDiff,
-    },
-    obj::{
-        ObjInfo, ObjIns, ObjInsArg, ObjReloc, ObjSection, ObjSymbol, ObjSymbolFlags, ObjSymbolKind,
-        SymbolRef,
-    },
+use super::{
+    DiffObjConfig, FunctionRelocDiffs, InstructionArgDiffIndex, InstructionBranchFrom,
+    InstructionBranchTo, InstructionDiffKind, InstructionDiffRow, SymbolDiff,
+};
+use crate::obj::{
+    InstructionArg, InstructionArgValue, InstructionRef, Object, ResolvedRelocation,
+    ScannedInstruction, SymbolFlag, SymbolKind,
 };
 
-pub fn process_code_symbol(
-    obj: &ObjInfo,
-    symbol_ref: SymbolRef,
-    config: &DiffObjConfig,
-) -> Result<ProcessCodeResult> {
-    let (section, symbol) = obj.section_symbol(symbol_ref);
-    let section = section.ok_or_else(|| anyhow!("Code symbol section not found"))?;
-    let code = &section.data
-        [symbol.section_address as usize..(symbol.section_address + symbol.size) as usize];
-    let mut res = obj.arch.process_code(
-        symbol.address,
-        code,
-        section.orig_index,
-        &section.relocations,
-        &section.line_info,
-        config,
-    )?;
-
-    for inst in res.insts.iter_mut() {
-        if let Some(reloc) = &mut inst.reloc {
-            if reloc.target.size == 0 && reloc.target.name.is_empty() {
-                // Fake target symbol we added as a placeholder. We need to find the real one.
-                if let Some(real_target) =
-                    find_symbol_matching_fake_symbol_in_sections(&reloc.target, &obj.sections)
-                {
-                    reloc.addend = (reloc.target.address - real_target.address) as i64;
-                    reloc.target = real_target;
-                }
-            }
-        }
+pub fn no_diff_code(
+    obj: &Object,
+    symbol_idx: usize,
+    diff_config: &DiffObjConfig,
+) -> Result<SymbolDiff> {
+    let symbol = &obj.symbols[symbol_idx];
+    let section_index = symbol.section.ok_or_else(|| anyhow!("Missing section for symbol"))?;
+    let section = &obj.sections[section_index];
+    let data = section.data_range(symbol.address, symbol.size as usize).ok_or_else(|| {
+        anyhow!(
+            "Symbol data out of bounds: {:#x}..{:#x}",
+            symbol.address,
+            symbol.address + symbol.size
+        )
+    })?;
+    let ops = obj.arch.scan_instructions(symbol.address, data, section_index, diff_config)?;
+    let mut instruction_rows = Vec::<InstructionDiffRow>::new();
+    for i in &ops {
+        instruction_rows
+            .push(InstructionDiffRow { ins_ref: Some(i.ins_ref), ..Default::default() });
     }
-
-    Ok(res)
+    resolve_branches(obj, section_index, &ops, &mut instruction_rows);
+    Ok(SymbolDiff { target_symbol: None, match_percent: None, diff_score: None, instruction_rows })
 }
 
-pub fn no_diff_code(out: &ProcessCodeResult, symbol_ref: SymbolRef) -> Result<ObjSymbolDiff> {
-    let mut diff = Vec::<ObjInsDiff>::new();
-    for i in &out.insts {
-        diff.push(ObjInsDiff {
-            ins: Some(i.clone()),
-            kind: ObjInsDiffKind::None,
-            ..Default::default()
-        });
-    }
-    resolve_branches(&mut diff);
-    Ok(ObjSymbolDiff { symbol_ref, target_symbol: None, instructions: diff, match_percent: None })
-}
+const PENALTY_IMM_DIFF: u64 = 1;
+const PENALTY_REG_DIFF: u64 = 5;
+const PENALTY_REPLACE: u64 = 60;
+const PENALTY_INSERT_DELETE: u64 = 100;
 
 pub fn diff_code(
-    left_obj: &ObjInfo,
-    right_obj: &ObjInfo,
-    left_out: &ProcessCodeResult,
-    right_out: &ProcessCodeResult,
-    left_symbol_ref: SymbolRef,
-    right_symbol_ref: SymbolRef,
-    config: &DiffObjConfig,
-) -> Result<(ObjSymbolDiff, ObjSymbolDiff)> {
-    let mut left_diff = Vec::<ObjInsDiff>::new();
-    let mut right_diff = Vec::<ObjInsDiff>::new();
-    diff_instructions(&mut left_diff, &mut right_diff, left_out, right_out)?;
+    left_obj: &Object,
+    right_obj: &Object,
+    left_symbol_idx: usize,
+    right_symbol_idx: usize,
+    diff_config: &DiffObjConfig,
+) -> Result<(SymbolDiff, SymbolDiff)> {
+    let left_symbol = &left_obj.symbols[left_symbol_idx];
+    let right_symbol = &right_obj.symbols[right_symbol_idx];
+    let left_section = left_symbol
+        .section
+        .and_then(|i| left_obj.sections.get(i))
+        .ok_or_else(|| anyhow!("Missing section for symbol"))?;
+    let right_section = right_symbol
+        .section
+        .and_then(|i| right_obj.sections.get(i))
+        .ok_or_else(|| anyhow!("Missing section for symbol"))?;
+    let left_data = left_section
+        .data_range(left_symbol.address, left_symbol.size as usize)
+        .ok_or_else(|| {
+            anyhow!(
+                "Symbol data out of bounds: {:#x}..{:#x}",
+                left_symbol.address,
+                left_symbol.address + left_symbol.size
+            )
+        })?;
+    let right_data = right_section
+        .data_range(right_symbol.address, right_symbol.size as usize)
+        .ok_or_else(|| {
+            anyhow!(
+                "Symbol data out of bounds: {:#x}..{:#x}",
+                right_symbol.address,
+                right_symbol.address + right_symbol.size
+            )
+        })?;
 
-    resolve_branches(&mut left_diff);
-    resolve_branches(&mut right_diff);
+    let left_section_idx = left_symbol.section.unwrap();
+    let right_section_idx = right_symbol.section.unwrap();
+    let left_ops = left_obj.arch.scan_instructions(
+        left_symbol.address,
+        left_data,
+        left_section_idx,
+        diff_config,
+    )?;
+    let right_ops = left_obj.arch.scan_instructions(
+        right_symbol.address,
+        right_data,
+        right_section_idx,
+        diff_config,
+    )?;
+    let (mut left_rows, mut right_rows) = diff_instructions(&left_ops, &right_ops)?;
+    resolve_branches(left_obj, left_section_idx, &left_ops, &mut left_rows);
+    resolve_branches(right_obj, right_section_idx, &right_ops, &mut right_rows);
 
-    let mut diff_state = InsDiffState::default();
-    for (left, right) in left_diff.iter_mut().zip(right_diff.iter_mut()) {
-        let result = compare_ins(config, left_obj, right_obj, left, right, &mut diff_state)?;
-        left.kind = result.kind;
-        right.kind = result.kind;
-        left.arg_diff = result.left_args_diff;
-        right.arg_diff = result.right_args_diff;
+    let mut diff_state = InstructionDiffState::default();
+    for (left_row, right_row) in left_rows.iter_mut().zip(right_rows.iter_mut()) {
+        let result = diff_instruction(
+            left_obj,
+            right_obj,
+            left_symbol_idx,
+            right_symbol_idx,
+            left_row.ins_ref.as_ref(),
+            right_row.ins_ref.as_ref(),
+            left_row,
+            right_row,
+            diff_config,
+            &mut diff_state,
+        )?;
+        left_row.kind = result.kind;
+        right_row.kind = result.kind;
+        left_row.arg_diff = result.left_args_diff;
+        right_row.arg_diff = result.right_args_diff;
     }
 
-    let total = left_out.insts.len().max(right_out.insts.len());
-    let percent = if diff_state.diff_count >= total {
-        0.0
+    let max_score = left_ops.len() as u64 * PENALTY_INSERT_DELETE;
+    let diff_score = diff_state.diff_score.min(max_score);
+    let match_percent = if max_score == 0 {
+        100.0
     } else {
-        ((total - diff_state.diff_count) as f32 / total as f32) * 100.0
+        ((1.0 - (diff_score as f64 / max_score as f64)) * 100.0) as f32
     };
 
     Ok((
-        ObjSymbolDiff {
-            symbol_ref: left_symbol_ref,
-            target_symbol: Some(right_symbol_ref),
-            instructions: left_diff,
-            match_percent: Some(percent),
+        SymbolDiff {
+            target_symbol: Some(right_symbol_idx),
+            match_percent: Some(match_percent),
+            diff_score: Some((diff_score, max_score)),
+            instruction_rows: left_rows,
         },
-        ObjSymbolDiff {
-            symbol_ref: right_symbol_ref,
-            target_symbol: Some(left_symbol_ref),
-            instructions: right_diff,
-            match_percent: Some(percent),
+        SymbolDiff {
+            target_symbol: Some(left_symbol_idx),
+            match_percent: Some(match_percent),
+            diff_score: Some((diff_score, max_score)),
+            instruction_rows: right_rows,
         },
     ))
 }
 
 fn diff_instructions(
-    left_diff: &mut Vec<ObjInsDiff>,
-    right_diff: &mut Vec<ObjInsDiff>,
-    left_code: &ProcessCodeResult,
-    right_code: &ProcessCodeResult,
-) -> Result<()> {
-    let ops = capture_diff_slices(Algorithm::Patience, &left_code.ops, &right_code.ops);
+    left_insts: &[ScannedInstruction],
+    right_insts: &[ScannedInstruction],
+) -> Result<(Vec<InstructionDiffRow>, Vec<InstructionDiffRow>)> {
+    let left_ops = left_insts.iter().map(|i| i.ins_ref.opcode).collect::<Vec<_>>();
+    let right_ops = right_insts.iter().map(|i| i.ins_ref.opcode).collect::<Vec<_>>();
+    let ops = similar::capture_diff_slices(similar::Algorithm::Patience, &left_ops, &right_ops);
     if ops.is_empty() {
-        left_diff.extend(
-            left_code
-                .insts
-                .iter()
-                .map(|i| ObjInsDiff { ins: Some(i.clone()), ..Default::default() }),
-        );
-        right_diff.extend(
-            right_code
-                .insts
-                .iter()
-                .map(|i| ObjInsDiff { ins: Some(i.clone()), ..Default::default() }),
-        );
-        return Ok(());
+        ensure!(left_insts.len() == right_insts.len());
+        let left_diff = left_insts
+            .iter()
+            .map(|i| InstructionDiffRow { ins_ref: Some(i.ins_ref), ..Default::default() })
+            .collect();
+        let right_diff = right_insts
+            .iter()
+            .map(|i| InstructionDiffRow { ins_ref: Some(i.ins_ref), ..Default::default() })
+            .collect();
+        return Ok((left_diff, right_diff));
     }
 
+    let row_count = ops
+        .iter()
+        .map(|op| match *op {
+            similar::DiffOp::Equal { len, .. } => len,
+            similar::DiffOp::Delete { old_len, .. } => old_len,
+            similar::DiffOp::Insert { new_len, .. } => new_len,
+            similar::DiffOp::Replace { old_len, new_len, .. } => old_len.max(new_len),
+        })
+        .sum();
+    let mut left_diff = Vec::<InstructionDiffRow>::with_capacity(row_count);
+    let mut right_diff = Vec::<InstructionDiffRow>::with_capacity(row_count);
     for op in ops {
         let (_tag, left_range, right_range) = op.as_tag_tuple();
         let len = left_range.len().max(right_range.len());
-        left_diff.extend(
-            left_code.insts[left_range.clone()]
-                .iter()
-                .map(|i| ObjInsDiff { ins: Some(i.clone()), ..Default::default() }),
-        );
-        right_diff.extend(
-            right_code.insts[right_range.clone()]
-                .iter()
-                .map(|i| ObjInsDiff { ins: Some(i.clone()), ..Default::default() }),
-        );
+        left_diff.extend(left_range.clone().map(|i| InstructionDiffRow {
+            ins_ref: Some(left_insts[i].ins_ref),
+            ..Default::default()
+        }));
+        right_diff.extend(right_range.clone().map(|i| InstructionDiffRow {
+            ins_ref: Some(right_insts[i].ins_ref),
+            ..Default::default()
+        }));
         if left_range.len() < len {
-            left_diff.extend((left_range.len()..len).map(|_| ObjInsDiff::default()));
+            left_diff.extend((left_range.len()..len).map(|_| InstructionDiffRow::default()));
         }
         if right_range.len() < len {
-            right_diff.extend((right_range.len()..len).map(|_| ObjInsDiff::default()));
+            right_diff.extend((right_range.len()..len).map(|_| InstructionDiffRow::default()));
         }
     }
-
-    Ok(())
+    Ok((left_diff, right_diff))
 }
 
-fn resolve_branches(vec: &mut [ObjInsDiff]) {
-    let mut branch_idx = 0usize;
+fn arg_to_string(arg: &InstructionArg, reloc: Option<&ResolvedRelocation>) -> String {
+    match arg {
+        InstructionArg::Value(arg) => arg.to_string(),
+        InstructionArg::Reloc => {
+            reloc.as_ref().map_or_else(|| "<unknown>".to_string(), |r| r.symbol.name.clone())
+        }
+        InstructionArg::BranchDest(arg) => arg.to_string(),
+    }
+}
+
+fn resolve_branches(
+    obj: &Object,
+    section_index: usize,
+    ops: &[ScannedInstruction],
+    rows: &mut [InstructionDiffRow],
+) {
+    let section = &obj.sections[section_index];
+    let mut branch_idx = 0u32;
     // Map addresses to indices
-    let mut addr_map = BTreeMap::<u64, usize>::new();
-    for (i, ins_diff) in vec.iter().enumerate() {
-        if let Some(ins) = &ins_diff.ins {
-            addr_map.insert(ins.address, i);
+    let mut addr_map = BTreeMap::<u64, u32>::new();
+    for (i, ins_diff) in rows.iter().enumerate() {
+        if let Some(ins) = ins_diff.ins_ref {
+            addr_map.insert(ins.address, i as u32);
         }
     }
     // Generate branches
-    let mut branches = BTreeMap::<usize, ObjInsBranchFrom>::new();
-    for (i, ins_diff) in vec.iter_mut().enumerate() {
-        if let Some(ins) = &ins_diff.ins {
-            if let Some(ins_idx) = ins.branch_dest.and_then(|a| addr_map.get(&a)) {
-                if let Some(branch) = branches.get_mut(ins_idx) {
-                    ins_diff.branch_to =
-                        Some(ObjInsBranchTo { ins_idx: *ins_idx, branch_idx: branch.branch_idx });
-                    branch.ins_idx.push(i);
-                } else {
-                    ins_diff.branch_to = Some(ObjInsBranchTo { ins_idx: *ins_idx, branch_idx });
-                    branches.insert(*ins_idx, ObjInsBranchFrom { ins_idx: vec![i], branch_idx });
+    let mut branches = BTreeMap::<u32, InstructionBranchFrom>::new();
+    for ((i, ins_diff), ins) in
+        rows.iter_mut().enumerate().filter(|(_, row)| row.ins_ref.is_some()).zip(ops)
+    {
+        let branch_dest = if let Some(resolved) = section.relocation_at(ins.ins_ref.address, obj) {
+            if resolved.symbol.section == Some(section_index) {
+                // If the relocation target is in the same section, use it as the branch destination
+                resolved.symbol.address.checked_add_signed(resolved.relocation.addend)
+            } else {
+                None
+            }
+        } else {
+            ins.branch_dest
+        };
+        if let Some(ins_idx) = branch_dest.and_then(|a| addr_map.get(&a).copied()) {
+            match branches.entry(ins_idx) {
+                btree_map::Entry::Vacant(e) => {
+                    ins_diff.branch_to = Some(InstructionBranchTo { ins_idx, branch_idx });
+                    e.insert(InstructionBranchFrom { ins_idx: vec![i as u32], branch_idx });
                     branch_idx += 1;
+                }
+                btree_map::Entry::Occupied(e) => {
+                    let branch = e.into_mut();
+                    ins_diff.branch_to =
+                        Some(InstructionBranchTo { ins_idx, branch_idx: branch.branch_idx });
+                    branch.ins_idx.push(i as u32);
                 }
             }
         }
     }
     // Store branch from
     for (i, branch) in branches {
-        vec[i].branch_from = Some(branch);
+        rows[i as usize].branch_from = Some(branch);
     }
 }
 
-pub fn address_eq(left: &ObjReloc, right: &ObjReloc) -> bool {
-    if right.target.size == 0 && left.target.size != 0 {
+pub(crate) fn address_eq(left: &ResolvedRelocation, right: &ResolvedRelocation) -> bool {
+    if right.symbol.size == 0 && left.symbol.size != 0 {
         // The base relocation is against a pool but the target relocation isn't.
         // This can happen in rare cases where the compiler will generate a pool+addend relocation
         // in the base's data, but the one detected in the target is direct with no addend.
         // Just check that the final address is the same so these count as a match.
-        left.target.address as i64 + left.addend == right.target.address as i64 + right.addend
+        left.symbol.address as i64 + left.relocation.addend
+            == right.symbol.address as i64 + right.relocation.addend
     } else {
         // But otherwise, if the compiler isn't using a pool, we're more strict and check that the
         // target symbol address and relocation addend both match exactly.
-        left.target.address == right.target.address && left.addend == right.addend
+        left.symbol.address == right.symbol.address
+            && left.relocation.addend == right.relocation.addend
     }
 }
 
-pub fn section_name_eq(
-    left_obj: &ObjInfo,
-    right_obj: &ObjInfo,
-    left_orig_section_index: usize,
-    right_orig_section_index: usize,
+pub(crate) fn section_name_eq(
+    left_obj: &Object,
+    right_obj: &Object,
+    left_section_index: usize,
+    right_section_index: usize,
 ) -> bool {
-    let Some(left_section) =
-        left_obj.sections.iter().find(|s| s.orig_index == left_orig_section_index)
-    else {
-        return false;
-    };
-    let Some(right_section) =
-        right_obj.sections.iter().find(|s| s.orig_index == right_orig_section_index)
-    else {
-        return false;
-    };
-    left_section.name == right_section.name
+    left_obj.sections.get(left_section_index).is_some_and(|left_section| {
+        right_obj
+            .sections
+            .get(right_section_index)
+            .is_some_and(|right_section| left_section.name == right_section.name)
+    })
 }
 
 fn reloc_eq(
-    config: &DiffObjConfig,
-    left_obj: &ObjInfo,
-    right_obj: &ObjInfo,
-    left_ins: Option<&ObjIns>,
-    right_ins: Option<&ObjIns>,
+    left_obj: &Object,
+    right_obj: &Object,
+    left_reloc: Option<ResolvedRelocation>,
+    right_reloc: Option<ResolvedRelocation>,
+    diff_config: &DiffObjConfig,
 ) -> bool {
-    let (Some(left_ins), Some(right_ins)) = (left_ins, right_ins) else {
-        return false;
+    let relax_reloc_diffs = diff_config.function_reloc_diffs == FunctionRelocDiffs::None;
+    let (left_reloc, right_reloc) = match (left_reloc, right_reloc) {
+        (Some(left_reloc), Some(right_reloc)) => (left_reloc, right_reloc),
+        // If relocations are relaxed, match if left is missing a reloc
+        (None, Some(_)) => return relax_reloc_diffs,
+        (None, None) => return true,
+        _ => return false,
     };
-    let (Some(left), Some(right)) = (&left_ins.reloc, &right_ins.reloc) else {
-        return false;
-    };
-    if left.flags != right.flags {
+    if left_reloc.relocation.flags != right_reloc.relocation.flags {
         return false;
     }
-    if config.function_reloc_diffs == FunctionRelocDiffs::None {
+    if relax_reloc_diffs {
         return true;
     }
 
-    let symbol_name_addend_matches =
-        left.target.name == right.target.name && left.addend == right.addend;
-    match (&left.target.orig_section_index, &right.target.orig_section_index) {
+    let symbol_name_addend_matches = left_reloc.symbol.name == right_reloc.symbol.name
+        && left_reloc.relocation.addend == right_reloc.relocation.addend;
+    match (&left_reloc.symbol.section, &right_reloc.symbol.section) {
         (Some(sl), Some(sr)) => {
-            // Match if section and name+addend or address match
+            // Match if section and name or address match
             section_name_eq(left_obj, right_obj, *sl, *sr)
-                && (config.function_reloc_diffs == FunctionRelocDiffs::DataValue
+                && (diff_config.function_reloc_diffs == FunctionRelocDiffs::DataValue
                     || symbol_name_addend_matches
-                    || address_eq(left, right))
-                && (config.function_reloc_diffs == FunctionRelocDiffs::NameAddress
-                    || left.target.kind != ObjSymbolKind::Object
-                    || left_obj.arch.display_ins_data_labels(left_ins)
-                        == left_obj.arch.display_ins_data_labels(right_ins))
+                    || address_eq(&left_reloc, &right_reloc))
+                && (
+                    diff_config.function_reloc_diffs == FunctionRelocDiffs::NameAddress
+                        || left_reloc.symbol.kind != SymbolKind::Object
+                    // TODO
+                    // || left_obj.arch.display_ins_data_labels(left_ins)
+                    //     == left_obj.arch.display_ins_data_labels(right_ins))
+                )
         }
         (Some(_), None) => false,
         (None, Some(_)) => {
             // Match if possibly stripped weak symbol
-            symbol_name_addend_matches && right.target.flags.0.contains(ObjSymbolFlags::Weak)
+            symbol_name_addend_matches && right_reloc.symbol.flags.contains(SymbolFlag::Weak)
         }
         (None, None) => symbol_name_addend_matches,
     }
 }
 
 fn arg_eq(
-    config: &DiffObjConfig,
-    left_obj: &ObjInfo,
-    right_obj: &ObjInfo,
-    left: &ObjInsArg,
-    right: &ObjInsArg,
-    left_diff: &ObjInsDiff,
-    right_diff: &ObjInsDiff,
+    left_obj: &Object,
+    right_obj: &Object,
+    left_row: &InstructionDiffRow,
+    right_row: &InstructionDiffRow,
+    left_arg: &InstructionArg,
+    right_arg: &InstructionArg,
+    left_reloc: Option<ResolvedRelocation>,
+    right_reloc: Option<ResolvedRelocation>,
+    diff_config: &DiffObjConfig,
 ) -> bool {
-    match left {
-        ObjInsArg::PlainText(l) => match right {
-            ObjInsArg::PlainText(r) => l == r,
-            _ => false,
-        },
-        ObjInsArg::Arg(l) => match right {
-            ObjInsArg::Arg(r) => l.loose_eq(r),
+    match left_arg {
+        InstructionArg::Value(l) => match right_arg {
+            InstructionArg::Value(r) => l.loose_eq(r),
             // If relocations are relaxed, match if left is a constant and right is a reloc
             // Useful for instances where the target object is created without relocations
-            ObjInsArg::Reloc => config.function_reloc_diffs == FunctionRelocDiffs::None,
+            InstructionArg::Reloc => diff_config.function_reloc_diffs == FunctionRelocDiffs::None,
             _ => false,
         },
-        ObjInsArg::Reloc => {
-            matches!(right, ObjInsArg::Reloc)
-                && reloc_eq(
-                    config,
-                    left_obj,
-                    right_obj,
-                    left_diff.ins.as_ref(),
-                    right_diff.ins.as_ref(),
-                )
+        InstructionArg::Reloc => {
+            matches!(right_arg, InstructionArg::Reloc)
+                && reloc_eq(left_obj, right_obj, left_reloc, right_reloc, diff_config)
         }
-        ObjInsArg::BranchDest(_) => match right {
+        InstructionArg::BranchDest(_) => match right_arg {
             // Compare dest instruction idx after diffing
-            ObjInsArg::BranchDest(_) => {
-                left_diff.branch_to.as_ref().map(|b| b.ins_idx)
-                    == right_diff.branch_to.as_ref().map(|b| b.ins_idx)
+            InstructionArg::BranchDest(_) => {
+                left_row.branch_to.as_ref().map(|b| b.ins_idx)
+                    == right_row.branch_to.as_ref().map(|b| b.ins_idx)
             }
             // If relocations are relaxed, match if left is a constant and right is a reloc
             // Useful for instances where the target object is created without relocations
-            ObjInsArg::Reloc => config.function_reloc_diffs == FunctionRelocDiffs::None,
+            InstructionArg::Reloc => diff_config.function_reloc_diffs == FunctionRelocDiffs::None,
             _ => false,
         },
     }
 }
 
 #[derive(Default)]
-struct InsDiffState {
-    diff_count: usize,
-    left_arg_idx: usize,
-    right_arg_idx: usize,
-    left_args_idx: BTreeMap<String, usize>,
-    right_args_idx: BTreeMap<String, usize>,
+struct InstructionDiffState {
+    diff_score: u64,
+    left_arg_idx: u32,
+    right_arg_idx: u32,
+    left_args_idx: BTreeMap<String, u32>,
+    right_args_idx: BTreeMap<String, u32>,
 }
 
 #[derive(Default)]
-struct InsDiffResult {
-    kind: ObjInsDiffKind,
-    left_args_diff: Vec<Option<ObjInsArgDiff>>,
-    right_args_diff: Vec<Option<ObjInsArgDiff>>,
+struct InstructionDiffResult {
+    kind: InstructionDiffKind,
+    left_args_diff: Vec<InstructionArgDiffIndex>,
+    right_args_diff: Vec<InstructionArgDiffIndex>,
 }
 
-fn compare_ins(
-    config: &DiffObjConfig,
-    left_obj: &ObjInfo,
-    right_obj: &ObjInfo,
-    left: &ObjInsDiff,
-    right: &ObjInsDiff,
-    state: &mut InsDiffState,
-) -> Result<InsDiffResult> {
-    let mut result = InsDiffResult::default();
-    if let (Some(left_ins), Some(right_ins)) = (&left.ins, &right.ins) {
-        // Count only non-PlainText args
-        let left_args_count = left_ins.iter_args().count();
-        let right_args_count = right_ins.iter_args().count();
-        if left_args_count != right_args_count || left_ins.op != right_ins.op {
-            // Totally different op
-            result.kind = ObjInsDiffKind::Replace;
-            state.diff_count += 1;
-            return Ok(result);
+impl InstructionDiffResult {
+    #[inline]
+    const fn new(kind: InstructionDiffKind) -> Self {
+        Self { kind, left_args_diff: Vec::new(), right_args_diff: Vec::new() }
+    }
+}
+
+fn diff_instruction(
+    left_obj: &Object,
+    right_obj: &Object,
+    left_symbol_idx: usize,
+    right_symbol_idx: usize,
+    l: Option<&InstructionRef>,
+    r: Option<&InstructionRef>,
+    left_row: &InstructionDiffRow,
+    right_row: &InstructionDiffRow,
+    diff_config: &DiffObjConfig,
+    state: &mut InstructionDiffState,
+) -> Result<InstructionDiffResult> {
+    let (l, r) = match (l, r) {
+        (Some(l), Some(r)) => (l, r),
+        (Some(_), None) => {
+            state.diff_score += PENALTY_INSERT_DELETE;
+            return Ok(InstructionDiffResult::new(InstructionDiffKind::Delete));
         }
+        (None, Some(_)) => {
+            state.diff_score += PENALTY_INSERT_DELETE;
+            return Ok(InstructionDiffResult::new(InstructionDiffKind::Insert));
+        }
+        (None, None) => return Ok(InstructionDiffResult::new(InstructionDiffKind::None)),
+    };
+
+    // If opcodes don't match, replace
+    if l.opcode != r.opcode {
+        state.diff_score += PENALTY_REPLACE;
+        return Ok(InstructionDiffResult::new(InstructionDiffKind::Replace));
+    }
+
+    let left_symbol = &left_obj.symbols[left_symbol_idx];
+    let right_symbol = &right_obj.symbols[right_symbol_idx];
+    let left_section = left_symbol
+        .section
+        .and_then(|i| left_obj.sections.get(i))
+        .ok_or_else(|| anyhow!("Missing section for symbol"))?;
+    let right_section = right_symbol
+        .section
+        .and_then(|i| right_obj.sections.get(i))
+        .ok_or_else(|| anyhow!("Missing section for symbol"))?;
+
+    // Resolve relocations
+    let left_reloc = left_section.relocation_at(l.address, left_obj);
+    let right_reloc = right_section.relocation_at(r.address, right_obj);
+
+    // Compare instruction data
+    let left_data = left_section.data_range(l.address, l.size as usize).ok_or_else(|| {
+        anyhow!(
+            "Instruction data out of bounds: {:#x}..{:#x}",
+            l.address,
+            l.address + l.size as u64
+        )
+    })?;
+    let right_data = right_section.data_range(r.address, r.size as usize).ok_or_else(|| {
+        anyhow!(
+            "Instruction data out of bounds: {:#x}..{:#x}",
+            r.address,
+            r.address + r.size as u64
+        )
+    })?;
+    if left_data != right_data {
+        // If data doesn't match, process instructions and compare args
+        let left_ins = left_obj.arch.process_instruction(
+            *l,
+            left_data,
+            left_reloc,
+            left_symbol.address..left_symbol.address + left_symbol.size,
+            left_symbol.section.unwrap(),
+            diff_config,
+        )?;
+        let right_ins = left_obj.arch.process_instruction(
+            *r,
+            right_data,
+            right_reloc,
+            right_symbol.address..right_symbol.address + right_symbol.size,
+            right_symbol.section.unwrap(),
+            diff_config,
+        )?;
+        if left_ins.args.len() != right_ins.args.len() {
+            state.diff_score += PENALTY_REPLACE;
+            return Ok(InstructionDiffResult::new(InstructionDiffKind::Replace));
+        }
+        let mut result = InstructionDiffResult::new(InstructionDiffKind::None);
         if left_ins.mnemonic != right_ins.mnemonic {
-            // Same op but different mnemonic, still cmp args
-            result.kind = ObjInsDiffKind::OpMismatch;
-            state.diff_count += 1;
+            state.diff_score += PENALTY_REG_DIFF;
+            result.kind = InstructionDiffKind::OpMismatch;
         }
-        for (a, b) in left_ins.iter_args().zip(right_ins.iter_args()) {
-            if arg_eq(config, left_obj, right_obj, a, b, left, right) {
-                result.left_args_diff.push(None);
-                result.right_args_diff.push(None);
+        for (a, b) in left_ins.args.iter().zip(right_ins.args.iter()) {
+            if arg_eq(
+                left_obj,
+                right_obj,
+                left_row,
+                right_row,
+                a,
+                b,
+                left_reloc,
+                right_reloc,
+                diff_config,
+            ) {
+                result.left_args_diff.push(InstructionArgDiffIndex::NONE);
+                result.right_args_diff.push(InstructionArgDiffIndex::NONE);
             } else {
-                if result.kind == ObjInsDiffKind::None {
-                    result.kind = ObjInsDiffKind::ArgMismatch;
-                    state.diff_count += 1;
+                state.diff_score += if let InstructionArg::Value(
+                    InstructionArgValue::Signed(_) | InstructionArgValue::Unsigned(_),
+                ) = a
+                {
+                    PENALTY_IMM_DIFF
+                } else {
+                    PENALTY_REG_DIFF
+                };
+                if result.kind == InstructionDiffKind::None {
+                    result.kind = InstructionDiffKind::ArgMismatch;
                 }
-                let a_str = match a {
-                    ObjInsArg::PlainText(arg) => arg.to_string(),
-                    ObjInsArg::Arg(arg) => arg.to_string(),
-                    ObjInsArg::Reloc => left_ins
-                        .reloc
-                        .as_ref()
-                        .map_or_else(|| "<unknown>".to_string(), |r| r.target.name.clone()),
-                    ObjInsArg::BranchDest(arg) => arg.to_string(),
+                let a_str = arg_to_string(a, left_reloc.as_ref());
+                let a_diff = match state.left_args_idx.entry(a_str) {
+                    btree_map::Entry::Vacant(e) => {
+                        let idx = state.left_arg_idx;
+                        state.left_arg_idx = idx + 1;
+                        e.insert(idx);
+                        idx
+                    }
+                    btree_map::Entry::Occupied(e) => *e.get(),
                 };
-                let a_diff = if let Some(idx) = state.left_args_idx.get(&a_str) {
-                    ObjInsArgDiff { idx: *idx }
-                } else {
-                    let idx = state.left_arg_idx;
-                    state.left_args_idx.insert(a_str, idx);
-                    state.left_arg_idx += 1;
-                    ObjInsArgDiff { idx }
+                let b_str = arg_to_string(b, right_reloc.as_ref());
+                let b_diff = match state.right_args_idx.entry(b_str) {
+                    btree_map::Entry::Vacant(e) => {
+                        let idx = state.right_arg_idx;
+                        state.right_arg_idx = idx + 1;
+                        e.insert(idx);
+                        idx
+                    }
+                    btree_map::Entry::Occupied(e) => *e.get(),
                 };
-                let b_str = match b {
-                    ObjInsArg::PlainText(arg) => arg.to_string(),
-                    ObjInsArg::Arg(arg) => arg.to_string(),
-                    ObjInsArg::Reloc => right_ins
-                        .reloc
-                        .as_ref()
-                        .map_or_else(|| "<unknown>".to_string(), |r| r.target.name.clone()),
-                    ObjInsArg::BranchDest(arg) => arg.to_string(),
-                };
-                let b_diff = if let Some(idx) = state.right_args_idx.get(&b_str) {
-                    ObjInsArgDiff { idx: *idx }
-                } else {
-                    let idx = state.right_arg_idx;
-                    state.right_args_idx.insert(b_str, idx);
-                    state.right_arg_idx += 1;
-                    ObjInsArgDiff { idx }
-                };
-                result.left_args_diff.push(Some(a_diff));
-                result.right_args_diff.push(Some(b_diff));
+                result.left_args_diff.push(InstructionArgDiffIndex::new(a_diff));
+                result.right_args_diff.push(InstructionArgDiffIndex::new(b_diff));
             }
         }
-    } else if left.ins.is_some() {
-        result.kind = ObjInsDiffKind::Delete;
-        state.diff_count += 1;
-    } else {
-        result.kind = ObjInsDiffKind::Insert;
-        state.diff_count += 1;
+        return Ok(result);
     }
-    Ok(result)
+
+    // Compare relocations
+    if !reloc_eq(left_obj, right_obj, left_reloc, right_reloc, diff_config) {
+        state.diff_score += PENALTY_REG_DIFF;
+        return Ok(InstructionDiffResult::new(InstructionDiffKind::ArgMismatch));
+    }
+
+    Ok(InstructionDiffResult::new(InstructionDiffKind::None))
 }
 
-fn find_symbol_matching_fake_symbol_in_sections(
-    fake_symbol: &ObjSymbol,
-    sections: &[ObjSection],
-) -> Option<ObjSymbol> {
-    let orig_section_index = fake_symbol.orig_section_index?;
-    let section = sections.iter().find(|s| s.orig_index == orig_section_index)?;
-    let real_symbol = section
-        .symbols
-        .iter()
-        .find(|s| s.size > 0 && (s.address..s.address + s.size).contains(&fake_symbol.address))?;
-    Some(real_symbol.clone())
-}
+// TODO
+// fn find_symbol_matching_fake_symbol_in_sections(
+//     fake_symbol: &ObjSymbol,
+//     sections: &[ObjSection],
+// ) -> Option<ObjSymbol> {
+//     let orig_section_index = fake_symbol.orig_section_index?;
+//     let section = sections.iter().find(|s| s.orig_index == orig_section_index)?;
+//     let real_symbol = section
+//         .symbols
+//         .iter()
+//         .find(|s| s.size > 0 && (s.address..s.address + s.size).contains(&fake_symbol.address))?;
+//     Some(real_symbol.clone())
+// }

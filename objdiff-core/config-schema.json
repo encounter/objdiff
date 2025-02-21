@@ -40,6 +40,13 @@
       "description": "Combines data sections with equal names."
     },
     {
+      "id": "combineTextSections",
+      "type": "boolean",
+      "default": false,
+      "name": "Combine text sections",
+      "description": "Combines all text sections into one."
+    },
+    {
       "id": "arm.archVersion",
       "type": "choice",
       "default": "auto",
@@ -213,7 +220,8 @@
       "properties": [
         "functionRelocDiffs",
         "spaceBetweenArgs",
-        "combineDataSections"
+        "combineDataSections",
+        "combineTextSections"
       ]
     },
     {

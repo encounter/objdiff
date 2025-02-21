@@ -4,10 +4,14 @@ use egui::{text::LayoutJob, Label, Response, Sense, Widget};
 use egui_extras::TableRow;
 use objdiff_core::{
     diff::{
-        display::{display_diff, DiffText, HighlightKind},
-        ObjDiff, ObjInsDiff, ObjInsDiffKind,
+        display::{display_row, DiffText, HighlightKind},
+        DiffObjConfig, InstructionArgDiffIndex, InstructionDiffKind, InstructionDiffRow,
+        ObjectDiff,
     },
-    obj::{ObjInfo, ObjIns, ObjInsArg, ObjInsArgValue, ObjSection, ObjSymbol, SymbolRef},
+    obj::{
+        InstructionArg, InstructionArgValue, InstructionRef, Object, ParsedInstruction,
+        ResolvedRelocation, Section, Symbol,
+    },
 };
 
 use crate::views::{appearance::Appearance, symbol_diff::DiffViewAction};
@@ -63,43 +67,94 @@ impl FunctionViewState {
     }
 }
 
+#[expect(unused)]
+#[derive(Clone, Copy)]
+pub struct ResolvedInstructionRef<'obj> {
+    pub symbol: &'obj Symbol,
+    pub section_idx: usize,
+    pub section: &'obj Section,
+    pub data: &'obj [u8],
+    pub relocation: Option<ResolvedRelocation<'obj>>,
+}
+
+fn resolve_instruction_ref(
+    obj: &Object,
+    symbol_idx: usize,
+    ins_ref: InstructionRef,
+) -> Option<ResolvedInstructionRef> {
+    let symbol = &obj.symbols[symbol_idx];
+    let section_idx = symbol.section?;
+    let section = &obj.sections[section_idx];
+    let offset = ins_ref.address.checked_sub(section.address)?;
+    let data = section.data.get(offset as usize..offset as usize + ins_ref.size as usize)?;
+    let relocation = section.relocation_at(ins_ref.address, obj);
+    Some(ResolvedInstructionRef { symbol, section, section_idx, data, relocation })
+}
+
+fn resolve_instruction<'obj>(
+    obj: &'obj Object,
+    symbol_idx: usize,
+    ins_ref: InstructionRef,
+    diff_config: &DiffObjConfig,
+) -> Option<(ResolvedInstructionRef<'obj>, ParsedInstruction)> {
+    let resolved = resolve_instruction_ref(obj, symbol_idx, ins_ref)?;
+    let ins = obj
+        .arch
+        .process_instruction(
+            ins_ref,
+            resolved.data,
+            resolved.relocation,
+            resolved.symbol.address..resolved.symbol.address + resolved.symbol.size,
+            resolved.section_idx,
+            diff_config,
+        )
+        .ok()?;
+    Some((resolved, ins))
+}
+
 fn ins_hover_ui(
     ui: &mut egui::Ui,
-    obj: &ObjInfo,
-    section: &ObjSection,
-    ins: &ObjIns,
-    symbol: &ObjSymbol,
+    obj: &Object,
+    symbol_idx: usize,
+    ins_ref: InstructionRef,
+    diff_config: &DiffObjConfig,
     appearance: &Appearance,
 ) {
+    let Some((
+        ResolvedInstructionRef { symbol, section_idx: _, section: _, data, relocation },
+        ins,
+    )) = resolve_instruction(obj, symbol_idx, ins_ref, diff_config)
+    else {
+        ui.colored_label(appearance.delete_color, "Failed to resolve instruction");
+        return;
+    };
+
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
-        let offset = ins.address - section.address;
-        ui.label(format!(
-            "{:02x?}",
-            &section.data[offset as usize..(offset + ins.size as u64) as usize]
-        ));
+        ui.label(format!("{:02x?}", data));
 
         if let Some(virtual_address) = symbol.virtual_address {
-            let offset = ins.address - symbol.address;
+            let offset = ins_ref.address - symbol.address;
             ui.colored_label(
                 appearance.replace_color,
                 format!("Virtual address: {:#x}", virtual_address + offset),
             );
         }
 
-        if let Some(orig) = &ins.orig {
-            ui.label(format!("Original: {}", orig));
-        }
+        // TODO
+        // if let Some(orig) = &ins.orig {
+        //     ui.label(format!("Original: {}", orig));
+        // }
 
         for arg in &ins.args {
-            if let ObjInsArg::Arg(arg) = arg {
+            if let InstructionArg::Value(arg) = arg {
                 match arg {
-                    ObjInsArgValue::Signed(v) => {
+                    InstructionArgValue::Signed(v) => {
                         ui.label(format!("{arg} == {v}"));
                     }
-                    ObjInsArgValue::Unsigned(v) => {
+                    InstructionArgValue::Unsigned(v) => {
                         ui.label(format!("{arg} == {v}"));
                     }
                     _ => {}
@@ -107,66 +162,76 @@ fn ins_hover_ui(
             }
         }
 
-        if let Some(reloc) = &ins.reloc {
-            ui.label(format!("Relocation type: {}", obj.arch.display_reloc(reloc.flags)));
-            let addend_str = match reloc.addend.cmp(&0i64) {
-                Ordering::Greater => format!("+{:x}", reloc.addend),
-                Ordering::Less => format!("-{:x}", -reloc.addend),
+        if let Some(resolved) = relocation {
+            ui.label(format!(
+                "Relocation type: {}",
+                obj.arch.display_reloc(resolved.relocation.flags)
+            ));
+            let addend_str = match resolved.relocation.addend.cmp(&0i64) {
+                Ordering::Greater => format!("+{:x}", resolved.relocation.addend),
+                Ordering::Less => format!("-{:x}", -resolved.relocation.addend),
                 _ => "".to_string(),
             };
             ui.colored_label(
                 appearance.highlight_color,
-                format!("Name: {}{}", reloc.target.name, addend_str),
+                format!("Name: {}{}", resolved.symbol.name, addend_str),
             );
-            if let Some(orig_section_index) = reloc.target.orig_section_index {
-                if let Some(section) =
-                    obj.sections.iter().find(|s| s.orig_index == orig_section_index)
-                {
-                    ui.colored_label(
-                        appearance.highlight_color,
-                        format!("Section: {}", section.name),
-                    );
-                }
+            if let Some(orig_section_index) = resolved.symbol.section {
+                let section = &obj.sections[orig_section_index];
+                ui.colored_label(appearance.highlight_color, format!("Section: {}", section.name));
                 ui.colored_label(
                     appearance.highlight_color,
-                    format!("Address: {:x}{}", reloc.target.address, addend_str),
+                    format!("Address: {:x}{}", resolved.symbol.address, addend_str),
                 );
                 ui.colored_label(
                     appearance.highlight_color,
-                    format!("Size: {:x}", reloc.target.size),
+                    format!("Size: {:x}", resolved.symbol.size),
                 );
-                for label in obj.arch.display_ins_data_labels(ins) {
-                    ui.colored_label(appearance.highlight_color, label);
-                }
+                // TODO
+                // for label in obj.arch.display_ins_data_labels(ins) {
+                //     ui.colored_label(appearance.highlight_color, label);
+                // }
             } else {
                 ui.colored_label(appearance.highlight_color, "Extern".to_string());
             }
         }
 
-        if let Some(decoded) = rlwinmdec::decode(&ins.formatted) {
-            ui.colored_label(appearance.highlight_color, decoded.trim());
-        }
+        // TODO
+        // if let Some(decoded) = rlwinmdec::decode(&ins.formatted) {
+        //     ui.colored_label(appearance.highlight_color, decoded.trim());
+        // }
     });
 }
 
 fn ins_context_menu(
     ui: &mut egui::Ui,
-    obj: &ObjInfo,
-    section: &ObjSection,
-    ins: &ObjIns,
-    symbol: &ObjSymbol,
+    obj: &Object,
+    symbol_idx: usize,
+    ins_ref: InstructionRef,
+    diff_config: &DiffObjConfig,
+    appearance: &Appearance,
 ) {
+    let Some((
+        ResolvedInstructionRef { symbol, section_idx: _, section: _, data, relocation },
+        ins,
+    )) = resolve_instruction(obj, symbol_idx, ins_ref, diff_config)
+    else {
+        ui.colored_label(appearance.delete_color, "Failed to resolve instruction");
+        return;
+    };
+
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
-        if ui.button(format!("Copy \"{}\"", ins.formatted)).clicked() {
-            ui.output_mut(|output| output.copied_text.clone_from(&ins.formatted));
-            ui.close_menu();
-        }
+        // TODO
+        // if ui.button(format!("Copy \"{}\"", ins.formatted)).clicked() {
+        //     ui.output_mut(|output| output.copied_text.clone_from(&ins.formatted));
+        //     ui.close_menu();
+        // }
 
         let mut hex_string = "0x".to_string();
-        for byte in &section.data[ins.address as usize..(ins.address + ins.size as u64) as usize] {
+        for byte in data {
             hex_string.push_str(&format!("{:02x}", byte));
         }
         if ui.button(format!("Copy \"{hex_string}\" (instruction bytes)")).clicked() {
@@ -175,7 +240,7 @@ fn ins_context_menu(
         }
 
         if let Some(virtual_address) = symbol.virtual_address {
-            let offset = ins.address - symbol.address;
+            let offset = ins_ref.address - symbol.address;
             let offset_string = format!("{:#x}", virtual_address + offset);
             if ui.button(format!("Copy \"{offset_string}\" (virtual address)")).clicked() {
                 ui.output_mut(|output| output.copied_text = offset_string);
@@ -184,9 +249,9 @@ fn ins_context_menu(
         }
 
         for arg in &ins.args {
-            if let ObjInsArg::Arg(arg) = arg {
+            if let InstructionArg::Value(arg) = arg {
                 match arg {
-                    ObjInsArgValue::Signed(v) => {
+                    InstructionArgValue::Signed(v) => {
                         if ui.button(format!("Copy \"{arg}\"")).clicked() {
                             ui.output_mut(|output| output.copied_text = arg.to_string());
                             ui.close_menu();
@@ -196,7 +261,7 @@ fn ins_context_menu(
                             ui.close_menu();
                         }
                     }
-                    ObjInsArgValue::Unsigned(v) => {
+                    InstructionArgValue::Unsigned(v) => {
                         if ui.button(format!("Copy \"{arg}\"")).clicked() {
                             ui.output_mut(|output| output.copied_text = arg.to_string());
                             ui.close_menu();
@@ -210,21 +275,23 @@ fn ins_context_menu(
                 }
             }
         }
-        if let Some(reloc) = &ins.reloc {
-            for literal in obj.arch.display_ins_data_literals(ins) {
-                if ui.button(format!("Copy \"{literal}\"")).clicked() {
-                    ui.output_mut(|output| output.copied_text.clone_from(&literal));
-                    ui.close_menu();
-                }
-            }
-            if let Some(name) = &reloc.target.demangled_name {
+
+        if let Some(resolved) = relocation {
+            // TODO
+            // for literal in obj.arch.display_ins_data_literals(ins) {
+            //     if ui.button(format!("Copy \"{literal}\"")).clicked() {
+            //         ui.output_mut(|output| output.copied_text.clone_from(&literal));
+            //         ui.close_menu();
+            //     }
+            // }
+            if let Some(name) = &resolved.symbol.demangled_name {
                 if ui.button(format!("Copy \"{name}\"")).clicked() {
                     ui.output_mut(|output| output.copied_text.clone_from(name));
                     ui.close_menu();
                 }
             }
-            if ui.button(format!("Copy \"{}\"", reloc.target.name)).clicked() {
-                ui.output_mut(|output| output.copied_text.clone_from(&reloc.target.name));
+            if ui.button(format!("Copy \"{}\"", resolved.symbol.name)).clicked() {
+                ui.output_mut(|output| output.copied_text.clone_from(&resolved.symbol.name));
                 ui.close_menu();
             }
         }
@@ -232,11 +299,11 @@ fn ins_context_menu(
 }
 
 #[must_use]
-#[expect(clippy::too_many_arguments)]
 fn diff_text_ui(
     ui: &mut egui::Ui,
     text: DiffText<'_>,
-    ins_diff: &ObjInsDiff,
+    diff: InstructionArgDiffIndex,
+    ins_diff: &InstructionDiffRow,
     appearance: &Appearance,
     ins_view_state: &FunctionViewState,
     column: usize,
@@ -246,21 +313,17 @@ fn diff_text_ui(
     let mut ret = None;
     let label_text;
     let mut base_color = match ins_diff.kind {
-        ObjInsDiffKind::None | ObjInsDiffKind::OpMismatch | ObjInsDiffKind::ArgMismatch => {
-            appearance.text_color
-        }
-        ObjInsDiffKind::Replace => appearance.replace_color,
-        ObjInsDiffKind::Delete => appearance.delete_color,
-        ObjInsDiffKind::Insert => appearance.insert_color,
+        InstructionDiffKind::None
+        | InstructionDiffKind::OpMismatch
+        | InstructionDiffKind::ArgMismatch => appearance.text_color,
+        InstructionDiffKind::Replace => appearance.replace_color,
+        InstructionDiffKind::Delete => appearance.delete_color,
+        InstructionDiffKind::Insert => appearance.insert_color,
     };
     let mut pad_to = 0;
     match text {
         DiffText::Basic(text) => {
             label_text = text.to_string();
-        }
-        DiffText::BasicColor(s, idx) => {
-            label_text = s.to_string();
-            base_color = appearance.diff_colors[idx % appearance.diff_colors.len()];
         }
         DiffText::Line(num) => {
             label_text = num.to_string();
@@ -273,43 +336,29 @@ fn diff_text_ui(
         }
         DiffText::Opcode(mnemonic, _op) => {
             label_text = mnemonic.to_string();
-            if ins_diff.kind == ObjInsDiffKind::OpMismatch {
+            if ins_diff.kind == InstructionDiffKind::OpMismatch {
                 base_color = appearance.replace_color;
             }
             pad_to = 8;
         }
-        DiffText::Argument(arg, diff) => {
+        DiffText::Argument(arg) => {
             label_text = arg.to_string();
-            if let Some(diff) = diff {
-                base_color = appearance.diff_colors[diff.idx % appearance.diff_colors.len()]
-            }
         }
-        DiffText::BranchDest(addr, diff) => {
+        DiffText::BranchDest(addr) => {
             label_text = format!("{addr:x}");
-            if let Some(diff) = diff {
-                base_color = appearance.diff_colors[diff.idx % appearance.diff_colors.len()]
-            }
         }
-        DiffText::Symbol(sym, diff) => {
+        DiffText::Symbol(sym) => {
             let name = sym.demangled_name.as_ref().unwrap_or(&sym.name);
             label_text = name.clone();
-            if let Some(diff) = diff {
-                base_color = appearance.diff_colors[diff.idx % appearance.diff_colors.len()]
-            } else {
-                base_color = appearance.emphasized_text_color;
-            }
+            base_color = appearance.emphasized_text_color;
         }
-        DiffText::Addend(addend, diff) => {
+        DiffText::Addend(addend) => {
             label_text = match addend.cmp(&0i64) {
                 Ordering::Greater => format!("+{:#x}", addend),
                 Ordering::Less => format!("-{:#x}", -addend),
                 _ => "".to_string(),
             };
-            if let Some(diff) = diff {
-                base_color = appearance.diff_colors[diff.idx % appearance.diff_colors.len()]
-            } else {
-                base_color = appearance.emphasized_text_color;
-            }
+            base_color = appearance.emphasized_text_color;
         }
         DiffText::Spacing(n) => {
             ui.add_space(n as f32 * space_width);
@@ -318,6 +367,9 @@ fn diff_text_ui(
         DiffText::Eol => {
             label_text = "\n".to_string();
         }
+    }
+    if let Some(diff_idx) = diff.get() {
+        base_color = appearance.diff_colors[diff_idx as usize % appearance.diff_colors.len()];
     }
 
     let len = label_text.len();
@@ -341,24 +393,27 @@ fn diff_text_ui(
 #[must_use]
 fn asm_row_ui(
     ui: &mut egui::Ui,
-    ins_diff: &ObjInsDiff,
-    symbol: &ObjSymbol,
+    obj: &Object,
+    ins_diff: &InstructionDiffRow,
+    symbol_idx: usize,
     appearance: &Appearance,
     ins_view_state: &FunctionViewState,
+    diff_config: &DiffObjConfig,
     column: usize,
     response_cb: impl Fn(Response) -> Response,
 ) -> Option<DiffViewAction> {
     let mut ret = None;
     ui.spacing_mut().item_spacing.x = 0.0;
     ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-    if ins_diff.kind != ObjInsDiffKind::None {
+    if ins_diff.kind != InstructionDiffKind::None {
         ui.painter().rect_filled(ui.available_rect_before_wrap(), 0.0, ui.visuals().faint_bg_color);
     }
     let space_width = ui.fonts(|f| f.glyph_width(&appearance.code_font, ' '));
-    display_diff(ins_diff, symbol.address, |text| {
+    display_row(obj, symbol_idx, ins_diff, diff_config, |text, diff| {
         if let Some(action) = diff_text_ui(
             ui,
             text,
+            diff,
             ins_diff,
             appearance,
             ins_view_state,
@@ -368,7 +423,7 @@ fn asm_row_ui(
         ) {
             ret = Some(action);
         }
-        Ok::<_, ()>(())
+        Ok(())
     })
     .unwrap();
     ret
@@ -380,27 +435,36 @@ pub(crate) fn asm_col_ui(
     ctx: FunctionDiffContext<'_>,
     appearance: &Appearance,
     ins_view_state: &FunctionViewState,
+    diff_config: &DiffObjConfig,
     column: usize,
 ) -> Option<DiffViewAction> {
     let mut ret = None;
     let symbol_ref = ctx.symbol_ref?;
-    let (section, symbol) = ctx.obj.section_symbol(symbol_ref);
-    let section = section?;
-    let ins_diff = &ctx.diff.symbol_diff(symbol_ref).instructions[row.index()];
+    let ins_row = &ctx.diff.symbols[symbol_ref].instruction_rows[row.index()];
     let response_cb = |response: Response| {
-        if let Some(ins) = &ins_diff.ins {
-            response.context_menu(|ui| ins_context_menu(ui, ctx.obj, section, ins, symbol));
+        if let Some(ins_ref) = ins_row.ins_ref {
+            response.context_menu(|ui| {
+                ins_context_menu(ui, ctx.obj, symbol_ref, ins_ref, diff_config, appearance)
+            });
             response.on_hover_ui_at_pointer(|ui| {
-                ins_hover_ui(ui, ctx.obj, section, ins, symbol, appearance)
+                ins_hover_ui(ui, ctx.obj, symbol_ref, ins_ref, diff_config, appearance)
             })
         } else {
             response
         }
     };
     let (_, response) = row.col(|ui| {
-        if let Some(action) =
-            asm_row_ui(ui, ins_diff, symbol, appearance, ins_view_state, column, response_cb)
-        {
+        if let Some(action) = asm_row_ui(
+            ui,
+            ctx.obj,
+            ins_row,
+            symbol_ref,
+            appearance,
+            ins_view_state,
+            diff_config,
+            column,
+            response_cb,
+        ) {
             ret = Some(action);
         }
     });
@@ -410,7 +474,7 @@ pub(crate) fn asm_col_ui(
 
 #[derive(Clone, Copy)]
 pub struct FunctionDiffContext<'a> {
-    pub obj: &'a ObjInfo,
-    pub diff: &'a ObjDiff,
-    pub symbol_ref: Option<SymbolRef>,
+    pub obj: &'a Object,
+    pub diff: &'a ObjectDiff,
+    pub symbol_ref: Option<usize>,
 }

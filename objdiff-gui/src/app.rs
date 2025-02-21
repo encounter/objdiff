@@ -783,7 +783,8 @@ impl eframe::App for App {
 
         let mut action = None;
         egui::CentralPanel::default().show(ctx, |ui| {
-            action = diff_view_ui(ui, diff_state, appearance);
+            let state = state.read().unwrap();
+            action = diff_view_ui(ui, diff_state, appearance, &state.config.diff_obj_config);
         });
 
         project_window(ctx, state, show_project_config, config_state, appearance);

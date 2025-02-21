@@ -1,9 +1,17 @@
 {
   "compilerOptions": {
-    "esModuleInterop": true,
-    "module": "ES2022",
-    "moduleResolution": "Node",
-    "strict": true,
+    "lib": ["DOM", "ES2023"],
     "target": "ES2022",
-  }
+    "noEmit": true,
+    "skipLibCheck": true,
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "include": ["lib"]
 }

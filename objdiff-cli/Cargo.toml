@@ -18,7 +18,7 @@ argp = "0.4"
 crossterm = "0.28"
 enable-ansi-support = "0.2"
 memmap2 = "0.9"
-objdiff-core = { path = "../objdiff-core", features = ["all"] }
+objdiff-core = { path = "../objdiff-core", features = ["ppc", "std", "config", "dwarf", "bindings", "serde"] }
 prost = "0.13"
 ratatui = "0.29"
 rayon = "1.10"

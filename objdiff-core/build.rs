@@ -1,11 +1,12 @@
 #[cfg(feature = "any-arch")]
 mod config_gen;
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "bindings")]
     compile_protos();
     #[cfg(feature = "any-arch")]
     config_gen::generate_diff_config();
+    Ok(())
 }
 
 #[cfg(feature = "bindings")]
@@ -18,7 +19,7 @@ fn compile_protos() {
         .map(|m| m.modified().unwrap())
         .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
     let mut run_protoc = false;
-    let proto_files = vec![root.join("diff.proto"), root.join("report.proto")];
+    let proto_files = vec![root.join("report.proto")];
     for proto_file in &proto_files {
         println!("cargo:rerun-if-changed={}", proto_file.display());
         let mtime = match std::fs::metadata(proto_file) {

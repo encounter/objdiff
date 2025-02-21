@@ -6,9 +6,9 @@ use typed_path::Utf8PlatformPathBuf;
 
 use crate::{
     build::{run_make, BuildConfig, BuildStatus},
-    diff::{diff_objs, DiffObjConfig, MappingConfig, ObjDiff},
+    diff::{diff_objs, DiffObjConfig, MappingConfig, ObjectDiff},
     jobs::{start_job, update_status, Job, JobContext, JobResult, JobState},
-    obj::{read, ObjInfo},
+    obj::{read, Object},
 };
 
 pub struct ObjDiffConfig {
@@ -24,8 +24,8 @@ pub struct ObjDiffConfig {
 pub struct ObjDiffResult {
     pub first_status: BuildStatus,
     pub second_status: BuildStatus,
-    pub first_obj: Option<(ObjInfo, ObjDiff)>,
-    pub second_obj: Option<(ObjInfo, ObjDiff)>,
+    pub first_obj: Option<(Object, ObjectDiff)>,
+    pub second_obj: Option<(Object, ObjectDiff)>,
     pub time: OffsetDateTime,
 }
 
@@ -170,11 +170,11 @@ fn run_build(
     update_status(context, "Performing diff".to_string(), step_idx, total, &cancel)?;
     step_idx += 1;
     let result = diff_objs(
-        &config.diff_obj_config,
-        &config.mapping_config,
         first_obj.as_ref(),
         second_obj.as_ref(),
         None,
+        &config.diff_obj_config,
+        &config.mapping_config,
     )?;
 
     update_status(context, "Complete".to_string(), step_idx, total, &cancel)?;

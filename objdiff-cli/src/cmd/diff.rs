@@ -30,16 +30,15 @@ use objdiff_core::{
         path::{check_path_buf, platform_path, platform_path_serde_option},
         ProjectConfig, ProjectObject, ProjectObjectMetadata,
     },
-    diff,
     diff::{
-        ConfigEnum, ConfigPropertyId, ConfigPropertyKind, DiffObjConfig, MappingConfig, ObjDiff,
+        self, ConfigEnum, ConfigPropertyId, ConfigPropertyKind, DiffObjConfig, MappingConfig,
+        ObjectDiff,
     },
     jobs::{
         objdiff::{start_build, ObjDiffConfig},
         Job, JobQueue, JobResult,
     },
-    obj,
-    obj::ObjInfo,
+    obj::{self, Object},
 };
 use ratatui::prelude::*;
 use typed_path::{Utf8PlatformPath, Utf8PlatformPathBuf};
@@ -239,7 +238,7 @@ fn run_oneshot(
         })
         .transpose()?;
     let result =
-        diff::diff_objs(&diff_config, &mapping_config, target.as_ref(), base.as_ref(), None)?;
+        diff::diff_objs(target.as_ref(), base.as_ref(), None, &diff_config, &mapping_config)?;
     let left = target.as_ref().and_then(|o| result.left.as_ref().map(|d| (o, d)));
     let right = base.as_ref().and_then(|o| result.right.as_ref().map(|d| (o, d)));
     write_output(&DiffResult::new(left, right), Some(output), output_format)?;
@@ -253,9 +252,9 @@ pub struct AppState {
     pub project_config: Option<ProjectConfig>,
     pub target_path: Option<Utf8PlatformPathBuf>,
     pub base_path: Option<Utf8PlatformPathBuf>,
-    pub left_obj: Option<(ObjInfo, ObjDiff)>,
-    pub right_obj: Option<(ObjInfo, ObjDiff)>,
-    pub prev_obj: Option<(ObjInfo, ObjDiff)>,
+    pub left_obj: Option<(Object, ObjectDiff)>,
+    pub right_obj: Option<(Object, ObjectDiff)>,
+    pub prev_obj: Option<(Object, ObjectDiff)>,
     pub reload_time: Option<time::OffsetDateTime>,
     pub time_format: Vec<time::format_description::FormatItem<'static>>,
     pub watcher: Option<Watcher>,

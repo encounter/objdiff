@@ -1,0 +1,39 @@
+[package]
+name = "objdiff-wasm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "../README.md"
+description = """
+A local diffing tool for decompilation projects.
+"""
+publish = false
+build = "build.rs"
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = ["std"]
+std = ["objdiff-core/std"]
+
+[dependencies]
+log = { version = "0.4", default-features = false }
+regex = { version = "1.11", default-features = false }
+
+[dependencies.objdiff-core]
+path = "../objdiff-core"
+default-features = false
+features = ["arm", "arm64", "mips", "ppc", "dwarf"]
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+talc = { version = "4.4", default-features = false, features = ["lock_api"] }
+
+[target.'cfg(target_os = "wasi")'.dependencies]
+wit-bindgen = { version = "0.39", default-features = false, features = ["macros"] }
+
+[build-dependencies]
+wit-deps = "0.5"

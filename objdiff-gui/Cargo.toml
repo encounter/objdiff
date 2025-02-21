@@ -38,7 +38,7 @@ float-ord = "0.3"
 font-kit = "0.14"
 globset = { version = "0.4", features = ["serde1"] }
 log = "0.4"
-objdiff-core = { path = "../objdiff-core", features = ["all"] }
+objdiff-core = { path = "../objdiff-core", features = ["ppc", "arm", "arm64", "mips", "std", "config", "dwarf", "bindings", "serde", "build"] }
 open = "5.3"
 png = "0.17"
 pollster = "0.4"
@@ -52,6 +52,8 @@ shell-escape = "0.1"
 strum = { version = "0.26", features = ["derive"] }
 time = { version = "0.3", features = ["formatting", "local-offset"] }
 typed-path = "0.10"
+winit = { version = "0.30", features = ["wayland-csd-adwaita"] }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Keep version in sync with egui
 [dependencies.eframe]
@@ -80,15 +82,6 @@ winapi = "0.3"
 
 [target.'cfg(unix)'.dependencies]
 exec = "0.3"
-
-# native:
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# web:
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-console_error_panic_hook = "0.1"
-tracing-wasm = "0.2"
 
 [build-dependencies]
 anyhow = "1.0"

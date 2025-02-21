@@ -1,16 +1,19 @@
-use std::{collections::BTreeMap, mem::take, ops::Bound};
+use std::mem::take;
 
 use egui::{
     style::ScrollAnimation, text::LayoutJob, CollapsingHeader, Color32, Id, OpenUrl, ScrollArea,
     SelectableLabel, Ui, Widget,
 };
 use objdiff_core::{
-    arch::ObjArch,
-    diff::{display::HighlightKind, ObjDiff, ObjSymbolDiff},
-    jobs::{create_scratch::CreateScratchResult, objdiff::ObjDiffResult, Job, JobQueue, JobResult},
-    obj::{
-        ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags, SymbolRef, SECTION_COMMON,
+    diff::{
+        display::{
+            display_sections, symbol_context, symbol_hover, ContextMenuItem, HighlightKind,
+            HoverItem, HoverItemColor, SectionDisplay, SymbolFilter,
+        },
+        ObjectDiff, SymbolDiff,
     },
+    jobs::{create_scratch::CreateScratchResult, objdiff::ObjDiffResult, Job, JobQueue, JobResult},
+    obj::{Object, Section, SectionKind, Symbol, SymbolFlag},
 };
 use regex::{Regex, RegexBuilder};
 
@@ -28,7 +31,7 @@ pub struct SymbolRefByName {
 }
 
 impl SymbolRefByName {
-    pub fn new(symbol: &ObjSymbol, section: Option<&ObjSection>) -> Self {
+    pub fn new(symbol: &Symbol, section: Option<&Section>) -> Self {
         Self { symbol_name: symbol.name.clone(), section_name: section.map(|s| s.name.clone()) }
     }
 }
@@ -50,7 +53,7 @@ pub enum DiffViewAction {
     /// Navigate to a new diff view
     Navigate(DiffViewNavigation),
     /// Set the highlighted symbols in the symbols view, optionally scrolling them into view.
-    SetSymbolHighlight(Option<SymbolRef>, Option<SymbolRef>, bool),
+    SetSymbolHighlight(Option<usize>, Option<usize>, bool),
     /// Set the symbols view search filter
     SetSearch(String),
     /// Submit the current function to decomp.me
@@ -88,15 +91,17 @@ impl DiffViewNavigation {
     pub fn with_symbols(
         view: View,
         other_ctx: Option<SymbolDiffContext<'_>>,
-        symbol: &ObjSymbol,
-        section: &ObjSection,
-        symbol_diff: &ObjSymbolDiff,
+        symbol: &Symbol,
+        section: &Section,
+        symbol_diff: &SymbolDiff,
         column: usize,
     ) -> Self {
         let symbol1 = Some(SymbolRefByName::new(symbol, Some(section)));
         let symbol2 = symbol_diff.target_symbol.and_then(|symbol_ref| {
             other_ctx.map(|ctx| {
-                let (section, symbol) = ctx.obj.section_symbol(symbol_ref);
+                let symbol = &ctx.obj.symbols[symbol_ref];
+                let section =
+                    symbol.section.and_then(|section_idx| ctx.obj.sections.get(section_idx));
                 SymbolRefByName::new(symbol, section)
             })
         });
@@ -107,7 +112,7 @@ impl DiffViewNavigation {
         }
     }
 
-    pub fn data_diff(section: &ObjSection, column: usize) -> Self {
+    pub fn data_diff(section: &Section, column: usize) -> Self {
         let symbol = Some(SymbolRefByName {
             symbol_name: "".to_string(),
             section_name: Some(section.name.clone()),
@@ -143,7 +148,7 @@ pub struct DiffViewState {
 
 #[derive(Default)]
 pub struct SymbolViewState {
-    pub highlighted_symbol: (Option<SymbolRef>, Option<SymbolRef>),
+    pub highlighted_symbol: (Option<usize>, Option<usize>),
     pub autoscroll_to_highlighted_symbols: bool,
     pub left_symbol: Option<SymbolRefByName>,
     pub right_symbol: Option<SymbolRefByName>,
@@ -365,9 +370,9 @@ fn symbol_context_menu_ui(
     ui: &mut Ui,
     ctx: SymbolDiffContext<'_>,
     other_ctx: Option<SymbolDiffContext<'_>>,
-    symbol: &ObjSymbol,
-    symbol_diff: &ObjSymbolDiff,
-    section: Option<&ObjSection>,
+    symbol: &Symbol,
+    symbol_diff: &SymbolDiff,
+    section: Option<&Section>,
     column: usize,
 ) -> Option<DiffViewNavigation> {
     let mut ret = None;
@@ -375,37 +380,37 @@ fn symbol_context_menu_ui(
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
-        if let Some(name) = &symbol.demangled_name {
-            if ui.button(format!("Copy \"{name}\"")).clicked() {
-                ui.output_mut(|output| output.copied_text.clone_from(name));
-                ui.close_menu();
+        for item in symbol_context(ctx.obj, symbol) {
+            match item {
+                ContextMenuItem::Copy { value, label } => {
+                    let label = if let Some(extra) = label {
+                        format!("Copy \"{value}\" ({extra})")
+                    } else {
+                        format!("Copy \"{value}\"")
+                    };
+                    if ui.button(label).clicked() {
+                        ui.output_mut(|output| output.copied_text = value);
+                        ui.close_menu();
+                    }
+                }
+                ContextMenuItem::Navigate { label } => {
+                    if ui.button(label).clicked() {
+                        // TODO other navigation
+                        ret = Some(DiffViewNavigation::with_symbols(
+                            View::ExtabDiff,
+                            other_ctx,
+                            symbol,
+                            section.unwrap(),
+                            symbol_diff,
+                            column,
+                        ));
+                        ui.close_menu();
+                    }
+                }
             }
         }
-        if ui.button(format!("Copy \"{}\"", symbol.name)).clicked() {
-            ui.output_mut(|output| output.copied_text.clone_from(&symbol.name));
-            ui.close_menu();
-        }
-        if let Some(address) = symbol.virtual_address {
-            if ui.button(format!("Copy \"{:#x}\" (virtual address)", address)).clicked() {
-                ui.output_mut(|output| output.copied_text = format!("{:#x}", address));
-                ui.close_menu();
-            }
-        }
-        if let Some(section) = section {
-            let has_extab =
-                ctx.obj.arch.ppc().and_then(|ppc| ppc.extab_for_symbol(symbol)).is_some();
-            if has_extab && ui.button("Decode exception table").clicked() {
-                ret = Some(DiffViewNavigation::with_symbols(
-                    View::ExtabDiff,
-                    other_ctx,
-                    symbol,
-                    section,
-                    symbol_diff,
-                    column,
-                ));
-                ui.close_menu();
-            }
 
+        if let Some(section) = section {
             if ui.button("Map symbol").clicked() {
                 let symbol_ref = SymbolRefByName::new(symbol, Some(section));
                 if column == 0 {
@@ -428,54 +433,41 @@ fn symbol_context_menu_ui(
     ret
 }
 
-fn symbol_hover_ui(ui: &mut Ui, arch: &dyn ObjArch, symbol: &ObjSymbol, appearance: &Appearance) {
+fn symbol_hover_ui(
+    ui: &mut Ui,
+    ctx: SymbolDiffContext<'_>,
+    symbol: &Symbol,
+    appearance: &Appearance,
+) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
-        ui.colored_label(appearance.highlight_color, format!("Name: {}", symbol.name));
-        ui.colored_label(appearance.highlight_color, format!("Address: {:x}", symbol.address));
-        if symbol.size_known {
-            ui.colored_label(appearance.highlight_color, format!("Size: {:x}", symbol.size));
-        } else {
-            ui.colored_label(
-                appearance.highlight_color,
-                format!("Size: {:x} (assumed)", symbol.size),
-            );
-        }
-        if let Some(address) = symbol.virtual_address {
-            ui.colored_label(appearance.replace_color, format!("Virtual address: {:#x}", address));
-        }
-        if let Some(extab) = arch.ppc().and_then(|ppc| ppc.extab_for_symbol(symbol)) {
-            ui.colored_label(
-                appearance.highlight_color,
-                format!("extab symbol: {}", &extab.etb_symbol.name),
-            );
-            ui.colored_label(
-                appearance.highlight_color,
-                format!("extabindex symbol: {}", &extab.eti_symbol.name),
-            );
+        for HoverItem { text, color } in symbol_hover(ctx.obj, symbol) {
+            let color = match color {
+                HoverItemColor::Normal => appearance.text_color,
+                HoverItemColor::Emphasized => appearance.highlight_color,
+                HoverItemColor::Special => appearance.replace_color,
+            };
+            ui.colored_label(color, text);
         }
     });
 }
 
 #[must_use]
-#[expect(clippy::too_many_arguments)]
 fn symbol_ui(
     ui: &mut Ui,
     ctx: SymbolDiffContext<'_>,
     other_ctx: Option<SymbolDiffContext<'_>>,
-    symbol: &ObjSymbol,
-    symbol_diff: &ObjSymbolDiff,
-    section: Option<&ObjSection>,
+    symbol: &Symbol,
+    symbol_diff: &SymbolDiff,
+    symbol_idx: usize,
+    section: Option<&Section>,
     state: &SymbolViewState,
     appearance: &Appearance,
     column: usize,
 ) -> Option<DiffViewAction> {
     let mut ret = None;
-    if symbol.flags.0.contains(ObjSymbolFlags::Hidden) && !state.show_hidden_symbols {
-        return ret;
-    }
     let mut job = LayoutJob::default();
     let name: &str =
         if let Some(demangled) = &symbol.demangled_name { demangled } else { &symbol.name };
@@ -483,24 +475,24 @@ fn symbol_ui(
     if let Some(sym_ref) =
         if column == 0 { state.highlighted_symbol.0 } else { state.highlighted_symbol.1 }
     {
-        selected = symbol_diff.symbol_ref == sym_ref;
+        selected = symbol_idx == sym_ref;
     }
-    if !symbol.flags.0.is_empty() {
+    if !symbol.flags.is_empty() {
         write_text("[", appearance.text_color, &mut job, appearance.code_font.clone());
-        if symbol.flags.0.contains(ObjSymbolFlags::Common) {
+        if symbol.flags.contains(SymbolFlag::Common) {
             write_text("c", appearance.replace_color, &mut job, appearance.code_font.clone());
-        } else if symbol.flags.0.contains(ObjSymbolFlags::Global) {
+        } else if symbol.flags.contains(SymbolFlag::Global) {
             write_text("g", appearance.insert_color, &mut job, appearance.code_font.clone());
-        } else if symbol.flags.0.contains(ObjSymbolFlags::Local) {
+        } else if symbol.flags.contains(SymbolFlag::Local) {
             write_text("l", appearance.text_color, &mut job, appearance.code_font.clone());
         }
-        if symbol.flags.0.contains(ObjSymbolFlags::Weak) {
+        if symbol.flags.contains(SymbolFlag::Weak) {
             write_text("w", appearance.text_color, &mut job, appearance.code_font.clone());
         }
-        if symbol.flags.0.contains(ObjSymbolFlags::HasExtra) {
+        if symbol.flags.contains(SymbolFlag::HasExtra) {
             write_text("e", appearance.text_color, &mut job, appearance.code_font.clone());
         }
-        if symbol.flags.0.contains(ObjSymbolFlags::Hidden) {
+        if symbol.flags.contains(SymbolFlag::Hidden) {
             write_text(
                 "h",
                 appearance.deemphasized_text_color,
@@ -521,9 +513,9 @@ fn symbol_ui(
         write_text(") ", appearance.text_color, &mut job, appearance.code_font.clone());
     }
     write_text(name, appearance.highlight_color, &mut job, appearance.code_font.clone());
-    let response = SelectableLabel::new(selected, job).ui(ui).on_hover_ui_at_pointer(|ui| {
-        symbol_hover_ui(ui, ctx.obj.arch.as_ref(), symbol, appearance)
-    });
+    let response = SelectableLabel::new(selected, job)
+        .ui(ui)
+        .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, ctx, symbol, appearance));
     response.context_menu(|ui| {
         if let Some(result) =
             symbol_context_menu_ui(ui, ctx, other_ctx, symbol, symbol_diff, section, column)
@@ -542,7 +534,7 @@ fn symbol_ui(
     if response.clicked() || (selected && hotkeys::enter_pressed(ui.ctx())) {
         if let Some(section) = section {
             match section.kind {
-                ObjSectionKind::Code => {
+                SectionKind::Code => {
                     ret = Some(DiffViewAction::Navigate(DiffViewNavigation::with_symbols(
                         View::FunctionDiff,
                         other_ctx,
@@ -552,62 +544,56 @@ fn symbol_ui(
                         column,
                     )));
                 }
-                ObjSectionKind::Data => {
+                SectionKind::Data => {
                     ret = Some(DiffViewAction::Navigate(DiffViewNavigation::data_diff(
                         section, column,
                     )));
                 }
-                ObjSectionKind::Bss => {}
+                _ => {}
             }
         }
     } else if response.hovered() {
         ret = Some(if column == 0 {
-            DiffViewAction::SetSymbolHighlight(
-                Some(symbol_diff.symbol_ref),
-                symbol_diff.target_symbol,
-                false,
-            )
+            DiffViewAction::SetSymbolHighlight(Some(symbol_idx), symbol_diff.target_symbol, false)
         } else {
-            DiffViewAction::SetSymbolHighlight(
-                symbol_diff.target_symbol,
-                Some(symbol_diff.symbol_ref),
-                false,
-            )
+            DiffViewAction::SetSymbolHighlight(symbol_diff.target_symbol, Some(symbol_idx), false)
         });
     }
     ret
 }
 
-fn symbol_matches_filter(
-    symbol: &ObjSymbol,
-    diff: &ObjSymbolDiff,
-    filter: SymbolFilter<'_>,
-) -> bool {
-    match filter {
-        SymbolFilter::None => true,
-        SymbolFilter::Search(regex) => {
-            regex.is_match(&symbol.name)
-                || symbol.demangled_name.as_deref().is_some_and(|s| regex.is_match(s))
-        }
-        SymbolFilter::Mapping(symbol_ref, regex) => {
-            diff.target_symbol == Some(symbol_ref)
-                && regex.is_none_or(|r| {
-                    r.is_match(&symbol.name)
-                        || symbol.demangled_name.as_deref().is_some_and(|s| r.is_match(s))
-                })
-        }
-    }
+fn find_prev_symbol(section_display: &[SectionDisplay], current: usize) -> Option<usize> {
+    section_display
+        .iter()
+        .flat_map(|s| s.symbols.iter())
+        .rev()
+        .skip_while(|s| s.symbol != current)
+        .nth(1)
+        .map(|s| s.symbol)
+        // Wrap around to the last symbol if we're at the beginning of the list
+        .or_else(|| find_last_symbol(section_display))
 }
 
-#[derive(Copy, Clone)]
-pub enum SymbolFilter<'a> {
-    None,
-    Search(&'a Regex),
-    Mapping(SymbolRef, Option<&'a Regex>),
+fn find_next_symbol(section_display: &[SectionDisplay], current: usize) -> Option<usize> {
+    section_display
+        .iter()
+        .flat_map(|s| s.symbols.iter())
+        .skip_while(|s| s.symbol != current)
+        .nth(1)
+        .map(|s| s.symbol)
+        // Wrap around to the first symbol if we're at the end of the list
+        .or_else(|| find_first_symbol(section_display))
+}
+
+fn find_first_symbol(section_display: &[SectionDisplay]) -> Option<usize> {
+    section_display.iter().flat_map(|s| s.symbols.iter()).next().map(|s| s.symbol)
+}
+
+fn find_last_symbol(section_display: &[SectionDisplay]) -> Option<usize> {
+    section_display.iter().flat_map(|s| s.symbols.iter()).next_back().map(|s| s.symbol)
 }
 
 #[must_use]
-#[expect(clippy::too_many_arguments)]
 pub fn symbol_list_ui(
     ui: &mut Ui,
     ctx: SymbolDiffContext<'_>,
@@ -620,41 +606,20 @@ pub fn symbol_list_ui(
 ) -> Option<DiffViewAction> {
     let mut ret = None;
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
-        let mut mapping = BTreeMap::new();
+        let mut show_mapped_symbols = state.show_mapped_symbols;
         if let SymbolFilter::Mapping(_, _) = filter {
-            let mut show_mapped_symbols = state.show_mapped_symbols;
             if ui.checkbox(&mut show_mapped_symbols, "Show mapped symbols").changed() {
                 ret = Some(DiffViewAction::SetShowMappedSymbols(show_mapped_symbols));
             }
-            for mapping_diff in &ctx.diff.mapping_symbols {
-                let symbol = ctx.obj.section_symbol(mapping_diff.symbol_ref).1;
-                if !symbol_matches_filter(symbol, mapping_diff, filter) {
-                    continue;
-                }
-                if !show_mapped_symbols {
-                    let symbol_diff = ctx.diff.symbol_diff(mapping_diff.symbol_ref);
-                    if symbol_diff.target_symbol.is_some() {
-                        continue;
-                    }
-                }
-                mapping.insert(mapping_diff.symbol_ref, mapping_diff);
-            }
-        } else {
-            for (symbol, diff) in ctx.obj.common.iter().zip(&ctx.diff.common) {
-                if !symbol_matches_filter(symbol, diff, filter) {
-                    continue;
-                }
-                mapping.insert(diff.symbol_ref, diff);
-            }
-            for (section, section_diff) in ctx.obj.sections.iter().zip(&ctx.diff.sections) {
-                for (symbol, symbol_diff) in section.symbols.iter().zip(&section_diff.symbols) {
-                    if !symbol_matches_filter(symbol, symbol_diff, filter) {
-                        continue;
-                    }
-                    mapping.insert(symbol_diff.symbol_ref, symbol_diff);
-                }
-            }
         }
+        let section_display = display_sections(
+            ctx.obj,
+            ctx.diff,
+            filter,
+            state.show_hidden_symbols,
+            show_mapped_symbols,
+            state.reverse_fn_order,
+        );
 
         hotkeys::check_scroll_hotkeys(ui, false);
 
@@ -669,14 +634,11 @@ pub fn symbol_list_ui(
             } else {
                 None
             };
-            if let Some(mut up) = up {
-                if state.reverse_fn_order {
-                    up = !up;
-                }
+            if let Some(up) = up {
                 new_key_value_to_highlight = if up {
-                    mapping.range(..sym_ref).next_back()
+                    find_prev_symbol(&section_display, sym_ref)
                 } else {
-                    mapping.range((Bound::Excluded(sym_ref), Bound::Unbounded)).next()
+                    find_next_symbol(&section_display, sym_ref)
                 };
             };
         } else {
@@ -685,26 +647,15 @@ pub fn symbol_list_ui(
             // we do when a symbol is highlighted. This is so that if only one column has a symbol
             // highlighted, that one takes precedence over the one with nothing highlighted.
             if hotkeys::up_pressed(ui.ctx()) || hotkeys::down_pressed(ui.ctx()) {
-                new_key_value_to_highlight = if state.reverse_fn_order {
-                    mapping.last_key_value()
-                } else {
-                    mapping.first_key_value()
-                };
+                new_key_value_to_highlight = find_first_symbol(&section_display);
             }
         }
-        if let Some((new_sym_ref, new_symbol_diff)) = new_key_value_to_highlight {
+        if let Some(new_sym_ref) = new_key_value_to_highlight {
+            let target_symbol = ctx.diff.symbols[new_sym_ref].target_symbol;
             ret = Some(if column == 0 {
-                DiffViewAction::SetSymbolHighlight(
-                    Some(*new_sym_ref),
-                    new_symbol_diff.target_symbol,
-                    true,
-                )
+                DiffViewAction::SetSymbolHighlight(Some(new_sym_ref), target_symbol, true)
             } else {
-                DiffViewAction::SetSymbolHighlight(
-                    new_symbol_diff.target_symbol,
-                    Some(*new_sym_ref),
-                    true,
-                )
+                DiffViewAction::SetSymbolHighlight(target_symbol, Some(new_sym_ref), true)
             });
         }
 
@@ -712,44 +663,21 @@ pub fn symbol_list_ui(
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
-            // Skip sections with all symbols filtered out
-            if mapping.keys().any(|symbol_ref| symbol_ref.section_idx == SECTION_COMMON) {
-                CollapsingHeader::new(".comm").default_open(true).show(ui, |ui| {
-                    for (symbol_ref, symbol_diff) in mapping
-                        .iter()
-                        .filter(|(symbol_ref, _)| symbol_ref.section_idx == SECTION_COMMON)
-                    {
-                        let symbol = ctx.obj.section_symbol(*symbol_ref).1;
-                        if let Some(result) = symbol_ui(
-                            ui,
-                            ctx,
-                            other_ctx,
-                            symbol,
-                            symbol_diff,
-                            None,
-                            state,
-                            appearance,
-                            column,
-                        ) {
-                            ret = Some(result);
-                        }
-                    }
-                });
-            }
-
-            for ((section_index, section), section_diff) in
-                ctx.obj.sections.iter().enumerate().zip(&ctx.diff.sections)
-            {
-                // Skip sections with all symbols filtered out
-                if !mapping.keys().any(|symbol_ref| symbol_ref.section_idx == section_index) {
-                    continue;
-                }
+            for section_display in section_display {
                 let mut header = LayoutJob::simple_singleline(
-                    format!("{} ({:x})", section.name, section.size),
+                    section_display.name.clone(),
                     appearance.code_font.clone(),
                     Color32::PLACEHOLDER,
                 );
-                if let Some(match_percent) = section_diff.match_percent {
+                if section_display.size > 0 {
+                    write_text(
+                        &format!(" ({:x})", section_display.size),
+                        Color32::PLACEHOLDER,
+                        &mut header,
+                        appearance.code_font.clone(),
+                    );
+                }
+                if let Some(match_percent) = section_display.match_percent {
                     write_text(
                         " (",
                         Color32::PLACEHOLDER,
@@ -770,50 +698,38 @@ pub fn symbol_list_ui(
                     );
                 }
                 CollapsingHeader::new(header)
-                    .id_salt(Id::new(section.name.clone()).with(section.orig_index))
+                    .id_salt(Id::new(&section_display.id))
                     .default_open(true)
                     .open(open_sections)
                     .show(ui, |ui| {
-                        if section.kind == ObjSectionKind::Code && state.reverse_fn_order {
-                            for (symbol, symbol_diff) in mapping
-                                .iter()
-                                .filter(|(symbol_ref, _)| symbol_ref.section_idx == section_index)
-                                .rev()
-                            {
-                                let symbol = ctx.obj.section_symbol(*symbol).1;
-                                if let Some(result) = symbol_ui(
-                                    ui,
-                                    ctx,
-                                    other_ctx,
-                                    symbol,
-                                    symbol_diff,
-                                    Some(section),
-                                    state,
-                                    appearance,
-                                    column,
-                                ) {
-                                    ret = Some(result);
-                                }
-                            }
-                        } else {
-                            for (symbol, symbol_diff) in mapping
-                                .iter()
-                                .filter(|(symbol_ref, _)| symbol_ref.section_idx == section_index)
-                            {
-                                let symbol = ctx.obj.section_symbol(*symbol).1;
-                                if let Some(result) = symbol_ui(
-                                    ui,
-                                    ctx,
-                                    other_ctx,
-                                    symbol,
-                                    symbol_diff,
-                                    Some(section),
-                                    state,
-                                    appearance,
-                                    column,
-                                ) {
-                                    ret = Some(result);
-                                }
+                        for symbol_display in &section_display.symbols {
+                            let symbol = &ctx.obj.symbols[symbol_display.symbol];
+                            let section = symbol
+                                .section
+                                .and_then(|section_idx| ctx.obj.sections.get(section_idx));
+                            let symbol_diff = if symbol_display.is_mapping_symbol {
+                                ctx.diff
+                                    .mapping_symbols
+                                    .iter()
+                                    .find(|d| d.symbol_index == symbol_display.symbol)
+                                    .map(|d| &d.symbol_diff)
+                                    .unwrap()
+                            } else {
+                                &ctx.diff.symbols[symbol_display.symbol]
+                            };
+                            if let Some(result) = symbol_ui(
+                                ui,
+                                ctx,
+                                other_ctx,
+                                symbol,
+                                symbol_diff,
+                                symbol_display.symbol,
+                                section,
+                                state,
+                                appearance,
+                                column,
+                            ) {
+                                ret = Some(result);
                             }
                         }
                     });
@@ -825,6 +741,6 @@ pub fn symbol_list_ui(
 
 #[derive(Copy, Clone)]
 pub struct SymbolDiffContext<'a> {
-    pub obj: &'a ObjInfo,
-    pub diff: &'a ObjDiff,
+    pub obj: &'a Object,
+    pub diff: &'a ObjectDiff,
 }

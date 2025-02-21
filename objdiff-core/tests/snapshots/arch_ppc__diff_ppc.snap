@@ -1,0 +1,90 @@
+---
+source: objdiff-core/tests/arch_ppc.rs
+expression: sections_display
+---
+[
+    SectionDisplay {
+        id: ".comm",
+        name: ".comm",
+        size: 0,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 11,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 12,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 13,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 14,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".ctors-0",
+        name: ".ctors",
+        size: 4,
+        match_percent: Some(
+            100.0,
+        ),
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 2,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-0",
+        name: ".text",
+        size: 3060,
+        match_percent: Some(
+            59.02353,
+        ),
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 1,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 3,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 10,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 9,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 8,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 7,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 6,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 5,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 4,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+]

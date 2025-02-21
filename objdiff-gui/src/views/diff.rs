@@ -1,8 +1,8 @@
 use egui::{Id, Layout, RichText, ScrollArea, TextEdit, Ui, Widget};
 use objdiff_core::{
     build::BuildStatus,
-    diff::{ObjDiff, ObjSectionDiff, ObjSymbolDiff},
-    obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, SymbolRef},
+    diff::{display::SymbolFilter, DiffObjConfig, ObjectDiff, SectionDiff, SymbolDiff},
+    obj::{Object, Section, SectionKind, Symbol},
 };
 use time::format_description;
 
@@ -16,30 +16,30 @@ use crate::{
         function_diff::{asm_col_ui, FunctionDiffContext},
         symbol_diff::{
             match_color_for_symbol, symbol_list_ui, DiffViewAction, DiffViewNavigation,
-            DiffViewState, SymbolDiffContext, SymbolFilter, SymbolRefByName, View,
+            DiffViewState, SymbolDiffContext, SymbolRefByName, View,
         },
     },
 };
 
 #[derive(Clone, Copy)]
 enum SelectedSymbol {
-    Symbol(SymbolRef),
+    Symbol(usize),
     Section(usize),
 }
 
 #[derive(Clone, Copy)]
 struct DiffColumnContext<'a> {
     status: &'a BuildStatus,
-    obj: Option<&'a (ObjInfo, ObjDiff)>,
-    section: Option<(&'a ObjSection, &'a ObjSectionDiff)>,
-    symbol: Option<(&'a ObjSymbol, &'a ObjSymbolDiff)>,
+    obj: Option<&'a (Object, ObjectDiff)>,
+    section: Option<(&'a Section, &'a SectionDiff, usize)>,
+    symbol: Option<(&'a Symbol, &'a SymbolDiff, usize)>,
 }
 
 impl<'a> DiffColumnContext<'a> {
     pub fn new(
         view: View,
         status: &'a BuildStatus,
-        obj: Option<&'a (ObjInfo, ObjDiff)>,
+        obj: Option<&'a (Object, ObjectDiff)>,
         selected_symbol: Option<&SymbolRefByName>,
     ) -> Self {
         let selected_symbol = match view {
@@ -57,15 +57,18 @@ impl<'a> DiffColumnContext<'a> {
         };
         let (section, symbol) = match (obj, selected_symbol) {
             (Some((obj, obj_diff)), Some(SelectedSymbol::Symbol(symbol_ref))) => {
-                let (section, symbol) = obj.section_symbol(symbol_ref);
+                let symbol = &obj.symbols[symbol_ref];
                 (
-                    section.map(|s| (s, obj_diff.section_diff(symbol_ref.section_idx))),
-                    Some((symbol, obj_diff.symbol_diff(symbol_ref))),
+                    symbol.section.map(|section_idx| {
+                        (&obj.sections[section_idx], &obj_diff.sections[section_idx], section_idx)
+                    }),
+                    Some((symbol, &obj_diff.symbols[symbol_ref], symbol_ref)),
                 )
             }
-            (Some((obj, obj_diff)), Some(SelectedSymbol::Section(section_idx))) => {
-                (Some((&obj.sections[section_idx], obj_diff.section_diff(section_idx))), None)
-            }
+            (Some((obj, obj_diff)), Some(SelectedSymbol::Section(section_idx))) => (
+                Some((&obj.sections[section_idx], &obj_diff.sections[section_idx], section_idx)),
+                None,
+            ),
             _ => (None, None),
         };
         Self { status, obj, section, symbol }
@@ -77,8 +80,8 @@ impl<'a> DiffColumnContext<'a> {
     #[inline]
     pub fn id(&self) -> Option<&str> {
         self.symbol
-            .map(|(symbol, _)| symbol.name.as_str())
-            .or_else(|| self.section.map(|(section, _)| section.name.as_str()))
+            .map(|(symbol, _, _)| symbol.name.as_str())
+            .or_else(|| self.section.map(|(section, _, _)| section.name.as_str()))
     }
 }
 
@@ -87,6 +90,7 @@ pub fn diff_view_ui(
     ui: &mut Ui,
     state: &DiffViewState,
     appearance: &Appearance,
+    diff_config: &DiffObjConfig,
 ) -> Option<DiffViewAction> {
     let mut ret = None;
     let Some(result) = &state.build else {
@@ -113,12 +117,15 @@ pub fn diff_view_ui(
         right_symbol: state.symbol_state.right_symbol.clone(),
     };
     let mut navigation = current_navigation.clone();
-    if let Some((_symbol, symbol_diff)) = left_ctx.symbol {
+    if let Some((_symbol, symbol_diff, _symbol_idx)) = left_ctx.symbol {
         // If a matching symbol appears, select it
         if !right_ctx.has_symbol() {
             if let Some(target_symbol_ref) = symbol_diff.target_symbol {
-                let (target_section, target_symbol) =
-                    right_ctx.obj.unwrap().0.section_symbol(target_symbol_ref);
+                let (right_obj, _) = right_ctx.obj.unwrap();
+                let target_symbol = &right_obj.symbols[target_symbol_ref];
+                let target_section = target_symbol
+                    .section
+                    .and_then(|section_idx| right_obj.sections.get(section_idx));
                 navigation.right_symbol = Some(SymbolRefByName::new(target_symbol, target_section));
             }
         }
@@ -129,12 +136,15 @@ pub fn diff_view_ui(
         // Clear selection if symbol goes missing
         navigation.left_symbol = None;
     }
-    if let Some((_symbol, symbol_diff)) = right_ctx.symbol {
+    if let Some((_symbol, symbol_diff, _symbol_idx)) = right_ctx.symbol {
         // If a matching symbol appears, select it
         if !left_ctx.has_symbol() {
             if let Some(target_symbol_ref) = symbol_diff.target_symbol {
-                let (target_section, target_symbol) =
-                    left_ctx.obj.unwrap().0.section_symbol(target_symbol_ref);
+                let (left_obj, _) = left_ctx.obj.unwrap();
+                let target_symbol = &left_obj.symbols[target_symbol_ref];
+                let target_section = target_symbol
+                    .section
+                    .and_then(|section_idx| left_obj.sections.get(section_idx));
                 navigation.left_symbol = Some(SymbolRefByName::new(target_symbol, target_section));
             }
         }
@@ -170,7 +180,7 @@ pub fn diff_view_ui(
                         ret = Some(DiffViewAction::Navigate(DiffViewNavigation::symbol_diff()));
                     }
 
-                    if let Some((symbol, _)) = left_ctx.symbol {
+                    if let Some((symbol, _, _)) = left_ctx.symbol {
                         ui.separator();
                         if ui
                             .add_enabled(
@@ -210,13 +220,13 @@ pub fn diff_view_ui(
                             .color(appearance.replace_color),
                     );
                 }
-            } else if let Some((symbol, _)) = left_ctx.symbol {
+            } else if let Some((symbol, _, _)) = left_ctx.symbol {
                 ui.label(
                     RichText::new(symbol.demangled_name.as_deref().unwrap_or(&symbol.name))
                         .font(appearance.code_font.clone())
                         .color(appearance.highlight_color),
                 );
-            } else if let Some((section, _)) = left_ctx.section {
+            } else if let Some((section, _, _)) = left_ctx.section {
                 ui.label(
                     RichText::new(section.name.clone())
                         .font(appearance.code_font.clone())
@@ -331,13 +341,13 @@ pub fn diff_view_ui(
                             .color(appearance.replace_color),
                     );
                 }
-            } else if let Some((symbol, _)) = right_ctx.symbol {
+            } else if let Some((symbol, _, _)) = right_ctx.symbol {
                 ui.label(
                     RichText::new(symbol.demangled_name.as_deref().unwrap_or(&symbol.name))
                         .font(appearance.code_font.clone())
                         .color(appearance.highlight_color),
                 );
-            } else if let Some((section, _)) = right_ctx.section {
+            } else if let Some((section, _, _)) = right_ctx.section {
                 ui.label(
                     RichText::new(section.name.clone())
                         .font(appearance.code_font.clone())
@@ -359,16 +369,29 @@ pub fn diff_view_ui(
 
             // Third row
             ui.horizontal(|ui| {
-                if let Some((_, symbol_diff)) = right_ctx.symbol {
+                if let Some((_, symbol_diff, _symbol_idx)) = right_ctx.symbol {
+                    let mut needs_separator = false;
                     if let Some(match_percent) = symbol_diff.match_percent {
-                        ui.label(
-                            RichText::new(format!("{:.0}%", match_percent.floor()))
+                        let response = ui.label(
+                            RichText::new(format!("{:.2}%", match_percent))
                                 .font(appearance.code_font.clone())
                                 .color(match_color_for_symbol(match_percent, appearance)),
                         );
+                        if let Some((diff_score, max_score)) = symbol_diff.diff_score {
+                            response.on_hover_ui_at_pointer(|ui| {
+                                ui.label(
+                                    RichText::new(format!("Score: {}/{}", diff_score, max_score))
+                                        .font(appearance.code_font.clone())
+                                        .color(appearance.text_color),
+                                );
+                            });
+                        }
+                        needs_separator = true;
                     }
                     if state.current_view == View::FunctionDiff && left_ctx.has_symbol() {
-                        ui.separator();
+                        if needs_separator {
+                            ui.separator();
+                        }
                         if ui
                             .button("Change base")
                             .on_hover_text_at_pointer(
@@ -413,17 +436,17 @@ pub fn diff_view_ui(
             View::FunctionDiff,
             Some((left_obj, left_diff)),
             Some((right_obj, right_diff)),
-            Some((_, left_symbol_diff)),
-            Some((_, right_symbol_diff)),
+            Some((_, left_symbol_diff, left_symbol_idx)),
+            Some((_, right_symbol_diff, right_symbol_idx)),
         ) = (state.current_view, left_ctx.obj, right_ctx.obj, left_ctx.symbol, right_ctx.symbol)
         {
             // Joint diff view
             hotkeys::check_scroll_hotkeys(ui, true);
-            if left_symbol_diff.instructions.len() != right_symbol_diff.instructions.len() {
+            if left_symbol_diff.instruction_rows.len() != right_symbol_diff.instruction_rows.len() {
                 ui.label("Instruction count mismatch");
                 return;
             }
-            let instructions_len = left_symbol_diff.instructions.len();
+            let instructions_len = left_symbol_diff.instruction_rows.len();
             render_table(
                 ui,
                 available_width,
@@ -437,10 +460,11 @@ pub fn diff_view_ui(
                             FunctionDiffContext {
                                 obj: left_obj,
                                 diff: left_diff,
-                                symbol_ref: Some(left_symbol_diff.symbol_ref),
+                                symbol_ref: Some(left_symbol_idx),
                             },
                             appearance,
                             &state.function_state,
+                            diff_config,
                             column,
                         ) {
                             ret = Some(action);
@@ -451,10 +475,11 @@ pub fn diff_view_ui(
                             FunctionDiffContext {
                                 obj: right_obj,
                                 diff: right_diff,
-                                symbol_ref: Some(right_symbol_diff.symbol_ref),
+                                symbol_ref: Some(right_symbol_idx),
                             },
                             appearance,
                             &state.function_state,
+                            diff_config,
                             column,
                         ) {
                             ret = Some(action);
@@ -469,8 +494,8 @@ pub fn diff_view_ui(
             View::DataDiff,
             Some((left_obj, _left_diff)),
             Some((right_obj, _right_diff)),
-            Some((_left_section, left_section_diff)),
-            Some((_right_section, right_section_diff)),
+            Some((_left_section, left_section_diff, _left_symbol_idx)),
+            Some((_right_section, right_section_diff, _right_symbol_idx)),
         ) =
             (state.current_view, left_ctx.obj, right_ctx.obj, left_ctx.section, right_ctx.section)
         {
@@ -522,6 +547,7 @@ pub fn diff_view_ui(
                         right_ctx,
                         available_width,
                         open_sections.0,
+                        diff_config,
                     ) {
                         ret = Some(action);
                     }
@@ -535,6 +561,7 @@ pub fn diff_view_ui(
                         left_ctx,
                         available_width,
                         open_sections.1,
+                        diff_config,
                     ) {
                         ret = Some(action);
                     }
@@ -547,7 +574,6 @@ pub fn diff_view_ui(
 }
 
 #[must_use]
-#[allow(clippy::too_many_arguments)]
 fn diff_col_ui(
     ui: &mut Ui,
     state: &DiffViewState,
@@ -557,14 +583,15 @@ fn diff_col_ui(
     other_ctx: DiffColumnContext,
     available_width: f32,
     open_sections: Option<bool>,
+    diff_config: &DiffObjConfig,
 ) -> Option<DiffViewAction> {
     let mut ret = None;
     if !ctx.status.success {
         build_log_ui(ui, ctx.status, appearance);
     } else if let Some((obj, diff)) = ctx.obj {
-        if let Some((_symbol, symbol_diff)) = ctx.symbol {
+        if let Some((_symbol, symbol_diff, symbol_idx)) = ctx.symbol {
             hotkeys::check_scroll_hotkeys(ui, false);
-            let ctx = FunctionDiffContext { obj, diff, symbol_ref: Some(symbol_diff.symbol_ref) };
+            let ctx = FunctionDiffContext { obj, diff, symbol_ref: Some(symbol_idx) };
             if state.current_view == View::ExtabDiff {
                 extab_ui(ui, ctx, appearance, column);
             } else {
@@ -573,11 +600,16 @@ fn diff_col_ui(
                     available_width / 2.0,
                     1,
                     appearance.code_font.size,
-                    symbol_diff.instructions.len(),
+                    symbol_diff.instruction_rows.len(),
                     |row, column| {
-                        if let Some(action) =
-                            asm_col_ui(row, ctx, appearance, &state.function_state, column)
-                        {
+                        if let Some(action) = asm_col_ui(
+                            row,
+                            ctx,
+                            appearance,
+                            &state.function_state,
+                            diff_config,
+                            column,
+                        ) {
                             ret = Some(action);
                         }
                         if row.response().clicked() {
@@ -586,7 +618,7 @@ fn diff_col_ui(
                     },
                 );
             }
-        } else if let Some((_section, section_diff)) = ctx.section {
+        } else if let Some((_section, section_diff, _section_idx)) = ctx.section {
             hotkeys::check_scroll_hotkeys(ui, false);
             let total_bytes =
                 section_diff.data_diff.iter().fold(0usize, |accum, item| accum + item.len);
@@ -610,8 +642,8 @@ fn diff_col_ui(
                 },
             );
         } else if let (
-            Some((other_section, _other_section_diff)),
-            Some((other_symbol, other_symbol_diff)),
+            Some((other_section, _other_section_diff, _other_section_idx)),
+            Some((other_symbol, _other_symbol_diff, other_symbol_idx)),
         ) = (other_ctx.section, other_ctx.symbol)
         {
             if let Some(action) = symbol_list_ui(
@@ -619,7 +651,7 @@ fn diff_col_ui(
                 SymbolDiffContext { obj, diff },
                 None,
                 &state.symbol_state,
-                SymbolFilter::Mapping(other_symbol_diff.symbol_ref, None),
+                SymbolFilter::Mapping(other_symbol_idx, None),
                 appearance,
                 column,
                 open_sections,
@@ -634,7 +666,7 @@ fn diff_col_ui(
                     ) => {
                         ret = Some(DiffViewAction::SetMapping(
                             match other_section.kind {
-                                ObjSectionKind::Code => View::FunctionDiff,
+                                SectionKind::Code => View::FunctionDiff,
                                 _ => View::SymbolDiff,
                             },
                             left_symbol_ref,
@@ -650,7 +682,7 @@ fn diff_col_ui(
                     ) => {
                         ret = Some(DiffViewAction::SetMapping(
                             match other_section.kind {
-                                ObjSectionKind::Code => View::FunctionDiff,
+                                SectionKind::Code => View::FunctionDiff,
                                 _ => View::SymbolDiff,
                             },
                             SymbolRefByName::new(other_symbol, Some(other_section)),
@@ -725,17 +757,10 @@ fn missing_obj_ui(ui: &mut Ui, appearance: &Appearance) {
     });
 }
 
-fn find_symbol(obj: &ObjInfo, selected_symbol: &SymbolRefByName) -> Option<SymbolRef> {
-    for (section_idx, section) in obj.sections.iter().enumerate() {
-        for (symbol_idx, symbol) in section.symbols.iter().enumerate() {
-            if symbol.name == selected_symbol.symbol_name {
-                return Some(SymbolRef { section_idx, symbol_idx });
-            }
-        }
-    }
-    None
+fn find_symbol(obj: &Object, selected_symbol: &SymbolRefByName) -> Option<usize> {
+    obj.symbols.iter().position(|symbol| symbol.name == selected_symbol.symbol_name)
 }
 
-fn find_section(obj: &ObjInfo, section_name: &str) -> Option<usize> {
+fn find_section(obj: &Object, section_name: &str) -> Option<usize> {
     obj.sections.iter().position(|section| section.name == section_name)
 }

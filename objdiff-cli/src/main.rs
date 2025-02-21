@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+
 mod argp_version;
 mod cmd;
 mod util;

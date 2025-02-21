@@ -1,7 +1,7 @@
 use egui::ScrollArea;
 use objdiff_core::{
     arch::ppc::ExceptionInfo,
-    obj::{ObjInfo, ObjSymbol},
+    obj::{Object, Symbol},
 };
 
 use crate::views::{appearance::Appearance, function_diff::FunctionDiffContext};
@@ -26,14 +26,16 @@ fn decode_extab(extab: &ExceptionInfo) -> String {
     text
 }
 
-fn find_extab_entry<'a>(obj: &'a ObjInfo, symbol: &ObjSymbol) -> Option<&'a ExceptionInfo> {
-    obj.arch.ppc().and_then(|ppc| ppc.extab_for_symbol(symbol))
+fn find_extab_entry<'a>(_obj: &'a Object, _symbol: &Symbol) -> Option<&'a ExceptionInfo> {
+    // TODO
+    // obj.arch.ppc().and_then(|ppc| ppc.extab_for_symbol(symbol))
+    None
 }
 
 fn extab_text_ui(
     ui: &mut egui::Ui,
     ctx: FunctionDiffContext<'_>,
-    symbol: &ObjSymbol,
+    symbol: &Symbol,
     appearance: &Appearance,
 ) -> Option<()> {
     if let Some(extab_entry) = find_extab_entry(ctx.obj, symbol) {
@@ -56,8 +58,8 @@ pub(crate) fn extab_ui(
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
-            if let Some((_section, symbol)) =
-                ctx.symbol_ref.map(|symbol_ref| ctx.obj.section_symbol(symbol_ref))
+            if let Some(symbol) =
+                ctx.symbol_ref.and_then(|symbol_ref| ctx.obj.symbols.get(symbol_ref))
             {
                 extab_text_ui(ui, ctx, symbol, appearance);
             }

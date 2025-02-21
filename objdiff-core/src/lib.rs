@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 
@@ -17,5 +18,3 @@ pub mod jobs;
 pub mod obj;
 #[cfg(feature = "any-arch")]
 pub mod util;
-#[cfg(feature = "wasm")]
-pub mod wasm;

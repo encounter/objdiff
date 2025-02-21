@@ -273,6 +273,7 @@ impl DiffObjConfigV1 {
             },
             space_between_args: self.space_between_args,
             combine_data_sections: self.combine_data_sections,
+            combine_text_sections: false,
             x86_formatter: self.x86_formatter,
             mips_abi: self.mips_abi,
             mips_instr_category: self.mips_instr_category,
