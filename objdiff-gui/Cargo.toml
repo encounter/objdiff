@@ -38,7 +38,7 @@ float-ord = "0.3"
 font-kit = "0.14"
 globset = { version = "0.4", features = ["serde1"] }
 log = "0.4"
-objdiff-core = { path = "../objdiff-core", features = ["ppc", "arm", "arm64", "mips", "std", "config", "dwarf", "bindings", "serde", "build"] }
+objdiff-core = { path = "../objdiff-core", features = ["all"] }
 open = "5.3"
 png = "0.17"
 pollster = "0.4"

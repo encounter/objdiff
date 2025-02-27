@@ -285,9 +285,7 @@ fn push_args(
                 } else {
                     arg_cb(InstructionPart::Arg(InstructionArg::Value(
                         InstructionArgValue::Opaque(
-                            op.display(instruction, display_flags, None::<&str>)
-                                .to_string()
-                                .into(),
+                            op.display(instruction, display_flags, None::<&str>).to_string().into(),
                         ),
                     )))?;
                 }

@@ -236,6 +236,7 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           targets: wasm32-wasip2
+          components: rust-src
       - name: Cache Rust workspace
         uses: Swatinem/rust-cache@v2
       - name: Install dependencies

@@ -107,11 +107,7 @@ fn diff_data_relocs_for_range<'left, 'right>(
         if reloc_eq(left_obj, right_obj, &left_reloc, &right_reloc) {
             diffs.push((DataDiffKind::None, Some(left_reloc), Some(right_reloc)));
         } else {
-            diffs.push((
-                DataDiffKind::Replace,
-                Some(left_reloc),
-                Some(right_reloc),
-            ));
+            diffs.push((DataDiffKind::Replace, Some(left_reloc), Some(right_reloc)));
         }
     }
     for right_reloc in right_section.relocations.iter() {
