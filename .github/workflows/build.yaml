@@ -10,7 +10,6 @@ on:
 
 env:
   BUILD_PROFILE: release-lto
-  CARGO_TARGET_DIR: target
   CARGO_INCREMENTAL: 0
 
 jobs:
@@ -167,8 +166,8 @@ jobs:
         with:
           name: ${{ env.CARGO_BIN_NAME }}-${{ matrix.name }}
           path: |
-            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}
-            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}.exe
+            target/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}
+            target/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}.exe
           if-no-files-found: error
 
   build-gui:
@@ -222,8 +221,8 @@ jobs:
         with:
           name: ${{ env.CARGO_BIN_NAME }}-${{ matrix.name }}
           path: |
-            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}
-            ${{ env.CARGO_TARGET_DIR }}/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}.exe
+            target/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}
+            target/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}.exe
           if-no-files-found: error
 
   build-wasm:
@@ -239,11 +238,9 @@ jobs:
       - name: Cache Rust workspace
         uses: Swatinem/rust-cache@v2
       - name: Install dependencies
-        working-directory: objdiff-wasm
-        run: npm install
+        run: npm -C objdiff-wasm install
       - name: Build
-        working-directory: objdiff-wasm
-        run: npm run build
+        run: npm -C objdiff-wasm run build
 
   release:
     name: Release
