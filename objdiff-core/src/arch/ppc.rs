@@ -18,8 +18,8 @@ use crate::{
     arch::{Arch, DataType},
     diff::{display::InstructionPart, DiffObjConfig},
     obj::{
-        InstructionArg, InstructionArgValue, InstructionRef, Relocation, RelocationFlags,
-        ResolvedRelocation, ScannedInstruction, Symbol, SymbolFlag, SymbolFlagSet,
+        InstructionRef, Relocation, RelocationFlags, ResolvedRelocation, ScannedInstruction,
+        Symbol, SymbolFlag, SymbolFlagSet,
     },
 };
 
@@ -113,14 +113,14 @@ impl Arch for ArchPpc {
         let op = ppc750cl::Opcode::from(ins_ref.opcode as u8);
         let ins = ppc750cl::Ins { code, op }.simplified();
 
-        cb(InstructionPart::Opcode(Cow::Borrowed(ins.mnemonic), ins_ref.opcode))?;
+        cb(InstructionPart::opcode(ins.mnemonic, ins_ref.opcode))?;
 
         let reloc_arg = self.find_reloc_arg(&ins, relocation);
 
         let mut writing_offset = false;
         for (idx, arg) in ins.args_iter().enumerate() {
             if idx > 0 && !writing_offset {
-                cb(InstructionPart::Separator)?;
+                cb(InstructionPart::separator())?;
             }
 
             if reloc_arg == Some(idx) {
@@ -135,39 +135,22 @@ impl Arch for ArchPpc {
                 }
             } else {
                 match arg {
-                    ppc750cl::Argument::Simm(simm) => {
-                        cb(InstructionPart::Arg(InstructionArg::Value(
-                            InstructionArgValue::Signed(simm.0 as i64),
-                        )))?;
-                    }
-                    ppc750cl::Argument::Uimm(uimm) => {
-                        cb(InstructionPart::Arg(InstructionArg::Value(
-                            InstructionArgValue::Unsigned(uimm.0 as u64),
-                        )))?;
-                    }
-                    ppc750cl::Argument::Offset(offset) => {
-                        cb(InstructionPart::Arg(InstructionArg::Value(
-                            InstructionArgValue::Signed(offset.0 as i64),
-                        )))?;
-                    }
-                    ppc750cl::Argument::BranchDest(dest) => {
-                        let dest = (ins_ref.address as u32).wrapping_add_signed(dest.0) as u64;
-                        cb(InstructionPart::Arg(InstructionArg::BranchDest(dest)))?;
-                    }
-                    _ => {
-                        cb(InstructionPart::Arg(InstructionArg::Value(
-                            InstructionArgValue::Opaque(arg.to_string().into()),
-                        )))?;
-                    }
-                };
+                    ppc750cl::Argument::Simm(simm) => cb(InstructionPart::signed(simm.0)),
+                    ppc750cl::Argument::Uimm(uimm) => cb(InstructionPart::unsigned(uimm.0)),
+                    ppc750cl::Argument::Offset(offset) => cb(InstructionPart::signed(offset.0)),
+                    ppc750cl::Argument::BranchDest(dest) => cb(InstructionPart::branch_dest(
+                        (ins_ref.address as u32).wrapping_add_signed(dest.0),
+                    )),
+                    _ => cb(InstructionPart::opaque(arg.to_string())),
+                }?;
             }
 
             if writing_offset {
-                cb(InstructionPart::Basic(")"))?;
+                cb(InstructionPart::basic(")"))?;
                 writing_offset = false;
             }
             if is_offset_arg(arg) {
-                cb(InstructionPart::Basic("("))?;
+                cb(InstructionPart::basic("("))?;
                 writing_offset = true;
             }
         }
@@ -276,33 +259,33 @@ fn display_reloc(
     match resolved.relocation.flags {
         RelocationFlags::Elf(r_type) => match r_type {
             elf::R_PPC_ADDR16_LO => {
-                cb(InstructionPart::Arg(InstructionArg::Reloc))?;
-                cb(InstructionPart::Basic("@l"))?;
+                cb(InstructionPart::reloc())?;
+                cb(InstructionPart::basic("@l"))?;
             }
             elf::R_PPC_ADDR16_HI => {
-                cb(InstructionPart::Arg(InstructionArg::Reloc))?;
-                cb(InstructionPart::Basic("@h"))?;
+                cb(InstructionPart::reloc())?;
+                cb(InstructionPart::basic("@h"))?;
             }
             elf::R_PPC_ADDR16_HA => {
-                cb(InstructionPart::Arg(InstructionArg::Reloc))?;
-                cb(InstructionPart::Basic("@ha"))?;
+                cb(InstructionPart::reloc())?;
+                cb(InstructionPart::basic("@ha"))?;
             }
             elf::R_PPC_EMB_SDA21 => {
-                cb(InstructionPart::Arg(InstructionArg::Reloc))?;
-                cb(InstructionPart::Basic("@sda21"))?;
+                cb(InstructionPart::reloc())?;
+                cb(InstructionPart::basic("@sda21"))?;
             }
             elf::R_PPC_ADDR32 | elf::R_PPC_UADDR32 | elf::R_PPC_REL24 | elf::R_PPC_REL14 => {
-                cb(InstructionPart::Arg(InstructionArg::Reloc))?;
+                cb(InstructionPart::reloc())?;
             }
             elf::R_PPC_NONE => {
                 // Fake pool relocation.
-                cb(InstructionPart::Basic("<"))?;
-                cb(InstructionPart::Arg(InstructionArg::Reloc))?;
-                cb(InstructionPart::Basic(">"))?;
+                cb(InstructionPart::basic("<"))?;
+                cb(InstructionPart::reloc())?;
+                cb(InstructionPart::basic(">"))?;
             }
-            _ => cb(InstructionPart::Arg(InstructionArg::Reloc))?,
+            _ => cb(InstructionPart::reloc())?,
         },
-        _ => cb(InstructionPart::Arg(InstructionArg::Reloc))?,
+        _ => cb(InstructionPart::reloc())?,
     };
     Ok(())
 }

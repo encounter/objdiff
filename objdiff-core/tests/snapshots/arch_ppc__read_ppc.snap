@@ -39,7 +39,7 @@ Object {
             name: "[.ctors]",
             demangled_name: None,
             address: 0,
-            size: 0,
+            size: 4,
             kind: Section,
             section: Some(
                 1,

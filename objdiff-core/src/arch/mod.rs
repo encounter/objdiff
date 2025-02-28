@@ -8,8 +8,8 @@ use object::{File, Relocation, Section};
 use crate::{
     diff::{display::InstructionPart, DiffObjConfig},
     obj::{
-        InstructionRef, ParsedInstruction, RelocationFlags, ResolvedRelocation, ScannedInstruction,
-        SymbolFlagSet, SymbolKind,
+        InstructionArg, InstructionRef, ParsedInstruction, RelocationFlags, ResolvedRelocation,
+        ScannedInstruction, SymbolFlagSet, SymbolKind,
     },
     util::ReallySigned,
 };
@@ -195,13 +195,18 @@ pub trait Arch: Send + Sync + Debug {
             diff_config,
             &mut |part| {
                 match part {
-                    InstructionPart::Opcode(m, _) => mnemonic = Some(m),
-                    InstructionPart::Arg(arg) => args.push(arg),
+                    InstructionPart::Opcode(m, _) => mnemonic = Some(Cow::Owned(m.into_owned())),
+                    InstructionPart::Arg(arg) => args.push(arg.into_static()),
                     _ => {}
                 }
                 Ok(())
             },
         )?;
+        // If the instruction has a relocation, but we didn't format it in the display, add it to
+        // the end of the arguments list.
+        if relocation.is_some() && !args.contains(&InstructionArg::Reloc) {
+            args.push(InstructionArg::Reloc);
+        }
         Ok(ParsedInstruction { ins_ref, mnemonic: mnemonic.unwrap_or_default(), args })
     }
 

@@ -17,10 +17,7 @@ use yaxpeax_arm::armv8::a64::{
 use crate::{
     arch::Arch,
     diff::{display::InstructionPart, DiffObjConfig},
-    obj::{
-        InstructionArg, InstructionArgValue, InstructionRef, RelocationFlags, ResolvedRelocation,
-        ScannedInstruction,
-    },
+    obj::{InstructionRef, RelocationFlags, ResolvedRelocation, ScannedInstruction},
 };
 
 #[derive(Debug)]
@@ -83,14 +80,14 @@ impl Arch for ArchArm64 {
         relocation: Option<ResolvedRelocation>,
         function_range: Range<u64>,
         _section_index: usize,
-        diff_config: &DiffObjConfig,
+        _diff_config: &DiffObjConfig,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
         let mut reader = U8Reader::new(code);
         let decoder = InstDecoder::default();
         let mut ins = Instruction::default();
         if decoder.decode_into(&mut ins, &mut reader).is_err() {
-            cb(InstructionPart::Opcode(Cow::Borrowed("<invalid>"), u16::MAX))?;
+            cb(InstructionPart::opcode("<invalid>", u16::MAX))?;
             return Ok(());
         }
 
@@ -100,12 +97,11 @@ impl Arch for ArchArm64 {
             start_address: function_range.start,
             end_address: function_range.end,
             reloc: relocation,
-            config: diff_config,
         };
 
         let mut display_args = Vec::with_capacity(16);
         let mnemonic = display_instruction(&mut |ret| display_args.push(ret), &ins, &mut ctx);
-        cb(InstructionPart::Opcode(Cow::Borrowed(mnemonic), ins_ref.opcode))?;
+        cb(InstructionPart::opcode(mnemonic, ins_ref.opcode))?;
         for arg in display_args {
             cb(arg)?;
         }
@@ -317,7 +313,6 @@ struct DisplayCtx<'a> {
     start_address: u64,
     end_address: u64,
     reloc: Option<ResolvedRelocation<'a>>,
-    config: &'a DiffObjConfig,
 }
 
 // Source: https://github.com/iximeow/yaxpeax-arm/blob/716a6e3fc621f5fe3300f3309e56943b8e1e65ad/src/armv8/a64.rs#L317
@@ -325,7 +320,7 @@ struct DisplayCtx<'a> {
 // Reworked for more structured output. The library only gives us a Display impl, and no way to
 // capture any of this information, so it needs to be reimplemented here.
 fn display_instruction<Cb>(args: &mut Cb, ins: &Instruction, ctx: &mut DisplayCtx) -> &'static str
-where Cb: FnMut(InstructionPart) {
+where Cb: FnMut(InstructionPart<'static>) {
     let mnemonic = match ins.opcode {
         Opcode::Invalid => return "<invalid>",
         Opcode::UDF => "udf",
@@ -345,7 +340,7 @@ where Cb: FnMut(InstructionPart) {
                 unreachable!("movn operand 0 is always Register");
             };
             push_operand(args, &ins.operands[0], ctx);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_unsigned(args, imm);
             return "mov";
         }
@@ -366,7 +361,7 @@ where Cb: FnMut(InstructionPart) {
                 unreachable!("movz operand 0 is always Register");
             };
             push_operand(args, &ins.operands[0], ctx);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_unsigned(args, imm);
             return "mov";
         }
@@ -375,7 +370,7 @@ where Cb: FnMut(InstructionPart) {
         Opcode::SBC => {
             if let Operand::Register(_, 31) = ins.operands[1] {
                 push_operand(args, &ins.operands[0], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[2], ctx);
                 return "ngc";
             } else {
@@ -385,7 +380,7 @@ where Cb: FnMut(InstructionPart) {
         Opcode::SBCS => {
             if let Operand::Register(_, 31) = ins.operands[1] {
                 push_operand(args, &ins.operands[0], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[2], ctx);
                 return "ngcs";
             } else {
@@ -397,25 +392,25 @@ where Cb: FnMut(InstructionPart) {
             if let Operand::Register(_, 31) = ins.operands[1] {
                 if let Operand::Immediate(0) = ins.operands[2] {
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[1], ctx);
                     return "mov";
                 } else if let Operand::RegShift(style, amt, size, r) = ins.operands[2] {
                     if style == ShiftStyle::LSL && amt == 0 {
                         push_operand(args, &ins.operands[0], ctx);
-                        push_separator(args, ctx.config);
+                        push_separator(args);
                         push_register(args, size, r, false);
                         return "mov";
                     }
                 } else {
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return "mov";
                 }
             } else if ins.operands[1] == ins.operands[2] {
                 push_operand(args, &ins.operands[0], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[1], ctx);
                 return "mov";
             }
@@ -424,7 +419,7 @@ where Cb: FnMut(InstructionPart) {
         Opcode::ORN => {
             if let Operand::Register(_, 31) = ins.operands[1] {
                 push_operand(args, &ins.operands[0], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[2], ctx);
                 return "mvn";
             }
@@ -437,7 +432,7 @@ where Cb: FnMut(InstructionPart) {
         Opcode::ANDS => {
             if let Operand::Register(_, 31) = ins.operands[0] {
                 push_operand(args, &ins.operands[1], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[2], ctx);
                 return "tst";
             }
@@ -446,14 +441,14 @@ where Cb: FnMut(InstructionPart) {
         Opcode::ADDS => {
             if let Operand::Register(_, 31) = ins.operands[0] {
                 push_operand(args, &ins.operands[1], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[2], ctx);
                 return "cmn";
             } else if let Operand::RegShift(ShiftStyle::LSL, 0, size, reg) = ins.operands[2] {
                 push_operand(args, &ins.operands[0], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[1], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_register(args, size, reg, false);
                 return "adds";
             }
@@ -463,20 +458,20 @@ where Cb: FnMut(InstructionPart) {
             if let Operand::Immediate(0) = ins.operands[2] {
                 if let Operand::RegisterOrSP(size, 31) = ins.operands[0] {
                     push_register(args, size, 31, true);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[1], ctx);
                     return "mov";
                 } else if let Operand::RegisterOrSP(size, 31) = ins.operands[1] {
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_register(args, size, 31, true);
                     return "mov";
                 }
             } else if let Operand::RegShift(ShiftStyle::LSL, 0, size, reg) = ins.operands[2] {
                 push_operand(args, &ins.operands[0], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[1], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_register(args, size, reg, false);
                 return "add";
             }
@@ -485,19 +480,19 @@ where Cb: FnMut(InstructionPart) {
         Opcode::SUBS => {
             if let Operand::Register(_, 31) = ins.operands[0] {
                 push_operand(args, &ins.operands[1], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[2], ctx);
                 return "cmp";
             } else if let Operand::Register(_, 31) = ins.operands[1] {
                 push_operand(args, &ins.operands[0], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[2], ctx);
                 return "negs";
             } else if let Operand::RegShift(ShiftStyle::LSL, 0, size, reg) = ins.operands[2] {
                 push_operand(args, &ins.operands[0], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[1], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_register(args, size, reg, false);
                 return "subs";
             }
@@ -506,14 +501,14 @@ where Cb: FnMut(InstructionPart) {
         Opcode::SUB => {
             if let Operand::Register(_, 31) = ins.operands[1] {
                 push_operand(args, &ins.operands[0], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[2], ctx);
                 return "neg";
             } else if let Operand::RegShift(ShiftStyle::LSL, 0, size, reg) = ins.operands[2] {
                 push_operand(args, &ins.operands[0], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[1], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_register(args, size, reg, false);
                 return "sub";
             }
@@ -533,18 +528,18 @@ where Cb: FnMut(InstructionPart) {
                         };
                         return if rn == 31 {
                             push_operand(args, &ins.operands[0], ctx);
-                            push_separator(args, ctx.config);
+                            push_separator(args);
                             push_unsigned(args, lsb as u64);
-                            push_separator(args, ctx.config);
+                            push_separator(args);
                             push_unsigned(args, width as u64);
                             "bfc"
                         } else {
                             push_operand(args, &ins.operands[0], ctx);
-                            push_separator(args, ctx.config);
+                            push_separator(args);
                             push_operand(args, &ins.operands[1], ctx);
-                            push_separator(args, ctx.config);
+                            push_separator(args);
                             push_unsigned(args, lsb as u64);
-                            push_separator(args, ctx.config);
+                            push_separator(args);
                             push_unsigned(args, width as u64);
                             "bfi"
                         };
@@ -554,11 +549,11 @@ where Cb: FnMut(InstructionPart) {
                     let lsb = immr;
                     let width = imms + 1 - lsb;
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[1], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_unsigned(args, lsb as u64);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_unsigned(args, width as u64);
                     return "bfxil";
                 }
@@ -575,12 +570,12 @@ where Cb: FnMut(InstructionPart) {
             {
                 if let Operand::Immediate(7) = ins.operands[3] {
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[1], ctx);
                     return "uxtb";
                 } else if let Operand::Immediate(15) = ins.operands[3] {
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[1], ctx);
                     return "uxth";
                 }
@@ -594,9 +589,9 @@ where Cb: FnMut(InstructionPart) {
                 match (imms, size) {
                     (63, SizeCode::X) | (31, SizeCode::W) => {
                         push_operand(args, &ins.operands[0], ctx);
-                        push_separator(args, ctx.config);
+                        push_separator(args);
                         push_operand(args, &ins.operands[1], ctx);
-                        push_separator(args, ctx.config);
+                        push_separator(args);
                         push_operand(args, &ins.operands[2], ctx);
                         return "lsr";
                     }
@@ -609,19 +604,19 @@ where Cb: FnMut(InstructionPart) {
                         };
                         if imms + 1 == immr {
                             push_operand(args, &ins.operands[0], ctx);
-                            push_separator(args, ctx.config);
+                            push_separator(args);
                             push_operand(args, &ins.operands[1], ctx);
-                            push_separator(args, ctx.config);
+                            push_separator(args);
                             push_unsigned(args, (size - imms - 1) as u64);
                             return "lsl";
                         }
                         if imms < immr {
                             push_operand(args, &ins.operands[0], ctx);
-                            push_separator(args, ctx.config);
+                            push_separator(args);
                             push_operand(args, &ins.operands[1], ctx);
-                            push_separator(args, ctx.config);
+                            push_separator(args);
                             push_unsigned(args, (size - immr) as u64);
-                            push_separator(args, ctx.config);
+                            push_separator(args);
                             push_unsigned(args, (imms + 1) as u64);
                             return "ubfiz";
                         }
@@ -637,11 +632,11 @@ where Cb: FnMut(InstructionPart) {
                 unreachable!("last two operands of ubfm are always immediates");
             };
             push_operand(args, &ins.operands[0], ctx);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_operand(args, &ins.operands[1], ctx);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_operand(args, &ins.operands[2], ctx);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_operand(args, &width, ctx);
             return "ubfx";
         }
@@ -649,9 +644,9 @@ where Cb: FnMut(InstructionPart) {
             if let Operand::Immediate(63) = ins.operands[3] {
                 if let Operand::Register(SizeCode::X, _) = ins.operands[0] {
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[1], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return "asr";
                 }
@@ -659,9 +654,9 @@ where Cb: FnMut(InstructionPart) {
             if let Operand::Immediate(31) = ins.operands[3] {
                 if let Operand::Register(SizeCode::W, _) = ins.operands[0] {
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[1], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return "asr";
                 }
@@ -674,17 +669,17 @@ where Cb: FnMut(InstructionPart) {
                 };
                 if let Operand::Immediate(7) = ins.operands[3] {
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &newsrc, ctx);
                     return "sxtb";
                 } else if let Operand::Immediate(15) = ins.operands[3] {
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &newsrc, ctx);
                     return "sxth";
                 } else if let Operand::Immediate(31) = ins.operands[3] {
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &newsrc, ctx);
                     return "sxtw";
                 }
@@ -703,11 +698,11 @@ where Cb: FnMut(InstructionPart) {
                         unreachable!("operand 0 is always a register");
                     };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[1], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_unsigned(args, (size - imms) as u64);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_unsigned(args, (immr + 1) as u64);
                     return "sbfiz";
                 }
@@ -721,11 +716,11 @@ where Cb: FnMut(InstructionPart) {
                 unreachable!("last two operands of sbfm are always immediates");
             };
             push_operand(args, &ins.operands[0], ctx);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_operand(args, &ins.operands[1], ctx);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_operand(args, &ins.operands[2], ctx);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_operand(args, &width, ctx);
             return "sbfx";
         }
@@ -737,9 +732,9 @@ where Cb: FnMut(InstructionPart) {
             {
                 if rn == rm {
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[3], ctx);
                     return "ror";
                 }
@@ -853,25 +848,25 @@ where Cb: FnMut(InstructionPart) {
         Opcode::MRS => "mrs",
         Opcode::SYS(ops) => {
             push_unsigned(args, ops.op1() as u64);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_operand(args, &ins.operands[1], ctx);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_operand(args, &ins.operands[2], ctx);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_unsigned(args, ops.op2() as u64);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_operand(args, &ins.operands[0], ctx);
             return "sys";
         }
         Opcode::SYSL(ops) => {
             push_operand(args, &ins.operands[2], ctx);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_unsigned(args, ops.op1() as u64);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_operand(args, &ins.operands[0], ctx);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_operand(args, &ins.operands[1], ctx);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_unsigned(args, ops.op2() as u64);
             return "sysl";
         }
@@ -933,9 +928,9 @@ where Cb: FnMut(InstructionPart) {
             {
                 if cond < 0b1110 && rn == rm {
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_condition_code(args, cond ^ 0x01);
                     return "cneg";
                 }
@@ -954,14 +949,14 @@ where Cb: FnMut(InstructionPart) {
                 if n == m && cond < 0b1110 {
                     return if n == 31 {
                         push_operand(args, &ins.operands[0], ctx);
-                        push_separator(args, ctx.config);
+                        push_separator(args);
                         push_condition_code(args, cond ^ 0x01);
                         "cset"
                     } else {
                         push_operand(args, &ins.operands[0], ctx);
-                        push_separator(args, ctx.config);
+                        push_separator(args);
                         push_operand(args, &ins.operands[1], ctx);
-                        push_separator(args, ctx.config);
+                        push_separator(args);
                         push_condition_code(args, cond ^ 0x01);
                         "cinc"
                     };
@@ -978,14 +973,14 @@ where Cb: FnMut(InstructionPart) {
             {
                 if n == m && n != 31 && cond < 0b1110 {
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[1], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_condition_code(args, cond ^ 0x01);
                     return "cinv";
                 } else if n == m && n == 31 && cond < 0b1110 {
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_condition_code(args, cond ^ 0x01);
                     return "csetm";
                 }
@@ -1003,9 +998,9 @@ where Cb: FnMut(InstructionPart) {
         Opcode::MADD => {
             if let Operand::Register(_, 31) = ins.operands[3] {
                 push_operand(args, &ins.operands[0], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[1], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[2], ctx);
                 return "mul";
             }
@@ -1014,9 +1009,9 @@ where Cb: FnMut(InstructionPart) {
         Opcode::MSUB => {
             if let Operand::Register(_, 31) = ins.operands[3] {
                 push_operand(args, &ins.operands[0], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[1], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[2], ctx);
                 return "mneg";
             }
@@ -1025,9 +1020,9 @@ where Cb: FnMut(InstructionPart) {
         Opcode::SMADDL => {
             if let Operand::Register(_, 31) = ins.operands[3] {
                 push_operand(args, &ins.operands[0], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[1], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[2], ctx);
                 return "smull";
             }
@@ -1036,9 +1031,9 @@ where Cb: FnMut(InstructionPart) {
         Opcode::SMSUBL => {
             if let Operand::Register(_, 31) = ins.operands[3] {
                 push_operand(args, &ins.operands[0], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[1], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[2], ctx);
                 return "smnegl";
             }
@@ -1048,9 +1043,9 @@ where Cb: FnMut(InstructionPart) {
         Opcode::UMADDL => {
             if let Operand::Register(_, 31) = ins.operands[3] {
                 push_operand(args, &ins.operands[0], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[1], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[2], ctx);
                 return "umull";
             }
@@ -1059,9 +1054,9 @@ where Cb: FnMut(InstructionPart) {
         Opcode::UMSUBL => {
             if let Operand::Register(_, 31) = ins.operands[3] {
                 push_operand(args, &ins.operands[0], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[1], ctx);
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_operand(args, &ins.operands[2], ctx);
                 return "umnegl";
             }
@@ -1346,7 +1341,7 @@ where Cb: FnMut(InstructionPart) {
                     || (reg_sz == SizeCode::X && elem_sz == SIMDSizeCode::D)
                 {
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[1], ctx);
                     return "mov";
                 }
@@ -1453,7 +1448,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "staddb" } else { "staddlb" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1473,7 +1468,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stclrb" } else { "stclrlb" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1493,7 +1488,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "steorb" } else { "steorlb" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1513,7 +1508,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stsetb" } else { "stsetlb" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1533,7 +1528,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stsmaxb" } else { "stsmaxlb" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1553,7 +1548,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stsminb" } else { "stsminlb" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1573,7 +1568,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stumaxb" } else { "stumaxlb" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1593,7 +1588,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stuminb" } else { "stuminlb" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1614,7 +1609,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "staddh" } else { "staddlh" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1634,7 +1629,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stclrh" } else { "stclrlh" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1654,7 +1649,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "steorh" } else { "steorlh" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1674,7 +1669,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stseth" } else { "stsetlh" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1694,7 +1689,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stsmaxh" } else { "stsmaxlh" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1714,7 +1709,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stsminh" } else { "stsminlh" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1734,7 +1729,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stumaxh" } else { "stumaxlh" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1754,7 +1749,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stuminh" } else { "stuminlh" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1774,7 +1769,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stadd" } else { "staddl" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1794,7 +1789,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stclr" } else { "stclrl" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1814,7 +1809,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "steor" } else { "steorl" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1834,7 +1829,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stset" } else { "stsetl" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1854,7 +1849,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stsmax" } else { "stsmaxl" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1874,7 +1869,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stsmin" } else { "stsminl" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1894,7 +1889,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stumax" } else { "stumaxl" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -1914,7 +1909,7 @@ where Cb: FnMut(InstructionPart) {
                 if rt == 31 && ar & 0b10 == 0b00 {
                     let inst = if ar & 0b01 == 0b00 { "stumin" } else { "stuminl" };
                     push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_operand(args, &ins.operands[2], ctx);
                     return inst;
                 }
@@ -2052,7 +2047,7 @@ where Cb: FnMut(InstructionPart) {
             break;
         }
         if i > 0 {
-            push_separator(args, ctx.config);
+            push_separator(args);
         }
         push_operand(args, o, ctx);
     }
@@ -2135,13 +2130,13 @@ fn condition_code(cond: u8) -> &'static str {
 
 #[inline]
 fn push_register<Cb>(args: &mut Cb, size: SizeCode, reg: u16, sp: bool)
-where Cb: FnMut(InstructionPart) {
+where Cb: FnMut(InstructionPart<'static>) {
     push_opaque(args, reg_name(size, reg, sp));
 }
 
 #[inline]
 fn push_shift<Cb>(args: &mut Cb, style: ShiftStyle, amount: u8)
-where Cb: FnMut(InstructionPart) {
+where Cb: FnMut(InstructionPart<'static>) {
     push_opaque(args, shift_style(style));
     if amount != 0 {
         push_plain(args, " ");
@@ -2151,12 +2146,12 @@ where Cb: FnMut(InstructionPart) {
 
 #[inline]
 fn push_condition_code<Cb>(args: &mut Cb, cond: u8)
-where Cb: FnMut(InstructionPart) {
+where Cb: FnMut(InstructionPart<'static>) {
     push_opaque(args, condition_code(cond));
 }
 
 fn push_barrier<Cb>(args: &mut Cb, option: u8)
-where Cb: FnMut(InstructionPart) {
+where Cb: FnMut(InstructionPart<'static>) {
     match option {
         0b0001 => push_opaque(args, "oshld"),
         0b0010 => push_opaque(args, "oshst"),
@@ -2175,41 +2170,35 @@ where Cb: FnMut(InstructionPart) {
 }
 
 #[inline]
-fn push_opaque<Cb>(args: &mut Cb, text: &'static str)
-where Cb: FnMut(InstructionPart) {
-    push_arg(args, InstructionArg::Value(InstructionArgValue::Opaque(Cow::Borrowed(text))));
+fn push_opaque<'a, Cb>(args: &mut Cb, text: &'a str)
+where Cb: FnMut(InstructionPart<'a>) {
+    args(InstructionPart::opaque(text));
 }
 
 #[inline]
 fn push_plain<Cb>(args: &mut Cb, text: &'static str)
-where Cb: FnMut(InstructionPart) {
-    args(InstructionPart::Basic(text));
+where Cb: FnMut(InstructionPart<'static>) {
+    args(InstructionPart::basic(text));
 }
 
 #[inline]
-fn push_separator<Cb>(args: &mut Cb, _config: &DiffObjConfig)
-where Cb: FnMut(InstructionPart) {
-    args(InstructionPart::Separator);
+fn push_separator<Cb>(args: &mut Cb)
+where Cb: FnMut(InstructionPart<'static>) {
+    args(InstructionPart::separator());
 }
 
 #[inline]
 fn push_unsigned<Cb>(args: &mut Cb, v: u64)
-where Cb: FnMut(InstructionPart) {
+where Cb: FnMut(InstructionPart<'static>) {
     push_plain(args, "#");
-    push_arg(args, InstructionArg::Value(InstructionArgValue::Unsigned(v)));
+    args(InstructionPart::unsigned(v));
 }
 
 #[inline]
 fn push_signed<Cb>(args: &mut Cb, v: i64)
-where Cb: FnMut(InstructionPart) {
+where Cb: FnMut(InstructionPart<'static>) {
     push_plain(args, "#");
-    push_arg(args, InstructionArg::Value(InstructionArgValue::Signed(v)));
-}
-
-#[inline]
-fn push_arg<Cb>(args: &mut Cb, arg: InstructionArg)
-where Cb: FnMut(InstructionPart) {
-    args(InstructionPart::Arg(arg));
+    args(InstructionPart::signed(v));
 }
 
 /// Relocations that appear in Operand::PCOffset.
@@ -2248,7 +2237,7 @@ fn is_reg_index_reloc(resolved: Option<ResolvedRelocation>) -> bool {
 }
 
 fn push_operand<Cb>(args: &mut Cb, o: &Operand, ctx: &mut DisplayCtx)
-where Cb: FnMut(InstructionPart) {
+where Cb: FnMut(InstructionPart<'static>) {
     match o {
         Operand::Nothing => unreachable!(),
         Operand::PCOffset(off) => {
@@ -2260,19 +2249,19 @@ where Cb: FnMut(InstructionPart) {
                 {
                     let dest = target_address.unwrap();
                     push_plain(args, "$");
-                    push_arg(args, InstructionArg::BranchDest(dest));
+                    args(InstructionPart::branch_dest(dest));
                 } else {
-                    push_arg(args, InstructionArg::Reloc);
+                    args(InstructionPart::reloc());
                 }
             } else {
                 let dest = ctx.address.saturating_add_signed(*off);
                 push_plain(args, "$");
-                push_arg(args, InstructionArg::BranchDest(dest));
+                args(InstructionPart::branch_dest(dest));
             }
         }
         Operand::Immediate(imm) => {
             if is_imm_reloc(ctx.reloc) {
-                push_arg(args, InstructionArg::Reloc);
+                args(InstructionPart::reloc());
             } else {
                 push_unsigned(args, *imm as u64);
             }
@@ -2288,7 +2277,7 @@ where Cb: FnMut(InstructionPart) {
         }
         Operand::RegisterPair(size, reg) => {
             push_register(args, *size, *reg, false);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_register(args, *size, *reg + 1, false);
         }
         Operand::RegisterOrSP(size, reg) => {
@@ -2316,7 +2305,7 @@ where Cb: FnMut(InstructionPart) {
         Operand::ImmShift(i, shift) => {
             push_unsigned(args, *i as u64);
             if *shift > 0 {
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_opaque(args, "lsl");
                 push_plain(args, " ");
                 push_unsigned(args, *shift as u64);
@@ -2325,7 +2314,7 @@ where Cb: FnMut(InstructionPart) {
         Operand::ImmShiftMSL(i, shift) => {
             push_unsigned(args, *i as u64);
             if *shift > 0 {
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_opaque(args, "msl");
                 push_plain(args, " ");
                 push_unsigned(args, *shift as u64);
@@ -2339,7 +2328,7 @@ where Cb: FnMut(InstructionPart) {
                 {
                     // pass
                 } else {
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_shift(args, *shift_type, *amount);
                 }
             }
@@ -2348,7 +2337,7 @@ where Cb: FnMut(InstructionPart) {
                 if *shift_type == ShiftStyle::LSL && *amount == 0 {
                     // pass
                 } else {
-                    push_separator(args, ctx.config);
+                    push_separator(args);
                     push_shift(args, *shift_type, *amount);
                 }
             }
@@ -2356,7 +2345,7 @@ where Cb: FnMut(InstructionPart) {
         Operand::RegRegOffset(reg, index_reg, index_size, extend, amount) => {
             push_plain(args, "[");
             push_register(args, SizeCode::X, *reg, true);
-            push_separator(args, ctx.config);
+            push_separator(args);
             push_register(args, *index_size, *index_reg, false);
             if extend == &ShiftStyle::LSL && *amount == 0 {
                 // pass
@@ -2364,10 +2353,10 @@ where Cb: FnMut(InstructionPart) {
                 || (extend == &ShiftStyle::UXTX && index_size == &SizeCode::X))
                 && *amount == 0
             {
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_shift(args, *extend, 0);
             } else {
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_shift(args, *extend, *amount);
             }
             push_plain(args, "]");
@@ -2376,10 +2365,10 @@ where Cb: FnMut(InstructionPart) {
             push_plain(args, "[");
             push_register(args, SizeCode::X, *reg, true);
             if is_reg_index_reloc(ctx.reloc) {
-                push_separator(args, ctx.config);
-                push_arg(args, InstructionArg::Reloc);
+                push_separator(args);
+                args(InstructionPart::reloc());
             } else if *offset != 0 || *wback_bit {
-                push_separator(args, ctx.config);
+                push_separator(args);
                 push_signed(args, *offset as i64);
             }
             push_plain(args, "]");
@@ -2391,9 +2380,9 @@ where Cb: FnMut(InstructionPart) {
             push_plain(args, "[");
             push_register(args, SizeCode::X, *reg, true);
             push_plain(args, "]");
-            push_separator(args, ctx.config);
+            push_separator(args);
             if is_reg_index_reloc(ctx.reloc) {
-                push_arg(args, InstructionArg::Reloc);
+                args(InstructionPart::reloc());
             } else {
                 push_signed(args, *offset as i64);
             }
@@ -2402,15 +2391,9 @@ where Cb: FnMut(InstructionPart) {
             push_plain(args, "[");
             push_register(args, SizeCode::X, *reg, true);
             push_plain(args, "]");
-            push_separator(args, ctx.config);
+            push_separator(args);
             // TODO does 31 have to be handled separate?
-            push_arg(
-                args,
-                InstructionArg::Value(InstructionArgValue::Opaque(Cow::Owned(format!(
-                    "x{}",
-                    offset_reg
-                )))),
-            );
+            args(InstructionPart::opaque(format!("x{}", offset_reg)));
         }
         // Fall back to original logic
         Operand::SIMDRegister(_, _)
@@ -2424,10 +2407,7 @@ where Cb: FnMut(InstructionPart) {
         | Operand::SystemReg(_)
         | Operand::ControlReg(_)
         | Operand::PstateField(_) => {
-            push_arg(
-                args,
-                InstructionArg::Value(InstructionArgValue::Opaque(Cow::Owned(o.to_string()))),
-            );
+            args(InstructionPart::opaque(o.to_string()));
         }
     }
 }

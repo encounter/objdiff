@@ -159,7 +159,7 @@ impl Arch for ArchMips {
         let instruction = self.parse_ins_ref(ins_ref, code, diff_config)?;
         let display_flags = self.instruction_display_flags(diff_config);
         let opcode = instruction.opcode();
-        cb(InstructionPart::Opcode(Cow::Borrowed(opcode.name()), opcode as u16))?;
+        cb(InstructionPart::opcode(opcode.name(), opcode as u16))?;
         push_args(&instruction, relocation, function_range, section_index, &display_flags, cb)?;
         Ok(())
     }
@@ -244,7 +244,7 @@ fn push_args(
     let operands = instruction.valued_operands_iter();
     for (idx, op) in operands.enumerate() {
         if idx > 0 {
-            arg_cb(InstructionPart::Separator)?;
+            arg_cb(InstructionPart::separator())?;
         }
 
         match op {
@@ -252,10 +252,10 @@ fn push_args(
                 if let Some(resolved) = relocation {
                     push_reloc(resolved.relocation, &mut arg_cb)?;
                 } else {
-                    arg_cb(InstructionPart::Arg(InstructionArg::Value(match imm {
-                        IU16::Integer(s) => InstructionArgValue::Signed(s as i64),
-                        IU16::Unsigned(u) => InstructionArgValue::Unsigned(u as u64),
-                    })))?;
+                    arg_cb(match imm {
+                        IU16::Integer(s) => InstructionPart::signed(s),
+                        IU16::Unsigned(u) => InstructionPart::unsigned(u),
+                    })?;
                 }
             }
             ValuedOperand::core_label(..) | ValuedOperand::core_branch_target_label(..) => {
@@ -273,7 +273,7 @@ fn push_args(
                     {
                         // TODO move this logic up a level
                         let target_address = target_address.unwrap();
-                        arg_cb(InstructionPart::Arg(InstructionArg::BranchDest(target_address)))?;
+                        arg_cb(InstructionPart::branch_dest(target_address))?;
                     } else {
                         push_reloc(resolved.relocation, &mut arg_cb)?;
                     }
@@ -281,13 +281,11 @@ fn push_args(
                     .get_branch_offset_generic()
                     .map(|o| (instruction.vram() + o).inner() as u64)
                 {
-                    arg_cb(InstructionPart::Arg(InstructionArg::BranchDest(branch_dest)))?;
+                    arg_cb(InstructionPart::branch_dest(branch_dest))?;
                 } else {
-                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                        InstructionArgValue::Opaque(
-                            op.display(instruction, display_flags, None::<&str>).to_string().into(),
-                        ),
-                    )))?;
+                    arg_cb(InstructionPart::opaque(
+                        op.display(instruction, display_flags, None::<&str>).to_string(),
+                    ))?;
                 }
             }
             ValuedOperand::core_immediate_base(imm, base) => {
@@ -299,28 +297,26 @@ fn push_args(
                         IU16::Unsigned(u) => InstructionArgValue::Unsigned(u as u64),
                     })))?;
                 }
-                arg_cb(InstructionPart::Basic("("))?;
-                arg_cb(InstructionPart::Arg(InstructionArg::Value(InstructionArgValue::Opaque(
-                    base.either_name(instruction.flags().abi(), display_flags.named_gpr()).into(),
-                ))))?;
-                arg_cb(InstructionPart::Basic(")"))?;
+                arg_cb(InstructionPart::basic("("))?;
+                arg_cb(InstructionPart::opaque(
+                    base.either_name(instruction.flags().abi(), display_flags.named_gpr()),
+                ))?;
+                arg_cb(InstructionPart::basic(")"))?;
             }
             // ValuedOperand::r5900_immediate15(..) => match relocation {
             //     Some(resolved)
             //         if resolved.relocation.flags == RelocationFlags::Elf(R_MIPS15_S3) =>
             //     {
-            //         push_reloc(&resolved.relocation, &mut arg_cb, &mut plain_cb)?;
+            //         push_reloc(&resolved.relocation, &mut arg_cb)?;
             //     }
             //     _ => {
-            //         arg_cb(InstructionArg::Value(InstructionArgValue::Opaque(
-            //             op.disassemble(&instruction, None).into(),
-            //         )))?;
+            //         arg_cb(InstructionPart::opaque(op.disassemble(&instruction, None)))?;
             //     }
             // },
             _ => {
-                arg_cb(InstructionPart::Arg(InstructionArg::Value(InstructionArgValue::Opaque(
-                    op.display(instruction, display_flags, None::<&str>).to_string().into(),
-                ))))?;
+                arg_cb(InstructionPart::opaque(
+                    op.display(instruction, display_flags, None::<&str>).to_string(),
+                ))?;
             }
         }
     }
@@ -334,36 +330,36 @@ fn push_reloc(
     match reloc.flags {
         RelocationFlags::Elf(r_type) => match r_type {
             elf::R_MIPS_HI16 => {
-                arg_cb(InstructionPart::Basic("%hi("))?;
-                arg_cb(InstructionPart::Arg(InstructionArg::Reloc))?;
-                arg_cb(InstructionPart::Basic(")"))?;
+                arg_cb(InstructionPart::basic("%hi("))?;
+                arg_cb(InstructionPart::reloc())?;
+                arg_cb(InstructionPart::basic(")"))?;
             }
             elf::R_MIPS_LO16 => {
-                arg_cb(InstructionPart::Basic("%lo("))?;
-                arg_cb(InstructionPart::Arg(InstructionArg::Reloc))?;
-                arg_cb(InstructionPart::Basic(")"))?;
+                arg_cb(InstructionPart::basic("%lo("))?;
+                arg_cb(InstructionPart::reloc())?;
+                arg_cb(InstructionPart::basic(")"))?;
             }
             elf::R_MIPS_GOT16 => {
-                arg_cb(InstructionPart::Basic("%got("))?;
-                arg_cb(InstructionPart::Arg(InstructionArg::Reloc))?;
-                arg_cb(InstructionPart::Basic(")"))?;
+                arg_cb(InstructionPart::basic("%got("))?;
+                arg_cb(InstructionPart::reloc())?;
+                arg_cb(InstructionPart::basic(")"))?;
             }
             elf::R_MIPS_CALL16 => {
-                arg_cb(InstructionPart::Basic("%call16("))?;
-                arg_cb(InstructionPart::Arg(InstructionArg::Reloc))?;
-                arg_cb(InstructionPart::Basic(")"))?;
+                arg_cb(InstructionPart::basic("%call16("))?;
+                arg_cb(InstructionPart::reloc())?;
+                arg_cb(InstructionPart::basic(")"))?;
             }
             elf::R_MIPS_GPREL16 => {
-                arg_cb(InstructionPart::Basic("%gp_rel("))?;
-                arg_cb(InstructionPart::Arg(InstructionArg::Reloc))?;
-                arg_cb(InstructionPart::Basic(")"))?;
+                arg_cb(InstructionPart::basic("%gp_rel("))?;
+                arg_cb(InstructionPart::reloc())?;
+                arg_cb(InstructionPart::basic(")"))?;
             }
             elf::R_MIPS_32
             | elf::R_MIPS_26
             | elf::R_MIPS_LITERAL
             | elf::R_MIPS_PC16
             | R_MIPS15_S3 => {
-                arg_cb(InstructionPart::Arg(InstructionArg::Reloc))?;
+                arg_cb(InstructionPart::reloc())?;
             }
             _ => bail!("Unsupported ELF MIPS relocation type {r_type}"),
         },

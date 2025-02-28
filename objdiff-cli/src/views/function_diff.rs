@@ -1,10 +1,10 @@
-use std::cmp::Ordering;
+use core::cmp::Ordering;
 
 use anyhow::{bail, Result};
 use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind};
 use objdiff_core::{
     diff::{
-        display::{display_row, DiffText, HighlightKind},
+        display::{display_row, DiffText, DiffTextColor, HighlightKind},
         DiffObjConfig, FunctionRelocDiffs, InstructionDiffKind, ObjectDiff, SymbolDiff,
     },
     obj::Object,
@@ -522,87 +522,55 @@ impl FunctionDiffUi {
             let mut sx = rect.x;
             let sy = rect.y + y as u16;
             let mut line = Line::default();
-            display_row(obj, symbol_index, ins_row, diff_config, |text, diff_idx| {
-                let label_text;
-                let mut base_color = match ins_row.kind {
-                    InstructionDiffKind::None
-                    | InstructionDiffKind::OpMismatch
-                    | InstructionDiffKind::ArgMismatch => Color::Gray,
-                    InstructionDiffKind::Replace => Color::Cyan,
-                    InstructionDiffKind::Delete => Color::Red,
-                    InstructionDiffKind::Insert => Color::Green,
-                };
-                if let Some(idx) = diff_idx.get() {
-                    base_color = COLOR_ROTATION[idx as usize % COLOR_ROTATION.len()];
-                }
-                let mut pad_to = 0;
-                match text {
-                    DiffText::Basic(text) => {
-                        label_text = text.to_string();
-                    }
-                    DiffText::Line(num) => {
-                        label_text = format!("{num} ");
-                        base_color = Color::DarkGray;
-                        pad_to = 5;
-                    }
-                    DiffText::Address(addr) => {
-                        label_text = format!("{:x}:", addr);
-                        pad_to = 5;
-                    }
-                    DiffText::Opcode(mnemonic, _op) => {
-                        label_text = mnemonic.to_string();
-                        if ins_row.kind == InstructionDiffKind::OpMismatch {
-                            base_color = Color::Blue;
-                        }
-                        pad_to = 8;
-                    }
-                    DiffText::Argument(arg) => {
-                        label_text = arg.to_string();
-                    }
-                    DiffText::BranchDest(addr) => {
-                        label_text = format!("{addr:x}");
-                    }
+            display_row(obj, symbol_index, ins_row, diff_config, |segment| {
+                let highlight_kind = HighlightKind::from(&segment.text);
+                let label_text = match segment.text {
+                    DiffText::Basic(text) => text.to_string(),
+                    DiffText::Line(num) => format!("{num} "),
+                    DiffText::Address(addr) => format!("{:x}:", addr),
+                    DiffText::Opcode(mnemonic, _op) => format!("{mnemonic} "),
+                    DiffText::Argument(arg) => arg.to_string(),
+                    DiffText::BranchDest(addr) => format!("{addr:x}"),
                     DiffText::Symbol(sym) => {
-                        let name = sym.demangled_name.as_ref().unwrap_or(&sym.name);
-                        label_text = name.clone();
-                        if diff_idx.is_none() {
-                            base_color = Color::White;
-                        }
+                        sym.demangled_name.as_ref().unwrap_or(&sym.name).clone()
                     }
-                    DiffText::Addend(addend) => {
-                        label_text = match addend.cmp(&0i64) {
-                            Ordering::Greater => format!("+{:#x}", addend),
-                            Ordering::Less => format!("-{:#x}", -addend),
-                            _ => "".to_string(),
-                        };
-                        if diff_idx.is_none() {
-                            base_color = Color::White;
-                        }
-                    }
+                    DiffText::Addend(addend) => match addend.cmp(&0i64) {
+                        Ordering::Greater => format!("+{:#x}", addend),
+                        Ordering::Less => format!("-{:#x}", -addend),
+                        _ => String::new(),
+                    },
                     DiffText::Spacing(n) => {
-                        line.spans.push(Span::raw(" ".repeat(n)));
+                        line.spans.push(Span::raw(" ".repeat(n as usize)));
                         sx += n as u16;
                         return Ok(());
                     }
-                    DiffText::Eol => {
-                        return Ok(());
-                    }
-                }
+                    DiffText::Eol => return Ok(()),
+                };
+
                 let len = label_text.len();
-                let highlighted = *highlight == text;
+                let highlighted =
+                    highlight_kind != HighlightKind::None && *highlight == highlight_kind;
                 if let Some((cx, cy)) = result.click_xy {
                     if cx >= sx && cx < sx + len as u16 && cy == sy {
-                        new_highlight = Some(text.into());
+                        new_highlight = Some(highlight_kind);
                     }
                 }
-                let mut style = Style::new().fg(base_color);
+                let mut style = Style::new().fg(match segment.color {
+                    DiffTextColor::Normal => Color::Gray,
+                    DiffTextColor::Dim => Color::DarkGray,
+                    DiffTextColor::Bright => Color::White,
+                    DiffTextColor::Replace => Color::Cyan,
+                    DiffTextColor::Delete => Color::Red,
+                    DiffTextColor::Insert => Color::Green,
+                    DiffTextColor::Rotating(i) => COLOR_ROTATION[i as usize % COLOR_ROTATION.len()],
+                });
                 if highlighted {
                     style = style.bg(Color::DarkGray);
                 }
                 line.spans.push(Span::styled(label_text, style));
                 sx += len as u16;
-                if pad_to > len {
-                    let pad = (pad_to - len) as u16;
+                if segment.pad_to as usize > len {
+                    let pad = (segment.pad_to as usize - len) as u16;
                     line.spans.push(Span::raw(" ".repeat(pad as usize)));
                     sx += pad;
                 }

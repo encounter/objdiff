@@ -2,7 +2,7 @@ package objdiff:core;
 
 use wasi:logging/logging@0.1.0-draft;
 
-interface diff-types {
+interface diff {
   resource diff-config {
     constructor();
     set-property: func(id: string, value: string) -> result<_, string>;
@@ -33,9 +33,21 @@ interface diff-types {
     left: option<object-diff>,
     right: option<object-diff>,
   }
+
+  run-diff: func(
+    left: option<borrow<object>>,
+    right: option<borrow<object>>,
+    config: borrow<diff-config>,
+  ) -> result<diff-result, string>;
 }
 
-interface display-types {
+interface display {
+  use diff.{
+    object,
+    object-diff,
+    diff-config
+  };
+
   type symbol-ref = u32;
 
   record display-config {
@@ -153,16 +165,28 @@ interface display-types {
     // Relocation addend
     addend(s64),
     // Number of spaces
-    spacing(u32),
+    spacing(u8),
     // End of line
     eol,
+  }
+
+  variant diff-text-color {
+    normal,
+    dim,
+    bright,
+    replace,
+    delete,
+    insert,
+    rotating(u8),
   }
 
   record diff-text-segment {
     // Text to display
     text: diff-text,
-    // Index for colorization
-    diff-index: option<u32>,
+    // Text color
+    color: diff-text-color,
+    // Number of spaces to pad to
+    pad-to: u8,
   }
 
   record instruction-diff-row {
@@ -180,32 +204,6 @@ interface display-types {
     insert,
     delete,
   }
-}
-
-interface diff {
-  use diff-types.{
-    object,
-    object-diff,
-    diff-config,
-    diff-result
-  };
-  use display-types.{
-    section-display-symbol,
-    section-display,
-    symbol-ref,
-    symbol-filter,
-    symbol-display,
-    context-menu-item,
-    hover-item,
-    display-config,
-    instruction-diff-row
-  };
-
-  run-diff: func(
-    left: option<borrow<object>>,
-    right: option<borrow<object>>,
-    config: borrow<diff-config>,
-  ) -> result<diff-result, string>;
 
   display-sections: func(
     diff: borrow<object-diff>,
@@ -241,8 +239,7 @@ world api {
   use logging.{level};
 
   export diff;
-  export diff-types;
-  export display-types;
+  export display;
 
   export init: func(level: level);
   export version: func() -> string;

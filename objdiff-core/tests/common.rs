@@ -1,5 +1,5 @@
 use objdiff_core::{
-    diff::{DiffObjConfig, SymbolDiff},
+    diff::{display::DiffTextSegment, DiffObjConfig, SymbolDiff},
     obj::Object,
 };
 
@@ -13,21 +13,16 @@ pub fn display_diff(
     for row in &diff.instruction_rows {
         output.push('[');
         let mut separator = false;
-        objdiff_core::diff::display::display_row(
-            &obj,
-            symbol_idx,
-            row,
-            &diff_config,
-            |text, diff_idx| {
-                if separator {
-                    output.push_str(", ");
-                } else {
-                    separator = true;
-                }
-                output.push_str(&format!("({:?}, {:?})", text, diff_idx.get()));
-                Ok(())
-            },
-        )
+        objdiff_core::diff::display::display_row(&obj, symbol_idx, row, &diff_config, |segment| {
+            if separator {
+                output.push_str(", ");
+            } else {
+                separator = true;
+            }
+            let DiffTextSegment { text, color, pad_to } = segment;
+            output.push_str(&format!("({:?}, {:?}, {:?})", text, color, pad_to));
+            Ok(())
+        })
         .unwrap();
         output.push_str("]\n");
     }

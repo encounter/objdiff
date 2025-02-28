@@ -1,29 +1,17 @@
-use alloc::{
-    borrow::Cow,
-    boxed::Box,
-    collections::BTreeMap,
-    format,
-    string::{String, ToString},
-    vec,
-    vec::Vec,
-};
-use std::ops::Range;
+use alloc::{borrow::Cow, boxed::Box, format, string::String, vec::Vec};
+use core::ops::Range;
 
-use anyhow::{anyhow, bail, ensure, Result};
+use anyhow::{anyhow, bail, Result};
 use iced_x86::{
     Decoder, DecoderOptions, DecoratorKind, FormatterOutput, FormatterTextKind, GasFormatter,
-    Instruction, IntelFormatter, MasmFormatter, NasmFormatter, NumberKind, OpKind, PrefixKind,
-    Register,
+    Instruction, IntelFormatter, MasmFormatter, NasmFormatter, NumberKind, OpKind, Register,
 };
 use object::{pe, Endian as _, Object as _, ObjectSection as _};
 
 use crate::{
     arch::Arch,
     diff::{display::InstructionPart, DiffObjConfig, X86Formatter},
-    obj::{
-        InstructionArg, InstructionArgValue, InstructionRef, ParsedInstruction, RelocationFlags,
-        ResolvedRelocation, ScannedInstruction,
-    },
+    obj::{InstructionRef, RelocationFlags, ResolvedRelocation, ScannedInstruction},
 };
 
 #[derive(Debug)]
@@ -35,6 +23,10 @@ pub struct ArchX86 {
 impl ArchX86 {
     pub fn new(object: &object::File) -> Result<Self> {
         Ok(Self { bits: if object.is_64() { 64 } else { 32 }, endianness: object.endianness() })
+    }
+
+    fn decoder<'a>(&self, code: &'a [u8], address: u64) -> Decoder<'a> {
+        Decoder::with_ip(self.bits, code, address, DecoderOptions::NONE)
     }
 
     fn formatter(&self, diff_config: &DiffObjConfig) -> Box<dyn iced_x86::Formatter> {
@@ -58,11 +50,10 @@ impl Arch for ArchX86 {
         _diff_config: &DiffObjConfig,
     ) -> Result<Vec<ScannedInstruction>> {
         let mut out = Vec::with_capacity(code.len() / 2);
-        let mut decoder = Decoder::with_ip(self.bits, code, address, DecoderOptions::NONE);
+        let mut decoder = self.decoder(code, address);
         let mut instruction = Instruction::default();
         while decoder.can_decode() {
             decoder.decode_out(&mut instruction);
-            // TODO is this right?
             let branch_dest = match instruction.op0_kind() {
                 OpKind::NearBranch16 => Some(instruction.near_branch16() as u64),
                 OpKind::NearBranch32 => Some(instruction.near_branch32() as u64),
@@ -86,110 +77,72 @@ impl Arch for ArchX86 {
         ins_ref: InstructionRef,
         code: &[u8],
         relocation: Option<ResolvedRelocation>,
-        function_range: Range<u64>,
-        section_index: usize,
+        _function_range: Range<u64>,
+        _section_index: usize,
         diff_config: &DiffObjConfig,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
-        todo!()
-    }
-
-    fn process_code(
-        &self,
-        address: u64,
-        code: &[u8],
-        _section_index: usize,
-        relocations: &[ObjReloc],
-        line_info: &BTreeMap<u64, u32>,
-        config: &DiffObjConfig,
-    ) -> Result<ProcessCodeResult> {
-        let mut result = ProcessCodeResult { ops: Vec::new(), insts: Vec::new() };
-        let mut decoder = Decoder::with_ip(self.bits, code, address, DecoderOptions::NONE);
-        let mut formatter = self.formatter(config);
-
-        let mut output = InstructionFormatterOutput {
-            formatted: String::new(),
-            ins: ObjIns {
-                address: 0,
-                size: 0,
-                op: 0,
-                mnemonic: Cow::Borrowed("<invalid>"),
-                args: vec![],
-                reloc: None,
-                branch_dest: None,
-                line: None,
-                formatted: String::new(),
-                orig: None,
-            },
-            error: None,
-            ins_operands: vec![],
-        };
+        let mut decoder = self.decoder(code, ins_ref.address);
+        let mut formatter = self.formatter(diff_config);
         let mut instruction = Instruction::default();
-        while decoder.can_decode() {
-            decoder.decode_out(&mut instruction);
+        decoder.decode_out(&mut instruction);
 
-            let address = instruction.ip();
-            let op = instruction.mnemonic() as u16;
-            let reloc = relocations
-                .iter()
-                .find(|r| r.address >= address && r.address < address + instruction.len() as u64);
-            let line = line_info.range(..=address).last().map(|(_, &b)| b);
-            output.ins = ObjIns {
-                address,
-                size: instruction.len() as u8,
-                op,
-                mnemonic: Cow::Borrowed("<invalid>"),
-                args: vec![],
-                reloc: reloc.cloned(),
-                branch_dest: None,
-                line,
-                formatted: String::new(),
-                orig: None,
-            };
-            // Run the formatter, which will populate output.ins
-            formatter.format(&instruction, &mut output);
-            if let Some(error) = output.error.take() {
-                return Err(error);
-            }
-            ensure!(output.ins_operands.len() == output.ins.args.len());
-            output.ins.formatted.clone_from(&output.formatted);
-
-            // Make sure we've put the relocation somewhere in the instruction
-            if reloc.is_some()
-                && !output.ins.args.iter().any(|a| matches!(a, InstructionArg::Reloc))
+        // Determine where to insert relocation in instruction output.
+        // We replace the immediate or displacement with a placeholder value since the formatter
+        // doesn't provide enough information to know which number is the displacement inside a
+        // memory operand.
+        let mut reloc_replace = None;
+        if let Some(resolved) = relocation {
+            const PLACEHOLDER: u64 = 0x7BDEBE7D; // chosen by fair dice roll.
+                                                 // guaranteed to be random.
+            let reloc_offset = resolved.relocation.address - ins_ref.address;
+            let reloc_size = reloc_size(resolved.relocation.flags).unwrap_or(usize::MAX);
+            let offsets = decoder.get_constant_offsets(&instruction);
+            if reloc_offset == offsets.displacement_offset() as u64
+                && reloc_size == offsets.displacement_size()
             {
-                let mut found = replace_arg(
-                    OpKind::Memory,
-                    InstructionArg::Reloc,
-                    &mut output.ins.args,
-                    &instruction,
-                    &output.ins_operands,
-                )?;
-                if !found {
-                    found = replace_arg(
-                        OpKind::Immediate32,
-                        InstructionArg::Reloc,
-                        &mut output.ins.args,
-                        &instruction,
-                        &output.ins_operands,
-                    )?;
+                instruction.set_memory_displacement64(PLACEHOLDER);
+                // Formatter always writes the displacement as Int32
+                reloc_replace = Some((OpKind::Memory, NumberKind::Int32, PLACEHOLDER));
+            } else if reloc_offset == offsets.immediate_offset() as u64
+                && reloc_size == offsets.immediate_size()
+            {
+                let is_branch = matches!(
+                    instruction.op0_kind(),
+                    OpKind::NearBranch16 | OpKind::NearBranch32 | OpKind::NearBranch64
+                );
+                let op_kind = if is_branch {
+                    instruction.op0_kind()
+                } else {
+                    match reloc_size {
+                        2 => OpKind::Immediate16,
+                        4 => OpKind::Immediate32,
+                        8 => OpKind::Immediate64,
+                        _ => OpKind::default(),
+                    }
+                };
+                let number_kind = match reloc_size {
+                    2 => NumberKind::UInt16,
+                    4 => NumberKind::UInt32,
+                    8 => NumberKind::UInt64,
+                    _ => NumberKind::default(),
+                };
+                if is_branch {
+                    instruction.set_near_branch64(PLACEHOLDER);
+                } else {
+                    instruction.set_immediate32(PLACEHOLDER as u32);
                 }
-                ensure!(found, "x86: Failed to find operand for Absolute relocation");
+                reloc_replace = Some((op_kind, number_kind, PLACEHOLDER));
             }
-            if reloc.is_some()
-                && !output.ins.args.iter().any(|a| matches!(a, InstructionArg::Reloc))
-            {
-                bail!("Failed to find relocation in instruction");
-            }
-
-            result.ops.push(op);
-            result.insts.push(output.ins.clone());
-
-            // Clear for next iteration
-            output.formatted.clear();
-            output.ins_operands.clear();
         }
-        Ok(result)
+
+        let mut output =
+            InstructionFormatterOutput { cb, reloc_replace, error: None, skip_next: false };
+        formatter.format(&instruction, &mut output);
+        if let Some(error) = output.error.take() {
+            return Err(error);
+        }
+        Ok(())
     }
 
     fn implcit_addend(
@@ -202,7 +155,7 @@ impl Arch for ArchX86 {
     ) -> Result<i64> {
         match flags {
             RelocationFlags::Coff(pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32) => {
-                let data = section.data()[address as usize..address as usize + 4].try_into()?;
+                let data = section.data()?[address as usize..address as usize + 4].try_into()?;
                 Ok(self.endianness.read_i32_bytes(data) as i64)
             }
             flags => bail!("Unsupported x86 implicit relocation {flags:?}"),
@@ -231,171 +184,128 @@ impl Arch for ArchX86 {
     }
 
     fn get_reloc_byte_size(&self, flags: RelocationFlags) -> usize {
-        match flags {
-            RelocationFlags::Coff(typ) => match typ {
-                pe::IMAGE_REL_I386_DIR16 => 2,
-                pe::IMAGE_REL_I386_REL16 => 2,
-                pe::IMAGE_REL_I386_DIR32 => 4,
-                pe::IMAGE_REL_I386_REL32 => 4,
-                _ => 1,
-            },
-            _ => 1,
-        }
+        reloc_size(flags).unwrap_or(1)
     }
 }
 
-fn replace_arg(
-    from: OpKind,
-    to: InstructionArg,
-    args: &mut [InstructionArg],
-    instruction: &Instruction,
-    ins_operands: &[Option<u32>],
-) -> Result<bool> {
-    let mut replace = None;
-    for i in 0..instruction.op_count() {
-        let op_kind = instruction.op_kind(i);
-        if op_kind == from {
-            replace = Some(i);
-            break;
-        }
+fn reloc_size(flags: RelocationFlags) -> Option<usize> {
+    match flags {
+        RelocationFlags::Coff(typ) => match typ {
+            pe::IMAGE_REL_I386_DIR16 | pe::IMAGE_REL_I386_REL16 => Some(2),
+            pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32 => Some(4),
+            _ => None,
+        },
+        _ => None,
     }
-    if let Some(i) = replace {
-        for (j, arg) in args.iter_mut().enumerate() {
-            if ins_operands[j] == Some(i) {
-                *arg = to;
-                return Ok(true);
-            }
-        }
-    }
-    Ok(false)
 }
 
-struct InstructionFormatterOutput {
-    formatted: String,
-    ins: ParsedInstruction,
+struct InstructionFormatterOutput<'a> {
+    cb: &'a mut dyn FnMut(InstructionPart<'_>) -> Result<()>,
+    reloc_replace: Option<(OpKind, NumberKind, u64)>,
     error: Option<anyhow::Error>,
-    ins_operands: Vec<Option<u32>>,
+    skip_next: bool,
 }
 
-impl InstructionFormatterOutput {
-    fn push_signed(&mut self, value: i64) {
-        // The formatter writes the '-' operator and then gives us a negative value,
-        // so convert it to a positive value to avoid double negatives
-        if value < 0
-            && matches!(self.ins.args.last(), Some(InstructionArg::Value(InstructionArgValue::Opaque(v))) if v == "-")
-        {
-            self.ins
-                .args
-                .push(InstructionArg::Value(InstructionArgValue::Signed(value.wrapping_abs())));
-        } else {
-            self.ins.args.push(InstructionArg::Value(InstructionArgValue::Signed(value)));
-        }
-    }
-}
-
-impl FormatterOutput for InstructionFormatterOutput {
-    fn write(&mut self, text: &str, kind: FormatterTextKind) {
-        self.formatted.push_str(text);
-        // Skip whitespace after the mnemonic
-        if self.ins.args.is_empty() && kind == FormatterTextKind::Text {
+impl InstructionFormatterOutput<'_> {
+    fn push_signed(&mut self, mut value: i64) {
+        if self.error.is_some() {
             return;
         }
-        self.ins_operands.push(None);
+        // The formatter writes the '-' operator and then gives us a negative value,
+        // so convert it to a positive value to avoid double negatives
+        if value < 0 {
+            value = value.wrapping_abs();
+        }
+        if let Err(e) = (self.cb)(InstructionPart::signed(value)) {
+            self.error = Some(e);
+        }
+    }
+}
+
+impl FormatterOutput for InstructionFormatterOutput<'_> {
+    fn write(&mut self, text: &str, kind: FormatterTextKind) {
+        if self.error.is_some() {
+            return;
+        }
+        // Skip whitespace after the mnemonic
+        if self.skip_next {
+            self.skip_next = false;
+            if kind == FormatterTextKind::Text && text == " " {
+                return;
+            }
+        }
         match kind {
             FormatterTextKind::Text | FormatterTextKind::Punctuation => {
-                self.ins.args.push(InstructionArg::PlainText(text.to_string().into()));
-            }
-            FormatterTextKind::Keyword | FormatterTextKind::Operator => {
-                self.ins.args.push(InstructionArg::Value(InstructionArgValue::Opaque(
-                    text.to_string().into(),
-                )));
-            }
-            _ => {
-                if self.error.is_none() {
-                    self.error = Some(anyhow!("x86: Unsupported FormatterTextKind {:?}", kind));
+                if let Err(e) = (self.cb)(InstructionPart::basic(text)) {
+                    self.error = Some(e);
                 }
             }
+            FormatterTextKind::Prefix
+            | FormatterTextKind::Keyword
+            | FormatterTextKind::Operator => {
+                if let Err(e) = (self.cb)(InstructionPart::opaque(text)) {
+                    self.error = Some(e);
+                }
+            }
+            _ => self.error = Some(anyhow!("x86: Unsupported FormatterTextKind {:?}", kind)),
         }
     }
 
-    fn write_prefix(&mut self, _instruction: &Instruction, text: &str, _prefix: PrefixKind) {
-        self.formatted.push_str(text);
-        self.ins_operands.push(None);
-        self.ins
-            .args
-            .push(InstructionArg::Value(InstructionArgValue::Opaque(text.to_string().into())));
-    }
-
-    fn write_mnemonic(&mut self, _instruction: &Instruction, text: &str) {
-        self.formatted.push_str(text);
-        self.ins.mnemonic = Cow::Owned(text.to_string());
+    fn write_mnemonic(&mut self, instruction: &Instruction, text: &str) {
+        if self.error.is_some() {
+            return;
+        }
+        if let Err(e) = (self.cb)(InstructionPart::opcode(text, instruction.mnemonic() as u16)) {
+            self.error = Some(e);
+        }
+        // Skip whitespace after the mnemonic
+        self.skip_next = true;
     }
 
     fn write_number(
         &mut self,
-        _instruction: &Instruction,
+        instruction: &Instruction,
         _operand: u32,
         instruction_operand: Option<u32>,
-        text: &str,
+        _text: &str,
         value: u64,
         number_kind: NumberKind,
         kind: FormatterTextKind,
     ) {
-        self.formatted.push_str(text);
-        self.ins_operands.push(instruction_operand);
+        if self.error.is_some() {
+            return;
+        }
 
-        // Handle relocations
-        match kind {
-            FormatterTextKind::LabelAddress => {
-                if let Some(reloc) = self.ins.reloc.as_ref() {
-                    if matches!(
-                        reloc.flags,
-                        RelocationFlags::Coff(pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32)
-                    ) {
-                        self.ins.args.push(InstructionArg::Reloc);
-                        return;
-                    } else if self.error.is_none() {
-                        self.error = Some(anyhow!(
-                            "x86: Unsupported LabelAddress relocation flags {:?}",
-                            reloc.flags
-                        ));
-                    }
+        if let (Some(operand), Some((target_op_kind, target_number_kind, target_value))) =
+            (instruction_operand, self.reloc_replace)
+        {
+            if instruction.op_kind(operand) == target_op_kind
+                && number_kind == target_number_kind
+                && value == target_value
+            {
+                if let Err(e) = (self.cb)(InstructionPart::reloc()) {
+                    self.error = Some(e);
                 }
-                self.ins.args.push(InstructionArg::BranchDest(value));
-                self.ins.branch_dest = Some(value);
                 return;
             }
-            FormatterTextKind::FunctionAddress => {
-                if let Some(reloc) = self.ins.reloc.as_ref() {
-                    if matches!(reloc.flags, RelocationFlags::Coff(pe::IMAGE_REL_I386_REL32)) {
-                        self.ins.args.push(InstructionArg::Reloc);
-                        return;
-                    } else if self.error.is_none() {
-                        self.error = Some(anyhow!(
-                            "x86: Unsupported FunctionAddress relocation flags {:?}",
-                            reloc.flags
-                        ));
-                    }
-                }
+        }
+
+        if let FormatterTextKind::LabelAddress | FormatterTextKind::FunctionAddress = kind {
+            if let Err(e) = (self.cb)(InstructionPart::branch_dest(value)) {
+                self.error = Some(e);
             }
-            _ => {}
+            return;
         }
 
         match number_kind {
-            NumberKind::Int8 => {
-                self.push_signed(value as i8 as i64);
-            }
-            NumberKind::Int16 => {
-                self.push_signed(value as i16 as i64);
-            }
-            NumberKind::Int32 => {
-                self.push_signed(value as i32 as i64);
-            }
-            NumberKind::Int64 => {
-                self.push_signed(value as i64);
-            }
+            NumberKind::Int8 => self.push_signed(value as i8 as i64),
+            NumberKind::Int16 => self.push_signed(value as i16 as i64),
+            NumberKind::Int32 => self.push_signed(value as i32 as i64),
+            NumberKind::Int64 => self.push_signed(value as i64),
             NumberKind::UInt8 | NumberKind::UInt16 | NumberKind::UInt32 | NumberKind::UInt64 => {
-                self.ins.args.push(InstructionArg::Value(InstructionArgValue::Unsigned(value)));
+                if let Err(e) = (self.cb)(InstructionPart::unsigned(value)) {
+                    self.error = Some(e);
+                }
             }
         }
     }
@@ -404,27 +314,208 @@ impl FormatterOutput for InstructionFormatterOutput {
         &mut self,
         _instruction: &Instruction,
         _operand: u32,
-        instruction_operand: Option<u32>,
+        _instruction_operand: Option<u32>,
         text: &str,
         _decorator: DecoratorKind,
     ) {
-        self.formatted.push_str(text);
-        self.ins_operands.push(instruction_operand);
-        self.ins.args.push(InstructionArg::PlainText(text.to_string().into()));
+        if self.error.is_some() {
+            return;
+        }
+        if let Err(e) = (self.cb)(InstructionPart::basic(text)) {
+            self.error = Some(e);
+        }
     }
 
     fn write_register(
         &mut self,
         _instruction: &Instruction,
         _operand: u32,
-        instruction_operand: Option<u32>,
+        _instruction_operand: Option<u32>,
         text: &str,
         _register: Register,
     ) {
-        self.formatted.push_str(text);
-        self.ins_operands.push(instruction_operand);
-        self.ins
-            .args
-            .push(InstructionArg::Value(InstructionArgValue::Opaque(text.to_string().into())));
+        if self.error.is_some() {
+            return;
+        }
+        if let Err(e) = (self.cb)(InstructionPart::opaque(text)) {
+            self.error = Some(e);
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::obj::Relocation;
+
+    #[test]
+    fn test_scan_instructions() {
+        let arch = ArchX86 { bits: 32, endianness: object::Endianness::Little };
+        let code = [
+            0xc7, 0x85, 0x68, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x8b, 0x04, 0x85, 0x00,
+            0x00, 0x00, 0x00,
+        ];
+        let scanned = arch.scan_instructions(0, &code, 0, &DiffObjConfig::default()).unwrap();
+        assert_eq!(scanned.len(), 2);
+        assert_eq!(scanned[0].ins_ref.address, 0);
+        assert_eq!(scanned[0].ins_ref.size, 10);
+        assert_eq!(scanned[0].ins_ref.opcode, iced_x86::Mnemonic::Mov as u16);
+        assert_eq!(scanned[0].branch_dest, None);
+        assert_eq!(scanned[1].ins_ref.address, 10);
+        assert_eq!(scanned[1].ins_ref.size, 7);
+        assert_eq!(scanned[1].ins_ref.opcode, iced_x86::Mnemonic::Mov as u16);
+        assert_eq!(scanned[1].branch_dest, None);
+    }
+
+    #[test]
+    fn test_process_instruction() {
+        let arch = ArchX86 { bits: 32, endianness: object::Endianness::Little };
+        let code = [0xc7, 0x85, 0x68, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00];
+        let opcode = iced_x86::Mnemonic::Mov as u16;
+        let mut parts = Vec::new();
+        arch.display_instruction(
+            InstructionRef { address: 0x1234, size: 10, opcode },
+            &code,
+            None,
+            0x1234..0x2000,
+            0,
+            &DiffObjConfig::default(),
+            &mut |part| {
+                parts.push(part.into_static());
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(parts, &[
+            InstructionPart::opcode("mov", opcode),
+            InstructionPart::opaque("dword"),
+            InstructionPart::basic(" "),
+            InstructionPart::opaque("ptr"),
+            InstructionPart::basic(" "),
+            InstructionPart::basic("["),
+            InstructionPart::opaque("ebp"),
+            InstructionPart::opaque("-"),
+            InstructionPart::signed(152i64),
+            InstructionPart::basic("]"),
+            InstructionPart::basic(","),
+            InstructionPart::basic(" "),
+            InstructionPart::unsigned(0u64),
+        ]);
+    }
+
+    #[test]
+    fn test_process_instruction_with_reloc_1() {
+        let arch = ArchX86 { bits: 32, endianness: object::Endianness::Little };
+        let code = [0xc7, 0x85, 0x68, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00];
+        let opcode = iced_x86::Mnemonic::Mov as u16;
+        let mut parts = Vec::new();
+        arch.display_instruction(
+            InstructionRef { address: 0x1234, size: 10, opcode },
+            &code,
+            Some(ResolvedRelocation {
+                relocation: &Relocation {
+                    flags: RelocationFlags::Coff(pe::IMAGE_REL_I386_DIR32),
+                    address: 0x1234 + 6,
+                    target_symbol: 0,
+                    addend: 0,
+                },
+                symbol: &Default::default(),
+            }),
+            0x1234..0x2000,
+            0,
+            &DiffObjConfig::default(),
+            &mut |part| {
+                parts.push(part.into_static());
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(parts, &[
+            InstructionPart::opcode("mov", opcode),
+            InstructionPart::opaque("dword"),
+            InstructionPart::basic(" "),
+            InstructionPart::opaque("ptr"),
+            InstructionPart::basic(" "),
+            InstructionPart::basic("["),
+            InstructionPart::opaque("ebp"),
+            InstructionPart::opaque("-"),
+            InstructionPart::signed(152i64),
+            InstructionPart::basic("]"),
+            InstructionPart::basic(","),
+            InstructionPart::basic(" "),
+            InstructionPart::reloc(),
+        ]);
+    }
+
+    #[test]
+    fn test_process_instruction_with_reloc_2() {
+        let arch = ArchX86 { bits: 32, endianness: object::Endianness::Little };
+        let code = [0x8b, 0x04, 0x85, 0x00, 0x00, 0x00, 0x00];
+        let opcode = iced_x86::Mnemonic::Mov as u16;
+        let mut parts = Vec::new();
+        arch.display_instruction(
+            InstructionRef { address: 0x1234, size: 7, opcode },
+            &code,
+            Some(ResolvedRelocation {
+                relocation: &Relocation {
+                    flags: RelocationFlags::Coff(pe::IMAGE_REL_I386_DIR32),
+                    address: 0x1234 + 3,
+                    target_symbol: 0,
+                    addend: 0,
+                },
+                symbol: &Default::default(),
+            }),
+            0x1234..0x2000,
+            0,
+            &DiffObjConfig::default(),
+            &mut |part| {
+                parts.push(part.into_static());
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(parts, &[
+            InstructionPart::opcode("mov", opcode),
+            InstructionPart::opaque("eax"),
+            InstructionPart::basic(","),
+            InstructionPart::basic(" "),
+            InstructionPart::basic("["),
+            InstructionPart::opaque("eax"),
+            InstructionPart::opaque("*"),
+            InstructionPart::signed(4),
+            InstructionPart::opaque("+"),
+            InstructionPart::reloc(),
+            InstructionPart::basic("]"),
+        ]);
+    }
+
+    #[test]
+    fn test_process_instruction_with_reloc_3() {
+        let arch = ArchX86 { bits: 32, endianness: object::Endianness::Little };
+        let code = [0xe8, 0x00, 0x00, 0x00, 0x00];
+        let opcode = iced_x86::Mnemonic::Call as u16;
+        let mut parts = Vec::new();
+        arch.display_instruction(
+            InstructionRef { address: 0x1234, size: 5, opcode },
+            &code,
+            Some(ResolvedRelocation {
+                relocation: &Relocation {
+                    flags: RelocationFlags::Coff(pe::IMAGE_REL_I386_REL32),
+                    address: 0x1234 + 1,
+                    target_symbol: 0,
+                    addend: 0,
+                },
+                symbol: &Default::default(),
+            }),
+            0x1234..0x2000,
+            0,
+            &DiffObjConfig::default(),
+            &mut |part| {
+                parts.push(part.into_static());
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(parts, &[InstructionPart::opcode("call", opcode), InstructionPart::reloc()]);
     }
 }

@@ -16,8 +16,8 @@ use crate::{
     arch::Arch,
     diff::{display::InstructionPart, ArmArchVersion, ArmR9Usage, DiffObjConfig},
     obj::{
-        InstructionArg, InstructionArgValue, InstructionRef, RelocationFlags, ResolvedRelocation,
-        ScannedInstruction, SymbolFlag, SymbolFlagSet, SymbolKind,
+        InstructionRef, RelocationFlags, ResolvedRelocation, ScannedInstruction, SymbolFlag,
+        SymbolFlagSet, SymbolKind,
     },
 };
 
@@ -261,9 +261,9 @@ impl Arch for ArchArm {
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
         let (ins, parsed_ins) = self.parse_ins_ref(ins_ref, code, diff_config)?;
-        cb(InstructionPart::Opcode(Cow::Borrowed(parsed_ins.mnemonic), ins_ref.opcode))?;
+        cb(InstructionPart::opcode(parsed_ins.mnemonic, ins_ref.opcode))?;
         if ins == unarm::Ins::Data && relocation.is_some() {
-            cb(InstructionPart::Arg(InstructionArg::Reloc))?;
+            cb(InstructionPart::reloc())?;
         } else {
             push_args(
                 &parsed_ins,
@@ -396,12 +396,10 @@ fn push_args(
                 })
                 | args::Argument::CoOption(_) => {
                     deref = false;
-                    arg_cb(InstructionPart::Basic("]"))?;
+                    arg_cb(InstructionPart::basic("]"))?;
                     if writeback {
                         writeback = false;
-                        arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                            InstructionArgValue::Opaque("!".into()),
-                        )))?;
+                        arg_cb(InstructionPart::opaque("!"))?;
                     }
                 }
                 _ => {}
@@ -409,130 +407,98 @@ fn push_args(
         }
 
         if i > 0 {
-            arg_cb(InstructionPart::Separator)?;
+            arg_cb(InstructionPart::separator())?;
         }
 
         if reloc_arg == Some(i) {
-            arg_cb(InstructionPart::Arg(InstructionArg::Reloc))?;
+            arg_cb(InstructionPart::reloc())?;
         } else {
             match arg {
                 args::Argument::None => {}
                 args::Argument::Reg(reg) => {
                     if reg.deref {
                         deref = true;
-                        arg_cb(InstructionPart::Basic("["))?;
+                        arg_cb(InstructionPart::basic("["))?;
                     }
-                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                        InstructionArgValue::Opaque(
-                            reg.reg.display(display_options.reg_names).to_string().into(),
-                        ),
-                    )))?;
+                    arg_cb(InstructionPart::opaque(
+                        reg.reg.display(display_options.reg_names).to_string(),
+                    ))?;
                     if reg.writeback {
                         if reg.deref {
                             writeback = true;
                         } else {
-                            arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                                InstructionArgValue::Opaque("!".into()),
-                            )))?;
+                            arg_cb(InstructionPart::opaque("!"))?;
                         }
                     }
                 }
                 args::Argument::RegList(reg_list) => {
-                    arg_cb(InstructionPart::Basic("{"))?;
+                    arg_cb(InstructionPart::basic("{"))?;
                     let mut first = true;
                     for i in 0..16 {
                         if (reg_list.regs & (1 << i)) != 0 {
                             if !first {
-                                arg_cb(InstructionPart::Separator)?;
+                                arg_cb(InstructionPart::separator())?;
                             }
-                            arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                                InstructionArgValue::Opaque(
-                                    args::Register::parse(i)
-                                        .display(display_options.reg_names)
-                                        .to_string()
-                                        .into(),
-                                ),
-                            )))?;
+                            arg_cb(InstructionPart::opaque(
+                                args::Register::parse(i)
+                                    .display(display_options.reg_names)
+                                    .to_string(),
+                            ))?;
                             first = false;
                         }
                     }
-                    arg_cb(InstructionPart::Basic("}"))?;
+                    arg_cb(InstructionPart::basic("}"))?;
                     if reg_list.user_mode {
-                        arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                            InstructionArgValue::Opaque("^".into()),
-                        )))?;
+                        arg_cb(InstructionPart::opaque("^"))?;
                     }
                 }
                 args::Argument::UImm(value)
                 | args::Argument::CoOpcode(value)
                 | args::Argument::SatImm(value) => {
-                    arg_cb(InstructionPart::Basic("#"))?;
-                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                        InstructionArgValue::Unsigned(*value as u64),
-                    )))?;
+                    arg_cb(InstructionPart::basic("#"))?;
+                    arg_cb(InstructionPart::unsigned(*value))?;
                 }
                 args::Argument::SImm(value)
                 | args::Argument::OffsetImm(args::OffsetImm { post_indexed: _, value }) => {
-                    arg_cb(InstructionPart::Basic("#"))?;
-                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                        InstructionArgValue::Signed(*value as i64),
-                    )))?;
+                    arg_cb(InstructionPart::basic("#"))?;
+                    arg_cb(InstructionPart::signed(*value))?;
                 }
                 args::Argument::BranchDest(value) => {
-                    let dest = cur_addr.wrapping_add_signed(*value) as u64;
-                    arg_cb(InstructionPart::Arg(InstructionArg::BranchDest(dest)))?;
+                    arg_cb(InstructionPart::branch_dest(cur_addr.wrapping_add_signed(*value)))?;
                 }
                 args::Argument::CoOption(value) => {
-                    arg_cb(InstructionPart::Basic("{"))?;
-                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                        InstructionArgValue::Unsigned(*value as u64),
-                    )))?;
-                    arg_cb(InstructionPart::Basic("}"))?;
+                    arg_cb(InstructionPart::basic("{"))?;
+                    arg_cb(InstructionPart::unsigned(*value))?;
+                    arg_cb(InstructionPart::basic("}"))?;
                 }
                 args::Argument::CoprocNum(value) => {
-                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                        InstructionArgValue::Opaque(format!("p{}", value).into()),
-                    )))?;
+                    arg_cb(InstructionPart::opaque(format!("p{}", value)))?;
                 }
                 args::Argument::ShiftImm(shift) => {
-                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                        InstructionArgValue::Opaque(shift.op.to_string().into()),
-                    )))?;
-                    arg_cb(InstructionPart::Basic(" #"))?;
-                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                        InstructionArgValue::Unsigned(shift.imm as u64),
-                    )))?;
+                    arg_cb(InstructionPart::opaque(shift.op.to_string()))?;
+                    arg_cb(InstructionPart::basic(" #"))?;
+                    arg_cb(InstructionPart::unsigned(shift.imm))?;
                 }
                 args::Argument::ShiftReg(shift) => {
-                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                        InstructionArgValue::Opaque(shift.op.to_string().into()),
-                    )))?;
-                    arg_cb(InstructionPart::Basic(" "))?;
-                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                        InstructionArgValue::Opaque(
-                            shift.reg.display(display_options.reg_names).to_string().into(),
-                        ),
-                    )))?;
+                    arg_cb(InstructionPart::opaque(shift.op.to_string()))?;
+                    arg_cb(InstructionPart::basic(" "))?;
+                    arg_cb(InstructionPart::opaque(
+                        shift.reg.display(display_options.reg_names).to_string(),
+                    ))?;
                 }
                 args::Argument::OffsetReg(offset) => {
                     if !offset.add {
-                        arg_cb(InstructionPart::Basic("-"))?;
+                        arg_cb(InstructionPart::basic("-"))?;
                     }
-                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                        InstructionArgValue::Opaque(
-                            offset.reg.display(display_options.reg_names).to_string().into(),
-                        ),
-                    )))?;
+                    arg_cb(InstructionPart::opaque(
+                        offset.reg.display(display_options.reg_names).to_string(),
+                    ))?;
                 }
                 args::Argument::CpsrMode(mode) => {
-                    arg_cb(InstructionPart::Basic("#"))?;
-                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                        InstructionArgValue::Unsigned(mode.mode as u64),
-                    )))?;
+                    arg_cb(InstructionPart::basic("#"))?;
+                    arg_cb(InstructionPart::unsigned(mode.mode))?;
                     if mode.writeback {
-                        arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                            InstructionArgValue::Opaque("!".into()),
-                        )))?;
+                        arg_cb(InstructionPart::opaque("!"))?;
                     }
                 }
                 args::Argument::CoReg(_)
@@ -541,21 +507,17 @@ fn push_args(
                 | args::Argument::Shift(_)
                 | args::Argument::CpsrFlags(_)
                 | args::Argument::Endian(_) => {
-                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
-                        InstructionArgValue::Opaque(
-                            arg.display(display_options, None).to_string().into(),
-                        ),
-                    )))?;
+                    arg_cb(InstructionPart::opaque(
+                        arg.display(display_options, None).to_string(),
+                    ))?;
                 }
             }
         }
     }
     if deref {
-        arg_cb(InstructionPart::Basic("]"))?;
+        arg_cb(InstructionPart::basic("]"))?;
         if writeback {
-            arg_cb(InstructionPart::Arg(InstructionArg::Value(InstructionArgValue::Opaque(
-                "!".into(),
-            ))))?;
+            arg_cb(InstructionPart::opaque("!"))?;
         }
     }
     Ok(())

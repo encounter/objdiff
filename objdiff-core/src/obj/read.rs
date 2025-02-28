@@ -4,6 +4,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
+use core::cmp::Ordering;
 
 use anyhow::{bail, ensure, Context, Result};
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
@@ -32,16 +33,22 @@ fn map_symbol(
     arch: &dyn Arch,
     file: &object::File,
     symbol: &object::Symbol,
+    section_indices: &[usize],
     split_meta: Option<&SplitMeta>,
 ) -> Result<Symbol> {
     let mut name = symbol.name().context("Failed to process symbol name")?.to_string();
-    let size = symbol.size();
+    let mut size = symbol.size();
     if let (object::SymbolKind::Section, Some(section)) =
         (symbol.kind(), symbol.section_index().and_then(|i| file.section_by_index(i).ok()))
     {
         let section_name = section.name().context("Failed to process section name")?;
         name = format!("[{}]", section_name);
-        // size = section.size();
+        // For section symbols, set the size to zero. If the size is non-zero, it will be included
+        // in the diff. Most of the time, this is duplicative, given that we'll have function or
+        // object symbols that cover the same range. In the case of an empty section, the size
+        // inference logic below will set the size back to the section size, thus acting as a
+        // placeholder symbol.
+        size = 0;
     }
 
     let mut flags = arch.extra_symbol_flags(symbol);
@@ -74,7 +81,7 @@ fn map_symbol(
     let virtual_address = split_meta
         .and_then(|m| m.virtual_addresses.as_ref())
         .and_then(|v| v.get(symbol.index().0).cloned());
-    let section = symbol.section_index().map(|i| map_section_index(file, i));
+    let section = symbol.section_index().and_then(|i| section_indices.get(i.0).copied());
 
     Ok(Symbol {
         name,
@@ -89,39 +96,123 @@ fn map_symbol(
     })
 }
 
-fn map_section_index(file: &object::File, idx: object::SectionIndex) -> usize {
-    match file.format() {
-        object::BinaryFormat::Elf => idx.0 - 1,
-        _ => idx.0,
-    }
-}
-
-fn map_symbol_index(file: &object::File, idx: object::SymbolIndex) -> usize {
-    match file.format() {
-        object::BinaryFormat::Elf => idx.0 - 1,
-        _ => idx.0,
-    }
-}
-
 fn map_symbols(
     arch: &dyn Arch,
     obj_file: &object::File,
+    sections: &[Section],
+    section_indices: &[usize],
     split_meta: Option<&SplitMeta>,
-) -> Result<Vec<Symbol>> {
-    let mut symbols = Vec::<Symbol>::with_capacity(obj_file.symbols().count());
-    for symbol in obj_file.symbols() {
-        symbols.push(map_symbol(arch, obj_file, &symbol, split_meta)?);
+) -> Result<(Vec<Symbol>, Vec<usize>)> {
+    let symbol_count = obj_file.symbols().count();
+    let mut symbols = Vec::<Symbol>::with_capacity(symbol_count);
+    let mut symbol_indices = Vec::<usize>::with_capacity(symbol_count + 1);
+    for obj_symbol in obj_file.symbols() {
+        if symbol_indices.len() <= obj_symbol.index().0 {
+            symbol_indices.resize(obj_symbol.index().0 + 1, usize::MAX);
+        }
+        let symbol = map_symbol(arch, obj_file, &obj_symbol, section_indices, split_meta)?;
+        symbol_indices[obj_symbol.index().0] = symbols.len();
+        symbols.push(symbol);
     }
-    Ok(symbols)
+
+    // Infer symbol sizes for 0-size symbols
+    infer_symbol_sizes(&mut symbols, sections);
+
+    Ok((symbols, symbol_indices))
+}
+
+fn infer_symbol_sizes(symbols: &mut [Symbol], sections: &[Section]) {
+    // Create a sorted list of symbol indices by section
+    let mut symbols_with_section = Vec::<usize>::with_capacity(symbols.len());
+    for (i, symbol) in symbols.iter().enumerate() {
+        if symbol.section.is_some() {
+            symbols_with_section.push(i);
+        }
+    }
+    symbols_with_section.sort_by(|a, b| {
+        let a = &symbols[*a];
+        let b = &symbols[*b];
+        a.section
+            .unwrap_or(usize::MAX)
+            .cmp(&b.section.unwrap_or(usize::MAX))
+            .then_with(|| {
+                // Sort section symbols first
+                if a.kind == SymbolKind::Section {
+                    Ordering::Less
+                } else if b.kind == SymbolKind::Section {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            })
+            .then_with(|| a.address.cmp(&b.address))
+            .then_with(|| a.size.cmp(&b.size))
+    });
+
+    // Set symbol sizes based on the next symbol's address
+    let mut iter_idx = 0;
+    while iter_idx < symbols_with_section.len() {
+        let symbol_idx = symbols_with_section[iter_idx];
+        let symbol = &symbols[symbol_idx];
+        iter_idx += 1;
+        if symbol.size != 0 {
+            continue;
+        }
+        let section_idx = symbol.section.unwrap();
+        let next_symbol = match symbol.kind {
+            // For function/object symbols, find the next function/object symbol (in other words:
+            // skip over labels)
+            SymbolKind::Function | SymbolKind::Object => loop {
+                if iter_idx >= symbols_with_section.len() {
+                    break None;
+                }
+                let next_symbol = &symbols[symbols_with_section[iter_idx]];
+                if next_symbol.section != Some(section_idx) {
+                    break None;
+                }
+                if let SymbolKind::Function | SymbolKind::Object = next_symbol.kind {
+                    break Some(next_symbol);
+                }
+                iter_idx += 1;
+            },
+            // For labels (or anything else), simply use the next symbol's address
+            SymbolKind::Unknown | SymbolKind::Section => symbols_with_section
+                .get(iter_idx)
+                .map(|&i| &symbols[i])
+                .take_if(|s| s.section == Some(section_idx)),
+        };
+        let next_address = next_symbol.map(|s| s.address).unwrap_or_else(|| {
+            let section = &sections[section_idx];
+            section.address + section.size
+        });
+        let new_size = next_address.saturating_sub(symbol.address);
+        if new_size > 0 {
+            let symbol = &mut symbols[symbol_idx];
+            symbol.size = new_size;
+            if symbol.kind != SymbolKind::Section {
+                symbol.flags |= SymbolFlag::SizeInferred;
+            }
+            // Set symbol kind if unknown and size is non-zero
+            if symbol.kind == SymbolKind::Unknown {
+                symbol.kind = match sections[section_idx].kind {
+                    SectionKind::Code => SymbolKind::Function,
+                    SectionKind::Data | SectionKind::Bss => SymbolKind::Object,
+                    _ => SymbolKind::Unknown,
+                };
+            }
+        }
+    }
 }
 
 fn map_sections(
-    arch: &dyn Arch,
+    _arch: &dyn Arch,
     obj_file: &object::File,
     split_meta: Option<&SplitMeta>,
-) -> Result<Vec<Section>> {
+) -> Result<(Vec<Section>, Vec<usize>)> {
     let mut section_names = BTreeMap::<String, usize>::new();
-    let mut result = Vec::<Section>::with_capacity(obj_file.sections().count());
+    let section_count = obj_file.sections().count();
+    let mut result = Vec::<Section>::with_capacity(section_count);
+    let mut section_indices = Vec::<usize>::with_capacity(section_count + 1);
     for section in obj_file.sections() {
         let name = section.name().context("Failed to process section name")?;
         let kind = map_section_kind(&section);
@@ -142,12 +233,14 @@ fn map_sections(
                 .and_then(|v| v.get(s.index().0).cloned())
         });
 
-        let relocations = map_relocations(arch, obj_file, &section)?;
-
         let unique_id = section_names.entry(name.to_string()).or_insert(0);
         let id = format!("{}-{}", name, unique_id);
         *unique_id += 1;
 
+        if section_indices.len() <= section.index().0 {
+            section_indices.resize(section.index().0 + 1, usize::MAX);
+        }
+        section_indices[section.index().0] = result.len();
         result.push(Section {
             id,
             name: name.to_string(),
@@ -156,32 +249,13 @@ fn map_sections(
             kind,
             data: SectionData(data),
             flags: Default::default(),
-            relocations,
+            relocations: Default::default(),
             virtual_address,
             line_info: Default::default(),
         });
     }
-    Ok(result)
+    Ok((result, section_indices))
 }
-
-//     result.sort_by(|a, b| a.address.cmp(&b.address).then(a.size.cmp(&b.size)));
-//     let mut iter = result.iter_mut().peekable();
-//     while let Some(symbol) = iter.next() {
-//         if symbol.size == 0 {
-//             if let Some(next_symbol) = iter.peek() {
-//                 symbol.size = next_symbol.address - symbol.address;
-//             } else {
-//                 symbol.size = (section.address + section.size) - symbol.address;
-//             }
-//             // Set symbol kind if we ended up with a non-zero size
-//             if symbol.kind == ObjSymbolKind::Unknown && symbol.size > 0 {
-//                 symbol.kind = match section.kind {
-//                     ObjSectionKind::Code => ObjSymbolKind::Function,
-//                     ObjSectionKind::Data | ObjSectionKind::Bss => ObjSymbolKind::Object,
-//                 };
-//             }
-//         }
-//     }
 
 const LOW_PRIORITY_SYMBOLS: &[&str] =
     &["__gnu_compiled_c", "__gnu_compiled_cplusplus", "gcc2_compiled."];
@@ -230,6 +304,7 @@ fn map_relocations(
     arch: &dyn Arch,
     obj_file: &object::File,
     obj_section: &object::Section,
+    symbol_indices: &[usize],
 ) -> Result<Vec<Relocation>> {
     let mut relocations = Vec::<Relocation>::with_capacity(obj_section.relocations().count());
     let mut ordered_symbols = None;
@@ -269,7 +344,13 @@ fn map_relocations(
                 } else {
                     idx
                 };
-                map_symbol_index(obj_file, idx)
+                match symbol_indices.get(idx.0).copied() {
+                    Some(i) => i,
+                    None => {
+                        log::warn!("Invalid symbol index {}", idx.0);
+                        continue;
+                    }
+                }
             }
             object::RelocationTarget::Absolute => {
                 let section_name = obj_section.name()?;
@@ -299,6 +380,7 @@ fn map_relocations(
 fn parse_line_info(
     obj_file: &object::File,
     sections: &mut [Section],
+    section_indices: &[usize],
     obj_data: &[u8],
 ) -> Result<()> {
     // DWARF 1.1
@@ -326,7 +408,6 @@ fn parse_line_info(
                 }
                 let address_delta = read_u32(obj_file, &mut section_data)? as u64;
                 out_section.line_info.insert(base_address + address_delta, line_number);
-                log::debug!("Line: {:#x} -> {}", base_address + address_delta, line_number);
             }
         }
     }
@@ -376,7 +457,7 @@ fn parse_line_info(
 
     // COFF
     if let object::File::Coff(coff) = obj_file {
-        parse_line_info_coff(coff, sections, obj_data)?;
+        parse_line_info_coff(coff, sections, section_indices, obj_data)?;
     }
 
     Ok(())
@@ -385,6 +466,7 @@ fn parse_line_info(
 fn parse_line_info_coff(
     coff: &object::coff::CoffFile,
     sections: &mut [Section],
+    section_indices: &[usize],
     obj_data: &[u8],
 ) -> Result<()> {
     use object::{
@@ -405,7 +487,9 @@ fn parse_line_info_coff(
 
         // Find this section in our out_section. If it's not in out_section,
         // skip it.
-        let Some(out_section) = sections.get_mut(sect.index().0) else {
+        let Some(out_section) =
+            section_indices.get(sect.index().0).and_then(|&i| sections.get_mut(i))
+        else {
             continue;
         };
 
@@ -514,7 +598,12 @@ fn combine_sections(
     for (i, section) in sections.iter().enumerate() {
         match section.kind {
             SectionKind::Data | SectionKind::Bss => {
-                data_sections.entry(section.name.clone()).or_default().push(i);
+                let base_name = if let Some(i) = section.name.rfind('$') {
+                    &section.name[..i]
+                } else {
+                    &section.name
+                };
+                data_sections.entry(base_name.to_string()).or_default().push(i);
             }
             SectionKind::Code => {
                 text_sections.push(i);
@@ -523,12 +612,12 @@ fn combine_sections(
         }
     }
     if config.combine_data_sections {
-        for (_, section_indices) in data_sections {
-            do_combine_sections(sections, symbols, &section_indices)?;
+        for (combined_name, mut section_indices) in data_sections {
+            do_combine_sections(sections, symbols, &mut section_indices, combined_name)?;
         }
     }
     if config.combine_text_sections {
-        do_combine_sections(sections, symbols, &text_sections)?;
+        do_combine_sections(sections, symbols, &mut text_sections, ".text".to_string())?;
     }
     Ok(())
 }
@@ -536,11 +625,24 @@ fn combine_sections(
 fn do_combine_sections(
     sections: &mut [Section],
     symbols: &mut [Symbol],
-    section_indices: &[usize],
+    section_indices: &mut [usize],
+    combined_name: String,
 ) -> Result<()> {
     if section_indices.len() < 2 {
         return Ok(());
     }
+    // Sort sections lexicographically by name (for COFF section groups)
+    section_indices.sort_by(|&a, &b| {
+        let a_name = &sections[a].name;
+        let b_name = &sections[b].name;
+        // .text$di < .text$mn < .text
+        if a_name.contains('$') && !b_name.contains('$') {
+            return Ordering::Less;
+        } else if !a_name.contains('$') && b_name.contains('$') {
+            return Ordering::Greater;
+        }
+        a_name.cmp(b_name)
+    });
     let first_section_idx = section_indices[0];
 
     // Calculate the new offset for each section
@@ -548,7 +650,7 @@ fn do_combine_sections(
     let mut current_offset = 0;
     let mut data_size = 0;
     let mut num_relocations = 0;
-    for &i in section_indices {
+    for i in section_indices.iter().copied() {
         let section = &sections[i];
         if section.address != 0 {
             bail!("Section {} ({}) has non-zero address", i, section.name);
@@ -580,6 +682,8 @@ fn do_combine_sections(
     }
     {
         let first_section = &mut sections[first_section_idx];
+        first_section.id = format!("{combined_name}-combined");
+        first_section.name = combined_name;
         first_section.size = current_offset;
         first_section.data = SectionData(data);
         first_section.flags |= SectionFlag::Combined;
@@ -659,9 +763,18 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<Object> {
     let obj_file = object::File::parse(data)?;
     let arch = new_arch(&obj_file)?;
     let split_meta = parse_split_meta(&obj_file)?;
-    let mut symbols = map_symbols(arch.as_ref(), &obj_file, split_meta.as_ref())?;
-    let mut sections = map_sections(arch.as_ref(), &obj_file, split_meta.as_ref())?;
-    parse_line_info(&obj_file, &mut sections, data)?;
+    let (mut sections, section_indices) =
+        map_sections(arch.as_ref(), &obj_file, split_meta.as_ref())?;
+    let (mut symbols, symbol_indices) =
+        map_symbols(arch.as_ref(), &obj_file, &sections, &section_indices, split_meta.as_ref())?;
+    for obj_section in obj_file.sections() {
+        let section = &mut sections[section_indices[obj_section.index().0]];
+        if section.kind != SectionKind::Unknown {
+            section.relocations =
+                map_relocations(arch.as_ref(), &obj_file, &obj_section, &symbol_indices)?;
+        }
+    }
+    parse_line_info(&obj_file, &mut sections, &section_indices, data)?;
     if config.combine_data_sections || config.combine_text_sections {
         combine_sections(&mut sections, &mut symbols, config)?;
     }
@@ -803,7 +916,8 @@ mod test {
                 ..Default::default()
             },
         ];
-        do_combine_sections(&mut sections, &mut symbols, &[1, 2, 3]).unwrap();
+        do_combine_sections(&mut sections, &mut symbols, &mut [1, 2, 3], ".data".to_string())
+            .unwrap();
         assert_eq!(sections[1].data.0, (1..=12).collect::<Vec<_>>());
         insta::assert_debug_snapshot!((sections, symbols));
     }

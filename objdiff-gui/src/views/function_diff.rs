@@ -4,14 +4,14 @@ use egui::{text::LayoutJob, Label, Response, Sense, Widget};
 use egui_extras::TableRow;
 use objdiff_core::{
     diff::{
-        display::{display_row, DiffText, HighlightKind},
-        DiffObjConfig, InstructionArgDiffIndex, InstructionDiffKind, InstructionDiffRow,
-        ObjectDiff,
+        display::{display_row, DiffText, DiffTextColor, DiffTextSegment, HighlightKind},
+        DiffObjConfig, InstructionDiffKind, InstructionDiffRow, ObjectDiff,
     },
     obj::{
         InstructionArg, InstructionArgValue, InstructionRef, Object, ParsedInstruction,
         ResolvedRelocation, Section, Symbol,
     },
+    util::ReallySigned,
 };
 
 use crate::views::{appearance::Appearance, symbol_diff::DiffViewAction};
@@ -87,7 +87,7 @@ fn resolve_instruction_ref(
     let section = &obj.sections[section_idx];
     let offset = ins_ref.address.checked_sub(section.address)?;
     let data = section.data.get(offset as usize..offset as usize + ins_ref.size as usize)?;
-    let relocation = section.relocation_at(ins_ref.address, obj);
+    let relocation = section.relocation_at(ins_ref, obj);
     Some(ResolvedInstructionRef { symbol, section, section_idx, data, relocation })
 }
 
@@ -301,91 +301,65 @@ fn ins_context_menu(
 #[must_use]
 fn diff_text_ui(
     ui: &mut egui::Ui,
-    text: DiffText<'_>,
-    diff: InstructionArgDiffIndex,
-    ins_diff: &InstructionDiffRow,
+    segment: DiffTextSegment,
     appearance: &Appearance,
     ins_view_state: &FunctionViewState,
     column: usize,
     space_width: f32,
     response_cb: impl Fn(Response) -> Response,
 ) -> Option<DiffViewAction> {
-    let mut ret = None;
-    let label_text;
-    let mut base_color = match ins_diff.kind {
-        InstructionDiffKind::None
-        | InstructionDiffKind::OpMismatch
-        | InstructionDiffKind::ArgMismatch => appearance.text_color,
-        InstructionDiffKind::Replace => appearance.replace_color,
-        InstructionDiffKind::Delete => appearance.delete_color,
-        InstructionDiffKind::Insert => appearance.insert_color,
-    };
-    let mut pad_to = 0;
-    match text {
-        DiffText::Basic(text) => {
-            label_text = text.to_string();
-        }
-        DiffText::Line(num) => {
-            label_text = num.to_string();
-            base_color = appearance.deemphasized_text_color;
-            pad_to = 5;
-        }
-        DiffText::Address(addr) => {
-            label_text = format!("{:x}:", addr);
-            pad_to = 5;
-        }
-        DiffText::Opcode(mnemonic, _op) => {
-            label_text = mnemonic.to_string();
-            if ins_diff.kind == InstructionDiffKind::OpMismatch {
-                base_color = appearance.replace_color;
-            }
-            pad_to = 8;
-        }
-        DiffText::Argument(arg) => {
-            label_text = arg.to_string();
-        }
-        DiffText::BranchDest(addr) => {
-            label_text = format!("{addr:x}");
-        }
-        DiffText::Symbol(sym) => {
-            let name = sym.demangled_name.as_ref().unwrap_or(&sym.name);
-            label_text = name.clone();
-            base_color = appearance.emphasized_text_color;
-        }
-        DiffText::Addend(addend) => {
-            label_text = match addend.cmp(&0i64) {
-                Ordering::Greater => format!("+{:#x}", addend),
-                Ordering::Less => format!("-{:#x}", -addend),
-                _ => "".to_string(),
-            };
-            base_color = appearance.emphasized_text_color;
-        }
+    let highlight_kind = HighlightKind::from(&segment.text);
+    let label_text = match segment.text {
+        DiffText::Basic(text) => text.to_string(),
+        DiffText::Line(num) => format!("{num} "),
+        DiffText::Address(addr) => format!("{:x}:", addr),
+        DiffText::Opcode(mnemonic, _op) => format!("{mnemonic} "),
+        DiffText::Argument(arg) => match arg {
+            InstructionArgValue::Signed(v) => format!("{:#x}", ReallySigned(v)),
+            InstructionArgValue::Unsigned(v) => format!("{:#x}", v),
+            InstructionArgValue::Opaque(v) => v.into_owned(),
+        },
+        DiffText::BranchDest(addr) => format!("{addr:x}"),
+        DiffText::Symbol(sym) => sym.demangled_name.as_ref().unwrap_or(&sym.name).clone(),
+        DiffText::Addend(addend) => match addend.cmp(&0i64) {
+            Ordering::Greater => format!("+{:#x}", addend),
+            Ordering::Less => format!("-{:#x}", -addend),
+            _ => String::new(),
+        },
         DiffText::Spacing(n) => {
             ui.add_space(n as f32 * space_width);
-            return ret;
+            return None;
         }
-        DiffText::Eol => {
-            label_text = "\n".to_string();
-        }
-    }
-    if let Some(diff_idx) = diff.get() {
-        base_color = appearance.diff_colors[diff_idx as usize % appearance.diff_colors.len()];
-    }
+        DiffText::Eol => "\n".to_string(),
+    };
 
     let len = label_text.len();
-    let highlight = *ins_view_state.highlight(column) == text;
+    let highlight = highlight_kind != HighlightKind::None
+        && *ins_view_state.highlight(column) == highlight_kind;
+    let color = match segment.color {
+        DiffTextColor::Normal => appearance.text_color,
+        DiffTextColor::Dim => appearance.deemphasized_text_color,
+        DiffTextColor::Bright => appearance.emphasized_text_color,
+        DiffTextColor::Replace => appearance.replace_color,
+        DiffTextColor::Delete => appearance.delete_color,
+        DiffTextColor::Insert => appearance.insert_color,
+        DiffTextColor::Rotating(i) => {
+            appearance.diff_colors[i as usize % appearance.diff_colors.len()]
+        }
+    };
     let mut response = Label::new(LayoutJob::single_section(
         label_text,
-        appearance.code_text_format(base_color, highlight),
+        appearance.code_text_format(color, highlight),
     ))
     .sense(Sense::click())
     .ui(ui);
     response = response_cb(response);
+    let mut ret = None;
     if response.clicked() {
-        ret = Some(DiffViewAction::SetDiffHighlight(column, text.into()));
+        ret = Some(DiffViewAction::SetDiffHighlight(column, highlight_kind));
     }
-    if len < pad_to {
-        ui.add_space((pad_to - len) as f32 * space_width);
+    if len < segment.pad_to as usize {
+        ui.add_space((segment.pad_to as usize - len) as f32 * space_width);
     }
     ret
 }
@@ -409,18 +383,10 @@ fn asm_row_ui(
         ui.painter().rect_filled(ui.available_rect_before_wrap(), 0.0, ui.visuals().faint_bg_color);
     }
     let space_width = ui.fonts(|f| f.glyph_width(&appearance.code_font, ' '));
-    display_row(obj, symbol_idx, ins_diff, diff_config, |text, diff| {
-        if let Some(action) = diff_text_ui(
-            ui,
-            text,
-            diff,
-            ins_diff,
-            appearance,
-            ins_view_state,
-            column,
-            space_width,
-            &response_cb,
-        ) {
+    display_row(obj, symbol_idx, ins_diff, diff_config, |segment| {
+        if let Some(action) =
+            diff_text_ui(ui, segment, appearance, ins_view_state, column, space_width, &response_cb)
+        {
             ret = Some(action);
         }
         Ok(())

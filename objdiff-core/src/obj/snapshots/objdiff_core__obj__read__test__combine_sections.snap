@@ -44,7 +44,7 @@ expression: "(sections, symbols)"
             virtual_address: None,
         },
         Section {
-            id: ".data-0",
+            id: ".data-combined",
             name: ".data",
             address: 0,
             size: 12,

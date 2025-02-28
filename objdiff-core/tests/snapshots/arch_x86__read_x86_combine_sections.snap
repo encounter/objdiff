@@ -1,0 +1,940 @@
+---
+source: objdiff-core/tests/arch_x86.rs
+expression: obj.sections
+---
+[
+    Section {
+        id: ".drectve-0",
+        name: ".drectve",
+        address: 0,
+        size: 47,
+        kind: Unknown,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".debug$S-0",
+        name: ".debug$S",
+        address: 0,
+        size: 100,
+        kind: Unknown,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata-0",
+        name: ".rdata",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata-1",
+        name: ".rdata",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".text$mn-0",
+        name: ".text$mn",
+        address: 0,
+        size: 0,
+        kind: Code,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".data-combined",
+        name: ".data",
+        address: 0,
+        size: 56,
+        kind: Data,
+        data: SectionData(
+            56,
+        ),
+        flags: FlagSet(Combined),
+        relocations: [
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 0,
+                target_symbol: 44,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 16,
+                target_symbol: 44,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 32,
+                target_symbol: 44,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 48,
+                target_symbol: 6,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 52,
+                target_symbol: 8,
+                addend: 0,
+            },
+        ],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata-combined",
+        name: ".rdata",
+        address: 0,
+        size: 295,
+        kind: Data,
+        data: SectionData(
+            295,
+        ),
+        flags: FlagSet(Combined),
+        relocations: [
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 12,
+                target_symbol: 17,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 16,
+                target_symbol: 19,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 21,
+                target_symbol: 13,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 45,
+                target_symbol: 15,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 61,
+                target_symbol: 25,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 65,
+                target_symbol: 27,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 70,
+                target_symbol: 21,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 94,
+                target_symbol: 23,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 110,
+                target_symbol: 31,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 114,
+                target_symbol: 33,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 130,
+                target_symbol: 35,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 134,
+                target_symbol: 37,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 138,
+                target_symbol: 19,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 142,
+                target_symbol: 39,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 147,
+                target_symbol: 31,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 171,
+                target_symbol: 33,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 175,
+                target_symbol: 21,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 199,
+                target_symbol: 23,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 215,
+                target_symbol: 31,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 219,
+                target_symbol: 33,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 235,
+                target_symbol: 13,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 239,
+                target_symbol: 15,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 255,
+                target_symbol: 21,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 259,
+                target_symbol: 23,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 263,
+                target_symbol: 29,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 267,
+                target_symbol: 11,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 271,
+                target_symbol: 43,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 275,
+                target_symbol: 41,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 279,
+                target_symbol: 70,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 283,
+                target_symbol: 56,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 287,
+                target_symbol: 72,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 291,
+                target_symbol: 59,
+                addend: 0,
+            },
+        ],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata$r-1",
+        name: ".rdata$r",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata$r-2",
+        name: ".rdata$r",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".data$rs-1",
+        name: ".data$rs",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata$r-3",
+        name: ".rdata$r",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata$r-4",
+        name: ".rdata$r",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata$r-5",
+        name: ".rdata$r",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata$r-6",
+        name: ".rdata$r",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".data$rs-2",
+        name: ".data$rs",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata$r-7",
+        name: ".rdata$r",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata$r-8",
+        name: ".rdata$r",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata$r-9",
+        name: ".rdata$r",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata$r-10",
+        name: ".rdata$r",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".text$mn-1",
+        name: ".text$mn",
+        address: 0,
+        size: 0,
+        kind: Code,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata$r-11",
+        name: ".rdata$r",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".text$mn-2",
+        name: ".text$mn",
+        address: 0,
+        size: 0,
+        kind: Code,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".text$mn-3",
+        name: ".text$mn",
+        address: 0,
+        size: 0,
+        kind: Code,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".text$mn-4",
+        name: ".text$mn",
+        address: 0,
+        size: 0,
+        kind: Code,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".text$mn-5",
+        name: ".text$mn",
+        address: 0,
+        size: 0,
+        kind: Code,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".text$mn-6",
+        name: ".text$mn",
+        address: 0,
+        size: 0,
+        kind: Code,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".text-combined",
+        name: ".text",
+        address: 0,
+        size: 268,
+        kind: Code,
+        data: SectionData(
+            268,
+        ),
+        flags: FlagSet(Combined),
+        relocations: [
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 4,
+                target_symbol: 62,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    20,
+                ),
+                address: 9,
+                target_symbol: 53,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    20,
+                ),
+                address: 29,
+                target_symbol: 60,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    20,
+                ),
+                address: 48,
+                target_symbol: 52,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    20,
+                ),
+                address: 68,
+                target_symbol: 11,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 84,
+                target_symbol: 64,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 104,
+                target_symbol: 66,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 124,
+                target_symbol: 6,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 134,
+                target_symbol: 8,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    20,
+                ),
+                address: 145,
+                target_symbol: 57,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    20,
+                ),
+                address: 153,
+                target_symbol: 54,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    20,
+                ),
+                address: 172,
+                target_symbol: 54,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    20,
+                ),
+                address: 191,
+                target_symbol: 52,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    20,
+                ),
+                address: 218,
+                target_symbol: 57,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    20,
+                ),
+                address: 237,
+                target_symbol: 52,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 257,
+                target_symbol: 68,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    20,
+                ),
+                address: 262,
+                target_symbol: 60,
+                addend: 0,
+            },
+        ],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".text$yd-0",
+        name: ".text$yd",
+        address: 0,
+        size: 0,
+        kind: Code,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata-2",
+        name: ".rdata",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata-3",
+        name: ".rdata",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".data-0",
+        name: ".data",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata$r-12",
+        name: ".rdata$r",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".rdata$r-13",
+        name: ".rdata$r",
+        address: 0,
+        size: 0,
+        kind: Data,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(Hidden),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".CRT$XCU-0",
+        name: ".CRT$XCU",
+        address: 0,
+        size: 4,
+        kind: Data,
+        data: SectionData(
+            4,
+        ),
+        flags: FlagSet(),
+        relocations: [
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 0,
+                target_symbol: 61,
+                addend: 0,
+            },
+        ],
+        line_info: {},
+        virtual_address: None,
+    },
+    Section {
+        id: ".chks64-0",
+        name: ".chks64",
+        address: 0,
+        size: 280,
+        kind: Unknown,
+        data: SectionData(
+            0,
+        ),
+        flags: FlagSet(),
+        relocations: [],
+        line_info: {},
+        virtual_address: None,
+    },
+]

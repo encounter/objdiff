@@ -107,8 +107,8 @@ pub fn diff_code(
             right_obj,
             left_symbol_idx,
             right_symbol_idx,
-            left_row.ins_ref.as_ref(),
-            right_row.ins_ref.as_ref(),
+            left_row.ins_ref,
+            right_row.ins_ref,
             left_row,
             right_row,
             diff_config,
@@ -226,7 +226,7 @@ fn resolve_branches(
     for ((i, ins_diff), ins) in
         rows.iter_mut().enumerate().filter(|(_, row)| row.ins_ref.is_some()).zip(ops)
     {
-        let branch_dest = if let Some(resolved) = section.relocation_at(ins.ins_ref.address, obj) {
+        let branch_dest = if let Some(resolved) = section.relocation_at(ins.ins_ref, obj) {
             if resolved.symbol.section == Some(section_index) {
                 // If the relocation target is in the same section, use it as the branch destination
                 resolved.symbol.address.checked_add_signed(resolved.relocation.addend)
@@ -401,8 +401,8 @@ fn diff_instruction(
     right_obj: &Object,
     left_symbol_idx: usize,
     right_symbol_idx: usize,
-    l: Option<&InstructionRef>,
-    r: Option<&InstructionRef>,
+    l: Option<InstructionRef>,
+    r: Option<InstructionRef>,
     left_row: &InstructionDiffRow,
     right_row: &InstructionDiffRow,
     diff_config: &DiffObjConfig,
@@ -439,8 +439,8 @@ fn diff_instruction(
         .ok_or_else(|| anyhow!("Missing section for symbol"))?;
 
     // Resolve relocations
-    let left_reloc = left_section.relocation_at(l.address, left_obj);
-    let right_reloc = right_section.relocation_at(r.address, right_obj);
+    let left_reloc = left_section.relocation_at(l, left_obj);
+    let right_reloc = right_section.relocation_at(r, right_obj);
 
     // Compare instruction data
     let left_data = left_section.data_range(l.address, l.size as usize).ok_or_else(|| {
@@ -460,7 +460,7 @@ fn diff_instruction(
     if left_data != right_data {
         // If data doesn't match, process instructions and compare args
         let left_ins = left_obj.arch.process_instruction(
-            *l,
+            l,
             left_data,
             left_reloc,
             left_symbol.address..left_symbol.address + left_symbol.size,
@@ -468,7 +468,7 @@ fn diff_instruction(
             diff_config,
         )?;
         let right_ins = left_obj.arch.process_instruction(
-            *r,
+            r,
             right_data,
             right_reloc,
             right_symbol.address..right_symbol.address + right_symbol.size,

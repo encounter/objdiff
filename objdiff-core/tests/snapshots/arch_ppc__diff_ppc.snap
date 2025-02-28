@@ -50,10 +50,6 @@ expression: sections_display
         ),
         symbols: [
             SectionDisplaySymbol {
-                symbol: 1,
-                is_mapping_symbol: false,
-            },
-            SectionDisplaySymbol {
                 symbol: 3,
                 is_mapping_symbol: false,
             },

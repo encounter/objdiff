@@ -12,14 +12,14 @@ use itertools::Itertools;
 use regex::Regex;
 
 use crate::{
-    diff::{DiffObjConfig, InstructionArgDiffIndex, InstructionDiffRow, ObjectDiff, SymbolDiff},
+    diff::{DiffObjConfig, InstructionDiffKind, InstructionDiffRow, ObjectDiff, SymbolDiff},
     obj::{
         InstructionArg, InstructionArgValue, Object, SectionFlag, SectionKind, Symbol, SymbolFlag,
         SymbolKind,
     },
 };
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub enum DiffText<'a> {
     /// Basic text
     Basic(&'a str),
@@ -30,7 +30,7 @@ pub enum DiffText<'a> {
     /// Instruction mnemonic
     Opcode(&'a str, u16),
     /// Instruction argument
-    Argument(&'a InstructionArgValue),
+    Argument(InstructionArgValue<'a>),
     /// Branch destination
     BranchDest(u64),
     /// Symbol name
@@ -38,26 +38,114 @@ pub enum DiffText<'a> {
     /// Relocation addend
     Addend(i64),
     /// Number of spaces
-    Spacing(usize),
+    Spacing(u8),
     /// End of line
     Eol,
 }
+
+#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash)]
+pub enum DiffTextColor {
+    #[default]
+    Normal, // Grey
+    Dim,     // Dark grey
+    Bright,  // White
+    Replace, // Blue
+    Delete,  // Red
+    Insert,  // Green
+    Rotating(u8),
+}
+
+#[derive(Debug, Clone)]
+pub struct DiffTextSegment<'a> {
+    pub text: DiffText<'a>,
+    pub color: DiffTextColor,
+    pub pad_to: u8,
+}
+
+impl<'a> DiffTextSegment<'a> {
+    #[inline(always)]
+    pub fn basic(text: &'a str, color: DiffTextColor) -> Self {
+        Self { text: DiffText::Basic(text), color, pad_to: 0 }
+    }
+
+    #[inline(always)]
+    pub fn spacing(spaces: u8) -> Self {
+        Self { text: DiffText::Spacing(spaces), color: DiffTextColor::Normal, pad_to: 0 }
+    }
+}
+
+const EOL_SEGMENT: DiffTextSegment<'static> =
+    DiffTextSegment { text: DiffText::Eol, color: DiffTextColor::Normal, pad_to: 0 };
 
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub enum HighlightKind {
     #[default]
     None,
     Opcode(u16),
-    Argument(InstructionArgValue),
+    Argument(InstructionArgValue<'static>),
     Symbol(String),
     Address(u64),
 }
 
-pub enum InstructionPart {
-    Basic(&'static str),
-    Opcode(Cow<'static, str>, u16),
-    Arg(InstructionArg),
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InstructionPart<'a> {
+    Basic(Cow<'a, str>),
+    Opcode(Cow<'a, str>, u16),
+    Arg(InstructionArg<'a>),
     Separator,
+}
+
+impl<'a> InstructionPart<'a> {
+    #[inline(always)]
+    pub fn basic<T>(s: T) -> Self
+    where T: Into<Cow<'a, str>> {
+        InstructionPart::Basic(s.into())
+    }
+
+    #[inline(always)]
+    pub fn opcode<T>(s: T, o: u16) -> Self
+    where T: Into<Cow<'a, str>> {
+        InstructionPart::Opcode(s.into(), o)
+    }
+
+    #[inline(always)]
+    pub fn opaque<T>(s: T) -> Self
+    where T: Into<Cow<'a, str>> {
+        InstructionPart::Arg(InstructionArg::Value(InstructionArgValue::Opaque(s.into())))
+    }
+
+    #[inline(always)]
+    pub fn signed<T>(v: T) -> InstructionPart<'static>
+    where T: Into<i64> {
+        InstructionPart::Arg(InstructionArg::Value(InstructionArgValue::Signed(v.into())))
+    }
+
+    #[inline(always)]
+    pub fn unsigned<T>(v: T) -> InstructionPart<'static>
+    where T: Into<u64> {
+        InstructionPart::Arg(InstructionArg::Value(InstructionArgValue::Unsigned(v.into())))
+    }
+
+    #[inline(always)]
+    pub fn branch_dest<T>(v: T) -> InstructionPart<'static>
+    where T: Into<u64> {
+        InstructionPart::Arg(InstructionArg::BranchDest(v.into()))
+    }
+
+    #[inline(always)]
+    pub fn reloc() -> InstructionPart<'static> { InstructionPart::Arg(InstructionArg::Reloc) }
+
+    #[inline(always)]
+    pub fn separator() -> InstructionPart<'static> { InstructionPart::Separator }
+
+    pub fn into_static(self) -> InstructionPart<'static> {
+        match self {
+            InstructionPart::Basic(s) => InstructionPart::Basic(Cow::Owned(s.into_owned())),
+            InstructionPart::Opcode(s, o) => InstructionPart::Opcode(Cow::Owned(s.into_owned()), o),
+            InstructionPart::Arg(a) => InstructionPart::Arg(a.into_static()),
+            InstructionPart::Separator => InstructionPart::Separator,
+        }
+    }
 }
 
 pub fn display_row(
@@ -65,36 +153,40 @@ pub fn display_row(
     symbol_index: usize,
     ins_row: &InstructionDiffRow,
     diff_config: &DiffObjConfig,
-    mut cb: impl FnMut(DiffText, InstructionArgDiffIndex) -> Result<()>,
+    mut cb: impl FnMut(DiffTextSegment) -> Result<()>,
 ) -> Result<()> {
     let Some(ins_ref) = ins_row.ins_ref else {
-        cb(DiffText::Eol, InstructionArgDiffIndex::NONE)?;
+        cb(EOL_SEGMENT)?;
         return Ok(());
     };
     let symbol = &obj.symbols[symbol_index];
     let Some(section_index) = symbol.section else {
-        cb(DiffText::Eol, InstructionArgDiffIndex::NONE)?;
+        cb(DiffTextSegment::basic("<invalid>", DiffTextColor::Delete))?;
+        cb(EOL_SEGMENT)?;
         return Ok(());
     };
     let section = &obj.sections[section_index];
     let Some(data) = section.data_range(ins_ref.address, ins_ref.size as usize) else {
-        cb(DiffText::Eol, InstructionArgDiffIndex::NONE)?;
+        cb(DiffTextSegment::basic("<invalid>", DiffTextColor::Delete))?;
+        cb(EOL_SEGMENT)?;
         return Ok(());
     };
     if let Some(line) = section.line_info.range(..=ins_ref.address).last().map(|(_, &b)| b) {
-        cb(DiffText::Line(line), InstructionArgDiffIndex::NONE)?;
+        cb(DiffTextSegment { text: DiffText::Line(line), color: DiffTextColor::Dim, pad_to: 5 })?;
     }
-    cb(
-        DiffText::Address(ins_ref.address.saturating_sub(symbol.address)),
-        InstructionArgDiffIndex::NONE,
-    )?;
+    cb(DiffTextSegment {
+        text: DiffText::Address(ins_ref.address.saturating_sub(symbol.address)),
+        color: DiffTextColor::Normal,
+        pad_to: 5,
+    })?;
     if let Some(branch) = &ins_row.branch_from {
-        cb(DiffText::Basic(" ~> "), InstructionArgDiffIndex::new(branch.branch_idx))?;
+        cb(DiffTextSegment::basic(" ~> ", DiffTextColor::Rotating(branch.branch_idx as u8)))?;
     } else {
-        cb(DiffText::Spacing(4), InstructionArgDiffIndex::NONE)?;
+        cb(DiffTextSegment::spacing(4))?;
     }
     let mut arg_idx = 0;
-    let relocation = section.relocation_at(ins_ref.address, obj);
+    let relocation = section.relocation_at(ins_ref, obj);
+    let mut displayed_relocation = false;
     obj.arch.display_instruction(
         ins_ref,
         data,
@@ -104,47 +196,101 @@ pub fn display_row(
         diff_config,
         &mut |part| match part {
             InstructionPart::Basic(text) => {
-                cb(DiffText::Basic(text), InstructionArgDiffIndex::NONE)
+                if text.chars().all(|c| c == ' ') {
+                    cb(DiffTextSegment::spacing(text.len() as u8))
+                } else {
+                    cb(DiffTextSegment::basic(&text, DiffTextColor::Normal))
+                }
             }
-            InstructionPart::Opcode(mnemonic, opcode) => {
-                cb(DiffText::Opcode(mnemonic.as_ref(), opcode), InstructionArgDiffIndex::NONE)
-            }
+            InstructionPart::Opcode(mnemonic, opcode) => cb(DiffTextSegment {
+                text: DiffText::Opcode(mnemonic.as_ref(), opcode),
+                color: if ins_row.kind == InstructionDiffKind::OpMismatch {
+                    DiffTextColor::Replace
+                } else {
+                    DiffTextColor::Normal
+                },
+                pad_to: 10,
+            }),
             InstructionPart::Arg(arg) => {
                 let diff_index = ins_row.arg_diff.get(arg_idx).copied().unwrap_or_default();
                 arg_idx += 1;
                 match arg {
-                    InstructionArg::Value(ref value) => cb(DiffText::Argument(value), diff_index),
+                    InstructionArg::Value(value) => cb(DiffTextSegment {
+                        text: DiffText::Argument(value),
+                        color: diff_index
+                            .get()
+                            .map_or(DiffTextColor::Normal, |i| DiffTextColor::Rotating(i as u8)),
+                        pad_to: 0,
+                    }),
                     InstructionArg::Reloc => {
+                        displayed_relocation = true;
                         let resolved = relocation.unwrap();
-                        cb(DiffText::Symbol(resolved.symbol), diff_index)?;
+                        let color = diff_index
+                            .get()
+                            .map_or(DiffTextColor::Bright, |i| DiffTextColor::Rotating(i as u8));
+                        cb(DiffTextSegment {
+                            text: DiffText::Symbol(resolved.symbol),
+                            color,
+                            pad_to: 0,
+                        })?;
                         if resolved.relocation.addend != 0 {
-                            cb(DiffText::Addend(resolved.relocation.addend), diff_index)?;
+                            cb(DiffTextSegment {
+                                text: DiffText::Addend(resolved.relocation.addend),
+                                color,
+                                pad_to: 0,
+                            })?;
                         }
                         Ok(())
                     }
                     InstructionArg::BranchDest(dest) => {
                         if let Some(addr) = dest.checked_sub(symbol.address) {
-                            cb(DiffText::BranchDest(addr), diff_index)
+                            cb(DiffTextSegment {
+                                text: DiffText::BranchDest(addr),
+                                color: diff_index.get().map_or(DiffTextColor::Normal, |i| {
+                                    DiffTextColor::Rotating(i as u8)
+                                }),
+                                pad_to: 0,
+                            })
                         } else {
-                            cb(
-                                DiffText::Argument(&InstructionArgValue::Opaque(Cow::Borrowed(
-                                    "<invalid>",
-                                ))),
-                                diff_index,
-                            )
+                            cb(DiffTextSegment {
+                                text: DiffText::Argument(InstructionArgValue::Opaque(
+                                    Cow::Borrowed("<invalid>"),
+                                )),
+                                color: diff_index.get().map_or(DiffTextColor::Normal, |i| {
+                                    DiffTextColor::Rotating(i as u8)
+                                }),
+                                pad_to: 0,
+                            })
                         }
                     }
                 }
             }
             InstructionPart::Separator => {
-                cb(DiffText::Basic(diff_config.separator()), InstructionArgDiffIndex::NONE)
+                cb(DiffTextSegment::basic(diff_config.separator(), DiffTextColor::Normal))
             }
         },
     )?;
-    if let Some(branch) = &ins_row.branch_to {
-        cb(DiffText::Basic(" ~>"), InstructionArgDiffIndex::new(branch.branch_idx))?;
+    // Fallback for relocation that wasn't displayed
+    if relocation.is_some() && !displayed_relocation {
+        cb(DiffTextSegment::basic(" <", DiffTextColor::Normal))?;
+        let resolved = relocation.unwrap();
+        let diff_index = ins_row.arg_diff.get(arg_idx).copied().unwrap_or_default();
+        let color =
+            diff_index.get().map_or(DiffTextColor::Bright, |i| DiffTextColor::Rotating(i as u8));
+        cb(DiffTextSegment { text: DiffText::Symbol(resolved.symbol), color, pad_to: 0 })?;
+        if resolved.relocation.addend != 0 {
+            cb(DiffTextSegment {
+                text: DiffText::Addend(resolved.relocation.addend),
+                color,
+                pad_to: 0,
+            })?;
+        }
+        cb(DiffTextSegment::basic(">", DiffTextColor::Normal))?;
     }
-    cb(DiffText::Eol, InstructionArgDiffIndex::NONE)?;
+    if let Some(branch) = &ins_row.branch_to {
+        cb(DiffTextSegment::basic(" ~>", DiffTextColor::Rotating(branch.branch_idx as u8)))?;
+    }
+    cb(EOL_SEGMENT)?;
     Ok(())
 }
 
@@ -164,13 +310,13 @@ impl PartialEq<HighlightKind> for DiffText<'_> {
     fn eq(&self, other: &HighlightKind) -> bool { other.eq(self) }
 }
 
-impl From<DiffText<'_>> for HighlightKind {
-    fn from(value: DiffText<'_>) -> Self {
+impl From<&DiffText<'_>> for HighlightKind {
+    fn from(value: &DiffText<'_>) -> Self {
         match value {
-            DiffText::Opcode(_, op) => HighlightKind::Opcode(op),
-            DiffText::Argument(arg) => HighlightKind::Argument(arg.clone()),
+            DiffText::Opcode(_, op) => HighlightKind::Opcode(*op),
+            DiffText::Argument(arg) => HighlightKind::Argument(arg.to_static()),
             DiffText::Symbol(sym) => HighlightKind::Symbol(sym.name.to_string()),
-            DiffText::Address(addr) | DiffText::BranchDest(addr) => HighlightKind::Address(addr),
+            DiffText::Address(addr) | DiffText::BranchDest(addr) => HighlightKind::Address(*addr),
             _ => HighlightKind::None,
         }
     }
@@ -267,7 +413,7 @@ fn symbol_matches_filter(
     if symbol.section.is_none() && !symbol.flags.contains(SymbolFlag::Common) {
         return false;
     }
-    if !show_hidden_symbols && symbol.flags.contains(SymbolFlag::Hidden) {
+    if !show_hidden_symbols && (symbol.size == 0 || symbol.flags.contains(SymbolFlag::Hidden)) {
         return false;
     }
     match filter {

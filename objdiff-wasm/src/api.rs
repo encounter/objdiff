@@ -20,15 +20,15 @@ wit_bindgen::generate!({
 });
 
 use exports::objdiff::core::{
-    diff::Guest as GuestDiff,
-    diff_types::{
-        DiffConfigBorrow, DiffResult, Guest as GuestDiffTypes, GuestDiffConfig, GuestObject,
+    diff::{
+        DiffConfigBorrow, DiffResult, Guest as GuestDiff, GuestDiffConfig, GuestObject,
         GuestObjectDiff, Object, ObjectBorrow, ObjectDiff, ObjectDiffBorrow,
     },
-    display_types::{
-        ContextMenuItem, DiffText, DiffTextOpcode, DiffTextSegment, DiffTextSymbol, DisplayConfig,
-        HoverItem, InstructionDiffKind, InstructionDiffRow, SectionDisplay, SectionDisplaySymbol,
-        SymbolDisplay, SymbolFilter, SymbolFlags, SymbolKind, SymbolRef,
+    display::{
+        ContextMenuItem, DiffText, DiffTextColor, DiffTextOpcode, DiffTextSegment, DiffTextSymbol,
+        DisplayConfig, Guest as GuestDisplay, HoverItem, InstructionDiffKind, InstructionDiffRow,
+        SectionDisplay, SectionDisplaySymbol, SymbolDisplay, SymbolFilter, SymbolFlags, SymbolKind,
+        SymbolRef,
     },
 };
 
@@ -48,13 +48,11 @@ struct ResourceObjectDiff(Rc<obj::Object>, diff::ObjectDiff);
 #[repr(transparent)]
 struct ResourceDiffConfig(RefCell<diff::DiffObjConfig>);
 
-impl GuestDiffTypes for Component {
+impl GuestDiff for Component {
     type DiffConfig = ResourceDiffConfig;
     type Object = ResourceObject;
     type ObjectDiff = ResourceObjectDiff;
-}
 
-impl GuestDiff for Component {
     fn run_diff(
         left: Option<ObjectBorrow>,
         right: Option<ObjectBorrow>,
@@ -85,7 +83,9 @@ impl GuestDiff for Component {
             }),
         })
     }
+}
 
+impl GuestDisplay for Component {
     fn symbol_context(_obj: ObjectBorrow, _symbol: SymbolRef) -> Vec<ContextMenuItem> { todo!() }
 
     fn symbol_hover(_obj: ObjectBorrow, _symbol: SymbolRef) -> Vec<HoverItem> { todo!() }
@@ -195,8 +195,8 @@ impl GuestDiff for Component {
         };
         let row = &symbol_diff.instruction_rows[row_index as usize];
         let diff_config = diff_config.get::<ResourceDiffConfig>().0.borrow();
-        diff::display::display_row(obj, symbol_idx, row, &diff_config, |text, idx| {
-            segments.push(DiffTextSegment { text: DiffText::from(text), diff_index: idx.get() });
+        diff::display::display_row(obj, symbol_idx, row, &diff_config, |segment| {
+            segments.push(DiffTextSegment::from(segment));
             Ok(())
         })
         .unwrap();
@@ -243,9 +243,9 @@ impl From<diff::display::DiffText<'_>> for DiffText {
                 DiffText::Opcode(DiffTextOpcode { mnemonic: n.to_string(), opcode: op })
             }
             diff::display::DiffText::Argument(s) => match s {
-                obj::InstructionArgValue::Signed(v) => DiffText::Signed(*v),
-                obj::InstructionArgValue::Unsigned(v) => DiffText::Unsigned(*v),
-                obj::InstructionArgValue::Opaque(v) => DiffText::Opaque(v.to_string()),
+                obj::InstructionArgValue::Signed(v) => DiffText::Signed(v),
+                obj::InstructionArgValue::Unsigned(v) => DiffText::Unsigned(v),
+                obj::InstructionArgValue::Opaque(v) => DiffText::Opaque(v.into_owned()),
             },
             diff::display::DiffText::BranchDest(v) => DiffText::BranchDest(v),
             diff::display::DiffText::Symbol(s) => DiffText::Symbol(DiffTextSymbol {
@@ -253,8 +253,32 @@ impl From<diff::display::DiffText<'_>> for DiffText {
                 demangled_name: s.demangled_name.clone(),
             }),
             diff::display::DiffText::Addend(v) => DiffText::Addend(v),
-            diff::display::DiffText::Spacing(v) => DiffText::Spacing(v as u32),
+            diff::display::DiffText::Spacing(v) => DiffText::Spacing(v),
             diff::display::DiffText::Eol => DiffText::Eol,
+        }
+    }
+}
+
+impl From<diff::display::DiffTextColor> for DiffTextColor {
+    fn from(value: diff::display::DiffTextColor) -> Self {
+        match value {
+            diff::display::DiffTextColor::Normal => DiffTextColor::Normal,
+            diff::display::DiffTextColor::Dim => DiffTextColor::Dim,
+            diff::display::DiffTextColor::Bright => DiffTextColor::Bright,
+            diff::display::DiffTextColor::Replace => DiffTextColor::Replace,
+            diff::display::DiffTextColor::Delete => DiffTextColor::Delete,
+            diff::display::DiffTextColor::Insert => DiffTextColor::Insert,
+            diff::display::DiffTextColor::Rotating(v) => DiffTextColor::Rotating(v),
+        }
+    }
+}
+
+impl From<diff::display::DiffTextSegment<'_>> for DiffTextSegment {
+    fn from(segment: diff::display::DiffTextSegment) -> Self {
+        DiffTextSegment {
+            text: DiffText::from(segment.text),
+            color: DiffTextColor::from(segment.color),
+            pad_to: segment.pad_to,
         }
     }
 }

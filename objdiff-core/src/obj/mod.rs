@@ -1,7 +1,14 @@
 pub mod read;
 pub mod split_meta;
 
-use alloc::{borrow::Cow, boxed::Box, collections::BTreeMap, string::String, vec, vec::Vec};
+use alloc::{
+    borrow::Cow,
+    boxed::Box,
+    collections::BTreeMap,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
+};
 use core::{fmt, num::NonZeroU32};
 
 use flagset::{flags, FlagSet};
@@ -98,11 +105,17 @@ impl Section {
 
     pub fn relocation_at<'obj>(
         &'obj self,
-        address: u64,
+        ins_ref: InstructionRef,
         obj: &'obj Object,
     ) -> Option<ResolvedRelocation<'obj>> {
-        self.relocations.binary_search_by_key(&address, |r| r.address).ok().and_then(|i| {
-            let relocation = self.relocations.get(i)?;
+        match self.relocations.binary_search_by_key(&ins_ref.address, |r| r.address) {
+            Ok(i) => self.relocations.get(i),
+            Err(i) => self
+                .relocations
+                .get(i)
+                .take_if(|r| r.address < ins_ref.address + ins_ref.size as u64),
+        }
+        .and_then(|relocation| {
             let symbol = obj.symbols.get(relocation.target_symbol)?;
             Some(ResolvedRelocation { relocation, symbol })
         })
@@ -110,13 +123,13 @@ impl Section {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum InstructionArgValue {
+pub enum InstructionArgValue<'a> {
     Signed(i64),
     Unsigned(u64),
-    Opaque(Cow<'static, str>),
+    Opaque(Cow<'a, str>),
 }
 
-impl InstructionArgValue {
+impl InstructionArgValue<'_> {
     pub fn loose_eq(&self, other: &InstructionArgValue) -> bool {
         match (self, other) {
             (InstructionArgValue::Signed(a), InstructionArgValue::Signed(b)) => a == b,
@@ -127,9 +140,27 @@ impl InstructionArgValue {
             _ => false,
         }
     }
+
+    pub fn to_static(&self) -> InstructionArgValue<'static> {
+        match self {
+            InstructionArgValue::Signed(v) => InstructionArgValue::Signed(*v),
+            InstructionArgValue::Unsigned(v) => InstructionArgValue::Unsigned(*v),
+            InstructionArgValue::Opaque(v) => InstructionArgValue::Opaque(v.to_string().into()),
+        }
+    }
+
+    pub fn into_static(self) -> InstructionArgValue<'static> {
+        match self {
+            InstructionArgValue::Signed(v) => InstructionArgValue::Signed(v),
+            InstructionArgValue::Unsigned(v) => InstructionArgValue::Unsigned(v),
+            InstructionArgValue::Opaque(v) => {
+                InstructionArgValue::Opaque(Cow::Owned(v.into_owned()))
+            }
+        }
+    }
 }
 
-impl fmt::Display for InstructionArgValue {
+impl fmt::Display for InstructionArgValue<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             InstructionArgValue::Signed(v) => write!(f, "{:#x}", ReallySigned(*v)),
@@ -139,20 +170,36 @@ impl fmt::Display for InstructionArgValue {
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum InstructionArg {
-    Value(InstructionArgValue),
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum InstructionArg<'a> {
+    Value(InstructionArgValue<'a>),
     Reloc,
     BranchDest(u64),
 }
 
-impl InstructionArg {
+impl InstructionArg<'_> {
     pub fn loose_eq(&self, other: &InstructionArg) -> bool {
         match (self, other) {
             (InstructionArg::Value(a), InstructionArg::Value(b)) => a.loose_eq(b),
             (InstructionArg::Reloc, InstructionArg::Reloc) => true,
             (InstructionArg::BranchDest(a), InstructionArg::BranchDest(b)) => a == b,
             _ => false,
+        }
+    }
+
+    pub fn to_static(&self) -> InstructionArg<'static> {
+        match self {
+            InstructionArg::Value(v) => InstructionArg::Value(v.to_static()),
+            InstructionArg::Reloc => InstructionArg::Reloc,
+            InstructionArg::BranchDest(v) => InstructionArg::BranchDest(*v),
+        }
+    }
+
+    pub fn into_static(self) -> InstructionArg<'static> {
+        match self {
+            InstructionArg::Value(v) => InstructionArg::Value(v.into_static()),
+            InstructionArg::Reloc => InstructionArg::Reloc,
+            InstructionArg::BranchDest(v) => InstructionArg::BranchDest(v),
         }
     }
 }
@@ -174,7 +221,7 @@ pub struct ScannedInstruction {
 pub struct ParsedInstruction {
     pub ins_ref: InstructionRef,
     pub mnemonic: Cow<'static, str>,
-    pub args: Vec<InstructionArg>,
+    pub args: Vec<InstructionArg<'static>>,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Default)]
@@ -243,7 +290,7 @@ pub enum RelocationFlags {
     Coff(u16),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Copy, Clone)]
 pub struct ResolvedRelocation<'a> {
     pub relocation: &'a Relocation,
     pub symbol: &'a Symbol,
