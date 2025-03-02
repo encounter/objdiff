@@ -947,7 +947,7 @@ checksum = "c2e06f9bce634a3c898eb1e5cb949ff63133cbb218af93cc9b38b31d6f3ea285"
 [[package]]
 name = "cwextab"
 version = "1.0.4"
-source = "git+https://github.com/encounter/cwextab.git#15c344ac3302c32adbb8777c70f5ce739f432a6b"
+source = "git+https://github.com/CelestialAmber/cwextab.git#a81d42980912afebf6d3243dddf7309b138c4e28"
 dependencies = [
  "thiserror 2.0.11",
 ]
@@ -1498,8 +1498,7 @@ checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
 [[package]]
 name = "flagset"
 version = "0.4.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3ea1ec5f8307826a5b71094dd91fc04d4ae75d5709b20ad351c7fb4815c86ec"
+source = "git+https://github.com/enarx/flagset.git?rev=a1fe9369b3741e43fec45da1998e83b9d78966a2#a1fe9369b3741e43fec45da1998e83b9d78966a2"
 
 [[package]]
 name = "flate2"
@@ -3268,7 +3267,6 @@ version = "3.0.0-alpha.1"
 dependencies = [
  "anyhow",
  "arm-attr",
- "byteorder",
  "cpp_demangle",
  "cwdemangle",
  "cwextab",
@@ -3299,13 +3297,13 @@ dependencies = [
  "rabbitizer",
  "regex",
  "reqwest 0.12.12",
+ "rlwinmdec",
  "self_update",
  "semver",
  "serde",
  "serde_json",
  "shell-escape",
  "similar 2.7.0 (git+https://github.com/encounter/similar.git?branch=no_std)",
- "strum",
  "syn",
  "tempfile",
  "time",
@@ -3321,7 +3319,6 @@ name = "objdiff-gui"
 version = "3.0.0-alpha.1"
 dependencies = [
  "anyhow",
- "bytes",
  "cfg-if",
  "const_format",
  "cwdemangle",
@@ -3347,7 +3344,6 @@ dependencies = [
  "serde",
  "serde_json",
  "shell-escape",
- "strum",
  "tauri-winres",
  "time",
  "tracing-subscriber",
@@ -4188,9 +4184,8 @@ dependencies = [
 
 [[package]]
 name = "rlwinmdec"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2076dbc187938f3db71c03c85d143febf01026631189dc8ca85f8c886d90ea12"
+version = "1.1.0"
+source = "git+https://github.com/CelestialAmber/rlwinmdec.git#06e9a86eec1f21466a97cc48a752e9177985e1eb"
 dependencies = [
  "anyhow",
 ]

@@ -105,8 +105,8 @@ impl Section {
 
     pub fn relocation_at<'obj>(
         &'obj self,
-        ins_ref: InstructionRef,
         obj: &'obj Object,
+        ins_ref: InstructionRef,
     ) -> Option<ResolvedRelocation<'obj>> {
         match self.relocations.binary_search_by_key(&ins_ref.address, |r| r.address) {
             Ok(i) => self.relocations.get(i),
@@ -204,7 +204,7 @@ impl InstructionArg<'_> {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct InstructionRef {
     pub address: u64,
     pub size: u8,
@@ -251,6 +251,7 @@ pub struct Symbol {
 #[derive(Debug)]
 pub struct Object {
     pub arch: Box<dyn Arch>,
+    pub endianness: object::Endianness,
     pub symbols: Vec<Symbol>,
     pub sections: Vec<Section>,
     /// Split object metadata (.note.split section)
@@ -265,6 +266,7 @@ impl Default for Object {
     fn default() -> Self {
         Self {
             arch: ArchDummy::new(),
+            endianness: object::Endianness::Little,
             symbols: vec![],
             sections: vec![],
             split_meta: None,
@@ -273,6 +275,38 @@ impl Default for Object {
             #[cfg(feature = "std")]
             timestamp: None,
         }
+    }
+}
+
+impl Object {
+    pub fn resolve_instruction_ref(
+        &self,
+        symbol_index: usize,
+        ins_ref: InstructionRef,
+    ) -> Option<ResolvedInstructionRef> {
+        let symbol = self.symbols.get(symbol_index)?;
+        let section_index = symbol.section?;
+        let section = self.sections.get(section_index)?;
+        let offset = ins_ref.address.checked_sub(section.address)?;
+        let code = section.data.get(offset as usize..offset as usize + ins_ref.size as usize)?;
+        let relocation = section.relocation_at(self, ins_ref);
+        Some(ResolvedInstructionRef {
+            ins_ref,
+            symbol_index,
+            symbol,
+            section,
+            section_index,
+            code,
+            relocation,
+        })
+    }
+
+    pub fn symbol_data(&self, symbol_index: usize) -> Option<&[u8]> {
+        let symbol = self.symbols.get(symbol_index)?;
+        let section_index = symbol.section?;
+        let section = self.sections.get(section_index)?;
+        let offset = symbol.address.checked_sub(section.address)?;
+        section.data.get(offset as usize..offset as usize + symbol.size as usize)
     }
 }
 
@@ -294,4 +328,54 @@ pub enum RelocationFlags {
 pub struct ResolvedRelocation<'a> {
     pub relocation: &'a Relocation,
     pub symbol: &'a Symbol,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct ResolvedInstructionRef<'obj> {
+    pub ins_ref: InstructionRef,
+    pub symbol_index: usize,
+    pub symbol: &'obj Symbol,
+    pub section_index: usize,
+    pub section: &'obj Section,
+    pub code: &'obj [u8],
+    pub relocation: Option<ResolvedRelocation<'obj>>,
+}
+
+static DUMMY_SYMBOL: Symbol = Symbol {
+    name: String::new(),
+    demangled_name: None,
+    address: 0,
+    size: 0,
+    kind: SymbolKind::Unknown,
+    section: None,
+    flags: SymbolFlagSet::empty(),
+    align: None,
+    virtual_address: None,
+};
+
+static DUMMY_SECTION: Section = Section {
+    id: String::new(),
+    name: String::new(),
+    address: 0,
+    size: 0,
+    kind: SectionKind::Unknown,
+    data: SectionData(Vec::new()),
+    flags: SectionFlagSet::empty(),
+    relocations: Vec::new(),
+    line_info: BTreeMap::new(),
+    virtual_address: None,
+};
+
+impl Default for ResolvedInstructionRef<'_> {
+    fn default() -> Self {
+        Self {
+            ins_ref: InstructionRef::default(),
+            symbol_index: 0,
+            symbol: &DUMMY_SYMBOL,
+            section_index: 0,
+            section: &DUMMY_SECTION,
+            code: &[],
+            relocation: None,
+        }
+    }
 }

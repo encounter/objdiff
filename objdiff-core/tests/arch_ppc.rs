@@ -36,6 +36,14 @@ fn read_dwarf1_line_info() {
 
 #[test]
 #[cfg(feature = "ppc")]
+fn read_extab() {
+    let diff_config = diff::DiffObjConfig::default();
+    let obj = obj::read::parse(include_object!("data/ppc/NMWException.o"), &diff_config).unwrap();
+    insta::assert_debug_snapshot!(obj);
+}
+
+#[test]
+#[cfg(feature = "ppc")]
 fn diff_ppc() {
     let diff_config = diff::DiffObjConfig::default();
     let mapping_config = diff::MappingConfig::default();

@@ -1,4 +1,4 @@
-use alloc::{borrow::Cow, format, string::ToString, vec::Vec};
+use alloc::{string::ToString, vec::Vec};
 use core::ops::Range;
 
 use anyhow::{bail, Result};
@@ -15,7 +15,7 @@ use crate::{
     diff::{display::InstructionPart, DiffObjConfig, MipsAbi, MipsInstrCategory},
     obj::{
         InstructionArg, InstructionArgValue, InstructionRef, Relocation, RelocationFlags,
-        ResolvedRelocation, ScannedInstruction,
+        ResolvedInstructionRef, ResolvedRelocation, ScannedInstruction,
     },
 };
 
@@ -148,19 +148,24 @@ impl Arch for ArchMips {
 
     fn display_instruction(
         &self,
-        ins_ref: InstructionRef,
-        code: &[u8],
-        relocation: Option<ResolvedRelocation>,
-        function_range: Range<u64>,
-        section_index: usize,
+        resolved: ResolvedInstructionRef,
         diff_config: &DiffObjConfig,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
-        let instruction = self.parse_ins_ref(ins_ref, code, diff_config)?;
+        let instruction = self.parse_ins_ref(resolved.ins_ref, resolved.code, diff_config)?;
         let display_flags = self.instruction_display_flags(diff_config);
         let opcode = instruction.opcode();
         cb(InstructionPart::opcode(opcode.name(), opcode as u16))?;
-        push_args(&instruction, relocation, function_range, section_index, &display_flags, cb)?;
+        let start_address = resolved.symbol.address;
+        let function_range = start_address..start_address + resolved.symbol.size;
+        push_args(
+            &instruction,
+            resolved.relocation,
+            function_range,
+            resolved.section_index,
+            &display_flags,
+            cb,
+        )?;
         Ok(())
     }
 
@@ -202,26 +207,28 @@ impl Arch for ArchMips {
         })
     }
 
-    fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str> {
+    fn reloc_name(&self, flags: RelocationFlags) -> Option<&'static str> {
         match flags {
             RelocationFlags::Elf(r_type) => match r_type {
-                elf::R_MIPS_32 => Cow::Borrowed("R_MIPS_32"),
-                elf::R_MIPS_26 => Cow::Borrowed("R_MIPS_26"),
-                elf::R_MIPS_HI16 => Cow::Borrowed("R_MIPS_HI16"),
-                elf::R_MIPS_LO16 => Cow::Borrowed("R_MIPS_LO16"),
-                elf::R_MIPS_GPREL16 => Cow::Borrowed("R_MIPS_GPREL16"),
-                elf::R_MIPS_LITERAL => Cow::Borrowed("R_MIPS_LITERAL"),
-                elf::R_MIPS_GOT16 => Cow::Borrowed("R_MIPS_GOT16"),
-                elf::R_MIPS_PC16 => Cow::Borrowed("R_MIPS_PC16"),
-                elf::R_MIPS_CALL16 => Cow::Borrowed("R_MIPS_CALL16"),
-                R_MIPS15_S3 => Cow::Borrowed("R_MIPS15_S3"),
-                _ => Cow::Owned(format!("<{flags:?}>")),
+                elf::R_MIPS_NONE => Some("R_MIPS_NONE"),
+                elf::R_MIPS_16 => Some("R_MIPS_16"),
+                elf::R_MIPS_32 => Some("R_MIPS_32"),
+                elf::R_MIPS_26 => Some("R_MIPS_26"),
+                elf::R_MIPS_HI16 => Some("R_MIPS_HI16"),
+                elf::R_MIPS_LO16 => Some("R_MIPS_LO16"),
+                elf::R_MIPS_GPREL16 => Some("R_MIPS_GPREL16"),
+                elf::R_MIPS_LITERAL => Some("R_MIPS_LITERAL"),
+                elf::R_MIPS_GOT16 => Some("R_MIPS_GOT16"),
+                elf::R_MIPS_PC16 => Some("R_MIPS_PC16"),
+                elf::R_MIPS_CALL16 => Some("R_MIPS_CALL16"),
+                R_MIPS15_S3 => Some("R_MIPS15_S3"),
+                _ => None,
             },
-            _ => Cow::Owned(format!("<{flags:?}>")),
+            _ => None,
         }
     }
 
-    fn get_reloc_byte_size(&self, flags: RelocationFlags) -> usize {
+    fn data_reloc_size(&self, flags: RelocationFlags) -> usize {
         match flags {
             RelocationFlags::Elf(r_type) => match r_type {
                 elf::R_MIPS_16 => 2,

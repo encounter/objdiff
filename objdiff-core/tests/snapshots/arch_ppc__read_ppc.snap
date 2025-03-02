@@ -6,6 +6,7 @@ Object {
     arch: ArchPpc {
         extab: None,
     },
+    endianness: Big,
     symbols: [
         Symbol {
             name: "IObj.cpp",

@@ -1,10 +1,9 @@
 use alloc::{
-    borrow::Cow,
     format,
     string::{String, ToString},
     vec::Vec,
 };
-use core::{cmp::Ordering, ops::Range};
+use core::cmp::Ordering;
 
 use anyhow::{bail, Result};
 use object::elf;
@@ -17,7 +16,10 @@ use yaxpeax_arm::armv8::a64::{
 use crate::{
     arch::Arch,
     diff::{display::InstructionPart, DiffObjConfig},
-    obj::{InstructionRef, RelocationFlags, ResolvedRelocation, ScannedInstruction},
+    obj::{
+        InstructionRef, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation,
+        ScannedInstruction,
+    },
 };
 
 #[derive(Debug)]
@@ -75,15 +77,11 @@ impl Arch for ArchArm64 {
 
     fn display_instruction(
         &self,
-        ins_ref: InstructionRef,
-        code: &[u8],
-        relocation: Option<ResolvedRelocation>,
-        function_range: Range<u64>,
-        _section_index: usize,
+        resolved: ResolvedInstructionRef,
         _diff_config: &DiffObjConfig,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
-        let mut reader = U8Reader::new(code);
+        let mut reader = U8Reader::new(resolved.code);
         let decoder = InstDecoder::default();
         let mut ins = Instruction::default();
         if decoder.decode_into(&mut ins, &mut reader).is_err() {
@@ -92,134 +90,21 @@ impl Arch for ArchArm64 {
         }
 
         let mut ctx = DisplayCtx {
-            address: ins_ref.address,
+            address: resolved.ins_ref.address,
             section_index: 0,
-            start_address: function_range.start,
-            end_address: function_range.end,
-            reloc: relocation,
+            start_address: resolved.symbol.address,
+            end_address: resolved.symbol.address + resolved.symbol.size,
+            reloc: resolved.relocation,
         };
 
         let mut display_args = Vec::with_capacity(16);
         let mnemonic = display_instruction(&mut |ret| display_args.push(ret), &ins, &mut ctx);
-        cb(InstructionPart::opcode(mnemonic, ins_ref.opcode))?;
+        cb(InstructionPart::opcode(mnemonic, resolved.ins_ref.opcode))?;
         for arg in display_args {
             cb(arg)?;
         }
         Ok(())
     }
-
-    // fn process_code(
-    //     &self,
-    //     address: u64,
-    //     code: &[u8],
-    //     section_index: usize,
-    //     relocations: &[ObjReloc],
-    //     line_info: &BTreeMap<u64, u32>,
-    //     config: &DiffObjConfig,
-    // ) -> Result<ProcessCodeResult> {
-    //     let start_address = address;
-    //     let end_address = address + code.len() as u64;
-    //     let ins_count = code.len() / 4;
-    //
-    //     let mut ops = Vec::with_capacity(ins_count);
-    //     let mut insts = Vec::with_capacity(ins_count);
-    //
-    //     let mut reader = U8Reader::new(code);
-    //     let decoder = InstDecoder::default();
-    //     let mut ins = Instruction::default();
-    //     loop {
-    //         // This is ridiculous...
-    //         let address = start_address
-    //             + <U8Reader<'_> as Reader<
-    //                 <ARMv8 as YaxpeaxArch>::Address,
-    //                 <ARMv8 as YaxpeaxArch>::Word,
-    //             >>::total_offset(&mut reader);
-    //         match decoder.decode_into(&mut ins, &mut reader) {
-    //             Ok(()) => {}
-    //             Err(e) => match e {
-    //                 DecodeError::ExhaustedInput => break,
-    //                 DecodeError::InvalidOpcode
-    //                 | DecodeError::InvalidOperand
-    //                 | DecodeError::IncompleteDecoder => {
-    //                     ops.push(u16::MAX);
-    //                     insts.push(ObjIns {
-    //                         address,
-    //                         size: 4,
-    //                         op: u16::MAX,
-    //                         mnemonic: Cow::Borrowed("<invalid>"),
-    //                         args: vec![],
-    //                         reloc: None,
-    //                         branch_dest: None,
-    //                         line: None,
-    //                         formatted: "".to_string(),
-    //                         orig: None,
-    //                     });
-    //                     continue;
-    //                 }
-    //             },
-    //         }
-    //
-    //         let line = line_info.range(..=address).last().map(|(_, &b)| b);
-    //         let reloc = relocations.iter().find(|r| (r.address & !3) == address).cloned();
-    //
-    //         let mut args = vec![];
-    //         let mut ctx = DisplayCtx {
-    //             address,
-    //             section_index,
-    //             start_address,
-    //             end_address,
-    //             reloc: reloc.as_ref(),
-    //             config,
-    //             branch_dest: None,
-    //         };
-    //         // Simplify instruction and process args
-    //         let mnemonic = display_instruction(&mut args, &ins, &mut ctx);
-    //
-    //         // Format the instruction without simplification
-    //         let mut orig = ins.opcode.to_string();
-    //         for (i, o) in ins.operands.iter().enumerate() {
-    //             if let Operand::Nothing = o {
-    //                 break;
-    //             }
-    //             if i == 0 {
-    //                 orig.push(' ');
-    //             } else {
-    //                 orig.push_str(", ");
-    //             }
-    //             orig.push_str(o.to_string().as_str());
-    //         }
-    //
-    //         if let Some(reloc) = &reloc {
-    //             if !args.iter().any(|a| matches!(a, InstructionArg::Reloc)) {
-    //                 push_arg(args, InstructionArg::PlainText(Cow::Borrowed(" <unhandled relocation>")));
-    //                 log::warn!(
-    //                     "Unhandled ARM64 relocation {:?}: {} @ {:#X}",
-    //                     reloc.flags,
-    //                     orig,
-    //                     address
-    //                 );
-    //             }
-    //         };
-    //
-    //         let op = opcode_to_u16(ins.opcode);
-    //         ops.push(op);
-    //         let branch_dest = ctx.branch_dest;
-    //         insts.push(ObjIns {
-    //             address,
-    //             size: 4,
-    //             op,
-    //             mnemonic: Cow::Borrowed(mnemonic),
-    //             args,
-    //             reloc,
-    //             branch_dest,
-    //             line,
-    //             formatted: ins.to_string(),
-    //             orig: Some(orig),
-    //         });
-    //     }
-    //
-    //     Ok(ProcessCodeResult { ops, insts })
-    // }
 
     fn implcit_addend(
         &self,
@@ -238,30 +123,30 @@ impl Arch for ArchArm64 {
             .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
     }
 
-    fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str> {
+    fn reloc_name(&self, flags: RelocationFlags) -> Option<&'static str> {
         match flags {
-            RelocationFlags::Elf(elf::R_AARCH64_ADR_PREL_PG_HI21) => {
-                Cow::Borrowed("R_AARCH64_ADR_PREL_PG_HI21")
-            }
-            RelocationFlags::Elf(elf::R_AARCH64_ADD_ABS_LO12_NC) => {
-                Cow::Borrowed("R_AARCH64_ADD_ABS_LO12_NC")
-            }
-            RelocationFlags::Elf(elf::R_AARCH64_JUMP26) => Cow::Borrowed("R_AARCH64_JUMP26"),
-            RelocationFlags::Elf(elf::R_AARCH64_CALL26) => Cow::Borrowed("R_AARCH64_CALL26"),
-            RelocationFlags::Elf(elf::R_AARCH64_LDST32_ABS_LO12_NC) => {
-                Cow::Borrowed("R_AARCH64_LDST32_ABS_LO12_NC")
-            }
-            RelocationFlags::Elf(elf::R_AARCH64_ADR_GOT_PAGE) => {
-                Cow::Borrowed("R_AARCH64_ADR_GOT_PAGE")
-            }
-            RelocationFlags::Elf(elf::R_AARCH64_LD64_GOT_LO12_NC) => {
-                Cow::Borrowed("R_AARCH64_LD64_GOT_LO12_NC")
-            }
-            _ => Cow::Owned(format!("<{flags:?}>")),
+            RelocationFlags::Elf(r_type) => match r_type {
+                elf::R_AARCH64_NONE => Some("R_AARCH64_NONE"),
+                elf::R_AARCH64_ABS64 => Some("R_AARCH64_ABS64"),
+                elf::R_AARCH64_ABS32 => Some("R_AARCH64_ABS32"),
+                elf::R_AARCH64_ABS16 => Some("R_AARCH64_ABS16"),
+                elf::R_AARCH64_PREL64 => Some("R_AARCH64_PREL64"),
+                elf::R_AARCH64_PREL32 => Some("R_AARCH64_PREL32"),
+                elf::R_AARCH64_PREL16 => Some("R_AARCH64_PREL16"),
+                elf::R_AARCH64_ADR_PREL_PG_HI21 => Some("R_AARCH64_ADR_PREL_PG_HI21"),
+                elf::R_AARCH64_ADD_ABS_LO12_NC => Some("R_AARCH64_ADD_ABS_LO12_NC"),
+                elf::R_AARCH64_JUMP26 => Some("R_AARCH64_JUMP26"),
+                elf::R_AARCH64_CALL26 => Some("R_AARCH64_CALL26"),
+                elf::R_AARCH64_LDST32_ABS_LO12_NC => Some("R_AARCH64_LDST32_ABS_LO12_NC"),
+                elf::R_AARCH64_ADR_GOT_PAGE => Some("R_AARCH64_ADR_GOT_PAGE"),
+                elf::R_AARCH64_LD64_GOT_LO12_NC => Some("R_AARCH64_LD64_GOT_LO12_NC"),
+                _ => None,
+            },
+            _ => None,
         }
     }
 
-    fn get_reloc_byte_size(&self, flags: RelocationFlags) -> usize {
+    fn data_reloc_size(&self, flags: RelocationFlags) -> usize {
         match flags {
             RelocationFlags::Elf(r_type) => match r_type {
                 elf::R_AARCH64_ABS64 => 8,

@@ -38,8 +38,8 @@ pub fn diff_bss_symbol(
 fn reloc_eq(
     left_obj: &Object,
     right_obj: &Object,
-    left: &ResolvedRelocation,
-    right: &ResolvedRelocation,
+    left: ResolvedRelocation,
+    right: ResolvedRelocation,
 ) -> bool {
     if left.relocation.flags != right.relocation.flags {
         return false;
@@ -104,7 +104,7 @@ fn diff_data_relocs_for_range<'left, 'right>(
             continue;
         };
         let right_reloc = resolve_relocation(right_obj, right_reloc);
-        if reloc_eq(left_obj, right_obj, &left_reloc, &right_reloc) {
+        if reloc_eq(left_obj, right_obj, left_reloc, right_reloc) {
             diffs.push((DataDiffKind::None, Some(left_reloc), Some(right_reloc)));
         } else {
             diffs.push((DataDiffKind::Replace, Some(left_reloc), Some(right_reloc)));
@@ -251,13 +251,13 @@ pub fn diff_data_section(
         0..right_max as usize,
     ) {
         if let Some(left_reloc) = left_reloc {
-            let len = left_obj.arch.get_reloc_byte_size(left_reloc.relocation.flags);
+            let len = left_obj.arch.data_reloc_size(left_reloc.relocation.flags);
             let range = left_reloc.relocation.address as usize
                 ..left_reloc.relocation.address as usize + len;
             left_reloc_diffs.push(DataRelocationDiff { kind: diff_kind, range });
         }
         if let Some(right_reloc) = right_reloc {
-            let len = right_obj.arch.get_reloc_byte_size(right_reloc.relocation.flags);
+            let len = right_obj.arch.data_reloc_size(right_reloc.relocation.flags);
             let range = right_reloc.relocation.address as usize
                 ..right_reloc.relocation.address as usize + len;
             right_reloc_diffs.push(DataRelocationDiff { kind: diff_kind, range });
@@ -358,11 +358,9 @@ pub fn diff_data_symbol(
             let reloc_diff_len = match (left_reloc, right_reloc) {
                 (None, None) => unreachable!(),
                 (None, Some(right_reloc)) => {
-                    right_obj.arch.get_reloc_byte_size(right_reloc.relocation.flags)
+                    right_obj.arch.data_reloc_size(right_reloc.relocation.flags)
                 }
-                (Some(left_reloc), _) => {
-                    left_obj.arch.get_reloc_byte_size(left_reloc.relocation.flags)
-                }
+                (Some(left_reloc), _) => left_obj.arch.data_reloc_size(left_reloc.relocation.flags),
             };
             total_reloc_bytes += reloc_diff_len;
             if diff_kind == DataDiffKind::None {

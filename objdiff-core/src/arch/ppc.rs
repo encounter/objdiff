@@ -1,25 +1,24 @@
 use alloc::{
-    borrow::Cow,
     collections::BTreeMap,
-    format,
     string::{String, ToString},
     vec,
     vec::Vec,
 };
-use core::ops::Range;
 
 use anyhow::{bail, ensure, Result};
-use byteorder::BigEndian;
 use cwextab::{decode_extab, ExceptionTableData};
 use flagset::Flags;
 use object::{elf, Object as _, ObjectSection as _, ObjectSymbol as _};
 
 use crate::{
     arch::{Arch, DataType},
-    diff::{display::InstructionPart, DiffObjConfig},
+    diff::{
+        display::{ContextItem, HoverItem, HoverItemColor, InstructionPart, SymbolNavigationKind},
+        DiffObjConfig,
+    },
     obj::{
-        InstructionRef, Relocation, RelocationFlags, ResolvedRelocation, ScannedInstruction,
-        Symbol, SymbolFlag, SymbolFlagSet,
+        InstructionRef, Object, Relocation, RelocationFlags, ResolvedInstructionRef,
+        ResolvedRelocation, ScannedInstruction, SymbolFlag, SymbolFlagSet,
     },
 };
 
@@ -52,6 +51,15 @@ pub struct ArchPpc {
 impl ArchPpc {
     pub fn new(file: &object::File) -> Result<Self> {
         Ok(Self { extab: decode_exception_info(file)? })
+    }
+
+    fn parse_ins_ref(&self, resolved: ResolvedInstructionRef) -> Result<ppc750cl::Ins> {
+        let mut code = u32::from_be_bytes(resolved.code.try_into()?);
+        if let Some(reloc) = resolved.relocation {
+            code = zero_reloc(code, reloc.relocation);
+        }
+        let op = ppc750cl::Opcode::from(resolved.ins_ref.opcode as u8);
+        Ok(ppc750cl::Ins { code, op })
     }
 
     fn find_reloc_arg(
@@ -98,24 +106,15 @@ impl Arch for ArchPpc {
 
     fn display_instruction(
         &self,
-        ins_ref: InstructionRef,
-        code: &[u8],
-        relocation: Option<ResolvedRelocation>,
-        _function_range: Range<u64>,
-        _section_index: usize,
+        resolved: ResolvedInstructionRef,
         _diff_config: &DiffObjConfig,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
-        let mut code = u32::from_be_bytes(code.try_into()?);
-        if let Some(resolved) = relocation {
-            code = zero_reloc(code, resolved.relocation);
-        }
-        let op = ppc750cl::Opcode::from(ins_ref.opcode as u8);
-        let ins = ppc750cl::Ins { code, op }.simplified();
+        let ins = self.parse_ins_ref(resolved)?.simplified();
 
-        cb(InstructionPart::opcode(ins.mnemonic, ins_ref.opcode))?;
+        cb(InstructionPart::opcode(ins.mnemonic, resolved.ins_ref.opcode))?;
 
-        let reloc_arg = self.find_reloc_arg(&ins, relocation);
+        let reloc_arg = self.find_reloc_arg(&ins, resolved.relocation);
 
         let mut writing_offset = false;
         for (idx, arg) in ins.args_iter().enumerate() {
@@ -124,10 +123,10 @@ impl Arch for ArchPpc {
             }
 
             if reloc_arg == Some(idx) {
-                let resolved = relocation.unwrap();
-                display_reloc(resolved, cb)?;
+                let reloc = resolved.relocation.unwrap();
+                display_reloc(reloc, cb)?;
                 // For @sda21, we can omit the register argument
-                if matches!(resolved.relocation.flags, RelocationFlags::Elf(elf::R_PPC_EMB_SDA21))
+                if matches!(reloc.relocation.flags, RelocationFlags::Elf(elf::R_PPC_EMB_SDA21))
                     // Sanity check: the next argument should be r0
                     && matches!(ins.args.get(idx + 1), Some(ppc750cl::Argument::GPR(ppc750cl::GPR(0))))
                 {
@@ -139,7 +138,7 @@ impl Arch for ArchPpc {
                     ppc750cl::Argument::Uimm(uimm) => cb(InstructionPart::unsigned(uimm.0)),
                     ppc750cl::Argument::Offset(offset) => cb(InstructionPart::signed(offset.0)),
                     ppc750cl::Argument::BranchDest(dest) => cb(InstructionPart::branch_dest(
-                        (ins_ref.address as u32).wrapping_add_signed(dest.0),
+                        (resolved.ins_ref.address as u32).wrapping_add_signed(dest.0),
                     )),
                     _ => cb(InstructionPart::opaque(arg.to_string())),
                 }?;
@@ -173,33 +172,25 @@ impl Arch for ArchPpc {
         cwdemangle::demangle(name, &cwdemangle::DemangleOptions::default())
     }
 
-    fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str> {
+    fn reloc_name(&self, flags: RelocationFlags) -> Option<&'static str> {
         match flags {
             RelocationFlags::Elf(r_type) => match r_type {
-                elf::R_PPC_NONE => Cow::Borrowed("R_PPC_NONE"), // We use this for fake pool relocs
-                elf::R_PPC_ADDR16_LO => Cow::Borrowed("R_PPC_ADDR16_LO"),
-                elf::R_PPC_ADDR16_HI => Cow::Borrowed("R_PPC_ADDR16_HI"),
-                elf::R_PPC_ADDR16_HA => Cow::Borrowed("R_PPC_ADDR16_HA"),
-                elf::R_PPC_EMB_SDA21 => Cow::Borrowed("R_PPC_EMB_SDA21"),
-                elf::R_PPC_ADDR32 => Cow::Borrowed("R_PPC_ADDR32"),
-                elf::R_PPC_UADDR32 => Cow::Borrowed("R_PPC_UADDR32"),
-                elf::R_PPC_REL24 => Cow::Borrowed("R_PPC_REL24"),
-                elf::R_PPC_REL14 => Cow::Borrowed("R_PPC_REL14"),
-                _ => Cow::Owned(format!("<{flags:?}>")),
+                elf::R_PPC_NONE => Some("R_PPC_NONE"), // We use this for fake pool relocs
+                elf::R_PPC_ADDR16_LO => Some("R_PPC_ADDR16_LO"),
+                elf::R_PPC_ADDR16_HI => Some("R_PPC_ADDR16_HI"),
+                elf::R_PPC_ADDR16_HA => Some("R_PPC_ADDR16_HA"),
+                elf::R_PPC_EMB_SDA21 => Some("R_PPC_EMB_SDA21"),
+                elf::R_PPC_ADDR32 => Some("R_PPC_ADDR32"),
+                elf::R_PPC_UADDR32 => Some("R_PPC_UADDR32"),
+                elf::R_PPC_REL24 => Some("R_PPC_REL24"),
+                elf::R_PPC_REL14 => Some("R_PPC_REL14"),
+                _ => None,
             },
-            _ => Cow::Owned(format!("<{flags:?}>")),
+            _ => None,
         }
     }
 
-    fn extra_symbol_flags(&self, symbol: &object::Symbol) -> SymbolFlagSet {
-        if self.extab.as_ref().is_some_and(|extab| extab.contains_key(&symbol.index().0)) {
-            SymbolFlag::HasExtra.into()
-        } else {
-            SymbolFlag::none()
-        }
-    }
-
-    fn get_reloc_byte_size(&self, flags: RelocationFlags) -> usize {
+    fn data_reloc_size(&self, flags: RelocationFlags) -> usize {
         match flags {
             RelocationFlags::Elf(r_type) => match r_type {
                 elf::R_PPC_ADDR32 => 4,
@@ -210,33 +201,102 @@ impl Arch for ArchPpc {
         }
     }
 
-    fn guess_data_type(
-        &self,
-        ins_ref: InstructionRef,
-        _code: &[u8],
-        relocation: Option<ResolvedRelocation>,
-    ) -> Option<DataType> {
-        if relocation.is_some_and(|r| r.symbol.name.starts_with("@stringBase")) {
+    fn extra_symbol_flags(&self, symbol: &object::Symbol) -> SymbolFlagSet {
+        if self.extab.as_ref().is_some_and(|extab| extab.contains_key(&(symbol.index().0 - 1))) {
+            SymbolFlag::HasExtra.into()
+        } else {
+            SymbolFlag::none()
+        }
+    }
+
+    fn guess_data_type(&self, resolved: ResolvedInstructionRef) -> Option<DataType> {
+        if resolved.relocation.is_some_and(|r| r.symbol.name.starts_with("@stringBase")) {
             return Some(DataType::String);
         }
-
-        guess_data_type_from_load_store_inst_op(ppc750cl::Opcode::from(ins_ref.opcode as u8))
+        let opcode = ppc750cl::Opcode::from(resolved.ins_ref.opcode as u8);
+        guess_data_type_from_load_store_inst_op(opcode)
     }
 
-    fn display_data_labels(&self, ty: DataType, bytes: &[u8]) -> Vec<String> {
-        ty.display_labels::<BigEndian>(bytes)
+    fn symbol_hover(&self, _obj: &Object, symbol_index: usize) -> Vec<HoverItem> {
+        let mut out = Vec::new();
+        if let Some(extab) = self.extab_for_symbol(symbol_index) {
+            out.push(HoverItem::Text {
+                label: "extab symbol".into(),
+                value: extab.etb_symbol.name.clone(),
+                color: HoverItemColor::Special,
+            });
+            out.push(HoverItem::Text {
+                label: "extabindex symbol".into(),
+                value: extab.eti_symbol.name.clone(),
+                color: HoverItemColor::Special,
+            });
+        }
+        out
     }
 
-    fn display_data_literals(&self, ty: DataType, bytes: &[u8]) -> Vec<String> {
-        ty.display_literals::<BigEndian>(bytes)
+    fn symbol_context(&self, _obj: &Object, symbol_index: usize) -> Vec<ContextItem> {
+        let mut out = Vec::new();
+        if let Some(_extab) = self.extab_for_symbol(symbol_index) {
+            out.push(ContextItem::Navigate {
+                label: "Decode exception table".to_string(),
+                symbol_index,
+                kind: SymbolNavigationKind::Extab,
+            });
+        }
+        out
+    }
+
+    fn instruction_hover(&self, _obj: &Object, resolved: ResolvedInstructionRef) -> Vec<HoverItem> {
+        let Ok(ins) = self.parse_ins_ref(resolved) else {
+            return Vec::new();
+        };
+        let orig = ins.basic().to_string();
+        let simplified = ins.simplified().to_string();
+        let show_orig = orig != simplified;
+        let rlwinm_decoded = rlwinmdec::decode(&orig);
+        let mut out = Vec::with_capacity(2);
+        if show_orig {
+            out.push(HoverItem::Text {
+                label: "Original".into(),
+                value: orig,
+                color: HoverItemColor::Normal,
+            });
+        }
+        if let Some(decoded) = rlwinm_decoded {
+            for line in decoded.lines() {
+                out.push(HoverItem::Text {
+                    label: Default::default(),
+                    value: line.to_string(),
+                    color: HoverItemColor::Special,
+                });
+            }
+        }
+        out
+    }
+
+    fn instruction_context(
+        &self,
+        _obj: &Object,
+        resolved: ResolvedInstructionRef,
+    ) -> Vec<ContextItem> {
+        let Ok(ins) = self.parse_ins_ref(resolved) else {
+            return Vec::new();
+        };
+        let orig = ins.basic().to_string();
+        let simplified = ins.simplified().to_string();
+        let show_orig = orig != simplified;
+        let mut out = Vec::with_capacity(2);
+        out.push(ContextItem::Copy { value: simplified, label: None });
+        if show_orig {
+            out.push(ContextItem::Copy { value: orig, label: Some("original".to_string()) });
+        }
+        out
     }
 }
 
 impl ArchPpc {
-    pub fn extab_for_symbol(&self, _symbol: &Symbol) -> Option<&ExceptionInfo> {
-        // TODO
-        // symbol.original_index.and_then(|i| self.extab.as_ref()?.get(&i))
-        None
+    pub fn extab_for_symbol(&self, symbol_index: usize) -> Option<&ExceptionInfo> {
+        self.extab.as_ref()?.get(&symbol_index)
     }
 }
 
@@ -384,7 +444,7 @@ fn decode_exception_info(
         };
 
         //Add the new entry to the list
-        result.insert(extab_func.index().0, ExceptionInfo {
+        result.insert(extab_func.index().0 - 1, ExceptionInfo {
             eti_symbol: make_symbol_ref(&extabindex)?,
             etb_symbol: make_symbol_ref(&extab)?,
             data,
@@ -419,7 +479,7 @@ fn relocation_symbol<'data, 'file>(
 fn make_symbol_ref(symbol: &object::Symbol) -> Result<ExtabSymbolRef> {
     let name = symbol.name()?.to_string();
     let demangled_name = cwdemangle::demangle(&name, &cwdemangle::DemangleOptions::default());
-    Ok(ExtabSymbolRef { original_index: symbol.index().0, name, demangled_name })
+    Ok(ExtabSymbolRef { original_index: symbol.index().0 - 1, name, demangled_name })
 }
 
 fn guess_data_type_from_load_store_inst_op(inst_op: ppc750cl::Opcode) -> Option<DataType> {

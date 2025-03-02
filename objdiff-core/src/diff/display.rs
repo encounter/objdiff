@@ -14,8 +14,8 @@ use regex::Regex;
 use crate::{
     diff::{DiffObjConfig, InstructionDiffKind, InstructionDiffRow, ObjectDiff, SymbolDiff},
     obj::{
-        InstructionArg, InstructionArgValue, Object, SectionFlag, SectionKind, Symbol, SymbolFlag,
-        SymbolKind,
+        InstructionArg, InstructionArgValue, Object, ParsedInstruction, ResolvedInstructionRef,
+        SectionFlag, SectionKind, Symbol, SymbolFlag, SymbolKind,
     },
 };
 
@@ -159,24 +159,24 @@ pub fn display_row(
         cb(EOL_SEGMENT)?;
         return Ok(());
     };
-    let symbol = &obj.symbols[symbol_index];
-    let Some(section_index) = symbol.section else {
+    let Some(resolved) = obj.resolve_instruction_ref(symbol_index, ins_ref) else {
         cb(DiffTextSegment::basic("<invalid>", DiffTextColor::Delete))?;
         cb(EOL_SEGMENT)?;
         return Ok(());
     };
-    let section = &obj.sections[section_index];
-    let Some(data) = section.data_range(ins_ref.address, ins_ref.size as usize) else {
-        cb(DiffTextSegment::basic("<invalid>", DiffTextColor::Delete))?;
-        cb(EOL_SEGMENT)?;
-        return Ok(());
+    let base_color = match ins_row.kind {
+        InstructionDiffKind::Replace => DiffTextColor::Replace,
+        InstructionDiffKind::Delete => DiffTextColor::Delete,
+        InstructionDiffKind::Insert => DiffTextColor::Insert,
+        _ => DiffTextColor::Normal,
     };
-    if let Some(line) = section.line_info.range(..=ins_ref.address).last().map(|(_, &b)| b) {
+    if let Some(line) = resolved.section.line_info.range(..=ins_ref.address).last().map(|(_, &b)| b)
+    {
         cb(DiffTextSegment { text: DiffText::Line(line), color: DiffTextColor::Dim, pad_to: 5 })?;
     }
     cb(DiffTextSegment {
-        text: DiffText::Address(ins_ref.address.saturating_sub(symbol.address)),
-        color: DiffTextColor::Normal,
+        text: DiffText::Address(ins_ref.address.saturating_sub(resolved.symbol.address)),
+        color: base_color,
         pad_to: 5,
     })?;
     if let Some(branch) = &ins_row.branch_from {
@@ -185,95 +185,85 @@ pub fn display_row(
         cb(DiffTextSegment::spacing(4))?;
     }
     let mut arg_idx = 0;
-    let relocation = section.relocation_at(ins_ref, obj);
     let mut displayed_relocation = false;
-    obj.arch.display_instruction(
-        ins_ref,
-        data,
-        relocation,
-        symbol.address..symbol.address + symbol.size,
-        section_index,
-        diff_config,
-        &mut |part| match part {
-            InstructionPart::Basic(text) => {
-                if text.chars().all(|c| c == ' ') {
-                    cb(DiffTextSegment::spacing(text.len() as u8))
-                } else {
-                    cb(DiffTextSegment::basic(&text, DiffTextColor::Normal))
-                }
+    obj.arch.display_instruction(resolved, diff_config, &mut |part| match part {
+        InstructionPart::Basic(text) => {
+            if text.chars().all(|c| c == ' ') {
+                cb(DiffTextSegment::spacing(text.len() as u8))
+            } else {
+                cb(DiffTextSegment::basic(&text, base_color))
             }
-            InstructionPart::Opcode(mnemonic, opcode) => cb(DiffTextSegment {
-                text: DiffText::Opcode(mnemonic.as_ref(), opcode),
-                color: if ins_row.kind == InstructionDiffKind::OpMismatch {
-                    DiffTextColor::Replace
-                } else {
-                    DiffTextColor::Normal
-                },
-                pad_to: 10,
-            }),
-            InstructionPart::Arg(arg) => {
-                let diff_index = ins_row.arg_diff.get(arg_idx).copied().unwrap_or_default();
-                arg_idx += 1;
-                match arg {
-                    InstructionArg::Value(value) => cb(DiffTextSegment {
-                        text: DiffText::Argument(value),
-                        color: diff_index
-                            .get()
-                            .map_or(DiffTextColor::Normal, |i| DiffTextColor::Rotating(i as u8)),
+        }
+        InstructionPart::Opcode(mnemonic, opcode) => cb(DiffTextSegment {
+            text: DiffText::Opcode(mnemonic.as_ref(), opcode),
+            color: match ins_row.kind {
+                InstructionDiffKind::OpMismatch => DiffTextColor::Replace,
+                _ => base_color,
+            },
+            pad_to: 10,
+        }),
+        InstructionPart::Arg(arg) => {
+            let diff_index = ins_row.arg_diff.get(arg_idx).copied().unwrap_or_default();
+            arg_idx += 1;
+            match arg {
+                InstructionArg::Value(value) => cb(DiffTextSegment {
+                    text: DiffText::Argument(value),
+                    color: diff_index
+                        .get()
+                        .map_or(base_color, |i| DiffTextColor::Rotating(i as u8)),
+                    pad_to: 0,
+                }),
+                InstructionArg::Reloc => {
+                    displayed_relocation = true;
+                    let resolved = resolved.relocation.unwrap();
+                    let color = diff_index
+                        .get()
+                        .map_or(DiffTextColor::Bright, |i| DiffTextColor::Rotating(i as u8));
+                    cb(DiffTextSegment {
+                        text: DiffText::Symbol(resolved.symbol),
+                        color,
                         pad_to: 0,
-                    }),
-                    InstructionArg::Reloc => {
-                        displayed_relocation = true;
-                        let resolved = relocation.unwrap();
-                        let color = diff_index
-                            .get()
-                            .map_or(DiffTextColor::Bright, |i| DiffTextColor::Rotating(i as u8));
+                    })?;
+                    if resolved.relocation.addend != 0 {
                         cb(DiffTextSegment {
-                            text: DiffText::Symbol(resolved.symbol),
+                            text: DiffText::Addend(resolved.relocation.addend),
                             color,
                             pad_to: 0,
                         })?;
-                        if resolved.relocation.addend != 0 {
-                            cb(DiffTextSegment {
-                                text: DiffText::Addend(resolved.relocation.addend),
-                                color,
-                                pad_to: 0,
-                            })?;
-                        }
-                        Ok(())
                     }
-                    InstructionArg::BranchDest(dest) => {
-                        if let Some(addr) = dest.checked_sub(symbol.address) {
-                            cb(DiffTextSegment {
-                                text: DiffText::BranchDest(addr),
-                                color: diff_index.get().map_or(DiffTextColor::Normal, |i| {
-                                    DiffTextColor::Rotating(i as u8)
-                                }),
-                                pad_to: 0,
-                            })
-                        } else {
-                            cb(DiffTextSegment {
-                                text: DiffText::Argument(InstructionArgValue::Opaque(
-                                    Cow::Borrowed("<invalid>"),
-                                )),
-                                color: diff_index.get().map_or(DiffTextColor::Normal, |i| {
-                                    DiffTextColor::Rotating(i as u8)
-                                }),
-                                pad_to: 0,
-                            })
-                        }
+                    Ok(())
+                }
+                InstructionArg::BranchDest(dest) => {
+                    if let Some(addr) = dest.checked_sub(resolved.symbol.address) {
+                        cb(DiffTextSegment {
+                            text: DiffText::BranchDest(addr),
+                            color: diff_index
+                                .get()
+                                .map_or(base_color, |i| DiffTextColor::Rotating(i as u8)),
+                            pad_to: 0,
+                        })
+                    } else {
+                        cb(DiffTextSegment {
+                            text: DiffText::Argument(InstructionArgValue::Opaque(Cow::Borrowed(
+                                "<invalid>",
+                            ))),
+                            color: diff_index
+                                .get()
+                                .map_or(base_color, |i| DiffTextColor::Rotating(i as u8)),
+                            pad_to: 0,
+                        })
                     }
                 }
             }
-            InstructionPart::Separator => {
-                cb(DiffTextSegment::basic(diff_config.separator(), DiffTextColor::Normal))
-            }
-        },
-    )?;
+        }
+        InstructionPart::Separator => {
+            cb(DiffTextSegment::basic(diff_config.separator(), base_color))
+        }
+    })?;
     // Fallback for relocation that wasn't displayed
-    if relocation.is_some() && !displayed_relocation {
-        cb(DiffTextSegment::basic(" <", DiffTextColor::Normal))?;
-        let resolved = relocation.unwrap();
+    if resolved.relocation.is_some() && !displayed_relocation {
+        cb(DiffTextSegment::basic(" <", base_color))?;
+        let resolved = resolved.relocation.unwrap();
         let diff_index = ins_row.arg_diff.get(arg_idx).copied().unwrap_or_default();
         let color =
             diff_index.get().map_or(DiffTextColor::Bright, |i| DiffTextColor::Rotating(i as u8));
@@ -285,7 +275,7 @@ pub fn display_row(
                 pad_to: 0,
             })?;
         }
-        cb(DiffTextSegment::basic(">", DiffTextColor::Normal))?;
+        cb(DiffTextSegment::basic(">", base_color))?;
     }
     if let Some(branch) = &ins_row.branch_to {
         cb(DiffTextSegment::basic(" ~>", DiffTextColor::Rotating(branch.branch_idx as u8)))?;
@@ -322,9 +312,17 @@ impl From<&DiffText<'_>> for HighlightKind {
     }
 }
 
-pub enum ContextMenuItem {
+pub enum ContextItem {
     Copy { value: String, label: Option<String> },
-    Navigate { label: String },
+    Navigate { label: String, symbol_index: usize, kind: SymbolNavigationKind },
+    Separator,
+}
+
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub enum SymbolNavigationKind {
+    #[default]
+    Normal,
+    Extab,
 }
 
 pub enum HoverItemColor {
@@ -333,66 +331,200 @@ pub enum HoverItemColor {
     Special,    // Blue
 }
 
-pub struct HoverItem {
-    pub text: String,
-    pub color: HoverItemColor,
+pub enum HoverItem {
+    Text { label: String, value: String, color: HoverItemColor },
+    Separator,
 }
 
-pub fn symbol_context(_obj: &Object, symbol: &Symbol) -> Vec<ContextMenuItem> {
+pub fn symbol_context(obj: &Object, symbol_index: usize) -> Vec<ContextItem> {
+    let symbol = &obj.symbols[symbol_index];
     let mut out = Vec::new();
+    out.push(ContextItem::Copy { value: symbol.name.clone(), label: None });
     if let Some(name) = &symbol.demangled_name {
-        out.push(ContextMenuItem::Copy { value: name.clone(), label: None });
+        out.push(ContextItem::Copy { value: name.clone(), label: None });
     }
-    out.push(ContextMenuItem::Copy { value: symbol.name.clone(), label: None });
-    if let Some(address) = symbol.virtual_address {
-        out.push(ContextMenuItem::Copy {
-            value: format!("{:#x}", address),
-            label: Some("virtual address".to_string()),
-        });
+    if symbol.section.is_some() {
+        if let Some(address) = symbol.virtual_address {
+            out.push(ContextItem::Copy {
+                value: format!("{:#x}", address),
+                label: Some("virtual address".to_string()),
+            });
+        }
     }
-    // if let Some(_extab) = obj.arch.ppc().and_then(|ppc| ppc.extab_for_symbol(symbol)) {
-    //     out.push(ContextMenuItem::Navigate { label: "Decode exception table".to_string() });
-    // }
+    out.append(&mut obj.arch.symbol_context(obj, symbol_index));
     out
 }
 
-pub fn symbol_hover(_obj: &Object, symbol: &Symbol) -> Vec<HoverItem> {
+pub fn symbol_hover(obj: &Object, symbol_index: usize, addend: i64) -> Vec<HoverItem> {
+    let symbol = &obj.symbols[symbol_index];
+    let addend_str = match addend.cmp(&0i64) {
+        Ordering::Greater => format!("+{:x}", addend),
+        Ordering::Less => format!("-{:x}", -addend),
+        _ => String::new(),
+    };
     let mut out = Vec::new();
-    out.push(HoverItem {
-        text: format!("Name: {}", symbol.name),
-        color: HoverItemColor::Emphasized,
+    out.push(HoverItem::Text {
+        label: "Name".into(),
+        value: format!("{}{}", symbol.name, addend_str),
+        color: HoverItemColor::Normal,
     });
-    out.push(HoverItem {
-        text: format!("Address: {:x}", symbol.address),
-        color: HoverItemColor::Emphasized,
-    });
-    if symbol.flags.contains(SymbolFlag::SizeInferred) {
-        out.push(HoverItem {
-            text: format!("Size: {:x} (inferred)", symbol.size),
-            color: HoverItemColor::Emphasized,
+    if let Some(demangled_name) = &symbol.demangled_name {
+        out.push(HoverItem::Text {
+            label: "Demangled".into(),
+            value: demangled_name.into(),
+            color: HoverItemColor::Normal,
         });
+    }
+    if let Some(section) = symbol.section {
+        out.push(HoverItem::Text {
+            label: "Section".into(),
+            value: obj.sections[section].name.clone(),
+            color: HoverItemColor::Normal,
+        });
+        out.push(HoverItem::Text {
+            label: "Address".into(),
+            value: format!("{:x}{}", symbol.address, addend_str),
+            color: HoverItemColor::Normal,
+        });
+        if symbol.flags.contains(SymbolFlag::SizeInferred) {
+            out.push(HoverItem::Text {
+                label: "Size".into(),
+                value: format!("{:x} (inferred)", symbol.size),
+                color: HoverItemColor::Normal,
+            });
+        } else {
+            out.push(HoverItem::Text {
+                label: "Size".into(),
+                value: format!("{:x}", symbol.size),
+                color: HoverItemColor::Normal,
+            });
+        }
+        if let Some(align) = symbol.align {
+            out.push(HoverItem::Text {
+                label: "Alignment".into(),
+                value: align.get().to_string(),
+                color: HoverItemColor::Normal,
+            });
+        }
+        if let Some(address) = symbol.virtual_address {
+            out.push(HoverItem::Text {
+                label: "Virtual address".into(),
+                value: format!("{:#x}", address),
+                color: HoverItemColor::Special,
+            });
+        }
     } else {
-        out.push(HoverItem {
-            text: format!("Size: {:x}", symbol.size),
+        out.push(HoverItem::Text {
+            label: Default::default(),
+            value: "Extern".into(),
             color: HoverItemColor::Emphasized,
         });
     }
-    if let Some(address) = symbol.virtual_address {
-        out.push(HoverItem {
-            text: format!("Virtual address: {:#x}", address),
+    out.append(&mut obj.arch.symbol_hover(obj, symbol_index));
+    out
+}
+
+pub fn instruction_context(
+    obj: &Object,
+    resolved: ResolvedInstructionRef,
+    ins: &ParsedInstruction,
+) -> Vec<ContextItem> {
+    let mut out = Vec::new();
+    let mut hex_string = String::new();
+    for byte in resolved.code {
+        hex_string.push_str(&format!("{:02x}", byte));
+    }
+    out.push(ContextItem::Copy { value: hex_string, label: Some("instruction bytes".to_string()) });
+    out.append(&mut obj.arch.instruction_context(obj, resolved));
+    if let Some(virtual_address) = resolved.symbol.virtual_address {
+        let offset = resolved.ins_ref.address - resolved.symbol.address;
+        out.push(ContextItem::Copy {
+            value: format!("{:x}", virtual_address + offset),
+            label: Some("virtual address".to_string()),
+        });
+    }
+    for arg in &ins.args {
+        if let InstructionArg::Value(arg) = arg {
+            out.push(ContextItem::Copy { value: arg.to_string(), label: None });
+            match arg {
+                InstructionArgValue::Signed(v) => {
+                    out.push(ContextItem::Copy { value: v.to_string(), label: None });
+                }
+                InstructionArgValue::Unsigned(v) => {
+                    out.push(ContextItem::Copy { value: v.to_string(), label: None });
+                }
+                _ => {}
+            }
+        }
+    }
+    if let Some(reloc) = resolved.relocation {
+        for literal in display_ins_data_literals(obj, resolved) {
+            out.push(ContextItem::Copy { value: literal, label: None });
+        }
+        out.push(ContextItem::Separator);
+        out.append(&mut symbol_context(obj, reloc.relocation.target_symbol));
+    }
+    out
+}
+
+pub fn instruction_hover(
+    obj: &Object,
+    resolved: ResolvedInstructionRef,
+    ins: &ParsedInstruction,
+) -> Vec<HoverItem> {
+    let mut out = Vec::new();
+    out.push(HoverItem::Text {
+        label: Default::default(),
+        value: format!("{:02x?}", resolved.code),
+        color: HoverItemColor::Normal,
+    });
+    out.append(&mut obj.arch.instruction_hover(obj, resolved));
+    if let Some(virtual_address) = resolved.symbol.virtual_address {
+        let offset = resolved.ins_ref.address - resolved.symbol.address;
+        out.push(HoverItem::Text {
+            label: "Virtual address".into(),
+            value: format!("{:#x}", virtual_address + offset),
             color: HoverItemColor::Special,
         });
     }
-    // if let Some(extab) = obj.arch.ppc().and_then(|ppc| ppc.extab_for_symbol(symbol)) {
-    //     out.push(HoverItem {
-    //         text: format!("extab symbol: {}", extab.etb_symbol.name),
-    //         color: HoverItemColor::Special,
-    //     });
-    //     out.push(HoverItem {
-    //         text: format!("extabindex symbol: {}", extab.eti_symbol.name),
-    //         color: HoverItemColor::Special,
-    //     });
-    // }
+    for arg in &ins.args {
+        if let InstructionArg::Value(arg) = arg {
+            match arg {
+                InstructionArgValue::Signed(v) => {
+                    out.push(HoverItem::Text {
+                        label: Default::default(),
+                        value: format!("{arg} == {v}"),
+                        color: HoverItemColor::Normal,
+                    });
+                }
+                InstructionArgValue::Unsigned(v) => {
+                    out.push(HoverItem::Text {
+                        label: Default::default(),
+                        value: format!("{arg} == {v}"),
+                        color: HoverItemColor::Normal,
+                    });
+                }
+                _ => {}
+            }
+        }
+    }
+    if let Some(reloc) = resolved.relocation {
+        if let Some(name) = obj.arch.reloc_name(reloc.relocation.flags) {
+            out.push(HoverItem::Text {
+                label: "Relocation type".into(),
+                value: name.to_string(),
+                color: HoverItemColor::Normal,
+            });
+        } else {
+            out.push(HoverItem::Text {
+                label: "Relocation type".into(),
+                value: format!("<{:?}>", reloc.relocation.flags),
+                color: HoverItemColor::Normal,
+            });
+        }
+        out.push(HoverItem::Separator);
+        out.append(&mut symbol_hover(obj, reloc.relocation.target_symbol, reloc.relocation.addend));
+    }
     out
 }
 
@@ -555,4 +687,38 @@ fn symbol_sort(a: &Symbol, b: &Symbol) -> Ordering {
 
 fn symbol_sort_reverse(a: &Symbol, b: &Symbol) -> Ordering {
     section_symbol_sort(a, b).then(b.address.cmp(&a.address)).then(b.size.cmp(&a.size))
+}
+
+pub fn display_ins_data_labels(obj: &Object, resolved: ResolvedInstructionRef) -> Vec<String> {
+    let Some(reloc) = resolved.relocation else {
+        return Vec::new();
+    };
+    if reloc.relocation.addend < 0 || reloc.relocation.addend as u64 >= reloc.symbol.size {
+        return Vec::new();
+    }
+    let Some(data) = obj.symbol_data(reloc.relocation.target_symbol) else {
+        return Vec::new();
+    };
+    let bytes = &data[reloc.relocation.addend as usize..];
+    obj.arch
+        .guess_data_type(resolved)
+        .map(|ty| ty.display_labels(obj.endianness, bytes))
+        .unwrap_or_default()
+}
+
+pub fn display_ins_data_literals(obj: &Object, resolved: ResolvedInstructionRef) -> Vec<String> {
+    let Some(reloc) = resolved.relocation else {
+        return Vec::new();
+    };
+    if reloc.relocation.addend < 0 || reloc.relocation.addend as u64 >= reloc.symbol.size {
+        return Vec::new();
+    }
+    let Some(data) = obj.symbol_data(reloc.relocation.target_symbol) else {
+        return Vec::new();
+    };
+    let bytes = &data[reloc.relocation.addend as usize..];
+    obj.arch
+        .guess_data_type(resolved)
+        .map(|ty| ty.display_literals(obj.endianness, bytes))
+        .unwrap_or_default()
 }

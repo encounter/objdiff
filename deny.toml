@@ -239,7 +239,12 @@ allow-git = []
 
 [sources.allow-org]
 # github.com organizations to allow git sources for
-github = ["encounter"]
+github = [
+    "CelestialAmber", # cwextab, rlwinmdec
+    "Decompollaborate", # rabbitizer
+    "enarx", # flagset
+    "encounter",
+]
 # gitlab.com organizations to allow git sources for
 gitlab = []
 # bitbucket.org organizations to allow git sources for

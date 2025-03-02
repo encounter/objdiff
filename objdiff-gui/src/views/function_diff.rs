@@ -4,17 +4,21 @@ use egui::{text::LayoutJob, Label, Response, Sense, Widget};
 use egui_extras::TableRow;
 use objdiff_core::{
     diff::{
-        display::{display_row, DiffText, DiffTextColor, DiffTextSegment, HighlightKind},
+        display::{
+            display_row, instruction_context, instruction_hover, DiffText, DiffTextColor,
+            DiffTextSegment, HighlightKind,
+        },
         DiffObjConfig, InstructionDiffKind, InstructionDiffRow, ObjectDiff,
     },
-    obj::{
-        InstructionArg, InstructionArgValue, InstructionRef, Object, ParsedInstruction,
-        ResolvedRelocation, Section, Symbol,
-    },
+    obj::{InstructionArgValue, InstructionRef, Object},
     util::ReallySigned,
 };
 
-use crate::views::{appearance::Appearance, symbol_diff::DiffViewAction};
+use crate::views::{
+    appearance::Appearance,
+    diff::{context_menu_items_ui, hover_items_ui},
+    symbol_diff::DiffViewAction,
+};
 
 #[derive(Default)]
 pub struct FunctionViewState {
@@ -67,51 +71,6 @@ impl FunctionViewState {
     }
 }
 
-#[expect(unused)]
-#[derive(Clone, Copy)]
-pub struct ResolvedInstructionRef<'obj> {
-    pub symbol: &'obj Symbol,
-    pub section_idx: usize,
-    pub section: &'obj Section,
-    pub data: &'obj [u8],
-    pub relocation: Option<ResolvedRelocation<'obj>>,
-}
-
-fn resolve_instruction_ref(
-    obj: &Object,
-    symbol_idx: usize,
-    ins_ref: InstructionRef,
-) -> Option<ResolvedInstructionRef> {
-    let symbol = &obj.symbols[symbol_idx];
-    let section_idx = symbol.section?;
-    let section = &obj.sections[section_idx];
-    let offset = ins_ref.address.checked_sub(section.address)?;
-    let data = section.data.get(offset as usize..offset as usize + ins_ref.size as usize)?;
-    let relocation = section.relocation_at(ins_ref, obj);
-    Some(ResolvedInstructionRef { symbol, section, section_idx, data, relocation })
-}
-
-fn resolve_instruction<'obj>(
-    obj: &'obj Object,
-    symbol_idx: usize,
-    ins_ref: InstructionRef,
-    diff_config: &DiffObjConfig,
-) -> Option<(ResolvedInstructionRef<'obj>, ParsedInstruction)> {
-    let resolved = resolve_instruction_ref(obj, symbol_idx, ins_ref)?;
-    let ins = obj
-        .arch
-        .process_instruction(
-            ins_ref,
-            resolved.data,
-            resolved.relocation,
-            resolved.symbol.address..resolved.symbol.address + resolved.symbol.size,
-            resolved.section_idx,
-            diff_config,
-        )
-        .ok()?;
-    Some((resolved, ins))
-}
-
 fn ins_hover_ui(
     ui: &mut egui::Ui,
     obj: &Object,
@@ -120,86 +79,25 @@ fn ins_hover_ui(
     diff_config: &DiffObjConfig,
     appearance: &Appearance,
 ) {
-    let Some((
-        ResolvedInstructionRef { symbol, section_idx: _, section: _, data, relocation },
-        ins,
-    )) = resolve_instruction(obj, symbol_idx, ins_ref, diff_config)
-    else {
+    let Some(resolved) = obj.resolve_instruction_ref(symbol_idx, ins_ref) else {
         ui.colored_label(appearance.delete_color, "Failed to resolve instruction");
         return;
+    };
+    let ins = match obj.arch.process_instruction(resolved, diff_config) {
+        Ok(ins) => ins,
+        Err(e) => {
+            ui.colored_label(
+                appearance.delete_color,
+                format!("Failed to process instruction: {e}"),
+            );
+            return;
+        }
     };
 
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-
-        ui.label(format!("{:02x?}", data));
-
-        if let Some(virtual_address) = symbol.virtual_address {
-            let offset = ins_ref.address - symbol.address;
-            ui.colored_label(
-                appearance.replace_color,
-                format!("Virtual address: {:#x}", virtual_address + offset),
-            );
-        }
-
-        // TODO
-        // if let Some(orig) = &ins.orig {
-        //     ui.label(format!("Original: {}", orig));
-        // }
-
-        for arg in &ins.args {
-            if let InstructionArg::Value(arg) = arg {
-                match arg {
-                    InstructionArgValue::Signed(v) => {
-                        ui.label(format!("{arg} == {v}"));
-                    }
-                    InstructionArgValue::Unsigned(v) => {
-                        ui.label(format!("{arg} == {v}"));
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        if let Some(resolved) = relocation {
-            ui.label(format!(
-                "Relocation type: {}",
-                obj.arch.display_reloc(resolved.relocation.flags)
-            ));
-            let addend_str = match resolved.relocation.addend.cmp(&0i64) {
-                Ordering::Greater => format!("+{:x}", resolved.relocation.addend),
-                Ordering::Less => format!("-{:x}", -resolved.relocation.addend),
-                _ => "".to_string(),
-            };
-            ui.colored_label(
-                appearance.highlight_color,
-                format!("Name: {}{}", resolved.symbol.name, addend_str),
-            );
-            if let Some(orig_section_index) = resolved.symbol.section {
-                let section = &obj.sections[orig_section_index];
-                ui.colored_label(appearance.highlight_color, format!("Section: {}", section.name));
-                ui.colored_label(
-                    appearance.highlight_color,
-                    format!("Address: {:x}{}", resolved.symbol.address, addend_str),
-                );
-                ui.colored_label(
-                    appearance.highlight_color,
-                    format!("Size: {:x}", resolved.symbol.size),
-                );
-                // TODO
-                // for label in obj.arch.display_ins_data_labels(ins) {
-                //     ui.colored_label(appearance.highlight_color, label);
-                // }
-            } else {
-                ui.colored_label(appearance.highlight_color, "Extern".to_string());
-            }
-        }
-
-        // TODO
-        // if let Some(decoded) = rlwinmdec::decode(&ins.formatted) {
-        //     ui.colored_label(appearance.highlight_color, decoded.trim());
-        // }
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
+        hover_items_ui(ui, instruction_hover(obj, resolved, &ins), appearance);
     });
 }
 
@@ -208,93 +106,29 @@ fn ins_context_menu(
     obj: &Object,
     symbol_idx: usize,
     ins_ref: InstructionRef,
+    column: usize,
     diff_config: &DiffObjConfig,
     appearance: &Appearance,
 ) {
-    let Some((
-        ResolvedInstructionRef { symbol, section_idx: _, section: _, data, relocation },
-        ins,
-    )) = resolve_instruction(obj, symbol_idx, ins_ref, diff_config)
-    else {
+    let Some(resolved) = obj.resolve_instruction_ref(symbol_idx, ins_ref) else {
         ui.colored_label(appearance.delete_color, "Failed to resolve instruction");
         return;
+    };
+    let ins = match obj.arch.process_instruction(resolved, diff_config) {
+        Ok(ins) => ins,
+        Err(e) => {
+            ui.colored_label(
+                appearance.delete_color,
+                format!("Failed to process instruction: {e}"),
+            );
+            return;
+        }
     };
 
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-
-        // TODO
-        // if ui.button(format!("Copy \"{}\"", ins.formatted)).clicked() {
-        //     ui.output_mut(|output| output.copied_text.clone_from(&ins.formatted));
-        //     ui.close_menu();
-        // }
-
-        let mut hex_string = "0x".to_string();
-        for byte in data {
-            hex_string.push_str(&format!("{:02x}", byte));
-        }
-        if ui.button(format!("Copy \"{hex_string}\" (instruction bytes)")).clicked() {
-            ui.output_mut(|output| output.copied_text = hex_string);
-            ui.close_menu();
-        }
-
-        if let Some(virtual_address) = symbol.virtual_address {
-            let offset = ins_ref.address - symbol.address;
-            let offset_string = format!("{:#x}", virtual_address + offset);
-            if ui.button(format!("Copy \"{offset_string}\" (virtual address)")).clicked() {
-                ui.output_mut(|output| output.copied_text = offset_string);
-                ui.close_menu();
-            }
-        }
-
-        for arg in &ins.args {
-            if let InstructionArg::Value(arg) = arg {
-                match arg {
-                    InstructionArgValue::Signed(v) => {
-                        if ui.button(format!("Copy \"{arg}\"")).clicked() {
-                            ui.output_mut(|output| output.copied_text = arg.to_string());
-                            ui.close_menu();
-                        }
-                        if ui.button(format!("Copy \"{v}\"")).clicked() {
-                            ui.output_mut(|output| output.copied_text = v.to_string());
-                            ui.close_menu();
-                        }
-                    }
-                    InstructionArgValue::Unsigned(v) => {
-                        if ui.button(format!("Copy \"{arg}\"")).clicked() {
-                            ui.output_mut(|output| output.copied_text = arg.to_string());
-                            ui.close_menu();
-                        }
-                        if ui.button(format!("Copy \"{v}\"")).clicked() {
-                            ui.output_mut(|output| output.copied_text = v.to_string());
-                            ui.close_menu();
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        if let Some(resolved) = relocation {
-            // TODO
-            // for literal in obj.arch.display_ins_data_literals(ins) {
-            //     if ui.button(format!("Copy \"{literal}\"")).clicked() {
-            //         ui.output_mut(|output| output.copied_text.clone_from(&literal));
-            //         ui.close_menu();
-            //     }
-            // }
-            if let Some(name) = &resolved.symbol.demangled_name {
-                if ui.button(format!("Copy \"{name}\"")).clicked() {
-                    ui.output_mut(|output| output.copied_text.clone_from(name));
-                    ui.close_menu();
-                }
-            }
-            if ui.button(format!("Copy \"{}\"", resolved.symbol.name)).clicked() {
-                ui.output_mut(|output| output.copied_text.clone_from(&resolved.symbol.name));
-                ui.close_menu();
-            }
-        }
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
+        context_menu_items_ui(ui, instruction_context(obj, resolved, &ins), column, appearance);
     });
 }
 
@@ -410,7 +244,7 @@ pub(crate) fn asm_col_ui(
     let response_cb = |response: Response| {
         if let Some(ins_ref) = ins_row.ins_ref {
             response.context_menu(|ui| {
-                ins_context_menu(ui, ctx.obj, symbol_ref, ins_ref, diff_config, appearance)
+                ins_context_menu(ui, ctx.obj, symbol_ref, ins_ref, column, diff_config, appearance)
             });
             response.on_hover_ui_at_pointer(|ui| {
                 ins_hover_ui(ui, ctx.obj, symbol_ref, ins_ref, diff_config, appearance)

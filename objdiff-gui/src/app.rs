@@ -43,7 +43,7 @@ use crate::{
         graphics::{graphics_window, GraphicsConfig, GraphicsViewState},
         jobs::{jobs_menu_ui, jobs_window},
         rlwinm::{rlwinm_decode_window, RlwinmDecodeViewState},
-        symbol_diff::{DiffViewAction, DiffViewNavigation, DiffViewState, View},
+        symbol_diff::{DiffViewAction, DiffViewState, ResolvedNavigation, View},
     },
 };
 
@@ -762,7 +762,7 @@ impl eframe::App for App {
                     ui.separator();
                     if ui.button("Clear custom symbol mappings").clicked() {
                         state.clear_mappings();
-                        diff_state.post_build_nav = Some(DiffViewNavigation::symbol_diff());
+                        diff_state.post_build_nav = Some(ResolvedNavigation::default());
                         state.queue_reload = true;
                     }
                 });

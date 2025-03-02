@@ -7,7 +7,6 @@ use std::{
 use anyhow::Result;
 use egui::{text::LayoutJob, Context, FontId, RichText, TextFormat, TextStyle, Window};
 use serde::{Deserialize, Serialize};
-use strum::{EnumIter, EnumMessage, IntoEnumIterator};
 
 use crate::views::{appearance::Appearance, frame_history::FrameHistory};
 
@@ -20,22 +19,23 @@ pub struct GraphicsViewState {
     pub should_relaunch: bool,
 }
 
-#[derive(
-    Copy, Clone, Debug, Default, PartialEq, Eq, EnumIter, EnumMessage, Serialize, Deserialize,
-)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GraphicsBackend {
     #[default]
-    #[strum(message = "Auto")]
     Auto,
-    #[strum(message = "Vulkan")]
     Vulkan,
-    #[strum(message = "Metal")]
     Metal,
-    #[strum(message = "DirectX 12")]
     Dx12,
-    #[strum(message = "OpenGL")]
     OpenGL,
 }
+
+static ALL_BACKENDS: &[GraphicsBackend] = &[
+    GraphicsBackend::Auto,
+    GraphicsBackend::Vulkan,
+    GraphicsBackend::Metal,
+    GraphicsBackend::Dx12,
+    GraphicsBackend::OpenGL,
+];
 
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct GraphicsConfig {
@@ -68,6 +68,16 @@ impl GraphicsBackend {
             GraphicsBackend::Metal => cfg!(all(feature = "wgpu", target_os = "macos")),
             GraphicsBackend::Dx12 => cfg!(all(feature = "wgpu", target_os = "windows")),
             GraphicsBackend::OpenGL => true,
+        }
+    }
+
+    pub fn display_name(self) -> &'static str {
+        match self {
+            GraphicsBackend::Auto => "Auto",
+            GraphicsBackend::Vulkan => "Vulkan",
+            GraphicsBackend::Metal => "Metal",
+            GraphicsBackend::Dx12 => "DirectX 12",
+            GraphicsBackend::OpenGL => "OpenGL",
         }
     }
 }
@@ -134,9 +144,9 @@ pub fn graphics_window(
         ui.add_enabled_ui(state.graphics_config_path.is_some(), |ui| {
             ui.horizontal(|ui| {
                 ui.label("Desired backend:");
-                for backend in GraphicsBackend::iter().filter(GraphicsBackend::is_supported) {
+                for backend in ALL_BACKENDS.iter().copied().filter(GraphicsBackend::is_supported) {
                     let selected = state.graphics_config.desired_backend == backend;
-                    if ui.selectable_label(selected, backend.get_message().unwrap()).clicked() {
+                    if ui.selectable_label(selected, backend.display_name()).clicked() {
                         let prev_backend = state.graphics_config.desired_backend;
                         state.graphics_config.desired_backend = backend;
                         match save_graphics_config(

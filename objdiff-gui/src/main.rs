@@ -25,8 +25,7 @@ use tracing_subscriber::EnvFilter;
 use crate::views::graphics::{load_graphics_config, GraphicsBackend, GraphicsConfig};
 
 fn load_icon() -> Result<egui::IconData> {
-    use bytes::Buf;
-    let decoder = png::Decoder::new(include_bytes!("../assets/icon_64.png").reader());
+    let decoder = png::Decoder::new(include_bytes!("../assets/icon_64.png").as_ref());
     let mut reader = decoder.read_info()?;
     let mut buf = vec![0; reader.output_buffer_size()];
     let info = reader.next_frame(&mut buf)?;

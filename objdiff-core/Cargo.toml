@@ -30,7 +30,6 @@ all = [
 ]
 # Implicit, used to check if any arch is enabled
 any-arch = [
-    "dep:byteorder",
     "dep:flagset",
     "dep:heck",
     "dep:log",
@@ -40,7 +39,6 @@ any-arch = [
     "dep:quote",
     "dep:regex",
     "dep:similar",
-    "dep:strum",
     "dep:syn",
 ]
 bindings = [
@@ -71,14 +69,12 @@ serde = [
 ]
 std = [
     "anyhow/std",
-    "byteorder?/std",
     "flagset?/std",
     "log?/std",
     "num-traits?/std",
     "object/std",
     "prost?/std",
     "serde?/std",
-    "strum?/std",
     "typed-path?/std",
     "dep:filetime",
     "dep:memmap2",
@@ -92,6 +88,7 @@ ppc = [
     "dep:cwdemangle",
     "dep:cwextab",
     "dep:ppc750cl",
+    "dep:rlwinmdec",
 ]
 x86 = [
     "any-arch",
@@ -117,21 +114,19 @@ features = ["all"]
 
 [dependencies]
 anyhow = { version = "1.0", default-features = false }
-byteorder = { version = "1.5", default-features = false, optional = true }
 filetime = { version = "0.2", optional = true }
-flagset = { version = "0.4", default-features = false, optional = true }
+flagset = { version = "0.4", default-features = false, optional = true, git = "https://github.com/enarx/flagset.git", rev = "a1fe9369b3741e43fec45da1998e83b9d78966a2" }
+itertools = { version = "0.14", default-features = false, features = ["use_alloc"] }
 log = { version = "0.4", default-features = false, optional = true }
 memmap2 = { version = "0.9", optional = true }
 num-traits = { version = "0.2", default-features = false, optional = true }
 object = { version = "0.36", default-features = false, features = ["read_core", "elf", "pe"] }
 pbjson = { version = "0.7", default-features = false, optional = true }
 prost = { version = "0.13", default-features = false, features = ["prost-derive"], optional = true }
+regex = { version = "1.11", default-features = false, features = [], optional = true }
 serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
 similar = { version = "2.7", default-features = false, optional = true, git = "https://github.com/encounter/similar.git", branch = "no_std" }
-strum = { version = "0.26", default-features = false, features = ["derive"], optional = true }
 typed-path = { version = "0.10", default-features = false, optional = true }
-regex = { version = "1.11", default-features = false, features = [], optional = true }
-itertools = { version = "0.14", default-features = false, features = ["use_alloc"] }
 
 # config
 globset = { version = "0.4", default-features = false, optional = true }
@@ -143,8 +138,9 @@ gimli = { version = "0.31", default-features = false, features = ["read"], optio
 
 # ppc
 cwdemangle = { version = "1.0", optional = true }
-cwextab = { version = "1.0", optional = true, git = "https://github.com/encounter/cwextab.git" }
+cwextab = { version = "1.0", optional = true, git = "https://github.com/CelestialAmber/cwextab.git" }
 ppc750cl = { version = "0.3", optional = true }
+rlwinmdec = { version = "1.1", optional = true, git = "https://github.com/CelestialAmber/rlwinmdec.git" }
 
 # mips
 rabbitizer = { git = "https://github.com/Decompollaborate/rabbitizer.git", branch = "🦀", default-features = false, optional = true }
@@ -196,4 +192,4 @@ syn = { version = "2.0", optional = true }
 [dev-dependencies]
 # Enable all features for tests
 objdiff-core = { path = ".", features = ["all"] }
-insta = "1.42.1"
+insta = "1.42"

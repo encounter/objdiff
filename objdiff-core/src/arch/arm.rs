@@ -1,11 +1,9 @@
 use alloc::{
-    borrow::Cow,
     collections::BTreeMap,
     format,
     string::{String, ToString},
     vec::Vec,
 };
-use core::ops::Range;
 
 use anyhow::{bail, Result};
 use arm_attr::{enums::CpuArch, tag::Tag, BuildAttrs};
@@ -16,8 +14,8 @@ use crate::{
     arch::Arch,
     diff::{display::InstructionPart, ArmArchVersion, ArmR9Usage, DiffObjConfig},
     obj::{
-        InstructionRef, RelocationFlags, ResolvedRelocation, ScannedInstruction, SymbolFlag,
-        SymbolFlagSet, SymbolKind,
+        InstructionRef, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation,
+        ScannedInstruction, SymbolFlag, SymbolFlagSet, SymbolKind,
     },
 };
 
@@ -252,23 +250,19 @@ impl Arch for ArchArm {
 
     fn display_instruction(
         &self,
-        ins_ref: InstructionRef,
-        code: &[u8],
-        relocation: Option<ResolvedRelocation>,
-        _function_range: Range<u64>,
-        _section_index: usize,
+        resolved: ResolvedInstructionRef,
         diff_config: &DiffObjConfig,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
-        let (ins, parsed_ins) = self.parse_ins_ref(ins_ref, code, diff_config)?;
-        cb(InstructionPart::opcode(parsed_ins.mnemonic, ins_ref.opcode))?;
-        if ins == unarm::Ins::Data && relocation.is_some() {
+        let (ins, parsed_ins) = self.parse_ins_ref(resolved.ins_ref, resolved.code, diff_config)?;
+        cb(InstructionPart::opcode(parsed_ins.mnemonic, resolved.ins_ref.opcode))?;
+        if ins == unarm::Ins::Data && resolved.relocation.is_some() {
             cb(InstructionPart::reloc())?;
         } else {
             push_args(
                 &parsed_ins,
-                relocation,
-                ins_ref.address as u32,
+                resolved.relocation,
+                resolved.ins_ref.address as u32,
                 self.display_options(diff_config),
                 cb,
             )?;
@@ -325,17 +319,38 @@ impl Arch for ArchArm {
             .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
     }
 
-    fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str> {
-        Cow::Owned(format!("<{flags:?}>"))
-    }
-
-    fn get_reloc_byte_size(&self, flags: RelocationFlags) -> usize {
+    fn reloc_name(&self, flags: RelocationFlags) -> Option<&'static str> {
         match flags {
             RelocationFlags::Elf(r_type) => match r_type {
+                elf::R_ARM_NONE => Some("R_ARM_NONE"),
+                elf::R_ARM_ABS32 => Some("R_ARM_ABS32"),
+                elf::R_ARM_REL32 => Some("R_ARM_REL32"),
+                elf::R_ARM_ABS16 => Some("R_ARM_ABS16"),
+                elf::R_ARM_ABS8 => Some("R_ARM_ABS8"),
+                elf::R_ARM_THM_PC22 => Some("R_ARM_THM_PC22"),
+                elf::R_ARM_THM_XPC22 => Some("R_ARM_THM_XPC22"),
+                elf::R_ARM_PC24 => Some("R_ARM_PC24"),
+                elf::R_ARM_XPC25 => Some("R_ARM_XPC25"),
+                elf::R_ARM_CALL => Some("R_ARM_CALL"),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn data_reloc_size(&self, flags: RelocationFlags) -> usize {
+        match flags {
+            RelocationFlags::Elf(r_type) => match r_type {
+                elf::R_ARM_NONE => 0,
                 elf::R_ARM_ABS32 => 4,
                 elf::R_ARM_REL32 => 4,
                 elf::R_ARM_ABS16 => 2,
                 elf::R_ARM_ABS8 => 1,
+                elf::R_ARM_THM_PC22 => 4,
+                elf::R_ARM_THM_XPC22 => 4,
+                elf::R_ARM_PC24 => 4,
+                elf::R_ARM_XPC25 => 4,
+                elf::R_ARM_CALL => 4,
                 _ => 1,
             },
             _ => 1,

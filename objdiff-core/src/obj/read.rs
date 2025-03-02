@@ -780,6 +780,7 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<Object> {
     }
     Ok(Object {
         arch,
+        endianness: obj_file.endianness(),
         symbols,
         sections,
         split_meta,

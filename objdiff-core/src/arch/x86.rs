@@ -1,5 +1,4 @@
-use alloc::{borrow::Cow, boxed::Box, format, string::String, vec::Vec};
-use core::ops::Range;
+use alloc::{boxed::Box, string::String, vec::Vec};
 
 use anyhow::{anyhow, bail, Result};
 use iced_x86::{
@@ -11,7 +10,7 @@ use object::{pe, Endian as _, Object as _, ObjectSection as _};
 use crate::{
     arch::Arch,
     diff::{display::InstructionPart, DiffObjConfig, X86Formatter},
-    obj::{InstructionRef, RelocationFlags, ResolvedRelocation, ScannedInstruction},
+    obj::{InstructionRef, RelocationFlags, ResolvedInstructionRef, ScannedInstruction},
 };
 
 #[derive(Debug)]
@@ -74,15 +73,11 @@ impl Arch for ArchX86 {
 
     fn display_instruction(
         &self,
-        ins_ref: InstructionRef,
-        code: &[u8],
-        relocation: Option<ResolvedRelocation>,
-        _function_range: Range<u64>,
-        _section_index: usize,
+        resolved: ResolvedInstructionRef,
         diff_config: &DiffObjConfig,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
-        let mut decoder = self.decoder(code, ins_ref.address);
+        let mut decoder = self.decoder(resolved.code, resolved.ins_ref.address);
         let mut formatter = self.formatter(diff_config);
         let mut instruction = Instruction::default();
         decoder.decode_out(&mut instruction);
@@ -92,11 +87,11 @@ impl Arch for ArchX86 {
         // doesn't provide enough information to know which number is the displacement inside a
         // memory operand.
         let mut reloc_replace = None;
-        if let Some(resolved) = relocation {
-            const PLACEHOLDER: u64 = 0x7BDEBE7D; // chosen by fair dice roll.
+        if let Some(reloc) = resolved.relocation {
+            const PLACEHOLDER: u64 = 0x7BDE3E7D; // chosen by fair dice roll.
                                                  // guaranteed to be random.
-            let reloc_offset = resolved.relocation.address - ins_ref.address;
-            let reloc_size = reloc_size(resolved.relocation.flags).unwrap_or(usize::MAX);
+            let reloc_offset = reloc.relocation.address - resolved.ins_ref.address;
+            let reloc_size = reloc_size(reloc.relocation.flags).unwrap_or(usize::MAX);
             let offsets = decoder.get_constant_offsets(&instruction);
             if reloc_offset == offsets.displacement_offset() as u64
                 && reloc_size == offsets.displacement_size()
@@ -172,20 +167,18 @@ impl Arch for ArchX86 {
         }
     }
 
-    fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str> {
+    fn reloc_name(&self, flags: RelocationFlags) -> Option<&'static str> {
         match flags {
             RelocationFlags::Coff(typ) => match typ {
-                pe::IMAGE_REL_I386_DIR32 => Cow::Borrowed("IMAGE_REL_I386_DIR32"),
-                pe::IMAGE_REL_I386_REL32 => Cow::Borrowed("IMAGE_REL_I386_REL32"),
-                _ => Cow::Owned(format!("<{flags:?}>")),
+                pe::IMAGE_REL_I386_DIR32 => Some("IMAGE_REL_I386_DIR32"),
+                pe::IMAGE_REL_I386_REL32 => Some("IMAGE_REL_I386_REL32"),
+                _ => None,
             },
-            _ => Cow::Owned(format!("<{flags:?}>")),
+            _ => None,
         }
     }
 
-    fn get_reloc_byte_size(&self, flags: RelocationFlags) -> usize {
-        reloc_size(flags).unwrap_or(1)
-    }
+    fn data_reloc_size(&self, flags: RelocationFlags) -> usize { reloc_size(flags).unwrap_or(1) }
 }
 
 fn reloc_size(flags: RelocationFlags) -> Option<usize> {
@@ -346,7 +339,7 @@ impl FormatterOutput for InstructionFormatterOutput<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::obj::Relocation;
+    use crate::obj::{Relocation, ResolvedRelocation};
 
     #[test]
     fn test_scan_instructions() {
@@ -374,11 +367,11 @@ mod test {
         let opcode = iced_x86::Mnemonic::Mov as u16;
         let mut parts = Vec::new();
         arch.display_instruction(
-            InstructionRef { address: 0x1234, size: 10, opcode },
-            &code,
-            None,
-            0x1234..0x2000,
-            0,
+            ResolvedInstructionRef {
+                ins_ref: InstructionRef { address: 0x1234, size: 10, opcode },
+                code: &code,
+                ..Default::default()
+            },
             &DiffObjConfig::default(),
             &mut |part| {
                 parts.push(part.into_static());
@@ -410,19 +403,20 @@ mod test {
         let opcode = iced_x86::Mnemonic::Mov as u16;
         let mut parts = Vec::new();
         arch.display_instruction(
-            InstructionRef { address: 0x1234, size: 10, opcode },
-            &code,
-            Some(ResolvedRelocation {
-                relocation: &Relocation {
-                    flags: RelocationFlags::Coff(pe::IMAGE_REL_I386_DIR32),
-                    address: 0x1234 + 6,
-                    target_symbol: 0,
-                    addend: 0,
-                },
-                symbol: &Default::default(),
-            }),
-            0x1234..0x2000,
-            0,
+            ResolvedInstructionRef {
+                ins_ref: InstructionRef { address: 0x1234, size: 10, opcode },
+                code: &code,
+                relocation: Some(ResolvedRelocation {
+                    relocation: &Relocation {
+                        flags: RelocationFlags::Coff(pe::IMAGE_REL_I386_DIR32),
+                        address: 0x1234 + 6,
+                        target_symbol: 0,
+                        addend: 0,
+                    },
+                    symbol: &Default::default(),
+                }),
+                ..Default::default()
+            },
             &DiffObjConfig::default(),
             &mut |part| {
                 parts.push(part.into_static());
@@ -454,19 +448,20 @@ mod test {
         let opcode = iced_x86::Mnemonic::Mov as u16;
         let mut parts = Vec::new();
         arch.display_instruction(
-            InstructionRef { address: 0x1234, size: 7, opcode },
-            &code,
-            Some(ResolvedRelocation {
-                relocation: &Relocation {
-                    flags: RelocationFlags::Coff(pe::IMAGE_REL_I386_DIR32),
-                    address: 0x1234 + 3,
-                    target_symbol: 0,
-                    addend: 0,
-                },
-                symbol: &Default::default(),
-            }),
-            0x1234..0x2000,
-            0,
+            ResolvedInstructionRef {
+                ins_ref: InstructionRef { address: 0x1234, size: 7, opcode },
+                code: &code,
+                relocation: Some(ResolvedRelocation {
+                    relocation: &Relocation {
+                        flags: RelocationFlags::Coff(pe::IMAGE_REL_I386_DIR32),
+                        address: 0x1234 + 3,
+                        target_symbol: 0,
+                        addend: 0,
+                    },
+                    symbol: &Default::default(),
+                }),
+                ..Default::default()
+            },
             &DiffObjConfig::default(),
             &mut |part| {
                 parts.push(part.into_static());
@@ -496,19 +491,20 @@ mod test {
         let opcode = iced_x86::Mnemonic::Call as u16;
         let mut parts = Vec::new();
         arch.display_instruction(
-            InstructionRef { address: 0x1234, size: 5, opcode },
-            &code,
-            Some(ResolvedRelocation {
-                relocation: &Relocation {
-                    flags: RelocationFlags::Coff(pe::IMAGE_REL_I386_REL32),
-                    address: 0x1234 + 1,
-                    target_symbol: 0,
-                    addend: 0,
-                },
-                symbol: &Default::default(),
-            }),
-            0x1234..0x2000,
-            0,
+            ResolvedInstructionRef {
+                ins_ref: InstructionRef { address: 0x1234, size: 5, opcode },
+                code: &code,
+                relocation: Some(ResolvedRelocation {
+                    relocation: &Relocation {
+                        flags: RelocationFlags::Coff(pe::IMAGE_REL_I386_REL32),
+                        address: 0x1234 + 1,
+                        target_symbol: 0,
+                        addend: 0,
+                    },
+                    symbol: &Default::default(),
+                }),
+                ..Default::default()
+            },
             &DiffObjConfig::default(),
             &mut |part| {
                 parts.push(part.into_static());

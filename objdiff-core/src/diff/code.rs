@@ -5,7 +5,7 @@ use alloc::{
     vec::Vec,
 };
 
-use anyhow::{anyhow, ensure, Result};
+use anyhow::{anyhow, ensure, Context, Result};
 
 use super::{
     DiffObjConfig, FunctionRelocDiffs, InstructionArgDiffIndex, InstructionBranchFrom,
@@ -196,7 +196,7 @@ fn diff_instructions(
     Ok((left_diff, right_diff))
 }
 
-fn arg_to_string(arg: &InstructionArg, reloc: Option<&ResolvedRelocation>) -> String {
+fn arg_to_string(arg: &InstructionArg, reloc: Option<ResolvedRelocation>) -> String {
     match arg {
         InstructionArg::Value(arg) => arg.to_string(),
         InstructionArg::Reloc => {
@@ -226,7 +226,7 @@ fn resolve_branches(
     for ((i, ins_diff), ins) in
         rows.iter_mut().enumerate().filter(|(_, row)| row.ins_ref.is_some()).zip(ops)
     {
-        let branch_dest = if let Some(resolved) = section.relocation_at(ins.ins_ref, obj) {
+        let branch_dest = if let Some(resolved) = section.relocation_at(obj, ins.ins_ref) {
             if resolved.symbol.section == Some(section_index) {
                 // If the relocation target is in the same section, use it as the branch destination
                 resolved.symbol.address.checked_add_signed(resolved.relocation.addend)
@@ -258,7 +258,7 @@ fn resolve_branches(
     }
 }
 
-pub(crate) fn address_eq(left: &ResolvedRelocation, right: &ResolvedRelocation) -> bool {
+pub(crate) fn address_eq(left: ResolvedRelocation, right: ResolvedRelocation) -> bool {
     if right.symbol.size == 0 && left.symbol.size != 0 {
         // The base relocation is against a pool but the target relocation isn't.
         // This can happen in rare cases where the compiler will generate a pool+addend relocation
@@ -318,7 +318,7 @@ fn reloc_eq(
             section_name_eq(left_obj, right_obj, *sl, *sr)
                 && (diff_config.function_reloc_diffs == FunctionRelocDiffs::DataValue
                     || symbol_name_addend_matches
-                    || address_eq(&left_reloc, &right_reloc))
+                    || address_eq(left_reloc, right_reloc))
                 && (
                     diff_config.function_reloc_diffs == FunctionRelocDiffs::NameAddress
                         || left_reloc.symbol.kind != SymbolKind::Object
@@ -427,54 +427,17 @@ fn diff_instruction(
         return Ok(InstructionDiffResult::new(InstructionDiffKind::Replace));
     }
 
-    let left_symbol = &left_obj.symbols[left_symbol_idx];
-    let right_symbol = &right_obj.symbols[right_symbol_idx];
-    let left_section = left_symbol
-        .section
-        .and_then(|i| left_obj.sections.get(i))
-        .ok_or_else(|| anyhow!("Missing section for symbol"))?;
-    let right_section = right_symbol
-        .section
-        .and_then(|i| right_obj.sections.get(i))
-        .ok_or_else(|| anyhow!("Missing section for symbol"))?;
+    let left_resolved = left_obj
+        .resolve_instruction_ref(left_symbol_idx, l)
+        .context("Failed to resolve left instruction")?;
+    let right_resolved = right_obj
+        .resolve_instruction_ref(right_symbol_idx, r)
+        .context("Failed to resolve right instruction")?;
 
-    // Resolve relocations
-    let left_reloc = left_section.relocation_at(l, left_obj);
-    let right_reloc = right_section.relocation_at(r, right_obj);
-
-    // Compare instruction data
-    let left_data = left_section.data_range(l.address, l.size as usize).ok_or_else(|| {
-        anyhow!(
-            "Instruction data out of bounds: {:#x}..{:#x}",
-            l.address,
-            l.address + l.size as u64
-        )
-    })?;
-    let right_data = right_section.data_range(r.address, r.size as usize).ok_or_else(|| {
-        anyhow!(
-            "Instruction data out of bounds: {:#x}..{:#x}",
-            r.address,
-            r.address + r.size as u64
-        )
-    })?;
-    if left_data != right_data {
+    if left_resolved.code != right_resolved.code {
         // If data doesn't match, process instructions and compare args
-        let left_ins = left_obj.arch.process_instruction(
-            l,
-            left_data,
-            left_reloc,
-            left_symbol.address..left_symbol.address + left_symbol.size,
-            left_symbol.section.unwrap(),
-            diff_config,
-        )?;
-        let right_ins = left_obj.arch.process_instruction(
-            r,
-            right_data,
-            right_reloc,
-            right_symbol.address..right_symbol.address + right_symbol.size,
-            right_symbol.section.unwrap(),
-            diff_config,
-        )?;
+        let left_ins = left_obj.arch.process_instruction(left_resolved, diff_config)?;
+        let right_ins = left_obj.arch.process_instruction(right_resolved, diff_config)?;
         if left_ins.args.len() != right_ins.args.len() {
             state.diff_score += PENALTY_REPLACE;
             return Ok(InstructionDiffResult::new(InstructionDiffKind::Replace));
@@ -492,8 +455,8 @@ fn diff_instruction(
                 right_row,
                 a,
                 b,
-                left_reloc,
-                right_reloc,
+                left_resolved.relocation,
+                right_resolved.relocation,
                 diff_config,
             ) {
                 result.left_args_diff.push(InstructionArgDiffIndex::NONE);
@@ -510,7 +473,7 @@ fn diff_instruction(
                 if result.kind == InstructionDiffKind::None {
                     result.kind = InstructionDiffKind::ArgMismatch;
                 }
-                let a_str = arg_to_string(a, left_reloc.as_ref());
+                let a_str = arg_to_string(a, left_resolved.relocation);
                 let a_diff = match state.left_args_idx.entry(a_str) {
                     btree_map::Entry::Vacant(e) => {
                         let idx = state.left_arg_idx;
@@ -520,7 +483,7 @@ fn diff_instruction(
                     }
                     btree_map::Entry::Occupied(e) => *e.get(),
                 };
-                let b_str = arg_to_string(b, right_reloc.as_ref());
+                let b_str = arg_to_string(b, right_resolved.relocation);
                 let b_diff = match state.right_args_idx.entry(b_str) {
                     btree_map::Entry::Vacant(e) => {
                         let idx = state.right_arg_idx;
@@ -538,8 +501,15 @@ fn diff_instruction(
     }
 
     // Compare relocations
-    if !reloc_eq(left_obj, right_obj, left_reloc, right_reloc, diff_config) {
+    if !reloc_eq(
+        left_obj,
+        right_obj,
+        left_resolved.relocation,
+        right_resolved.relocation,
+        diff_config,
+    ) {
         state.diff_score += PENALTY_REG_DIFF;
+        // TODO add relocation diff to args
         return Ok(InstructionDiffResult::new(InstructionDiffKind::ArgMismatch));
     }
 

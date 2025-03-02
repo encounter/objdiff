@@ -25,11 +25,10 @@ wsl = []
 
 [dependencies]
 anyhow = "1.0"
-bytes = "1.9"
 cfg-if = "1.0"
 const_format = "0.2"
 cwdemangle = "1.0"
-cwextab = { version = "1.0", git = "https://github.com/encounter/cwextab.git" }
+cwextab = { version = "1.0", git = "https://github.com/CelestialAmber/cwextab.git" }
 dirs = "5.0"
 egui = "0.30"
 egui_extras = "0.30"
@@ -44,12 +43,11 @@ png = "0.17"
 pollster = "0.4"
 regex = "1.11"
 rfd = { version = "0.15" } #, default-features = false, features = ['xdg-portal']
-rlwinmdec = "1.0"
+rlwinmdec = { version = "1.0", git = "https://github.com/CelestialAmber/rlwinmdec.git" }
 ron = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 shell-escape = "0.1"
-strum = { version = "0.26", features = ["derive"] }
 time = { version = "0.3", features = ["formatting", "local-offset"] }
 typed-path = "0.10"
 winit = { version = "0.30", features = ["wayland-csd-adwaita"] }

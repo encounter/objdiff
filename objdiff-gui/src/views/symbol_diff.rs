@@ -7,8 +7,8 @@ use egui::{
 use objdiff_core::{
     diff::{
         display::{
-            display_sections, symbol_context, symbol_hover, ContextMenuItem, HighlightKind,
-            HoverItem, HoverItemColor, SectionDisplay, SymbolFilter,
+            display_sections, symbol_context, symbol_hover, HighlightKind, SectionDisplay,
+            SymbolFilter, SymbolNavigationKind,
         },
         ObjectDiff, SymbolDiff,
     },
@@ -21,7 +21,12 @@ use crate::{
     app::AppStateRef,
     hotkeys,
     jobs::{is_create_scratch_available, start_create_scratch},
-    views::{appearance::Appearance, function_diff::FunctionViewState, write_text},
+    views::{
+        appearance::Appearance,
+        diff::{context_menu_items_ui, hover_items_ui},
+        function_diff::FunctionViewState,
+        write_text,
+    },
 };
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -71,62 +76,33 @@ pub enum DiffViewAction {
     /// The symbol reference is the left symbol to map to.
     SelectingRight(SymbolRefByName),
     /// Set a symbol mapping.
-    SetMapping(View, SymbolRefByName, SymbolRefByName),
+    SetMapping(usize, usize),
     /// Set the show_mapped_symbols flag
     SetShowMappedSymbols(bool),
 }
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub struct DiffViewNavigation {
-    pub view: View,
-    pub left_symbol: Option<SymbolRefByName>,
-    pub right_symbol: Option<SymbolRefByName>,
+    pub kind: SymbolNavigationKind,
+    pub left_symbol: Option<usize>,
+    pub right_symbol: Option<usize>,
 }
 
 impl DiffViewNavigation {
-    pub fn symbol_diff() -> Self {
-        Self { view: View::SymbolDiff, left_symbol: None, right_symbol: None }
-    }
-
-    pub fn with_symbols(
-        view: View,
-        other_ctx: Option<SymbolDiffContext<'_>>,
-        symbol: &Symbol,
-        section: &Section,
-        symbol_diff: &SymbolDiff,
-        column: usize,
-    ) -> Self {
-        let symbol1 = Some(SymbolRefByName::new(symbol, Some(section)));
-        let symbol2 = symbol_diff.target_symbol.and_then(|symbol_ref| {
-            other_ctx.map(|ctx| {
-                let symbol = &ctx.obj.symbols[symbol_ref];
-                let section =
-                    symbol.section.and_then(|section_idx| ctx.obj.sections.get(section_idx));
-                SymbolRefByName::new(symbol, section)
-            })
-        });
+    pub fn new(kind: SymbolNavigationKind, symbol_idx: usize, column: usize) -> Self {
         match column {
-            0 => Self { view, left_symbol: symbol1, right_symbol: symbol2 },
-            1 => Self { view, left_symbol: symbol2, right_symbol: symbol1 },
-            _ => unreachable!("Invalid column index"),
+            0 => Self { kind, left_symbol: Some(symbol_idx), right_symbol: None },
+            1 => Self { kind, left_symbol: None, right_symbol: Some(symbol_idx) },
+            _ => panic!("Invalid column index"),
         }
     }
+}
 
-    pub fn data_diff(section: &Section, column: usize) -> Self {
-        let symbol = Some(SymbolRefByName {
-            symbol_name: "".to_string(),
-            section_name: Some(section.name.clone()),
-        });
-        match column {
-            0 => Self {
-                view: View::DataDiff,
-                left_symbol: symbol.clone(),
-                right_symbol: symbol.clone(),
-            },
-            1 => Self { view: View::DataDiff, left_symbol: symbol.clone(), right_symbol: symbol },
-            _ => unreachable!("Invalid column index"),
-        }
-    }
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub struct ResolvedNavigation {
+    pub view: View,
+    pub left_symbol: Option<SymbolRefByName>,
+    pub right_symbol: Option<SymbolRefByName>,
 }
 
 #[derive(Default)]
@@ -142,7 +118,7 @@ pub struct DiffViewState {
     pub scratch_available: bool,
     pub scratch_running: bool,
     pub source_path_available: bool,
-    pub post_build_nav: Option<DiffViewNavigation>,
+    pub post_build_nav: Option<ResolvedNavigation>,
     pub object_name: String,
 }
 
@@ -230,24 +206,42 @@ impl DiffViewState {
                 let Ok(mut state) = state.write() else {
                     return;
                 };
-                if (nav.left_symbol.is_some() && nav.right_symbol.is_some())
-                    || (nav.left_symbol.is_none() && nav.right_symbol.is_none())
-                    || nav.view != View::FunctionDiff
+
+                let mut resolved_left = self.resolve_symbol(nav.left_symbol, 0);
+                let mut resolved_right = self.resolve_symbol(nav.right_symbol, 1);
+                if let Some(resolved_right) = &resolved_right {
+                    if resolved_left.is_none() {
+                        resolved_left = resolved_right
+                            .target_symbol
+                            .and_then(|idx| self.resolve_symbol(Some(idx), 0));
+                    }
+                }
+                if let Some(resolved_left) = &resolved_left {
+                    if resolved_right.is_none() {
+                        resolved_right = resolved_left
+                            .target_symbol
+                            .and_then(|idx| self.resolve_symbol(Some(idx), 1));
+                    }
+                }
+                let resolved_nav = resolve_navigation(nav.kind, resolved_left, resolved_right);
+                if (resolved_nav.left_symbol.is_some() && resolved_nav.right_symbol.is_some())
+                    || (resolved_nav.left_symbol.is_none() && resolved_nav.right_symbol.is_none())
+                    || resolved_nav.view != View::FunctionDiff
                 {
                     // Regular navigation
                     if state.is_selecting_symbol() {
                         // Cancel selection and reload
                         state.clear_selection();
-                        self.post_build_nav = Some(nav);
+                        self.post_build_nav = Some(resolved_nav);
                     } else {
                         // Navigate immediately
-                        self.current_view = nav.view;
-                        self.symbol_state.left_symbol = nav.left_symbol;
-                        self.symbol_state.right_symbol = nav.right_symbol;
+                        self.current_view = resolved_nav.view;
+                        self.symbol_state.left_symbol = resolved_nav.left_symbol;
+                        self.symbol_state.right_symbol = resolved_nav.right_symbol;
                     }
                 } else {
                     // Enter selection mode
-                    match (&nav.left_symbol, &nav.right_symbol) {
+                    match (&resolved_nav.left_symbol, &resolved_nav.right_symbol) {
                         (Some(left_ref), None) => {
                             state.set_selecting_right(&left_ref.symbol_name);
                         }
@@ -257,7 +251,7 @@ impl DiffViewState {
                         (Some(_), Some(_)) => unreachable!(),
                         (None, None) => unreachable!(),
                     }
-                    self.post_build_nav = Some(nav);
+                    self.post_build_nav = Some(resolved_nav);
                 }
             }
             DiffViewAction::SetSymbolHighlight(left, right, autoscroll) => {
@@ -306,7 +300,7 @@ impl DiffViewState {
                     return;
                 };
                 state.set_selecting_left(&right_ref.symbol_name);
-                self.post_build_nav = Some(DiffViewNavigation {
+                self.post_build_nav = Some(ResolvedNavigation {
                     view: View::FunctionDiff,
                     left_symbol: None,
                     right_symbol: Some(right_ref),
@@ -321,13 +315,13 @@ impl DiffViewState {
                     return;
                 };
                 state.set_selecting_right(&left_ref.symbol_name);
-                self.post_build_nav = Some(DiffViewNavigation {
+                self.post_build_nav = Some(ResolvedNavigation {
                     view: View::FunctionDiff,
                     left_symbol: Some(left_ref),
                     right_symbol: None,
                 });
             }
-            DiffViewAction::SetMapping(view, left_ref, right_ref) => {
+            DiffViewAction::SetMapping(left_ref, right_ref) => {
                 if self.post_build_nav.is_some() {
                     // Ignore action if we're already navigating
                     return;
@@ -335,24 +329,132 @@ impl DiffViewState {
                 let Ok(mut state) = state.write() else {
                     return;
                 };
-                state.set_symbol_mapping(
-                    left_ref.symbol_name.clone(),
-                    right_ref.symbol_name.clone(),
-                );
-                if view == View::SymbolDiff {
-                    self.post_build_nav = Some(DiffViewNavigation::symbol_diff());
+                let resolved_nav = if let (Some(left_ref), Some(right_ref)) = (
+                    self.resolve_symbol(Some(left_ref), 0),
+                    self.resolve_symbol(Some(right_ref), 1),
+                ) {
+                    state.set_symbol_mapping(
+                        left_ref.symbol.name.clone(),
+                        right_ref.symbol.name.clone(),
+                    );
+                    resolve_navigation(
+                        SymbolNavigationKind::Normal,
+                        Some(left_ref),
+                        Some(right_ref),
+                    )
                 } else {
-                    self.post_build_nav = Some(DiffViewNavigation {
-                        view,
-                        left_symbol: Some(left_ref),
-                        right_symbol: Some(right_ref),
-                    });
-                }
+                    ResolvedNavigation::default()
+                };
+                self.post_build_nav = Some(resolved_nav);
             }
             DiffViewAction::SetShowMappedSymbols(value) => {
                 self.symbol_state.show_mapped_symbols = value;
             }
         }
+    }
+
+    fn resolve_symbol(&self, symbol_idx: Option<usize>, column: usize) -> Option<ResolvedSymbol> {
+        let symbol_idx = symbol_idx?;
+        let result = self.build.as_deref()?;
+        let (obj, diff) = match column {
+            0 => result.first_obj.as_ref()?,
+            1 => result.second_obj.as_ref()?,
+            _ => return None,
+        };
+        let symbol = obj.symbols.get(symbol_idx)?;
+        let section_idx = symbol.section?;
+        let section = obj.sections.get(section_idx)?;
+        let symbol_diff = diff.symbols.get(symbol_idx)?;
+        Some(ResolvedSymbol {
+            symbol_ref: SymbolRefByName::new(symbol, Some(section)),
+            symbol,
+            section,
+            target_symbol: symbol_diff.target_symbol,
+        })
+    }
+}
+
+struct ResolvedSymbol<'obj> {
+    symbol_ref: SymbolRefByName,
+    symbol: &'obj Symbol,
+    section: &'obj Section,
+    target_symbol: Option<usize>,
+}
+
+/// Determine the navigation target based on the resolved symbols.
+fn resolve_navigation(
+    kind: SymbolNavigationKind,
+    resolved_left: Option<ResolvedSymbol>,
+    resolved_right: Option<ResolvedSymbol>,
+) -> ResolvedNavigation {
+    match (resolved_left, resolved_right) {
+        (Some(left), Some(right)) => match (left.section.kind, right.section.kind) {
+            (SectionKind::Code, SectionKind::Code) => ResolvedNavigation {
+                view: match kind {
+                    SymbolNavigationKind::Normal => View::FunctionDiff,
+                    SymbolNavigationKind::Extab => View::ExtabDiff,
+                },
+                left_symbol: Some(left.symbol_ref),
+                right_symbol: Some(right.symbol_ref),
+            },
+            (SectionKind::Data, SectionKind::Data) => ResolvedNavigation {
+                view: View::DataDiff,
+                left_symbol: Some(SymbolRefByName {
+                    symbol_name: "".to_string(),
+                    section_name: Some(left.section.name.clone()),
+                }),
+                right_symbol: Some(SymbolRefByName {
+                    symbol_name: "".to_string(),
+                    section_name: Some(right.section.name.clone()),
+                }),
+            },
+            _ => ResolvedNavigation::default(),
+        },
+        (Some(left), None) => match left.section.kind {
+            SectionKind::Code => ResolvedNavigation {
+                view: match kind {
+                    SymbolNavigationKind::Normal => View::FunctionDiff,
+                    SymbolNavigationKind::Extab => View::ExtabDiff,
+                },
+                left_symbol: Some(left.symbol_ref),
+                right_symbol: None,
+            },
+            SectionKind::Data => ResolvedNavigation {
+                view: View::DataDiff,
+                left_symbol: Some(SymbolRefByName {
+                    symbol_name: "".to_string(),
+                    section_name: Some(left.section.name.clone()),
+                }),
+                right_symbol: Some(SymbolRefByName {
+                    symbol_name: "".to_string(),
+                    section_name: Some(left.section.name.clone()),
+                }),
+            },
+            _ => ResolvedNavigation::default(),
+        },
+        (None, Some(right)) => match right.section.kind {
+            SectionKind::Code => ResolvedNavigation {
+                view: match kind {
+                    SymbolNavigationKind::Normal => View::FunctionDiff,
+                    SymbolNavigationKind::Extab => View::ExtabDiff,
+                },
+                left_symbol: None,
+                right_symbol: Some(right.symbol_ref),
+            },
+            SectionKind::Data => ResolvedNavigation {
+                view: View::DataDiff,
+                left_symbol: Some(SymbolRefByName {
+                    symbol_name: "".to_string(),
+                    section_name: Some(right.section.name.clone()),
+                }),
+                right_symbol: Some(SymbolRefByName {
+                    symbol_name: "".to_string(),
+                    section_name: Some(right.section.name.clone()),
+                }),
+            },
+            _ => ResolvedNavigation::default(),
+        },
+        (None, None) => ResolvedNavigation::default(),
     }
 }
 
@@ -366,65 +468,33 @@ pub fn match_color_for_symbol(match_percent: f32, appearance: &Appearance) -> Co
     }
 }
 
-fn symbol_context_menu_ui(
+pub fn symbol_context_menu_ui(
     ui: &mut Ui,
     ctx: SymbolDiffContext<'_>,
-    other_ctx: Option<SymbolDiffContext<'_>>,
+    symbol_idx: usize,
     symbol: &Symbol,
-    symbol_diff: &SymbolDiff,
     section: Option<&Section>,
     column: usize,
-) -> Option<DiffViewNavigation> {
+    appearance: &Appearance,
+) -> Option<DiffViewAction> {
     let mut ret = None;
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
 
-        for item in symbol_context(ctx.obj, symbol) {
-            match item {
-                ContextMenuItem::Copy { value, label } => {
-                    let label = if let Some(extra) = label {
-                        format!("Copy \"{value}\" ({extra})")
-                    } else {
-                        format!("Copy \"{value}\"")
-                    };
-                    if ui.button(label).clicked() {
-                        ui.output_mut(|output| output.copied_text = value);
-                        ui.close_menu();
-                    }
-                }
-                ContextMenuItem::Navigate { label } => {
-                    if ui.button(label).clicked() {
-                        // TODO other navigation
-                        ret = Some(DiffViewNavigation::with_symbols(
-                            View::ExtabDiff,
-                            other_ctx,
-                            symbol,
-                            section.unwrap(),
-                            symbol_diff,
-                            column,
-                        ));
-                        ui.close_menu();
-                    }
-                }
-            }
+        if let Some(action) =
+            context_menu_items_ui(ui, symbol_context(ctx.obj, symbol_idx), column, appearance)
+        {
+            ret = Some(action);
         }
 
         if let Some(section) = section {
             if ui.button("Map symbol").clicked() {
                 let symbol_ref = SymbolRefByName::new(symbol, Some(section));
                 if column == 0 {
-                    ret = Some(DiffViewNavigation {
-                        view: View::FunctionDiff,
-                        left_symbol: Some(symbol_ref),
-                        right_symbol: None,
-                    });
+                    ret = Some(DiffViewAction::SelectingRight(symbol_ref));
                 } else {
-                    ret = Some(DiffViewNavigation {
-                        view: View::FunctionDiff,
-                        left_symbol: None,
-                        right_symbol: Some(symbol_ref),
-                    });
+                    ret = Some(DiffViewAction::SelectingLeft(symbol_ref));
                 }
                 ui.close_menu();
             }
@@ -433,24 +503,16 @@ fn symbol_context_menu_ui(
     ret
 }
 
-fn symbol_hover_ui(
+pub fn symbol_hover_ui(
     ui: &mut Ui,
     ctx: SymbolDiffContext<'_>,
-    symbol: &Symbol,
+    symbol_idx: usize,
     appearance: &Appearance,
 ) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
-        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-
-        for HoverItem { text, color } in symbol_hover(ctx.obj, symbol) {
-            let color = match color {
-                HoverItemColor::Normal => appearance.text_color,
-                HoverItemColor::Emphasized => appearance.highlight_color,
-                HoverItemColor::Special => appearance.replace_color,
-            };
-            ui.colored_label(color, text);
-        }
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
+        hover_items_ui(ui, symbol_hover(ctx.obj, symbol_idx, 0), appearance);
     });
 }
 
@@ -458,7 +520,6 @@ fn symbol_hover_ui(
 fn symbol_ui(
     ui: &mut Ui,
     ctx: SymbolDiffContext<'_>,
-    other_ctx: Option<SymbolDiffContext<'_>>,
     symbol: &Symbol,
     symbol_diff: &SymbolDiff,
     symbol_idx: usize,
@@ -515,12 +576,12 @@ fn symbol_ui(
     write_text(name, appearance.highlight_color, &mut job, appearance.code_font.clone());
     let response = SelectableLabel::new(selected, job)
         .ui(ui)
-        .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, ctx, symbol, appearance));
+        .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, ctx, symbol_idx, appearance));
     response.context_menu(|ui| {
         if let Some(result) =
-            symbol_context_menu_ui(ui, ctx, other_ctx, symbol, symbol_diff, section, column)
+            symbol_context_menu_ui(ui, ctx, symbol_idx, symbol, section, column, appearance)
         {
-            ret = Some(DiffViewAction::Navigate(result));
+            ret = Some(result);
         }
     });
     if selected && state.autoscroll_to_highlighted_symbols {
@@ -532,26 +593,11 @@ fn symbol_ui(
         // manually scroll away.
     }
     if response.clicked() || (selected && hotkeys::enter_pressed(ui.ctx())) {
-        if let Some(section) = section {
-            match section.kind {
-                SectionKind::Code => {
-                    ret = Some(DiffViewAction::Navigate(DiffViewNavigation::with_symbols(
-                        View::FunctionDiff,
-                        other_ctx,
-                        symbol,
-                        section,
-                        symbol_diff,
-                        column,
-                    )));
-                }
-                SectionKind::Data => {
-                    ret = Some(DiffViewAction::Navigate(DiffViewNavigation::data_diff(
-                        section, column,
-                    )));
-                }
-                _ => {}
-            }
-        }
+        ret = Some(DiffViewAction::Navigate(DiffViewNavigation::new(
+            SymbolNavigationKind::Normal,
+            symbol_idx,
+            column,
+        )));
     } else if response.hovered() {
         ret = Some(if column == 0 {
             DiffViewAction::SetSymbolHighlight(Some(symbol_idx), symbol_diff.target_symbol, false)
@@ -597,7 +643,6 @@ fn find_last_symbol(section_display: &[SectionDisplay]) -> Option<usize> {
 pub fn symbol_list_ui(
     ui: &mut Ui,
     ctx: SymbolDiffContext<'_>,
-    other_ctx: Option<SymbolDiffContext<'_>>,
     state: &SymbolViewState,
     filter: SymbolFilter<'_>,
     appearance: &Appearance,
@@ -720,7 +765,6 @@ pub fn symbol_list_ui(
                             if let Some(result) = symbol_ui(
                                 ui,
                                 ctx,
-                                other_ctx,
                                 symbol,
                                 symbol_diff,
                                 symbol_display.symbol,

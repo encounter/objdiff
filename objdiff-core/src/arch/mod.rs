@@ -1,23 +1,25 @@
-use alloc::{borrow::Cow, boxed::Box, format, string::String, vec, vec::Vec};
-use core::{ffi::CStr, fmt, fmt::Debug, ops::Range};
+use alloc::{borrow::Cow, boxed::Box, format, string::String, vec::Vec};
+use core::{ffi::CStr, fmt, fmt::Debug};
 
 use anyhow::{bail, Result};
-use byteorder::ByteOrder;
-use object::{File, Relocation, Section};
+use object::Endian as _;
 
 use crate::{
-    diff::{display::InstructionPart, DiffObjConfig},
+    diff::{
+        display::{ContextItem, HoverItem, InstructionPart},
+        DiffObjConfig,
+    },
     obj::{
-        InstructionArg, InstructionRef, ParsedInstruction, RelocationFlags, ResolvedRelocation,
+        InstructionArg, Object, ParsedInstruction, RelocationFlags, ResolvedInstructionRef,
         ScannedInstruction, SymbolFlagSet, SymbolKind,
     },
     util::ReallySigned,
 };
 
 #[cfg(feature = "arm")]
-mod arm;
+pub mod arm;
 #[cfg(feature = "arm64")]
-mod arm64;
+pub mod arm64;
 #[cfg(feature = "mips")]
 pub mod mips;
 #[cfg(feature = "ppc")]
@@ -31,7 +33,6 @@ pub enum DataType {
     Int16,
     Int32,
     Int64,
-    Int128,
     Float,
     Double,
     Bytes,
@@ -45,7 +46,6 @@ impl fmt::Display for DataType {
             DataType::Int16 => write!(f, "Int16"),
             DataType::Int32 => write!(f, "Int32"),
             DataType::Int64 => write!(f, "Int64"),
-            DataType::Int128 => write!(f, "Int128"),
             DataType::Float => write!(f, "Float"),
             DataType::Double => write!(f, "Double"),
             DataType::Bytes => write!(f, "Bytes"),
@@ -55,15 +55,15 @@ impl fmt::Display for DataType {
 }
 
 impl DataType {
-    pub fn display_labels<Endian: ByteOrder>(&self, bytes: &[u8]) -> Vec<String> {
+    pub fn display_labels(&self, endian: object::Endianness, bytes: &[u8]) -> Vec<String> {
         let mut strs = Vec::new();
-        for literal in self.display_literals::<Endian>(bytes) {
+        for literal in self.display_literals(endian, bytes) {
             strs.push(format!("{}: {}", self, literal))
         }
         strs
     }
 
-    pub fn display_literals<Endian: ByteOrder>(&self, bytes: &[u8]) -> Vec<String> {
+    pub fn display_literals(&self, endian: object::Endianness, bytes: &[u8]) -> Vec<String> {
         let mut strs = Vec::new();
         if self.required_len().is_some_and(|l| bytes.len() < l) {
             log::warn!("Failed to display a symbol value for a symbol whose size is too small for instruction referencing it.");
@@ -92,7 +92,7 @@ impl DataType {
                 }
             }
             DataType::Int16 => {
-                let i = Endian::read_i16(bytes);
+                let i = endian.read_i16_bytes(bytes.try_into().unwrap());
                 strs.push(format!("{:#x}", i));
 
                 if i < 0 {
@@ -100,7 +100,7 @@ impl DataType {
                 }
             }
             DataType::Int32 => {
-                let i = Endian::read_i32(bytes);
+                let i = endian.read_i32_bytes(bytes.try_into().unwrap());
                 strs.push(format!("{:#x}", i));
 
                 if i < 0 {
@@ -108,15 +108,7 @@ impl DataType {
                 }
             }
             DataType::Int64 => {
-                let i = Endian::read_i64(bytes);
-                strs.push(format!("{:#x}", i));
-
-                if i < 0 {
-                    strs.push(format!("{:#x}", ReallySigned(i)));
-                }
-            }
-            DataType::Int128 => {
-                let i = Endian::read_i128(bytes);
+                let i = endian.read_i64_bytes(bytes.try_into().unwrap());
                 strs.push(format!("{:#x}", i));
 
                 if i < 0 {
@@ -124,10 +116,18 @@ impl DataType {
                 }
             }
             DataType::Float => {
-                strs.push(format!("{:?}f", Endian::read_f32(bytes)));
+                let bytes: [u8; 4] = bytes.try_into().unwrap();
+                strs.push(format!("{:?}f", match endian {
+                    object::Endianness::Little => f32::from_le_bytes(bytes),
+                    object::Endianness::Big => f32::from_be_bytes(bytes),
+                }));
             }
             DataType::Double => {
-                strs.push(format!("{:?}", Endian::read_f64(bytes)));
+                let bytes: [u8; 8] = bytes.try_into().unwrap();
+                strs.push(format!("{:?}f", match endian {
+                    object::Endianness::Little => f64::from_le_bytes(bytes),
+                    object::Endianness::Big => f64::from_be_bytes(bytes),
+                }));
             }
             DataType::Bytes => {
                 strs.push(format!("{:#?}", bytes));
@@ -148,7 +148,6 @@ impl DataType {
             DataType::Int16 => Some(2),
             DataType::Int32 => Some(4),
             DataType::Int64 => Some(8),
-            DataType::Int128 => Some(16),
             DataType::Float => Some(4),
             DataType::Double => Some(8),
             DataType::Bytes => None,
@@ -177,37 +176,29 @@ pub trait Arch: Send + Sync + Debug {
     /// This is called only when we need to compare the arguments of an instruction.
     fn process_instruction(
         &self,
-        ins_ref: InstructionRef,
-        code: &[u8],
-        relocation: Option<ResolvedRelocation>,
-        function_range: Range<u64>,
-        section_index: usize,
+        resolved: ResolvedInstructionRef,
         diff_config: &DiffObjConfig,
     ) -> Result<ParsedInstruction> {
         let mut mnemonic = None;
         let mut args = Vec::with_capacity(8);
-        self.display_instruction(
-            ins_ref,
-            code,
-            relocation,
-            function_range,
-            section_index,
-            diff_config,
-            &mut |part| {
-                match part {
-                    InstructionPart::Opcode(m, _) => mnemonic = Some(Cow::Owned(m.into_owned())),
-                    InstructionPart::Arg(arg) => args.push(arg.into_static()),
-                    _ => {}
-                }
-                Ok(())
-            },
-        )?;
+        self.display_instruction(resolved, diff_config, &mut |part| {
+            match part {
+                InstructionPart::Opcode(m, _) => mnemonic = Some(Cow::Owned(m.into_owned())),
+                InstructionPart::Arg(arg) => args.push(arg.into_static()),
+                _ => {}
+            }
+            Ok(())
+        })?;
         // If the instruction has a relocation, but we didn't format it in the display, add it to
         // the end of the arguments list.
-        if relocation.is_some() && !args.contains(&InstructionArg::Reloc) {
+        if resolved.relocation.is_some() && !args.contains(&InstructionArg::Reloc) {
             args.push(InstructionArg::Reloc);
         }
-        Ok(ParsedInstruction { ins_ref, mnemonic: mnemonic.unwrap_or_default(), args })
+        Ok(ParsedInstruction {
+            ins_ref: resolved.ins_ref,
+            mnemonic: mnemonic.unwrap_or_default(),
+            args,
+        })
     }
 
     /// Format an instruction for display.
@@ -216,11 +207,7 @@ pub trait Arch: Send + Sync + Debug {
     /// mnemonic and arguments, plus any separators and visual formatting.
     fn display_instruction(
         &self,
-        ins_ref: InstructionRef,
-        code: &[u8],
-        relocation: Option<ResolvedRelocation>,
-        function_range: Range<u64>,
-        section_index: usize,
+        resolved: ResolvedInstructionRef,
         diff_config: &DiffObjConfig,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()>;
@@ -236,9 +223,9 @@ pub trait Arch: Send + Sync + Debug {
 
     fn demangle(&self, _name: &str) -> Option<String> { None }
 
-    fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str>;
+    fn reloc_name(&self, _flags: RelocationFlags) -> Option<&'static str> { None }
 
-    fn get_reloc_byte_size(&self, flags: RelocationFlags) -> usize;
+    fn data_reloc_size(&self, flags: RelocationFlags) -> usize;
 
     fn symbol_address(&self, address: u64, _kind: SymbolKind) -> u64 { address }
 
@@ -246,62 +233,25 @@ pub trait Arch: Send + Sync + Debug {
         SymbolFlagSet::default()
     }
 
-    fn guess_data_type(
+    fn guess_data_type(&self, _resolved: ResolvedInstructionRef) -> Option<DataType> { None }
+
+    fn symbol_hover(&self, _obj: &Object, _symbol_index: usize) -> Vec<HoverItem> { Vec::new() }
+
+    fn symbol_context(&self, _obj: &Object, _symbol_index: usize) -> Vec<ContextItem> { Vec::new() }
+
+    fn instruction_hover(
         &self,
-        _ins_ref: InstructionRef,
-        _code: &[u8],
-        _relocation: Option<ResolvedRelocation>,
-    ) -> Option<DataType> {
-        None
-    }
-
-    fn display_data_labels(&self, _ty: DataType, bytes: &[u8]) -> Vec<String> {
-        vec![format!("Bytes: {:#x?}", bytes)]
-    }
-
-    fn display_data_literals(&self, _ty: DataType, bytes: &[u8]) -> Vec<String> {
-        vec![format!("{:#?}", bytes)]
-    }
-
-    fn display_ins_data_labels(
-        &self,
-        _ins_ref: InstructionRef,
-        _code: &[u8],
-        _relocation: Option<ResolvedRelocation>,
-    ) -> Vec<String> {
-        // TODO
-        // let Some(reloc) = relocation else {
-        //     return Vec::new();
-        // };
-        // if reloc.relocation.addend >= 0 && reloc.symbol.bytes.len() > reloc.relocation.addend as usize {
-        //     return self
-        //         .guess_data_type(ins)
-        //         .map(|ty| {
-        //             self.display_data_labels(ty, &reloc.target.bytes[reloc.addend as usize..])
-        //         })
-        //         .unwrap_or_default();
-        // }
+        _obj: &Object,
+        _resolved: ResolvedInstructionRef,
+    ) -> Vec<HoverItem> {
         Vec::new()
     }
 
-    fn display_ins_data_literals(
+    fn instruction_context(
         &self,
-        _ins_ref: InstructionRef,
-        _code: &[u8],
-        _relocation: Option<ResolvedRelocation>,
-    ) -> Vec<String> {
-        // TODO
-        // let Some(reloc) = ins.reloc.as_ref() else {
-        //     return Vec::new();
-        // };
-        // if reloc.addend >= 0 && reloc.target.bytes.len() > reloc.addend as usize {
-        //     return self
-        //         .guess_data_type(ins)
-        //         .map(|ty| {
-        //             self.display_data_literals(ty, &reloc.target.bytes[reloc.addend as usize..])
-        //         })
-        //         .unwrap_or_default();
-        // }
+        _obj: &Object,
+        _resolved: ResolvedInstructionRef,
+    ) -> Vec<ContextItem> {
         Vec::new()
     }
 }
@@ -345,11 +295,7 @@ impl Arch for ArchDummy {
 
     fn display_instruction(
         &self,
-        _ins_ref: InstructionRef,
-        _code: &[u8],
-        _relocation: Option<ResolvedRelocation>,
-        _function_range: Range<u64>,
-        _section_index: usize,
+        _resolved: ResolvedInstructionRef,
         _diff_config: &DiffObjConfig,
         _cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
@@ -358,18 +304,14 @@ impl Arch for ArchDummy {
 
     fn implcit_addend(
         &self,
-        _file: &File<'_>,
-        _section: &Section,
+        _file: &object::File<'_>,
+        _section: &object::Section,
         _address: u64,
-        _relocation: &Relocation,
+        _relocation: &object::Relocation,
         _flags: RelocationFlags,
     ) -> Result<i64> {
         Ok(0)
     }
 
-    fn display_reloc(&self, flags: RelocationFlags) -> Cow<'static, str> {
-        format!("{flags:?}").into()
-    }
-
-    fn get_reloc_byte_size(&self, _flags: RelocationFlags) -> usize { 0 }
+    fn data_reloc_size(&self, _flags: RelocationFlags) -> usize { 0 }
 }
