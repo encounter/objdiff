@@ -101,8 +101,7 @@ allow = [
     "Zlib",
     "0BSD",
     "OFL-1.1",
-    "LicenseRef-UFL-1.0",
-    "OpenSSL",
+    "Ubuntu-font-1.0",
 ]
 # The confidence threshold for detecting a license from license text.
 # The higher the value, the more closely the license text must be to the

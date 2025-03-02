@@ -29,9 +29,9 @@ cfg-if = "1.0"
 const_format = "0.2"
 cwdemangle = "1.0"
 cwextab = { version = "1.0", git = "https://github.com/CelestialAmber/cwextab.git" }
-dirs = "5.0"
-egui = "0.30"
-egui_extras = "0.30"
+dirs = "6.0"
+egui = "0.31"
+egui_extras = "0.31"
 filetime = "0.2"
 float-ord = "0.3"
 font-kit = "0.14"
@@ -55,7 +55,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Keep version in sync with egui
 [dependencies.eframe]
-version = "0.30"
+version = "0.31"
 features = [
     "default_fonts",
     "persistence",
@@ -66,7 +66,7 @@ default-features = false
 
 # Keep version in sync with eframe
 [dependencies.wgpu]
-version = "23.0"
+version = "24.0"
 features = [
     "dx12",
     "metal",
@@ -85,4 +85,4 @@ exec = "0.3"
 anyhow = "1.0"
 
 [target.'cfg(windows)'.build-dependencies]
-tauri-winres = "0.2"
+tauri-winres = "0.3"

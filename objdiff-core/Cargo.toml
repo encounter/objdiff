@@ -143,7 +143,7 @@ ppc750cl = { version = "0.3", optional = true }
 rlwinmdec = { version = "1.1", optional = true, git = "https://github.com/CelestialAmber/rlwinmdec.git" }
 
 # mips
-rabbitizer = { git = "https://github.com/Decompollaborate/rabbitizer.git", branch = "🦀", default-features = false, optional = true }
+rabbitizer = { git = "https://github.com/Decompollaborate/rabbitizer.git", branch = "🦀", default-features = false, features = ["all_extensions"], optional = true }
 
 # x86
 cpp_demangle = { version = "0.4", default-features = false, features = ["alloc"], optional = true }
@@ -162,7 +162,7 @@ yaxpeax-arm = { version = "0.3", default-features = false, optional = true }
 notify = { version = "8.0.0", optional = true }
 notify-debouncer-full = { version = "0.5.0", optional = true }
 shell-escape = { version = "0.1", optional = true }
-tempfile = { version = "3.15", optional = true }
+tempfile = { version = "3.17", optional = true }
 time = { version = "0.3", optional = true }
 
 [target.'cfg(windows)'.dependencies]

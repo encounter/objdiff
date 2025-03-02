@@ -55,7 +55,7 @@ impl ArchMips {
                 };
                 isa_extension = match e_flags & EF_MIPS_MACH {
                     EF_MIPS_MACH_ALLEGREX => Some(IsaExtension::R4000ALLEGREX),
-                    EF_MIPS_MACH_5900 => Some(IsaExtension::R5900),
+                    EF_MIPS_MACH_5900 => Some(IsaExtension::R5900EE),
                     _ => None,
                 };
             }
@@ -83,7 +83,7 @@ impl ArchMips {
             MipsInstrCategory::Rsp => Some(IsaExtension::RSP),
             MipsInstrCategory::R3000gte => Some(IsaExtension::R3000GTE),
             MipsInstrCategory::R4000allegrex => Some(IsaExtension::R4000ALLEGREX),
-            MipsInstrCategory::R5900 => Some(IsaExtension::R5900),
+            MipsInstrCategory::R5900 => Some(IsaExtension::R5900EE),
         };
         match isa_extension {
             Some(extension) => rabbitizer::InstructionFlags::new_extension(extension),

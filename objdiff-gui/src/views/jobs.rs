@@ -49,7 +49,7 @@ pub fn jobs_ui(ui: &mut egui::Ui, jobs: &mut JobQueue, appearance: &Appearance) 
             .on_hover_text_at_pointer(RichText::new(&err_string).color(appearance.delete_color))
             .context_menu(|ui| {
                 if ui.button("Copy full message").clicked() {
-                    ui.output_mut(|o| o.copied_text = err_string);
+                    ui.ctx().copy_text(err_string);
                 }
             });
         } else {
@@ -61,7 +61,7 @@ pub fn jobs_ui(ui: &mut egui::Ui, jobs: &mut JobQueue, appearance: &Appearance) 
             .on_hover_text_at_pointer(&status.status)
             .context_menu(|ui| {
                 if ui.button("Copy full message").clicked() {
-                    ui.output_mut(|o| o.copied_text = status.status.clone());
+                    ui.ctx().copy_text(status.status.clone());
                 }
             });
         }

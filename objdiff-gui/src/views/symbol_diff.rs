@@ -183,7 +183,7 @@ impl DiffViewState {
         state: &AppStateRef,
     ) {
         if let Some(result) = take(&mut self.scratch) {
-            ctx.output_mut(|o| o.open_url = Some(OpenUrl::new_tab(result.scratch_url)));
+            ctx.open_url(OpenUrl::new_tab(result.scratch_url));
         }
 
         // Clear the autoscroll flag so that it doesn't scroll continuously.

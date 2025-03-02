@@ -86,26 +86,18 @@ fn main() -> ExitCode {
     }
     #[cfg(feature = "wgpu")]
     {
-        use eframe::egui_wgpu::{wgpu::Backends, WgpuSetup};
+        use eframe::egui_wgpu::{wgpu, WgpuSetup};
         if graphics_config.desired_backend.is_supported() {
             native_options.wgpu_options.wgpu_setup = match native_options.wgpu_options.wgpu_setup {
-                WgpuSetup::CreateNew {
-                    supported_backends: backends,
-                    power_preference,
-                    device_descriptor,
-                } => {
-                    let backend = match graphics_config.desired_backend {
-                        GraphicsBackend::Auto => backends,
-                        GraphicsBackend::Dx12 => Backends::DX12,
-                        GraphicsBackend::Metal => Backends::METAL,
-                        GraphicsBackend::Vulkan => Backends::VULKAN,
-                        GraphicsBackend::OpenGL => Backends::GL,
+                WgpuSetup::CreateNew(mut setup) => {
+                    setup.instance_descriptor.backends = match graphics_config.desired_backend {
+                        GraphicsBackend::Auto => setup.instance_descriptor.backends,
+                        GraphicsBackend::Dx12 => wgpu::Backends::DX12,
+                        GraphicsBackend::Metal => wgpu::Backends::METAL,
+                        GraphicsBackend::Vulkan => wgpu::Backends::VULKAN,
+                        GraphicsBackend::OpenGL => wgpu::Backends::GL,
                     };
-                    WgpuSetup::CreateNew {
-                        supported_backends: backend,
-                        power_preference,
-                        device_descriptor,
-                    }
+                    WgpuSetup::CreateNew(setup)
                 }
                 // WgpuConfiguration::Default is CreateNew until we call run_eframe()
                 _ => unreachable!(),

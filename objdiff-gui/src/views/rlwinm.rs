@@ -22,7 +22,7 @@ pub fn rlwinm_decode_window(
                 ui.colored_label(appearance.replace_color, decoded.trim());
             });
             if ui.button("Copy").clicked() {
-                ui.output_mut(|output| output.copied_text = decoded);
+                ctx.copy_text(decoded);
             }
         } else {
             ui.scope(|ui| {

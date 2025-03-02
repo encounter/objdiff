@@ -201,10 +201,7 @@ pub fn config_ui(
                     .on_hover_text_at_pointer("Open a link to the latest release on GitHub")
                     .clicked()
                 {
-                    ui.output_mut(|output| {
-                        output.open_url =
-                            Some(OpenUrl { url: RELEASE_URL.to_string(), new_tab: true })
-                    });
+                    ui.ctx().open_url(OpenUrl { url: RELEASE_URL.to_string(), new_tab: true });
                 }
             });
         }

@@ -734,12 +734,10 @@ fn build_log_ui(ui: &mut Ui, status: &BuildStatus, appearance: &Appearance) {
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         ui.horizontal(|ui| {
             if !status.cmdline.is_empty() && ui.button("Copy command").clicked() {
-                ui.output_mut(|output| output.copied_text.clone_from(&status.cmdline));
+                ui.ctx().copy_text(status.cmdline.clone());
             }
             if ui.button("Copy log").clicked() {
-                ui.output_mut(|output| {
-                    output.copied_text = format!("{}\n{}", status.stdout, status.stderr)
-                });
+                ui.ctx().copy_text(format!("{}\n{}", status.stdout, status.stderr));
             }
         });
         ui.scope(|ui| {
@@ -842,7 +840,7 @@ pub fn context_menu_items_ui(
                     write_text(")", appearance.text_color, &mut job, appearance.code_font.clone());
                 }
                 if ui.button(job).clicked() {
-                    ui.output_mut(|output| output.copied_text = value);
+                    ui.ctx().copy_text(value);
                     ui.close_menu();
                 }
             }

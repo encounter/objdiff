@@ -22,7 +22,7 @@ pub fn demangle_window(
                 ui.colored_label(appearance.replace_color, &demangled);
             });
             if ui.button("Copy").clicked() {
-                ui.output_mut(|output| output.copied_text = demangled);
+                ctx.copy_text(demangled);
             }
         } else {
             ui.scope(|ui| {
