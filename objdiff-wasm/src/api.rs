@@ -25,10 +25,11 @@ use exports::objdiff::core::{
         GuestObjectDiff, Object, ObjectBorrow, ObjectDiff, ObjectDiffBorrow,
     },
     display::{
-        ContextMenuItem, DiffText, DiffTextColor, DiffTextOpcode, DiffTextSegment, DiffTextSymbol,
-        DisplayConfig, Guest as GuestDisplay, HoverItem, InstructionDiffKind, InstructionDiffRow,
-        SectionDisplay, SectionDisplaySymbol, SymbolDisplay, SymbolFilter, SymbolFlags, SymbolKind,
-        SymbolRef,
+        ContextItem, ContextItemCopy, ContextItemNavigate, DiffText, DiffTextColor, DiffTextOpcode,
+        DiffTextSegment, DiffTextSymbol, DisplayConfig, Guest as GuestDisplay, HoverItem,
+        HoverItemColor, HoverItemText, InstructionDiffKind, InstructionDiffRow, SectionDisplay,
+        SectionDisplaySymbol, SymbolDisplay, SymbolFilter, SymbolFlags, SymbolKind,
+        SymbolNavigationKind, SymbolRef,
     },
 };
 
@@ -86,10 +87,6 @@ impl GuestDiff for Component {
 }
 
 impl GuestDisplay for Component {
-    fn symbol_context(_obj: ObjectBorrow, _symbol: SymbolRef) -> Vec<ContextMenuItem> { todo!() }
-
-    fn symbol_hover(_obj: ObjectBorrow, _symbol: SymbolRef) -> Vec<HoverItem> { todo!() }
-
     fn display_sections(
         diff: ObjectDiffBorrow,
         filter: SymbolFilter,
@@ -201,6 +198,102 @@ impl GuestDisplay for Component {
         })
         .unwrap();
         InstructionDiffRow { segments, diff_kind: InstructionDiffKind::from(row.kind) }
+    }
+
+    fn symbol_context(
+        diff: ObjectDiffBorrow,
+        symbol_display: SectionDisplaySymbol,
+    ) -> Vec<ContextItem> {
+        let obj_diff = diff.get::<ResourceObjectDiff>();
+        let obj = obj_diff.0.as_ref();
+        diff::display::symbol_context(obj, symbol_display.symbol as usize)
+            .into_iter()
+            .map(|item| ContextItem::from(item))
+            .collect()
+    }
+
+    fn symbol_hover(
+        diff: ObjectDiffBorrow,
+        symbol_display: SectionDisplaySymbol,
+    ) -> Vec<HoverItem> {
+        let obj_diff = diff.get::<ResourceObjectDiff>();
+        let obj = obj_diff.0.as_ref();
+        diff::display::symbol_hover(obj, symbol_display.symbol as usize, 0 /* TODO */)
+            .into_iter()
+            .map(|item| HoverItem::from(item))
+            .collect()
+    }
+
+    fn instruction_context(
+        diff: ObjectDiffBorrow,
+        symbol_display: SectionDisplaySymbol,
+        row_index: u32,
+        diff_config: DiffConfigBorrow,
+    ) -> Result<Vec<ContextItem>, String> {
+        let obj_diff = diff.get::<ResourceObjectDiff>();
+        let obj = obj_diff.0.as_ref();
+        let obj_diff = &obj_diff.1;
+        let symbol_idx = symbol_display.symbol as usize;
+        let symbol_diff = if symbol_display.is_mapping_symbol {
+            obj_diff
+                .mapping_symbols
+                .iter()
+                .find(|s| s.symbol_index == symbol_idx)
+                .map(|s| &s.symbol_diff)
+                .unwrap()
+        } else {
+            &obj_diff.symbols[symbol_idx]
+        };
+        let row = &symbol_diff.instruction_rows[row_index as usize];
+        let Some(ins_ref) = row.ins_ref else {
+            return Ok(Vec::new());
+        };
+        let diff_config = diff_config.get::<ResourceDiffConfig>().0.borrow();
+        let Some(resolved) = obj.resolve_instruction_ref(symbol_idx, ins_ref) else {
+            return Err("Failed to resolve instruction".into());
+        };
+        let ins =
+            obj.arch.process_instruction(resolved, &diff_config).map_err(|e| e.to_string())?;
+        Ok(diff::display::instruction_context(obj, resolved, &ins)
+            .into_iter()
+            .map(|item| ContextItem::from(item))
+            .collect())
+    }
+
+    fn instruction_hover(
+        diff: ObjectDiffBorrow,
+        symbol_display: SectionDisplaySymbol,
+        row_index: u32,
+        diff_config: DiffConfigBorrow,
+    ) -> Result<Vec<HoverItem>, String> {
+        let obj_diff = diff.get::<ResourceObjectDiff>();
+        let obj = obj_diff.0.as_ref();
+        let obj_diff = &obj_diff.1;
+        let symbol_idx = symbol_display.symbol as usize;
+        let symbol_diff = if symbol_display.is_mapping_symbol {
+            obj_diff
+                .mapping_symbols
+                .iter()
+                .find(|s| s.symbol_index == symbol_idx)
+                .map(|s| &s.symbol_diff)
+                .unwrap()
+        } else {
+            &obj_diff.symbols[symbol_idx]
+        };
+        let row = &symbol_diff.instruction_rows[row_index as usize];
+        let Some(ins_ref) = row.ins_ref else {
+            return Ok(Vec::new());
+        };
+        let diff_config = diff_config.get::<ResourceDiffConfig>().0.borrow();
+        let Some(resolved) = obj.resolve_instruction_ref(symbol_idx, ins_ref) else {
+            return Err("Failed to resolve instruction".into());
+        };
+        let ins =
+            obj.arch.process_instruction(resolved, &diff_config).map_err(|e| e.to_string())?;
+        Ok(diff::display::instruction_hover(obj, resolved, &ins)
+            .into_iter()
+            .map(|item| HoverItem::from(item))
+            .collect())
     }
 }
 
@@ -339,6 +432,54 @@ impl GuestObjectDiff for ResourceObjectDiff {
                     }
             })
             .map(|i| i as SymbolRef)
+    }
+}
+
+impl From<diff::display::HoverItem> for HoverItem {
+    fn from(item: diff::display::HoverItem) -> Self {
+        match item {
+            diff::display::HoverItem::Text { label, value, color } => {
+                HoverItem::Text(HoverItemText { label, value, color: HoverItemColor::from(color) })
+            }
+            diff::display::HoverItem::Separator => HoverItem::Separator,
+        }
+    }
+}
+
+impl From<diff::display::HoverItemColor> for HoverItemColor {
+    fn from(color: diff::display::HoverItemColor) -> Self {
+        match color {
+            diff::display::HoverItemColor::Normal => HoverItemColor::Normal,
+            diff::display::HoverItemColor::Emphasized => HoverItemColor::Emphasized,
+            diff::display::HoverItemColor::Special => HoverItemColor::Special,
+        }
+    }
+}
+
+impl From<diff::display::ContextItem> for ContextItem {
+    fn from(item: diff::display::ContextItem) -> Self {
+        match item {
+            diff::display::ContextItem::Copy { value, label } => {
+                ContextItem::Copy(ContextItemCopy { value, label })
+            }
+            diff::display::ContextItem::Navigate { label, symbol_index, kind } => {
+                ContextItem::Navigate(ContextItemNavigate {
+                    label,
+                    symbol: symbol_index as SymbolRef,
+                    kind: SymbolNavigationKind::from(kind),
+                })
+            }
+            diff::display::ContextItem::Separator => ContextItem::Separator,
+        }
+    }
+}
+
+impl From<diff::display::SymbolNavigationKind> for SymbolNavigationKind {
+    fn from(kind: diff::display::SymbolNavigationKind) -> Self {
+        match kind {
+            diff::display::SymbolNavigationKind::Normal => SymbolNavigationKind::Normal,
+            diff::display::SymbolNavigationKind::Extab => SymbolNavigationKind::Extab,
+        }
     }
 }
 

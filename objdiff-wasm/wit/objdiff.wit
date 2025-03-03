@@ -108,18 +108,26 @@ interface display {
     row-count: u32,
   }
 
-  record context-menu-item-copy {
+  enum symbol-navigation-kind {
+    normal,
+    extab,
+  }
+
+  record context-item-copy {
     value: string,
     label: option<string>,
   }
 
-  record context-menu-item-navigate {
+  record context-item-navigate {
     label: string,
+    symbol: symbol-ref,
+    kind: symbol-navigation-kind,
   }
 
-  variant context-menu-item {
-    copy(context-menu-item-copy),
-    navigate(context-menu-item-navigate),
+  variant context-item {
+    copy(context-item-copy),
+    navigate(context-item-navigate),
+    separator,
   }
 
   enum hover-item-color {
@@ -128,9 +136,15 @@ interface display {
     special,
   }
 
-  record hover-item {
-    text: string,
+  record hover-item-text {
+    label: string,
+    value: string,
     color: hover-item-color,
+  }
+
+  variant hover-item {
+    text(hover-item-text),
+    separator,
   }
 
   record diff-text-opcode {
@@ -216,22 +230,36 @@ interface display {
     symbol: section-display-symbol,
   ) -> symbol-display;
 
-  symbol-context: func(
-    object: borrow<object>,
-    symbol: symbol-ref,
-  ) -> list<context-menu-item>;
-
-  symbol-hover: func(
-    object: borrow<object>,
-    symbol: symbol-ref,
-  ) -> list<hover-item>;
-
   display-instruction-row: func(
     diff: borrow<object-diff>,
     symbol: section-display-symbol,
     row-index: u32,
     config: borrow<diff-config>,
   ) -> instruction-diff-row;
+
+  symbol-context: func(
+    diff: borrow<object-diff>,
+    symbol: section-display-symbol,
+  ) -> list<context-item>;
+
+  symbol-hover: func(
+    diff: borrow<object-diff>,
+    symbol: section-display-symbol,
+  ) -> list<hover-item>;
+
+  instruction-context: func(
+    diff: borrow<object-diff>,
+    symbol: section-display-symbol,
+    row-index: u32,
+    config: borrow<diff-config>,
+  ) -> result<list<context-item>, string>;
+
+  instruction-hover: func(
+    diff: borrow<object-diff>,
+    symbol: section-display-symbol,
+    row-index: u32,
+    config: borrow<diff-config>,
+  ) -> result<list<hover-item>, string>;
 }
 
 world api {
