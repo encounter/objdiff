@@ -148,7 +148,7 @@ jobs:
           python3 -m venv .venv
           . .venv/bin/activate
           echo PATH=$PATH >> $GITHUB_ENV
-          pip install ziglang==0.13.0 cargo-zigbuild==0.19.1
+          pip install ziglang==0.13.0.post1 cargo-zigbuild==0.19.8
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -178,21 +178,26 @@ jobs:
       matrix:
         include:
           - platform: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
+            target: x86_64-unknown-linux-gnu.2.31
+            target_base: x86_64-unknown-linux-gnu
             name: linux-x86_64
             packages: libgtk-3-dev
+            build: zigbuild
             features: default
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
             name: windows-x86_64
+            build: build
             features: default
           - platform: macos-latest
             target: x86_64-apple-darwin
             name: macos-x86_64
+            build: build
             features: default
           - platform: macos-latest
             target: aarch64-apple-darwin
             name: macos-arm64
+            build: build
             features: default
       fail-fast: false
     runs-on: ${{ matrix.platform }}
@@ -204,25 +209,32 @@ jobs:
           sudo apt-get -y install ${{ matrix.packages }}
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Install cargo-zigbuild
+        if: matrix.build == 'zigbuild'
+        run: |
+          python3 -m venv .venv
+          . .venv/bin/activate
+          echo PATH=$PATH >> $GITHUB_ENV
+          pip install ziglang==0.13.0.post1 cargo-zigbuild==0.19.8
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: ${{ matrix.target_base || matrix.target }}
       - name: Cache Rust workspace
         uses: Swatinem/rust-cache@v2
         with:
           key: ${{ matrix.target }}
       - name: Cargo build
         run: >
-          cargo build --profile ${{ env.BUILD_PROFILE }} --target ${{ matrix.target }} 
+          cargo ${{ matrix.build }} --profile ${{ env.BUILD_PROFILE }} --target ${{ matrix.target }} 
           --bin ${{ env.CARGO_BIN_NAME }} --features ${{ matrix.features }}
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.CARGO_BIN_NAME }}-${{ matrix.name }}
           path: |
-            target/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}
-            target/${{ matrix.target }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}.exe
+            target/${{ matrix.target_base || matrix.target }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}
+            target/${{ matrix.target_base || matrix.target }}/${{ env.BUILD_PROFILE }}/${{ env.CARGO_BIN_NAME }}.exe
           if-no-files-found: error
 
   build-wasm:
