@@ -3268,7 +3268,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-cli"
-version = "3.0.0-alpha.1"
+version = "3.0.0-alpha.2"
 dependencies = [
  "anyhow",
  "argp",
@@ -3291,7 +3291,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-core"
-version = "3.0.0-alpha.1"
+version = "3.0.0-alpha.2"
 dependencies = [
  "anyhow",
  "arm-attr",
@@ -3344,7 +3344,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-gui"
-version = "3.0.0-alpha.1"
+version = "3.0.0-alpha.2"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -3383,7 +3383,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-wasm"
-version = "3.0.0-alpha.1"
+version = "3.0.0-alpha.2"
 dependencies = [
  "log",
  "objdiff-core",

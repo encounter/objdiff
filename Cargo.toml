@@ -14,7 +14,7 @@ strip = "debuginfo"
 codegen-units = 1
 
 [workspace.package]
-version = "3.0.0-alpha.1"
+version = "3.0.0-alpha.2"
 authors = ["Luke Street <luke@street.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
