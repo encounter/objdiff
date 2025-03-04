@@ -435,7 +435,7 @@ fn diff_instruction(
     if left_resolved.code != right_resolved.code
         || !reloc_eq(left_obj, right_obj, left_resolved, right_resolved, diff_config)
     {
-        // If either data or relocations don't match, process instructions and compare args
+        // If either the raw code bytes or relocations don't match, process instructions and compare args
         let left_ins = left_obj.arch.process_instruction(left_resolved, diff_config)?;
         let right_ins = left_obj.arch.process_instruction(right_resolved, diff_config)?;
         if left_ins.args.len() != right_ins.args.len() {

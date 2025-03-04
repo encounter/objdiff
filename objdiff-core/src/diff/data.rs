@@ -72,8 +72,6 @@ pub fn resolve_relocation<'obj>(
 }
 
 /// Compares relocations contained with a certain data range.
-/// The DataDiffKind for each diff will either be `None`` (if the relocation matches),
-/// or `Replace` (if a relocation was changed, added, or removed).
 fn diff_data_relocs_for_range<'left, 'right>(
     left_obj: &'left Object,
     right_obj: &'right Object,
