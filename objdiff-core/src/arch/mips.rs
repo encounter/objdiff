@@ -1,4 +1,4 @@
-use alloc::{string::ToString, vec::Vec};
+use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
 use core::ops::Range;
 
 use anyhow::{bail, Result};
@@ -25,6 +25,7 @@ pub struct ArchMips {
     pub abi: Abi,
     pub isa_extension: Option<IsaExtension>,
     pub ri_gp_value: i32,
+    pub paired_relocations: Vec<BTreeMap<u64, i64>>,
 }
 
 const EF_MIPS_ABI: u32 = 0x0000F000;
@@ -64,16 +65,60 @@ impl ArchMips {
 
         // Parse the ri_gp_value stored in .reginfo to be able to correctly
         // calculate R_MIPS_GPREL16 relocations later. The value is stored
-        // 0x14 bytes into .reginfo (on 32 bit platforms)
+        // 0x14 bytes into .reginfo (on 32-bit platforms)
+        let endianness = object.endianness();
         let ri_gp_value = object
             .section_by_name(".reginfo")
             .and_then(|section| section.data().ok())
             .and_then(|data| data.get(0x14..0x18))
             .and_then(|s| s.try_into().ok())
-            .map(|bytes| object.endianness().read_i32_bytes(bytes))
+            .map(|bytes| endianness.read_i32_bytes(bytes))
             .unwrap_or(0);
 
-        Ok(Self { endianness: object.endianness(), abi, isa_extension, ri_gp_value })
+        // Parse all relocations to pair R_MIPS_HI16 and R_MIPS_LO16. Since the instructions only
+        // have 16-bit immediate fields, the 32-bit addend is split across the two relocations.
+        // R_MIPS_LO16 relocations without an immediately preceding R_MIPS_HI16 use the last seen
+        // R_MIPS_HI16 addend.
+        // See https://refspecs.linuxfoundation.org/elf/mipsabi.pdf pages 4-17 and 4-18
+        let mut paired_relocations = Vec::with_capacity(object.sections().count() + 1);
+        for obj_section in object.sections() {
+            let data = obj_section.data()?;
+            let mut last_hi = None;
+            let mut last_hi_addend = 0;
+            let mut addends = BTreeMap::new();
+            for (addr, reloc) in obj_section.relocations() {
+                if !reloc.has_implicit_addend() {
+                    continue;
+                }
+                match reloc.flags() {
+                    object::RelocationFlags::Elf { r_type: elf::R_MIPS_HI16 } => {
+                        let code = data[addr as usize..addr as usize + 4].try_into()?;
+                        let addend = ((endianness.read_u32_bytes(code) & 0x0000FFFF) << 16) as i32;
+                        last_hi = Some(addr);
+                        last_hi_addend = addend;
+                    }
+                    object::RelocationFlags::Elf { r_type: elf::R_MIPS_LO16 } => {
+                        let code = data[addr as usize..addr as usize + 4].try_into()?;
+                        let addend = (endianness.read_u32_bytes(code) & 0x0000FFFF) as i16 as i32;
+                        let full_addend = (last_hi_addend + addend) as i64;
+                        if let Some(hi_addr) = last_hi.take() {
+                            addends.insert(hi_addr, full_addend);
+                        }
+                        addends.insert(addr, full_addend);
+                    }
+                    _ => {
+                        last_hi = None;
+                    }
+                }
+            }
+            let section_index = obj_section.index().0;
+            if section_index >= paired_relocations.len() {
+                paired_relocations.resize_with(section_index + 1, BTreeMap::new);
+            }
+            paired_relocations[section_index] = addends;
+        }
+
+        Ok(Self { endianness, abi, isa_extension, ri_gp_value, paired_relocations })
     }
 
     fn instruction_flags(&self, diff_config: &DiffObjConfig) -> rabbitizer::InstructionFlags {
@@ -127,18 +172,16 @@ impl Arch for ArchMips {
         diff_config: &DiffObjConfig,
     ) -> Result<Vec<ScannedInstruction>> {
         let instruction_flags = self.instruction_flags(diff_config);
-        let start_address = address;
         let mut ops = Vec::<ScannedInstruction>::with_capacity(code.len() / 4);
-        let mut cur_addr = start_address as u32;
+        let mut cur_addr = address as u32;
         for chunk in code.chunks_exact(4) {
             let code = self.endianness.read_u32_bytes(chunk.try_into()?);
-            let vram = Vram::new(cur_addr);
-            let instruction = rabbitizer::Instruction::new(code, vram, instruction_flags);
+            let instruction =
+                rabbitizer::Instruction::new(code, Vram::new(cur_addr), instruction_flags);
             let opcode = instruction.opcode() as u16;
-            let branch_dest =
-                instruction.get_branch_offset_generic().map(|o| (vram + o).inner() as u64);
+            let branch_dest = instruction.get_branch_vram_generic().map(|v| v.inner() as u64);
             ops.push(ScannedInstruction {
-                ins_ref: InstructionRef { address, size: 4, opcode },
+                ins_ref: InstructionRef { address: cur_addr as u64, size: 4, opcode },
                 branch_dest,
             });
             cur_addr += 4;
@@ -164,6 +207,7 @@ impl Arch for ArchMips {
             function_range,
             resolved.section_index,
             &display_flags,
+            diff_config,
             cb,
         )?;
         Ok(())
@@ -177,6 +221,17 @@ impl Arch for ArchMips {
         reloc: &object::Relocation,
         flags: RelocationFlags,
     ) -> Result<i64> {
+        // Check for paired R_MIPS_HI16 and R_MIPS_LO16 relocations.
+        if let RelocationFlags::Elf(elf::R_MIPS_HI16 | elf::R_MIPS_LO16) = flags {
+            if let Some(addend) = self
+                .paired_relocations
+                .get(section.index().0)
+                .and_then(|m| m.get(&address).copied())
+            {
+                return Ok(addend);
+            }
+        }
+
         let data = section.data()?;
         let code = data[address as usize..address as usize + 4].try_into()?;
         let addend = self.endianness.read_u32_bytes(code);
@@ -246,6 +301,7 @@ fn push_args(
     function_range: Range<u64>,
     section_index: usize,
     display_flags: &rabbitizer::InstructionDisplayFlags,
+    diff_config: &DiffObjConfig,
     mut arg_cb: impl FnMut(InstructionPart) -> Result<()>,
 ) -> Result<()> {
     let operands = instruction.valued_operands_iter();
@@ -305,9 +361,14 @@ fn push_args(
                     })))?;
                 }
                 arg_cb(InstructionPart::basic("("))?;
-                arg_cb(InstructionPart::opaque(
-                    base.either_name(instruction.flags().abi(), display_flags.named_gpr()),
-                ))?;
+                let mut value =
+                    base.either_name(instruction.flags().abi(), display_flags.named_gpr());
+                if !diff_config.mips_register_prefix {
+                    if let Some(trimmed) = value.strip_prefix('$') {
+                        value = trimmed;
+                    }
+                }
+                arg_cb(InstructionPart::opaque(value))?;
                 arg_cb(InstructionPart::basic(")"))?;
             }
             // ValuedOperand::r5900_immediate15(..) => match relocation {
@@ -321,9 +382,14 @@ fn push_args(
             //     }
             // },
             _ => {
-                arg_cb(InstructionPart::opaque(
-                    op.display(instruction, display_flags, None::<&str>).to_string(),
-                ))?;
+                let value = op.display(instruction, display_flags, None::<&str>).to_string();
+                if !diff_config.mips_register_prefix {
+                    if let Some(value) = value.strip_prefix('$') {
+                        arg_cb(InstructionPart::opaque(value))?;
+                        continue;
+                    }
+                }
+                arg_cb(InstructionPart::opaque(value))?;
             }
         }
     }

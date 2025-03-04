@@ -188,6 +188,13 @@
       ]
     },
     {
+      "id": "mips.registerPrefix",
+      "type": "boolean",
+      "default": false,
+      "name": "Register '$' prefix",
+      "description": "Display MIPS register names with a '$' prefix."
+    },
+    {
       "id": "x86.formatter",
       "type": "choice",
       "default": "intel",
@@ -242,7 +249,8 @@
       "name": "MIPS",
       "properties": [
         "mips.abi",
-        "mips.instrCategory"
+        "mips.instrCategory",
+        "mips.registerPrefix"
       ]
     },
     {

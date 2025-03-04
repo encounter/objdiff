@@ -12,7 +12,9 @@
     "type": "git",
     "url": "git+https://github.com/encounter/objdiff.git"
   },
-  "files": ["dist/*"],
+  "files": [
+    "dist/*"
+  ],
   "main": "dist/objdiff.js",
   "types": "dist/objdiff.d.ts",
   "scripts": {

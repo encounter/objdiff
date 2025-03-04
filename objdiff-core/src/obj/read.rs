@@ -263,7 +263,7 @@ const LOW_PRIORITY_SYMBOLS: &[&str] =
 fn best_symbol<'r, 'data, 'file>(
     symbols: &'r [object::Symbol<'data, 'file>],
     address: u64,
-) -> Option<object::SymbolIndex> {
+) -> Option<(object::SymbolIndex, u64)> {
     let mut closest_symbol_index = match symbols.binary_search_by_key(&address, |s| s.address()) {
         Ok(index) => Some(index),
         Err(index) => index.checked_sub(1),
@@ -297,18 +297,31 @@ fn best_symbol<'r, 'data, 'file>(
             best_symbol = Some(symbol);
         }
     }
-    best_symbol.map(|s| s.index())
+    best_symbol.map(|s| (s.index(), s.address()))
 }
 
-fn map_relocations(
+fn map_section_relocations(
     arch: &dyn Arch,
     obj_file: &object::File,
     obj_section: &object::Section,
     symbol_indices: &[usize],
+    ordered_symbols: &[Vec<object::Symbol>],
 ) -> Result<Vec<Relocation>> {
     let mut relocations = Vec::<Relocation>::with_capacity(obj_section.relocations().count());
-    let mut ordered_symbols = None;
     for (address, reloc) in obj_section.relocations() {
+        let flags = match reloc.flags() {
+            object::RelocationFlags::Elf { r_type } => RelocationFlags::Elf(r_type),
+            object::RelocationFlags::Coff { typ } => RelocationFlags::Coff(typ),
+            flags => {
+                bail!("Unhandled relocation flags: {:?}", flags);
+            }
+        };
+        // TODO validate reloc here?
+        let mut addend = if reloc.has_implicit_addend() {
+            arch.implcit_addend(obj_file, obj_section, address, &reloc, flags)?
+        } else {
+            reloc.addend()
+        };
         let target_symbol = match reloc.target() {
             object::RelocationTarget::Symbol(idx) => {
                 if idx.0 == u32::MAX as usize {
@@ -323,24 +336,16 @@ fn map_relocations(
                 {
                     let section_index =
                         section_symbol.section_index().context("Section symbol without section")?;
-                    let ordered_symbols = ordered_symbols.get_or_insert_with(|| {
-                        let mut vec = obj_file
-                            .symbols()
-                            .filter(|s| {
-                                s.section_index() == Some(section_index)
-                                    && s.kind() != object::SymbolKind::Section
-                            })
-                            .collect::<Vec<_>>();
-                        vec.sort_by(|a, b| {
-                            a.address().cmp(&b.address()).then(a.size().cmp(&b.size()))
-                        });
-                        vec
-                    });
-                    best_symbol(
-                        ordered_symbols,
-                        section_symbol.address().wrapping_add_signed(reloc.addend()),
-                    )
-                    .unwrap_or(idx)
+                    let target_address = section_symbol.address().wrapping_add_signed(addend);
+                    if let Some((new_idx, addr)) = ordered_symbols
+                        .get(section_index.0)
+                        .and_then(|symbols| best_symbol(symbols, target_address))
+                    {
+                        addend = target_address.wrapping_sub(addr) as i64;
+                        new_idx
+                    } else {
+                        idx
+                    }
                 } else {
                     idx
                 };
@@ -359,22 +364,53 @@ fn map_relocations(
             }
             _ => bail!("Unhandled relocation target: {:?}", reloc.target()),
         };
-        let flags = match reloc.flags() {
-            object::RelocationFlags::Elf { r_type } => RelocationFlags::Elf(r_type),
-            object::RelocationFlags::Coff { typ } => RelocationFlags::Coff(typ),
-            flags => {
-                bail!("Unhandled relocation flags: {:?}", flags);
-            }
-        };
-        // TODO validate reloc here?
-        let addend = if reloc.has_implicit_addend() {
-            arch.implcit_addend(obj_file, obj_section, address, &reloc, flags)?
-        } else {
-            reloc.addend()
-        };
         relocations.push(Relocation { address, flags, target_symbol, addend });
     }
+    relocations.sort_by_key(|r| r.address);
     Ok(relocations)
+}
+
+fn map_relocations(
+    arch: &dyn Arch,
+    obj_file: &object::File,
+    sections: &mut [Section],
+    section_indices: &[usize],
+    symbol_indices: &[usize],
+) -> Result<()> {
+    // Generate a list of symbols for each section
+    let mut ordered_symbols =
+        Vec::<Vec<object::Symbol>>::with_capacity(obj_file.sections().count() + 1);
+    for symbol in obj_file.symbols() {
+        let Some(section_index) = symbol.section_index() else {
+            continue;
+        };
+        if symbol.kind() == object::SymbolKind::Section {
+            continue;
+        }
+        if section_index.0 >= ordered_symbols.len() {
+            ordered_symbols.resize_with(section_index.0 + 1, Vec::new);
+        }
+        ordered_symbols[section_index.0].push(symbol);
+    }
+    // Sort symbols by address and size
+    for vec in &mut ordered_symbols {
+        vec.sort_by(|a, b| a.address().cmp(&b.address()).then(a.size().cmp(&b.size())));
+    }
+    // Map relocations for each section. Section-relative relocations use the ordered symbols list
+    // to find a better target symbol, if available.
+    for obj_section in obj_file.sections() {
+        let section = &mut sections[section_indices[obj_section.index().0]];
+        if section.kind != SectionKind::Unknown {
+            section.relocations = map_section_relocations(
+                arch,
+                obj_file,
+                &obj_section,
+                symbol_indices,
+                &ordered_symbols,
+            )?;
+        }
+    }
+    Ok(())
 }
 
 fn parse_line_info(
@@ -767,13 +803,7 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<Object> {
         map_sections(arch.as_ref(), &obj_file, split_meta.as_ref())?;
     let (mut symbols, symbol_indices) =
         map_symbols(arch.as_ref(), &obj_file, &sections, &section_indices, split_meta.as_ref())?;
-    for obj_section in obj_file.sections() {
-        let section = &mut sections[section_indices[obj_section.index().0]];
-        if section.kind != SectionKind::Unknown {
-            section.relocations =
-                map_relocations(arch.as_ref(), &obj_file, &obj_section, &symbol_indices)?;
-        }
-    }
+    map_relocations(arch.as_ref(), &obj_file, &mut sections, &section_indices, &symbol_indices)?;
     parse_line_info(&obj_file, &mut sections, &section_indices, data)?;
     if config.combine_data_sections || config.combine_text_sections {
         combine_sections(&mut sections, &mut symbols, config)?;
