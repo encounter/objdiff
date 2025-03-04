@@ -524,6 +524,16 @@ pub fn instruction_hover(
         }
         out.push(HoverItem::Separator);
         out.append(&mut symbol_hover(obj, reloc.relocation.target_symbol, reloc.relocation.addend));
+        out.push(HoverItem::Separator);
+        if let Some(ty) = obj.arch.guess_data_type(resolved) {
+            for literal in display_ins_data_literals(obj, resolved) {
+                out.push(HoverItem::Text {
+                    label: format!("{}", ty),
+                    value: literal,
+                    color: HoverItemColor::Normal,
+                });
+            }
+        }
     }
     out
 }
