@@ -124,7 +124,7 @@ impl DataType {
             }
             DataType::Double => {
                 let bytes: [u8; 8] = bytes.try_into().unwrap();
-                strs.push(format!("{:?}f", match endian {
+                strs.push(format!("{:?}", match endian {
                     object::Endianness::Little => f64::from_le_bytes(bytes),
                     object::Endianness::Big => f64::from_be_bytes(bytes),
                 }));

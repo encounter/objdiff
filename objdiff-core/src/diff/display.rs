@@ -346,7 +346,7 @@ pub fn symbol_context(obj: &Object, symbol_index: usize) -> Vec<ContextItem> {
     if symbol.section.is_some() {
         if let Some(address) = symbol.virtual_address {
             out.push(ContextItem::Copy {
-                value: format!("{:#x}", address),
+                value: format!("{:x}", address),
                 label: Some("virtual address".to_string()),
             });
         }
@@ -409,7 +409,7 @@ pub fn symbol_hover(obj: &Object, symbol_index: usize, addend: i64) -> Vec<Hover
         if let Some(address) = symbol.virtual_address {
             out.push(HoverItem::Text {
                 label: "Virtual address".into(),
-                value: format!("{:#x}", address),
+                value: format!("{:x}", address),
                 color: HoverItemColor::Special,
             });
         }
@@ -430,13 +430,16 @@ pub fn relocation_context(
     ins: Option<ResolvedInstructionRef>,
 ) -> Vec<ContextItem> {
     let mut out = Vec::new();
-    if let Some(ins) = ins {
-        for literal in display_ins_data_literals(obj, ins) {
-            out.push(ContextItem::Copy { value: literal, label: None });
-        }
-        out.push(ContextItem::Separator);
-    }
     out.append(&mut symbol_context(obj, reloc.relocation.target_symbol));
+    if let Some(ins) = ins {
+        let literals = display_ins_data_literals(obj, ins);
+        if !literals.is_empty() {
+            out.push(ContextItem::Separator);
+            for literal in literals {
+                out.push(ContextItem::Copy { value: literal, label: None });
+            }
+        }
+    }
     out
 }
 
@@ -444,18 +447,17 @@ pub fn relocation_hover(obj: &Object, reloc: ResolvedRelocation) -> Vec<HoverIte
     let mut out = Vec::new();
     if let Some(name) = obj.arch.reloc_name(reloc.relocation.flags) {
         out.push(HoverItem::Text {
-            label: "Relocation type".into(),
+            label: "Relocation".into(),
             value: name.to_string(),
             color: HoverItemColor::Normal,
         });
     } else {
         out.push(HoverItem::Text {
-            label: "Relocation type".into(),
+            label: "Relocation".into(),
             value: format!("<{:?}>", reloc.relocation.flags),
             color: HoverItemColor::Normal,
         });
     }
-    out.push(HoverItem::Separator);
     out.append(&mut symbol_hover(obj, reloc.relocation.target_symbol, reloc.relocation.addend));
     out
 }
@@ -494,6 +496,7 @@ pub fn instruction_context(
         }
     }
     if let Some(reloc) = resolved.relocation {
+        out.push(ContextItem::Separator);
         out.append(&mut relocation_context(obj, reloc, Some(resolved)));
     }
     out
@@ -515,7 +518,7 @@ pub fn instruction_hover(
         let offset = resolved.ins_ref.address - resolved.symbol.address;
         out.push(HoverItem::Text {
             label: "Virtual address".into(),
-            value: format!("{:#x}", virtual_address + offset),
+            value: format!("{:x}", virtual_address + offset),
             color: HoverItemColor::Special,
         });
     }
@@ -541,15 +544,19 @@ pub fn instruction_hover(
         }
     }
     if let Some(reloc) = resolved.relocation {
-        out.append(&mut relocation_hover(obj, reloc));
         out.push(HoverItem::Separator);
+        out.append(&mut relocation_hover(obj, reloc));
         if let Some(ty) = obj.arch.guess_data_type(resolved) {
-            for literal in display_ins_data_literals(obj, resolved) {
-                out.push(HoverItem::Text {
-                    label: format!("{}", ty),
-                    value: literal,
-                    color: HoverItemColor::Normal,
-                });
+            let literals = display_ins_data_literals(obj, resolved);
+            if !literals.is_empty() {
+                out.push(HoverItem::Separator);
+                for literal in literals {
+                    out.push(HoverItem::Text {
+                        label: format!("{}", ty),
+                        value: literal,
+                        color: HoverItemColor::Normal,
+                    });
+                }
             }
         }
     }
