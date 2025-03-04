@@ -15,7 +15,7 @@ use crate::{
     diff::{DiffObjConfig, InstructionDiffKind, InstructionDiffRow, ObjectDiff, SymbolDiff},
     obj::{
         InstructionArg, InstructionArgValue, Object, ParsedInstruction, ResolvedInstructionRef,
-        SectionFlag, SectionKind, Symbol, SymbolFlag, SymbolKind,
+        ResolvedRelocation, SectionFlag, SectionKind, Symbol, SymbolFlag, SymbolKind,
     },
 };
 
@@ -424,6 +424,42 @@ pub fn symbol_hover(obj: &Object, symbol_index: usize, addend: i64) -> Vec<Hover
     out
 }
 
+pub fn relocation_context(
+    obj: &Object,
+    reloc: ResolvedRelocation,
+    ins: Option<ResolvedInstructionRef>,
+) -> Vec<ContextItem> {
+    let mut out = Vec::new();
+    if let Some(ins) = ins {
+        for literal in display_ins_data_literals(obj, ins) {
+            out.push(ContextItem::Copy { value: literal, label: None });
+        }
+        out.push(ContextItem::Separator);
+    }
+    out.append(&mut symbol_context(obj, reloc.relocation.target_symbol));
+    out
+}
+
+pub fn relocation_hover(obj: &Object, reloc: ResolvedRelocation) -> Vec<HoverItem> {
+    let mut out = Vec::new();
+    if let Some(name) = obj.arch.reloc_name(reloc.relocation.flags) {
+        out.push(HoverItem::Text {
+            label: "Relocation type".into(),
+            value: name.to_string(),
+            color: HoverItemColor::Normal,
+        });
+    } else {
+        out.push(HoverItem::Text {
+            label: "Relocation type".into(),
+            value: format!("<{:?}>", reloc.relocation.flags),
+            color: HoverItemColor::Normal,
+        });
+    }
+    out.push(HoverItem::Separator);
+    out.append(&mut symbol_hover(obj, reloc.relocation.target_symbol, reloc.relocation.addend));
+    out
+}
+
 pub fn instruction_context(
     obj: &Object,
     resolved: ResolvedInstructionRef,
@@ -458,11 +494,7 @@ pub fn instruction_context(
         }
     }
     if let Some(reloc) = resolved.relocation {
-        for literal in display_ins_data_literals(obj, resolved) {
-            out.push(ContextItem::Copy { value: literal, label: None });
-        }
-        out.push(ContextItem::Separator);
-        out.append(&mut symbol_context(obj, reloc.relocation.target_symbol));
+        out.append(&mut relocation_context(obj, reloc, Some(resolved)));
     }
     out
 }
@@ -509,21 +541,7 @@ pub fn instruction_hover(
         }
     }
     if let Some(reloc) = resolved.relocation {
-        if let Some(name) = obj.arch.reloc_name(reloc.relocation.flags) {
-            out.push(HoverItem::Text {
-                label: "Relocation type".into(),
-                value: name.to_string(),
-                color: HoverItemColor::Normal,
-            });
-        } else {
-            out.push(HoverItem::Text {
-                label: "Relocation type".into(),
-                value: format!("<{:?}>", reloc.relocation.flags),
-                color: HoverItemColor::Normal,
-            });
-        }
-        out.push(HoverItem::Separator);
-        out.append(&mut symbol_hover(obj, reloc.relocation.target_symbol, reloc.relocation.addend));
+        out.append(&mut relocation_hover(obj, reloc));
         out.push(HoverItem::Separator);
         if let Some(ty) = obj.arch.guess_data_type(resolved) {
             for literal in display_ins_data_literals(obj, resolved) {

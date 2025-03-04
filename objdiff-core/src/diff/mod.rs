@@ -16,7 +16,7 @@ use crate::{
             diff_generic_section,
         },
     },
-    obj::{InstructionRef, Object, SectionKind, Symbol, SymbolFlag},
+    obj::{InstructionRef, Object, Relocation, SectionKind, Symbol, SymbolFlag},
 };
 
 pub mod code;
@@ -93,6 +93,7 @@ pub struct DataDiff {
 
 #[derive(Debug, Clone)]
 pub struct DataRelocationDiff {
+    pub reloc: Relocation,
     pub kind: DataDiffKind,
     pub range: Range<usize>,
 }
