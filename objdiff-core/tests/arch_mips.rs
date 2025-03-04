@@ -5,10 +5,7 @@ mod common;
 #[test]
 #[cfg(feature = "mips")]
 fn read_mips() {
-    let diff_config = diff::DiffObjConfig {
-        mips_register_prefix: true,
-        ..Default::default()
-    };
+    let diff_config = diff::DiffObjConfig { mips_register_prefix: true, ..Default::default() };
     let obj = obj::read::parse(include_object!("data/mips/main.c.o"), &diff_config).unwrap();
     insta::assert_debug_snapshot!(obj);
     let symbol_idx = obj.symbols.iter().position(|s| s.name == "ControlEntry").unwrap();
