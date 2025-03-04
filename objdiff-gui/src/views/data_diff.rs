@@ -2,99 +2,89 @@ use std::{cmp::min, default::Default, mem::take};
 
 use egui::{text::LayoutJob, Label, Sense, Widget};
 use objdiff_core::{
-    diff::{DataDiff, DataDiffKind, DataRelocationDiff},
+    diff::{
+        data::resolve_relocation,
+        display::{relocation_context, relocation_hover, ContextItem, HoverItem},
+        DataDiff, DataDiffKind, DataRelocationDiff,
+    },
     obj::Object,
 };
 
+use super::diff::{context_menu_items_ui, hover_items_ui};
 use crate::views::{appearance::Appearance, write_text};
 
 pub(crate) const BYTES_PER_ROW: usize = 16;
 
+fn data_row_hover(obj: &Object, diffs: &[(DataDiff, Vec<DataRelocationDiff>)]) -> Vec<HoverItem> {
+    let mut out = Vec::new();
+    let reloc_diffs = diffs.iter().flat_map(|(_, reloc_diffs)| reloc_diffs);
+    let mut prev_reloc = None;
+    for reloc_diff in reloc_diffs {
+        let reloc = &reloc_diff.reloc;
+        if prev_reloc == Some(reloc) {
+            // Avoid showing consecutive duplicate relocations.
+            // We do this because a single relocation can span across multiple diffs if the
+            // bytes in the relocation changed (e.g. first byte is added, second is unchanged).
+            continue;
+        }
+        prev_reloc = Some(reloc);
+
+        // TODO: Change hover text color depending on Insert/Delete/Replace kind
+        // let color = get_color_for_diff_kind(reloc_diff.kind, appearance);
+
+        let reloc = resolve_relocation(obj, reloc);
+        out.append(&mut relocation_hover(obj, reloc));
+    }
+    out
+}
+
+fn data_row_context(
+    obj: &Object,
+    diffs: &[(DataDiff, Vec<DataRelocationDiff>)],
+) -> Vec<ContextItem> {
+    let mut out = Vec::new();
+    let reloc_diffs = diffs.iter().flat_map(|(_, reloc_diffs)| reloc_diffs);
+    let mut prev_reloc = None;
+    for reloc_diff in reloc_diffs {
+        let reloc = &reloc_diff.reloc;
+        if prev_reloc == Some(reloc) {
+            // Avoid showing consecutive duplicate relocations.
+            // We do this because a single relocation can span across multiple diffs if the
+            // bytes in the relocation changed (e.g. first byte is added, second is unchanged).
+            continue;
+        }
+        prev_reloc = Some(reloc);
+
+        let reloc = resolve_relocation(obj, reloc);
+        out.append(&mut relocation_context(obj, reloc, None));
+    }
+    out
+}
+
 fn data_row_hover_ui(
     ui: &mut egui::Ui,
-    _obj: &Object,
-    _diffs: &[(DataDiff, Vec<DataRelocationDiff>)],
-    _appearance: &Appearance,
+    obj: &Object,
+    diffs: &[(DataDiff, Vec<DataRelocationDiff>)],
+    appearance: &Appearance,
 ) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-
-        // TODO
-        // let reloc_diffs = diffs.iter().flat_map(|(_, reloc_diffs)| reloc_diffs);
-        // let mut prev_reloc = None;
-        // for reloc_diff in reloc_diffs {
-        //     let reloc = &reloc_diff.reloc;
-        //     if prev_reloc == Some(reloc) {
-        //         // Avoid showing consecutive duplicate relocations.
-        //         // We do this because a single relocation can span across multiple diffs if the
-        //         // bytes in the relocation changed (e.g. first byte is added, second is unchanged).
-        //         continue;
-        //     }
-        //     prev_reloc = Some(reloc);
-        //
-        //     let color = get_color_for_diff_kind(reloc_diff.kind, appearance);
-        //
-        //     // TODO: Most of this code is copy-pasted from ins_hover_ui.
-        //     // Try to separate this out into a shared function.
-        //     ui.label(format!("Relocation type: {}", obj.arch.display_reloc(reloc.flags)));
-        //     ui.label(format!("Relocation address: {:x}", reloc.address));
-        //     let addend_str = match reloc.addend.cmp(&0i64) {
-        //         Ordering::Greater => format!("+{:x}", reloc.addend),
-        //         Ordering::Less => format!("-{:x}", -reloc.addend),
-        //         _ => "".to_string(),
-        //     };
-        //     ui.colored_label(color, format!("Name: {}{}", reloc.target.name, addend_str));
-        //     if let Some(orig_section_index) = reloc.target.orig_section_index {
-        //         if let Some(section) =
-        //             obj.sections.iter().find(|s| s.orig_index == orig_section_index)
-        //         {
-        //             ui.colored_label(color, format!("Section: {}", section.name));
-        //         }
-        //         ui.colored_label(
-        //             color,
-        //             format!("Address: {:x}{}", reloc.target.address, addend_str),
-        //         );
-        //         ui.colored_label(color, format!("Size: {:x}", reloc.target.size));
-        //         if reloc.addend >= 0 && reloc.target.bytes.len() > reloc.addend as usize {}
-        //     } else {
-        //         ui.colored_label(color, "Extern".to_string());
-        //     }
-        // }
+        hover_items_ui(ui, data_row_hover(obj, diffs), appearance);
     });
 }
 
-fn data_row_context_menu(ui: &mut egui::Ui, _diffs: &[(DataDiff, Vec<DataRelocationDiff>)]) {
+fn data_row_context_menu(
+    ui: &mut egui::Ui,
+    obj: &Object,
+    diffs: &[(DataDiff, Vec<DataRelocationDiff>)],
+    column: usize,
+    appearance: &Appearance,
+) {
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-
-        // TODO
-        // let reloc_diffs = diffs.iter().flat_map(|(_, reloc_diffs)| reloc_diffs);
-        // let mut prev_reloc = None;
-        // for reloc_diff in reloc_diffs {
-        //     let reloc = &reloc_diff.reloc;
-        //     if prev_reloc == Some(reloc) {
-        //         // Avoid showing consecutive duplicate relocations.
-        //         // We do this because a single relocation can span across multiple diffs if the
-        //         // bytes in the relocation changed (e.g. first byte is added, second is unchanged).
-        //         continue;
-        //     }
-        //     prev_reloc = Some(reloc);
-        //
-        //     // TODO: This code is copy-pasted from ins_context_menu.
-        //     // Try to separate this out into a shared function.
-        //     if let Some(name) = &reloc.target.demangled_name {
-        //         if ui.button(format!("Copy \"{name}\"")).clicked() {
-        //             ui.output_mut(|output| output.copied_text.clone_from(name));
-        //             ui.close_menu();
-        //         }
-        //     }
-        //     if ui.button(format!("Copy \"{}\"", reloc.target.name)).clicked() {
-        //         ui.output_mut(|output| output.copied_text.clone_from(&reloc.target.name));
-        //         ui.close_menu();
-        //     }
-        // }
+        context_menu_items_ui(ui, data_row_context(obj, diffs), column, appearance);
     });
 }
 
@@ -113,6 +103,7 @@ pub(crate) fn data_row_ui(
     address: usize,
     diffs: &[(DataDiff, Vec<DataRelocationDiff>)],
     appearance: &Appearance,
+    column: usize,
 ) {
     if diffs.iter().any(|(dd, rds)| {
         dd.kind != DataDiffKind::None || rds.iter().any(|rd| rd.kind != DataDiffKind::None)
@@ -191,9 +182,8 @@ pub(crate) fn data_row_ui(
 
     let response = Label::new(job).sense(Sense::click()).ui(ui);
     if let Some(obj) = obj {
-        response
-            .on_hover_ui_at_pointer(|ui| data_row_hover_ui(ui, obj, diffs, appearance))
-            .context_menu(|ui| data_row_context_menu(ui, diffs));
+        response.context_menu(|ui| data_row_context_menu(ui, obj, diffs, column, appearance));
+        response.on_hover_ui_at_pointer(|ui| data_row_hover_ui(ui, obj, diffs, appearance));
     }
 }
 

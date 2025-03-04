@@ -8,12 +8,13 @@ use alloc::{
 use anyhow::{anyhow, ensure, Context, Result};
 
 use super::{
-    DiffObjConfig, FunctionRelocDiffs, InstructionArgDiffIndex, InstructionBranchFrom,
-    InstructionBranchTo, InstructionDiffKind, InstructionDiffRow, SymbolDiff,
+    display::display_ins_data_literals, DiffObjConfig, FunctionRelocDiffs, InstructionArgDiffIndex,
+    InstructionBranchFrom, InstructionBranchTo, InstructionDiffKind, InstructionDiffRow,
+    SymbolDiff,
 };
 use crate::obj::{
-    InstructionArg, InstructionArgValue, InstructionRef, Object, ResolvedRelocation,
-    ScannedInstruction, SymbolFlag, SymbolKind,
+    InstructionArg, InstructionArgValue, InstructionRef, Object, ResolvedInstructionRef,
+    ResolvedRelocation, ScannedInstruction, SymbolFlag, SymbolKind,
 };
 
 pub fn no_diff_code(
@@ -291,12 +292,12 @@ pub(crate) fn section_name_eq(
 fn reloc_eq(
     left_obj: &Object,
     right_obj: &Object,
-    left_reloc: Option<ResolvedRelocation>,
-    right_reloc: Option<ResolvedRelocation>,
+    left_ins: ResolvedInstructionRef,
+    right_ins: ResolvedInstructionRef,
     diff_config: &DiffObjConfig,
 ) -> bool {
     let relax_reloc_diffs = diff_config.function_reloc_diffs == FunctionRelocDiffs::None;
-    let (left_reloc, right_reloc) = match (left_reloc, right_reloc) {
+    let (left_reloc, right_reloc) = match (left_ins.relocation, right_ins.relocation) {
         (Some(left_reloc), Some(right_reloc)) => (left_reloc, right_reloc),
         // If relocations are relaxed, match if left is missing a reloc
         (None, Some(_)) => return relax_reloc_diffs,
@@ -319,13 +320,10 @@ fn reloc_eq(
                 && (diff_config.function_reloc_diffs == FunctionRelocDiffs::DataValue
                     || symbol_name_addend_matches
                     || address_eq(left_reloc, right_reloc))
-                && (
-                    diff_config.function_reloc_diffs == FunctionRelocDiffs::NameAddress
-                        || left_reloc.symbol.kind != SymbolKind::Object
-                    // TODO
-                    // || left_obj.arch.display_ins_data_labels(left_ins)
-                    //     == left_obj.arch.display_ins_data_labels(right_ins))
-                )
+                && (diff_config.function_reloc_diffs == FunctionRelocDiffs::NameAddress
+                    || left_reloc.symbol.kind != SymbolKind::Object
+                    || display_ins_data_literals(left_obj, left_ins)
+                        == display_ins_data_literals(right_obj, right_ins))
         }
         (Some(_), None) => false,
         (None, Some(_)) => {
@@ -343,8 +341,8 @@ fn arg_eq(
     right_row: &InstructionDiffRow,
     left_arg: &InstructionArg,
     right_arg: &InstructionArg,
-    left_reloc: Option<ResolvedRelocation>,
-    right_reloc: Option<ResolvedRelocation>,
+    left_ins: ResolvedInstructionRef,
+    right_ins: ResolvedInstructionRef,
     diff_config: &DiffObjConfig,
 ) -> bool {
     match left_arg {
@@ -357,7 +355,7 @@ fn arg_eq(
         },
         InstructionArg::Reloc => {
             matches!(right_arg, InstructionArg::Reloc)
-                && reloc_eq(left_obj, right_obj, left_reloc, right_reloc, diff_config)
+                && reloc_eq(left_obj, right_obj, left_ins, right_ins, diff_config)
         }
         InstructionArg::BranchDest(_) => match right_arg {
             // Compare dest instruction idx after diffing
@@ -434,8 +432,10 @@ fn diff_instruction(
         .resolve_instruction_ref(right_symbol_idx, r)
         .context("Failed to resolve right instruction")?;
 
-    if left_resolved.code != right_resolved.code {
-        // If data doesn't match, process instructions and compare args
+    if left_resolved.code != right_resolved.code
+        || !reloc_eq(left_obj, right_obj, left_resolved, right_resolved, diff_config)
+    {
+        // If either the raw code bytes or relocations don't match, process instructions and compare args
         let left_ins = left_obj.arch.process_instruction(left_resolved, diff_config)?;
         let right_ins = left_obj.arch.process_instruction(right_resolved, diff_config)?;
         if left_ins.args.len() != right_ins.args.len() {
@@ -455,8 +455,8 @@ fn diff_instruction(
                 right_row,
                 a,
                 b,
-                left_resolved.relocation,
-                right_resolved.relocation,
+                left_resolved,
+                right_resolved,
                 diff_config,
             ) {
                 result.left_args_diff.push(InstructionArgDiffIndex::NONE);
@@ -498,19 +498,6 @@ fn diff_instruction(
             }
         }
         return Ok(result);
-    }
-
-    // Compare relocations
-    if !reloc_eq(
-        left_obj,
-        right_obj,
-        left_resolved.relocation,
-        right_resolved.relocation,
-        diff_config,
-    ) {
-        state.diff_score += PENALTY_REG_DIFF;
-        // TODO add relocation diff to args
-        return Ok(InstructionDiffResult::new(InstructionDiffKind::ArgMismatch));
     }
 
     Ok(InstructionDiffResult::new(InstructionDiffKind::None))

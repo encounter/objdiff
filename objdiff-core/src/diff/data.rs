@@ -63,7 +63,7 @@ fn reloc_eq(
 }
 
 #[inline]
-fn resolve_relocation<'obj>(
+pub fn resolve_relocation<'obj>(
     obj: &'obj Object,
     reloc: &'obj Relocation,
 ) -> ResolvedRelocation<'obj> {
@@ -72,10 +72,6 @@ fn resolve_relocation<'obj>(
 }
 
 /// Compares relocations contained with a certain data range.
-/// The DataDiffKind for each diff will either be `None`` (if the relocation matches),
-/// or `Replace` (if a relocation was changed, added, or removed).
-/// `Insert` and `Delete` are not used when a relocation is added or removed to avoid confusing diffs
-/// where it looks like the bytes themselves were changed but actually only the relocations changed.
 fn diff_data_relocs_for_range<'left, 'right>(
     left_obj: &'left Object,
     right_obj: &'right Object,
@@ -254,13 +250,21 @@ pub fn diff_data_section(
             let len = left_obj.arch.data_reloc_size(left_reloc.relocation.flags);
             let range = left_reloc.relocation.address as usize
                 ..left_reloc.relocation.address as usize + len;
-            left_reloc_diffs.push(DataRelocationDiff { kind: diff_kind, range });
+            left_reloc_diffs.push(DataRelocationDiff {
+                reloc: left_reloc.relocation.clone(),
+                kind: diff_kind,
+                range,
+            });
         }
         if let Some(right_reloc) = right_reloc {
             let len = right_obj.arch.data_reloc_size(right_reloc.relocation.flags);
             let range = right_reloc.relocation.address as usize
                 ..right_reloc.relocation.address as usize + len;
-            right_reloc_diffs.push(DataRelocationDiff { kind: diff_kind, range });
+            right_reloc_diffs.push(DataRelocationDiff {
+                reloc: right_reloc.relocation.clone(),
+                kind: diff_kind,
+                range,
+            });
         }
     }
 

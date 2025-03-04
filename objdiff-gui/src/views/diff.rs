@@ -525,9 +525,23 @@ pub fn diff_view_ui(
                     let address = i * BYTES_PER_ROW;
                     row.col(|ui| {
                         if column == 0 {
-                            data_row_ui(ui, Some(left_obj), address, &left_diffs[i], appearance);
+                            data_row_ui(
+                                ui,
+                                Some(left_obj),
+                                address,
+                                &left_diffs[i],
+                                appearance,
+                                column,
+                            );
                         } else if column == 1 {
-                            data_row_ui(ui, Some(right_obj), address, &right_diffs[i], appearance);
+                            data_row_ui(
+                                ui,
+                                Some(right_obj),
+                                address,
+                                &right_diffs[i],
+                                appearance,
+                                column,
+                            );
                         }
                     });
                 },
@@ -667,7 +681,7 @@ fn diff_col_ui(
                     let i = row.index();
                     let address = i * BYTES_PER_ROW;
                     row.col(|ui| {
-                        data_row_ui(ui, Some(obj), address, &diffs[i], appearance);
+                        data_row_ui(ui, Some(obj), address, &diffs[i], appearance, column);
                     });
                 },
             );
