@@ -151,14 +151,22 @@ fn infer_symbol_sizes(symbols: &mut [Symbol], sections: &[Section]) {
 
     // Set symbol sizes based on the next symbol's address
     let mut iter_idx = 0;
+    let mut last_end = (0, 0);
     while iter_idx < symbols_with_section.len() {
         let symbol_idx = symbols_with_section[iter_idx];
         let symbol = &symbols[symbol_idx];
+        let section_idx = symbol.section.unwrap();
         iter_idx += 1;
         if symbol.size != 0 {
+            if symbol.kind != SymbolKind::Section {
+                last_end = (section_idx, symbol.address + symbol.size);
+            }
             continue;
         }
-        let section_idx = symbol.section.unwrap();
+        // Skip over symbols that are contained within the previous symbol
+        if last_end.0 == section_idx && last_end.1 > symbol.address {
+            continue;
+        }
         let next_symbol = match symbol.kind {
             // For function/object symbols, find the next function/object symbol (in other words:
             // skip over labels)
