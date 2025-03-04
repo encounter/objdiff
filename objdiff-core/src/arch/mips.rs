@@ -144,9 +144,11 @@ impl ArchMips {
 
     fn instruction_display_flags(
         &self,
-        _diff_config: &DiffObjConfig,
+        diff_config: &DiffObjConfig,
     ) -> rabbitizer::InstructionDisplayFlags {
-        rabbitizer::InstructionDisplayFlags::default().with_unknown_instr_comment(false)
+        rabbitizer::InstructionDisplayFlags::default()
+            .with_unknown_instr_comment(false)
+            .with_use_dollar(diff_config.mips_register_prefix)
     }
 
     fn parse_ins_ref(
@@ -207,7 +209,6 @@ impl Arch for ArchMips {
             function_range,
             resolved.section_index,
             &display_flags,
-            diff_config,
             cb,
         )?;
         Ok(())
@@ -301,7 +302,6 @@ fn push_args(
     function_range: Range<u64>,
     section_index: usize,
     display_flags: &rabbitizer::InstructionDisplayFlags,
-    diff_config: &DiffObjConfig,
     mut arg_cb: impl FnMut(InstructionPart) -> Result<()>,
 ) -> Result<()> {
     let operands = instruction.valued_operands_iter();
@@ -361,14 +361,11 @@ fn push_args(
                     })))?;
                 }
                 arg_cb(InstructionPart::basic("("))?;
-                let mut value =
-                    base.either_name(instruction.flags().abi(), display_flags.named_gpr());
-                if !diff_config.mips_register_prefix {
-                    if let Some(trimmed) = value.strip_prefix('$') {
-                        value = trimmed;
-                    }
-                }
-                arg_cb(InstructionPart::opaque(value))?;
+                arg_cb(InstructionPart::opaque(base.either_name(
+                    instruction.flags().abi(),
+                    display_flags.named_gpr(),
+                    !display_flags.use_dollar(),
+                )))?;
                 arg_cb(InstructionPart::basic(")"))?;
             }
             // ValuedOperand::r5900_immediate15(..) => match relocation {
@@ -382,14 +379,9 @@ fn push_args(
             //     }
             // },
             _ => {
-                let value = op.display(instruction, display_flags, None::<&str>).to_string();
-                if !diff_config.mips_register_prefix {
-                    if let Some(value) = value.strip_prefix('$') {
-                        arg_cb(InstructionPart::opaque(value))?;
-                        continue;
-                    }
-                }
-                arg_cb(InstructionPart::opaque(value))?;
+                arg_cb(InstructionPart::opaque(
+                    op.display(instruction, display_flags, None::<&str>).to_string(),
+                ))?;
             }
         }
     }
