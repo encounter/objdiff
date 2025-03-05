@@ -166,7 +166,7 @@ impl Arch for ArchPpc {
         relocations: &[Relocation],
         symbols: &[Symbol],
     ) -> Vec<Relocation> {
-        generate_fake_pool_reloc_for_addr_mapping(address, code, relocations, symbols)
+        generate_fake_pool_relocations_for_function(address, code, relocations, symbols)
     }
 
     fn implcit_addend(
@@ -513,20 +513,26 @@ fn guess_data_type_from_load_store_inst_op(inst_op: ppc750cl::Opcode) -> Option<
     }
 }
 
-// Given an instruction, determine if it could accessing data at the address in a register.
-// If so, return the offset added to the register's address, the register containing that address,
-// and (optionally) which destination register the address is being copied into.
-fn get_offset_and_addr_gpr_for_possible_pool_reference(
+struct PoolReference {
+    addr_src_gpr: ppc750cl::GPR,
+    addr_offset: i16,
+    addr_dst_gpr: Option<ppc750cl::GPR>,
+}
+
+// Given an instruction, check if it could be accessing pooled data at the address in a register.
+// If so, return information pertaining to where the instruction is getting that address from and
+// what it's doing with the address (e.g. copying it into another register, adding an offset, etc).
+fn get_pool_reference_for_inst(
     opcode: ppc750cl::Opcode,
     simplified: &ppc750cl::ParsedIns,
-) -> Option<(i16, ppc750cl::GPR, Option<ppc750cl::GPR>)> {
+) -> Option<PoolReference> {
     use ppc750cl::{Argument, Opcode};
     let args = &simplified.args;
     if guess_data_type_from_load_store_inst_op(opcode).is_some() {
         match (args[1], args[2]) {
             (Argument::Offset(offset), Argument::GPR(addr_src_gpr)) => {
                 // e.g. lwz. Immediate offset.
-                Some((offset.0, addr_src_gpr, None))
+                Some(PoolReference { addr_src_gpr, addr_offset: offset.0, addr_dst_gpr: None })
             }
             (Argument::GPR(addr_src_gpr), Argument::GPR(_offset_gpr)) => {
                 // e.g. lwzx. The offset is in a register and was likely calculated from an index.
@@ -534,7 +540,7 @@ fn get_offset_and_addr_gpr_for_possible_pool_reference(
                 // It may be possible to show all elements by figuring out the stride of the array
                 // from the calculations performed on the index before it's put into offset_gpr, but
                 // this would be much more complicated, so it's not currently done.
-                Some((0, addr_src_gpr, None))
+                Some(PoolReference { addr_src_gpr, addr_offset: 0, addr_dst_gpr: None })
             }
             _ => None,
         }
@@ -552,20 +558,32 @@ fn get_offset_and_addr_gpr_for_possible_pool_reference(
                 Argument::GPR(addr_dst_gpr),
                 Argument::GPR(addr_src_gpr),
                 Argument::Simm(simm),
-            ) => Some((simm.0, addr_src_gpr, Some(addr_dst_gpr))),
+            ) => Some(PoolReference {
+                addr_src_gpr,
+                addr_offset: simm.0,
+                addr_dst_gpr: Some(addr_dst_gpr),
+            }),
             (
                 // `mr` or `mr.`
                 Opcode::Or,
                 Argument::GPR(addr_dst_gpr),
                 Argument::GPR(addr_src_gpr),
                 Argument::None,
-            ) => Some((0, addr_src_gpr, Some(addr_dst_gpr))),
+            ) => Some(PoolReference {
+                addr_src_gpr,
+                addr_offset: 0,
+                addr_dst_gpr: Some(addr_dst_gpr),
+            }),
             (
                 Opcode::Add,
                 Argument::GPR(addr_dst_gpr),
                 Argument::GPR(addr_src_gpr),
                 Argument::GPR(_offset_gpr),
-            ) => Some((0, addr_src_gpr, Some(addr_dst_gpr))),
+            ) => Some(PoolReference {
+                addr_src_gpr,
+                addr_offset: 0,
+                addr_dst_gpr: Some(addr_dst_gpr),
+            }),
             _ => None,
         }
     }
@@ -607,16 +625,13 @@ fn make_fake_pool_reloc(
     let pool_reloc = resolve_relocation(symbols, pool_reloc);
     let offset_from_pool = pool_reloc.relocation.addend + offset as i64;
     let target_address = pool_reloc.symbol.address.checked_add_signed(offset_from_pool)?;
-
     let section_index = pool_reloc.symbol.section?;
-
     let target_symbol = symbols.iter().position(|s| {
         s.section == Some(section_index)
             && s.size > 0
             && (s.address..s.address + s.size).contains(&target_address)
     })?;
     let addend = target_address.checked_sub(symbols[target_symbol].address)? as i64;
-
     Some(Relocation {
         flags: RelocationFlags::Elf(elf::R_PPC_NONE),
         address: cur_addr as u64,
@@ -644,7 +659,7 @@ fn make_fake_pool_reloc(
 // It should be possible to implement jump tables properly by reading them out of .data. But this
 // will require keeping track of what value is loaded into each register so we can retrieve the jump
 // table symbol when we encounter a `bctr`.
-fn generate_fake_pool_reloc_for_addr_mapping(
+fn generate_fake_pool_relocations_for_function(
     func_address: u64,
     code: &[u8],
     relocations: &[Relocation],
@@ -754,18 +769,16 @@ fn generate_fake_pool_reloc_for_addr_mapping(
                         clear_overwritten_gprs(ins, &mut gpr_pool_relocs);
                     }
                 }
-            } else if let Some((offset, addr_src_gpr, addr_dst_gpr)) =
-                get_offset_and_addr_gpr_for_possible_pool_reference(ins.op, &simplified)
-            {
+            } else if let Some(pool_ref) = get_pool_reference_for_inst(ins.op, &simplified) {
                 // This instruction doesn't have a real relocation, so it may be a reference to one of
                 // the already-loaded pools.
-                if let Some(pool_reloc) = gpr_pool_relocs.get(&addr_src_gpr.0) {
+                if let Some(pool_reloc) = gpr_pool_relocs.get(&pool_ref.addr_src_gpr.0) {
                     if let Some(fake_pool_reloc) =
-                        make_fake_pool_reloc(offset, cur_addr, pool_reloc, symbols)
+                        make_fake_pool_reloc(pool_ref.addr_offset, cur_addr, pool_reloc, symbols)
                     {
                         pool_reloc_for_addr.insert(cur_addr, fake_pool_reloc);
                     }
-                    if let Some(addr_dst_gpr) = addr_dst_gpr {
+                    if let Some(addr_dst_gpr) = pool_ref.addr_dst_gpr {
                         // If the address of the pool relocation got copied into another register, we
                         // need to keep track of it in that register too as future instructions may
                         // reference the symbol indirectly via this new register, instead of the
@@ -775,7 +788,7 @@ fn generate_fake_pool_reloc_for_addr_mapping(
                         // with the offset within the .data section of an array variable into r21.
                         // Then the body of the loop will `lwzx` one of the array elements from r21.
                         let mut new_reloc = pool_reloc.clone();
-                        new_reloc.addend += offset as i64;
+                        new_reloc.addend += pool_ref.addr_offset as i64;
                         gpr_pool_relocs.insert(addr_dst_gpr.0, new_reloc);
                     } else {
                         clear_overwritten_gprs(ins, &mut gpr_pool_relocs);
