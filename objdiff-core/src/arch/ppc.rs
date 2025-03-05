@@ -625,13 +625,28 @@ fn make_fake_pool_reloc(
     let pool_reloc = resolve_relocation(symbols, pool_reloc);
     let offset_from_pool = pool_reloc.relocation.addend + offset as i64;
     let target_address = pool_reloc.symbol.address.checked_add_signed(offset_from_pool)?;
-    let section_index = pool_reloc.symbol.section?;
-    let target_symbol = symbols.iter().position(|s| {
-        s.section == Some(section_index)
-            && s.size > 0
-            && (s.address..s.address + s.size).contains(&target_address)
-    })?;
-    let addend = target_address.checked_sub(symbols[target_symbol].address)? as i64;
+    let target_symbol;
+    let addend;
+    if let Some(section_index) = pool_reloc.symbol.section {
+        // Find the exact data symbol within the pool being accessed here based on the address.
+        target_symbol = symbols.iter().position(|s| {
+            s.section == Some(section_index)
+                && s.size > 0
+                && (s.address..s.address + s.size).contains(&target_address)
+        })?;
+        addend = target_address.checked_sub(symbols[target_symbol].address)? as i64;
+    } else {
+        // If the target symbol is in a different object (extern), we simply copy the pool
+        // relocation's target. This is because it's not possible to locate the actual symbol if
+        // it's extern. And doing that for external symbols would also be unnecessary, because when
+        // the compiler generates an instruction that accesses an external "pool" plus some offset,
+        // that won't be a normal pool that contains other symbols within it that we want to
+        // display. It will be something like a vtable for a class with multiple inheritance (for
+        // example, dCcD_Cyl in The Wind Waker). So just showing that vtable symbol plus an addend
+        // to represent the offset into it works fine in this case.
+        target_symbol = pool_reloc.relocation.target_symbol;
+        addend = pool_reloc.relocation.addend;
+    }
     Some(Relocation {
         flags: RelocationFlags::Elf(elf::R_PPC_NONE),
         address: cur_addr as u64,
