@@ -1,7 +1,9 @@
 [package]
 name = "objdiff-wasm"
 version.workspace = true
-edition.workspace = true
+# TODO: Update to 2024
+# https://github.com/bytecodealliance/wit-bindgen/pull/1183
+edition = "2021"
 rust-version.workspace = true
 authors.workspace = true
 license.workspace = true

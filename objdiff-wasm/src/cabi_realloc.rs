@@ -20,7 +20,7 @@
 //! this is defined as a "weak" symbol. This means that other definitions are
 //! allowed to overwrite it if they are present in a compilation.
 
-use alloc::{Layout, alloc};
+use alloc::{alloc, Layout};
 use core::ptr;
 
 #[used]
