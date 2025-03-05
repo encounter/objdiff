@@ -645,7 +645,7 @@ fn make_fake_pool_reloc(
         // example, dCcD_Cyl in The Wind Waker). So just showing that vtable symbol plus an addend
         // to represent the offset into it works fine in this case.
         target_symbol = pool_reloc.relocation.target_symbol;
-        addend = pool_reloc.relocation.addend;
+        addend = pool_reloc.relocation.addend + offset_from_pool;
     }
     Some(Relocation {
         flags: RelocationFlags::Elf(elf::R_PPC_NONE),
