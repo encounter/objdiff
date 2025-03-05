@@ -1,10 +1,9 @@
 use alloc::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     string::{String, ToString},
     vec,
     vec::Vec,
 };
-use std::collections::BTreeSet;
 
 use anyhow::{bail, ensure, Result};
 use cwextab::{decode_extab, ExceptionTableData};

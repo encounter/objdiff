@@ -220,7 +220,7 @@ pub trait Arch: Send + Sync + Debug {
         _relocations: &[Relocation],
         _symbols: &[Symbol],
     ) -> Vec<Relocation> {
-        vec![]
+        Vec::new()
     }
 
     fn implcit_addend(
