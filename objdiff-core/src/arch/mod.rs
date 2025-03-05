@@ -10,8 +10,8 @@ use crate::{
         DiffObjConfig,
     },
     obj::{
-        InstructionArg, Object, ParsedInstruction, RelocationFlags, ResolvedInstructionRef,
-        ScannedInstruction, SymbolFlagSet, SymbolKind,
+        InstructionArg, Object, ParsedInstruction, Relocation, RelocationFlags,
+        ResolvedInstructionRef, ScannedInstruction, Symbol, SymbolFlagSet, SymbolKind,
     },
     util::ReallySigned,
 };
@@ -211,6 +211,17 @@ pub trait Arch: Send + Sync + Debug {
         diff_config: &DiffObjConfig,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()>;
+
+    /// Generate a list of fake relocations from the given code that represent pooled data accesses.
+    fn generate_pooled_relocations(
+        &self,
+        _address: u64,
+        _code: &[u8],
+        _relocations: &[Relocation],
+        _symbols: &[Symbol],
+    ) -> Vec<Relocation> {
+        vec![]
+    }
 
     fn implcit_addend(
         &self,

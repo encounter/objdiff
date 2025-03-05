@@ -32,7 +32,7 @@ fn data_row_hover(obj: &Object, diffs: &[(DataDiff, Vec<DataRelocationDiff>)]) -
         // TODO: Change hover text color depending on Insert/Delete/Replace kind
         // let color = get_color_for_diff_kind(reloc_diff.kind, appearance);
 
-        let reloc = resolve_relocation(obj, reloc);
+        let reloc = resolve_relocation(&obj.symbols, reloc);
         out.append(&mut relocation_hover(obj, reloc));
     }
     out
@@ -55,7 +55,7 @@ fn data_row_context(
         }
         prev_reloc = Some(reloc);
 
-        let reloc = resolve_relocation(obj, reloc);
+        let reloc = resolve_relocation(&obj.symbols, reloc);
         out.append(&mut relocation_context(obj, reloc, None));
     }
     out
