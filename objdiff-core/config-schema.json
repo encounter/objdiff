@@ -262,7 +262,7 @@
     },
     {
       "id": "ppc",
-      "name": "PPC",
+      "name": "PowerPC",
       "properties": [
         "ppc.calculatePoolRelocations"
       ]
