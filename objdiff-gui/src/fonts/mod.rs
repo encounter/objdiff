@@ -94,7 +94,7 @@ pub fn load_font_if_needed(
     // FIXME clean up
     let default_font_ref = family.fonts.get(family.default_index).unwrap();
     let default_font = family.handles.get(family.default_index).unwrap();
-    let default_font_data = load_font(default_font).unwrap();
+    let default_font_data = load_font(default_font)?;
     log::info!("Loaded font family '{}'", family.family_name);
     fonts.font_data.insert(default_font_ref.full_name(), Arc::new(default_font_data.font_data));
     fonts
