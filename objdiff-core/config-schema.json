@@ -195,6 +195,13 @@
       "description": "Display MIPS register names with a '$' prefix."
     },
     {
+      "id": "ppc.calculatePoolRelocations",
+      "type": "boolean",
+      "default": true,
+      "name": "Calculate pooled data references",
+      "description": "Display pooled data references in functions as fake relocations."
+    },
+    {
       "id": "x86.formatter",
       "type": "choice",
       "default": "intel",
@@ -251,6 +258,13 @@
         "mips.abi",
         "mips.instrCategory",
         "mips.registerPrefix"
+      ]
+    },
+    {
+      "id": "ppc",
+      "name": "PPC",
+      "properties": [
+        "ppc.calculatePoolRelocations"
       ]
     },
     {

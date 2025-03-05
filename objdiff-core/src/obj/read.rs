@@ -850,7 +850,9 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<Object> {
     let (mut symbols, symbol_indices) =
         map_symbols(arch.as_ref(), &obj_file, &sections, &section_indices, split_meta.as_ref())?;
     map_relocations(arch.as_ref(), &obj_file, &mut sections, &section_indices, &symbol_indices)?;
-    calculate_pooled_relocations(arch.as_ref(), &mut sections, &symbols)?;
+    if config.ppc_calculate_pool_relocations {
+        calculate_pooled_relocations(arch.as_ref(), &mut sections, &symbols)?;
+    }
     parse_line_info(&obj_file, &mut sections, &section_indices, data)?;
     if config.combine_data_sections || config.combine_text_sections {
         combine_sections(&mut sections, &mut symbols, config)?;
