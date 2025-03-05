@@ -1,5 +1,6 @@
 ---
 source: objdiff-core/tests/arch_ppc.rs
+assertion_line: 70
 expression: sections_display
 ---
 [
@@ -46,7 +47,7 @@ expression: sections_display
         name: ".text",
         size: 3060,
         match_percent: Some(
-            59.02353,
+            58.662746,
         ),
         symbols: [
             SectionDisplaySymbol {

@@ -6,7 +6,7 @@ use alloc::{
 };
 use core::cmp::Ordering;
 
-use anyhow::{bail, ensure, Context, Result};
+use anyhow::{anyhow, bail, ensure, Context, Result};
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
 
 use crate::{
@@ -421,6 +421,44 @@ fn map_relocations(
     Ok(())
 }
 
+fn calculate_pooled_relocations(
+    arch: &dyn Arch,
+    sections: &mut [Section],
+    symbols: &[Symbol],
+) -> Result<()> {
+    for (section_index, section) in sections.iter_mut().enumerate() {
+        if section.kind != SectionKind::Code {
+            continue;
+        }
+        let mut fake_pool_relocs = Vec::new();
+        for symbol in symbols {
+            if symbol.section != Some(section_index) {
+                continue;
+            }
+            if symbol.kind != SymbolKind::Function {
+                continue;
+            }
+            let code =
+                section.data_range(symbol.address, symbol.size as usize).ok_or_else(|| {
+                    anyhow!(
+                        "Symbol data out of bounds: {:#x}..{:#x}",
+                        symbol.address,
+                        symbol.address + symbol.size
+                    )
+                })?;
+            fake_pool_relocs.append(&mut arch.generate_pooled_relocations(
+                symbol.address,
+                code,
+                &section.relocations,
+                symbols,
+            ));
+        }
+        section.relocations.append(&mut fake_pool_relocs);
+        section.relocations.sort_by_key(|r| r.address);
+    }
+    Ok(())
+}
+
 fn parse_line_info(
     obj_file: &object::File,
     sections: &mut [Section],
@@ -812,6 +850,9 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<Object> {
     let (mut symbols, symbol_indices) =
         map_symbols(arch.as_ref(), &obj_file, &sections, &section_indices, split_meta.as_ref())?;
     map_relocations(arch.as_ref(), &obj_file, &mut sections, &section_indices, &symbol_indices)?;
+    if config.ppc_calculate_pool_relocations {
+        calculate_pooled_relocations(arch.as_ref(), &mut sections, &symbols)?;
+    }
     parse_line_info(&obj_file, &mut sections, &section_indices, data)?;
     if config.combine_data_sections || config.combine_text_sections {
         combine_sections(&mut sections, &mut symbols, config)?;

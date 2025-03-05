@@ -1,5 +1,6 @@
 ---
 source: objdiff-core/tests/arch_ppc.rs
+assertion_line: 14
 expression: obj
 ---
 Object {
@@ -185,6 +186,14 @@ Object {
                 },
                 Relocation {
                     flags: Elf(
+                        0,
+                    ),
+                    address: 28,
+                    target_symbol: 8,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
                         109,
                     ),
                     address: 36,
@@ -204,6 +213,14 @@ Object {
                         4,
                     ),
                     address: 62,
+                    target_symbol: 8,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        0,
+                    ),
+                    address: 64,
                     target_symbol: 8,
                     addend: 0,
                 },
@@ -233,6 +250,14 @@ Object {
                 },
                 Relocation {
                     flags: Elf(
+                        0,
+                    ),
+                    address: 104,
+                    target_symbol: 8,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
                         109,
                     ),
                     address: 112,
@@ -252,6 +277,14 @@ Object {
                         4,
                     ),
                     address: 142,
+                    target_symbol: 8,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        0,
+                    ),
+                    address: 144,
                     target_symbol: 8,
                     addend: 0,
                 },
@@ -285,6 +318,38 @@ Object {
                     ),
                     address: 176,
                     target_symbol: 5,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        0,
+                    ),
+                    address: 180,
+                    target_symbol: 9,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        0,
+                    ),
+                    address: 200,
+                    target_symbol: 9,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        0,
+                    ),
+                    address: 220,
+                    target_symbol: 9,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        0,
+                    ),
+                    address: 240,
+                    target_symbol: 9,
                     addend: 0,
                 },
                 Relocation {

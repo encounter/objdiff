@@ -8,7 +8,7 @@ use super::{
     code::{address_eq, section_name_eq},
     DataDiff, DataDiffKind, DataRelocationDiff, ObjectDiff, SectionDiff, SymbolDiff,
 };
-use crate::obj::{Object, Relocation, ResolvedRelocation, SymbolFlag, SymbolKind};
+use crate::obj::{Object, Relocation, ResolvedRelocation, Symbol, SymbolFlag, SymbolKind};
 
 pub fn diff_bss_symbol(
     left_obj: &Object,
@@ -64,10 +64,10 @@ fn reloc_eq(
 
 #[inline]
 pub fn resolve_relocation<'obj>(
-    obj: &'obj Object,
+    symbols: &'obj [Symbol],
     reloc: &'obj Relocation,
 ) -> ResolvedRelocation<'obj> {
-    let symbol = &obj.symbols[reloc.target_symbol];
+    let symbol = &symbols[reloc.target_symbol];
     ResolvedRelocation { relocation: reloc, symbol }
 }
 
@@ -88,7 +88,7 @@ fn diff_data_relocs_for_range<'left, 'right>(
             continue;
         }
         let left_offset = left_reloc.address as usize - left_range.start;
-        let left_reloc = resolve_relocation(left_obj, left_reloc);
+        let left_reloc = resolve_relocation(&left_obj.symbols, left_reloc);
         let Some(right_reloc) = right_section.relocations.iter().find(|r| {
             if !right_range.contains(&(r.address as usize)) {
                 return false;
@@ -99,7 +99,7 @@ fn diff_data_relocs_for_range<'left, 'right>(
             diffs.push((DataDiffKind::Delete, Some(left_reloc), None));
             continue;
         };
-        let right_reloc = resolve_relocation(right_obj, right_reloc);
+        let right_reloc = resolve_relocation(&right_obj.symbols, right_reloc);
         if reloc_eq(left_obj, right_obj, left_reloc, right_reloc) {
             diffs.push((DataDiffKind::None, Some(left_reloc), Some(right_reloc)));
         } else {
@@ -111,7 +111,7 @@ fn diff_data_relocs_for_range<'left, 'right>(
             continue;
         }
         let right_offset = right_reloc.address as usize - right_range.start;
-        let right_reloc = resolve_relocation(right_obj, right_reloc);
+        let right_reloc = resolve_relocation(&right_obj.symbols, right_reloc);
         let Some(_) = left_section.relocations.iter().find(|r| {
             if !left_range.contains(&(r.address as usize)) {
                 return false;

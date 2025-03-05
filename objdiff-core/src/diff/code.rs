@@ -502,17 +502,3 @@ fn diff_instruction(
 
     Ok(InstructionDiffResult::new(InstructionDiffKind::None))
 }
-
-// TODO
-// fn find_symbol_matching_fake_symbol_in_sections(
-//     fake_symbol: &ObjSymbol,
-//     sections: &[ObjSection],
-// ) -> Option<ObjSymbol> {
-//     let orig_section_index = fake_symbol.orig_section_index?;
-//     let section = sections.iter().find(|s| s.orig_index == orig_section_index)?;
-//     let real_symbol = section
-//         .symbols
-//         .iter()
-//         .find(|s| s.size > 0 && (s.address..s.address + s.size).contains(&fake_symbol.address))?;
-//     Some(real_symbol.clone())
-// }
