@@ -5,17 +5,17 @@ use std::{mem::take, path::MAIN_SEPARATOR};
 #[cfg(all(windows, feature = "wsl"))]
 use anyhow::{Context, Result};
 use egui::{
-    output::OpenUrl, text::LayoutJob, CollapsingHeader, FontFamily, FontId, RichText,
-    SelectableLabel, TextFormat, Widget,
+    CollapsingHeader, FontFamily, FontId, RichText, SelectableLabel, TextFormat, Widget,
+    output::OpenUrl, text::LayoutJob,
 };
 use globset::Glob;
 use objdiff_core::{
-    config::{path::check_path_buf, DEFAULT_WATCH_PATTERNS},
+    config::{DEFAULT_WATCH_PATTERNS, path::check_path_buf},
     diff::{
-        ConfigEnum, ConfigEnumVariantInfo, ConfigPropertyId, ConfigPropertyKind,
-        ConfigPropertyValue, CONFIG_GROUPS,
+        CONFIG_GROUPS, ConfigEnum, ConfigEnumVariantInfo, ConfigPropertyId, ConfigPropertyKind,
+        ConfigPropertyValue,
     },
-    jobs::{check_update::CheckUpdateResult, Job, JobQueue, JobResult},
+    jobs::{Job, JobQueue, JobResult, check_update::CheckUpdateResult},
 };
 use typed_path::Utf8PlatformPathBuf;
 
@@ -347,11 +347,7 @@ fn display_unit(
     let color = if selected {
         appearance.emphasized_text_color
     } else if let Some(complete) = object.complete {
-        if complete {
-            appearance.insert_color
-        } else {
-            appearance.delete_color
-        }
+        if complete { appearance.insert_color } else { appearance.delete_color }
     } else {
         appearance.text_color
     };

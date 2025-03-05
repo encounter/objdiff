@@ -3,40 +3,39 @@ use std::{
     mem,
     str::FromStr,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
     task::{Wake, Waker},
     time::Duration,
 };
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use argp::FromArgs;
 use crossterm::{
     event,
     event::{DisableMouseCapture, EnableMouseCapture},
     terminal::{
-        disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen, SetTitle,
+        EnterAlternateScreen, LeaveAlternateScreen, SetTitle, disable_raw_mode, enable_raw_mode,
     },
 };
 use objdiff_core::{
     bindings::diff::DiffResult,
     build::{
-        watcher::{create_watcher, Watcher},
         BuildConfig,
+        watcher::{Watcher, create_watcher},
     },
     config::{
-        build_globset,
+        ProjectConfig, ProjectObject, ProjectObjectMetadata, build_globset,
         path::{check_path_buf, platform_path, platform_path_serde_option},
-        ProjectConfig, ProjectObject, ProjectObjectMetadata,
     },
     diff::{
         self, ConfigEnum, ConfigPropertyId, ConfigPropertyKind, DiffObjConfig, MappingConfig,
         ObjectDiff,
     },
     jobs::{
-        objdiff::{start_build, ObjDiffConfig},
         Job, JobQueue, JobResult,
+        objdiff::{ObjDiffConfig, start_build},
     },
     obj::{self, Object},
 };
@@ -45,10 +44,10 @@ use typed_path::{Utf8PlatformPath, Utf8PlatformPathBuf};
 
 use crate::{
     util::{
-        output::{write_output, OutputFormat},
+        output::{OutputFormat, write_output},
         term::crossterm_panic_handler,
     },
-    views::{function_diff::FunctionDiffUi, EventControlFlow, EventResult, UiView},
+    views::{EventControlFlow, EventResult, UiView, function_diff::FunctionDiffUi},
 };
 
 #[derive(FromArgs, PartialEq, Debug)]
@@ -426,15 +425,17 @@ fn run_interactive(
     let mut result = EventResult { redraw: true, ..Default::default() };
     'outer: loop {
         if result.redraw {
-            terminal.draw(|f| loop {
-                result.redraw = false;
-                view.draw(&state, f, &mut result);
-                result.click_xy = None;
-                if !result.redraw {
-                    break;
+            terminal.draw(|f| {
+                loop {
+                    result.redraw = false;
+                    view.draw(&state, f, &mut result);
+                    result.click_xy = None;
+                    if !result.redraw {
+                        break;
+                    }
+                    // Clear buffer on redraw
+                    f.buffer_mut().reset();
                 }
-                // Clear buffer on redraw
-                f.buffer_mut().reset();
             })?;
         }
         loop {

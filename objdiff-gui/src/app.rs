@@ -5,8 +5,8 @@ use std::{
     path::{Path, PathBuf},
     rc::Rc,
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc, Mutex, RwLock,
+        atomic::{AtomicBool, Ordering},
     },
     time::Instant,
 };
@@ -14,11 +14,11 @@ use std::{
 use filetime::FileTime;
 use globset::Glob;
 use objdiff_core::{
-    build::watcher::{create_watcher, Watcher},
+    build::watcher::{Watcher, create_watcher},
     config::{
+        DEFAULT_WATCH_PATTERNS, ProjectConfig, ProjectConfigInfo, ProjectObject, ScratchConfig,
         build_globset, default_watch_patterns, path::platform_path_serde_option,
-        save_project_config, ProjectConfig, ProjectConfigInfo, ProjectObject, ScratchConfig,
-        DEFAULT_WATCH_PATTERNS,
+        save_project_config,
     },
     diff::DiffObjConfig,
     jobs::{Job, JobQueue, JobResult},
@@ -27,22 +27,22 @@ use time::UtcOffset;
 use typed_path::{Utf8PlatformPath, Utf8PlatformPathBuf};
 
 use crate::{
-    app_config::{deserialize_config, AppConfigVersion},
-    config::{load_project_config, ProjectObjectNode},
+    app_config::{AppConfigVersion, deserialize_config},
+    config::{ProjectObjectNode, load_project_config},
     jobs::{create_objdiff_config, egui_waker, start_build},
     views::{
-        appearance::{appearance_window, Appearance},
+        appearance::{Appearance, appearance_window},
         config::{
-            arch_config_window, config_ui, general_config_ui, project_window, ConfigViewState,
-            CONFIG_DISABLED_TEXT,
+            CONFIG_DISABLED_TEXT, ConfigViewState, arch_config_window, config_ui,
+            general_config_ui, project_window,
         },
         debug::debug_window,
-        demangle::{demangle_window, DemangleViewState},
+        demangle::{DemangleViewState, demangle_window},
         diff::diff_view_ui,
         frame_history::FrameHistory,
-        graphics::{graphics_window, GraphicsConfig, GraphicsViewState},
+        graphics::{GraphicsConfig, GraphicsViewState, graphics_window},
         jobs::{jobs_menu_ui, jobs_window},
-        rlwinm::{rlwinm_decode_window, RlwinmDecodeViewState},
+        rlwinm::{RlwinmDecodeViewState, rlwinm_decode_window},
         symbol_diff::{DiffViewAction, DiffViewState, ResolvedNavigation, View},
     },
 };

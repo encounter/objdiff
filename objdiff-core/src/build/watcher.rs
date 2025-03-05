@@ -2,8 +2,8 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicBool, Ordering},
         Arc,
+        atomic::{AtomicBool, Ordering},
     },
     task::Waker,
     time::Duration,
@@ -11,7 +11,7 @@ use std::{
 
 use globset::GlobSet;
 use notify::RecursiveMode;
-use notify_debouncer_full::{new_debouncer_opt, DebounceEventResult};
+use notify_debouncer_full::{DebounceEventResult, new_debouncer_opt};
 
 pub type Watcher = notify_debouncer_full::Debouncer<
     notify::RecommendedWatcher,

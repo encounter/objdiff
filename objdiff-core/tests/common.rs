@@ -1,5 +1,5 @@
 use objdiff_core::{
-    diff::{display::DiffTextSegment, DiffObjConfig, SymbolDiff},
+    diff::{DiffObjConfig, SymbolDiff, display::DiffTextSegment},
     obj::Object,
 };
 

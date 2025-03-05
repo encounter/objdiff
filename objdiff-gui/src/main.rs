@@ -17,12 +17,12 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use cfg_if::cfg_if;
 use time::UtcOffset;
 use tracing_subscriber::EnvFilter;
 
-use crate::views::graphics::{load_graphics_config, GraphicsBackend, GraphicsConfig};
+use crate::views::graphics::{GraphicsBackend, GraphicsConfig, load_graphics_config};
 
 fn load_icon() -> Result<egui::IconData> {
     let decoder = png::Decoder::new(include_bytes!("../assets/icon_64.png").as_ref());
@@ -86,7 +86,7 @@ fn main() -> ExitCode {
     }
     #[cfg(feature = "wgpu")]
     {
-        use eframe::egui_wgpu::{wgpu, WgpuSetup};
+        use eframe::egui_wgpu::{WgpuSetup, wgpu};
         if graphics_config.desired_backend.is_supported() {
             native_options.wgpu_options.wgpu_setup = match native_options.wgpu_options.wgpu_setup {
                 WgpuSetup::CreateNew(mut setup) => {

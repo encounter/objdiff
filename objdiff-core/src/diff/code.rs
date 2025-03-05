@@ -1,16 +1,16 @@
 use alloc::{
-    collections::{btree_map, BTreeMap},
+    collections::{BTreeMap, btree_map},
     string::{String, ToString},
     vec,
     vec::Vec,
 };
 
-use anyhow::{anyhow, ensure, Context, Result};
+use anyhow::{Context, Result, anyhow, ensure};
 
 use super::{
-    display::display_ins_data_literals, DiffObjConfig, FunctionRelocDiffs, InstructionArgDiffIndex,
-    InstructionBranchFrom, InstructionBranchTo, InstructionDiffKind, InstructionDiffRow,
-    SymbolDiff,
+    DiffObjConfig, FunctionRelocDiffs, InstructionArgDiffIndex, InstructionBranchFrom,
+    InstructionBranchTo, InstructionDiffKind, InstructionDiffRow, SymbolDiff,
+    display::display_ins_data_literals,
 };
 use crate::obj::{
     InstructionArg, InstructionArgValue, InstructionRef, Object, ResolvedInstructionRef,

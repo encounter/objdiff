@@ -1,12 +1,12 @@
 use alloc::{vec, vec::Vec};
 use core::{cmp::Ordering, ops::Range};
 
-use anyhow::{anyhow, Result};
-use similar::{capture_diff_slices, get_diff_ratio, Algorithm};
+use anyhow::{Result, anyhow};
+use similar::{Algorithm, capture_diff_slices, get_diff_ratio};
 
 use super::{
-    code::{address_eq, section_name_eq},
     DataDiff, DataDiffKind, DataRelocationDiff, ObjectDiff, SectionDiff, SymbolDiff,
+    code::{address_eq, section_name_eq},
 };
 use crate::obj::{Object, Relocation, ResolvedRelocation, Symbol, SymbolFlag, SymbolKind};
 
@@ -431,11 +431,7 @@ pub fn diff_generic_section(
             .fold((0.0, 0.0), |(matched, total), (s, d)| {
                 (matched + d.match_percent.unwrap_or(0.0) * s.size as f32, total + s.size as f32)
             });
-        if total == 0.0 {
-            100.0
-        } else {
-            matched / total
-        }
+        if total == 0.0 { 100.0 } else { matched / total }
     };
     Ok((
         SectionDiff { match_percent: Some(match_percent), data_diff: vec![], reloc_diff: vec![] },

@@ -1,12 +1,11 @@
 use std::{collections::HashSet, fs::File, io::Read, time::Instant};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use argp::FromArgs;
 use objdiff_core::{
     bindings::report::{
-        ChangeItem, ChangeItemInfo, ChangeUnit, Changes, ChangesInput, Measures, Report,
-        ReportCategory, ReportItem, ReportItemMetadata, ReportUnit, ReportUnitMetadata,
-        REPORT_VERSION,
+        ChangeItem, ChangeItemInfo, ChangeUnit, Changes, ChangesInput, Measures, REPORT_VERSION,
+        Report, ReportCategory, ReportItem, ReportItemMetadata, ReportUnit, ReportUnitMetadata,
     },
     config::path::platform_path,
     diff, obj,
@@ -19,7 +18,7 @@ use typed_path::{Utf8PlatformPath, Utf8PlatformPathBuf};
 
 use crate::{
     cmd::diff::ObjectConfig,
-    util::output::{write_output, OutputFormat},
+    util::output::{OutputFormat, write_output},
 };
 
 #[derive(FromArgs, PartialEq, Debug)]
@@ -206,11 +205,7 @@ fn report_object(
         let section_match_percent = section_diff.match_percent.unwrap_or_else(|| {
             // Support cases where we don't have a target object,
             // assume complete means 100% match
-            if object.complete.unwrap_or(false) {
-                100.0
-            } else {
-                0.0
-            }
+            if object.complete.unwrap_or(false) { 100.0 } else { 0.0 }
         });
         sections.push(ReportItem {
             name: section.name.clone(),
@@ -251,11 +246,7 @@ fn report_object(
             let match_percent = symbol_diff.match_percent.unwrap_or_else(|| {
                 // Support cases where we don't have a target object,
                 // assume complete means 100% match
-                if object.complete.unwrap_or(false) {
-                    100.0
-                } else {
-                    0.0
-                }
+                if object.complete.unwrap_or(false) { 100.0 } else { 0.0 }
             });
             measures.fuzzy_match_percent += match_percent * symbol.size as f32;
             measures.total_code += symbol.size;

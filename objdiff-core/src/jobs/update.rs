@@ -10,7 +10,7 @@ use anyhow::{Context, Result};
 pub use self_update; // Re-export self_update crate
 use self_update::update::ReleaseUpdate;
 
-use crate::jobs::{start_job, update_status, Job, JobContext, JobResult, JobState};
+use crate::jobs::{Job, JobContext, JobResult, JobState, start_job, update_status};
 
 pub struct UpdateConfig {
     pub build_updater: fn() -> Result<Box<dyn ReleaseUpdate>>,

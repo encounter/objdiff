@@ -6,7 +6,7 @@ use self_update::{
     update::{Release, ReleaseUpdate},
 };
 
-use crate::jobs::{start_job, update_status, Job, JobContext, JobResult, JobState};
+use crate::jobs::{Job, JobContext, JobResult, JobState, start_job, update_status};
 
 pub struct CheckUpdateConfig {
     pub build_updater: fn() -> Result<Box<dyn ReleaseUpdate>>,

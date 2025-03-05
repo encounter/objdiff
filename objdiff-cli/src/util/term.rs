@@ -3,7 +3,7 @@ use std::{io::stdout, panic};
 use crossterm::{
     cursor::Show,
     event::DisableMouseCapture,
-    terminal::{disable_raw_mode, LeaveAlternateScreen},
+    terminal::{LeaveAlternateScreen, disable_raw_mode},
 };
 
 pub fn crossterm_panic_handler() {

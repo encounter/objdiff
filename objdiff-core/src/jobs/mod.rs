@@ -1,8 +1,8 @@
 use std::{
     sync::{
+        Arc, RwLock,
         atomic::{AtomicUsize, Ordering},
         mpsc::{Receiver, Sender, TryRecvError},
-        Arc, RwLock,
     },
     task::Waker,
     thread::JoinHandle,

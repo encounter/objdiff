@@ -1,9 +1,9 @@
-use egui::{text::LayoutJob, Id, Layout, RichText, ScrollArea, TextEdit, Ui, Widget};
+use egui::{Id, Layout, RichText, ScrollArea, TextEdit, Ui, Widget, text::LayoutJob};
 use objdiff_core::{
     build::BuildStatus,
     diff::{
-        display::{ContextItem, HoverItem, HoverItemColor, SymbolFilter, SymbolNavigationKind},
         DiffObjConfig, ObjectDiff, SectionDiff, SymbolDiff,
+        display::{ContextItem, HoverItem, HoverItemColor, SymbolFilter, SymbolNavigationKind},
     },
     obj::{Object, Section, Symbol},
 };
@@ -14,13 +14,12 @@ use crate::{
     views::{
         appearance::Appearance,
         column_layout::{render_header, render_strips, render_table},
-        data_diff::{data_row_ui, split_diffs, BYTES_PER_ROW},
+        data_diff::{BYTES_PER_ROW, data_row_ui, split_diffs},
         extab_diff::extab_ui,
-        function_diff::{asm_col_ui, FunctionDiffContext},
+        function_diff::{FunctionDiffContext, asm_col_ui},
         symbol_diff::{
-            match_color_for_symbol, symbol_context_menu_ui, symbol_hover_ui, symbol_list_ui,
             DiffViewAction, DiffViewNavigation, DiffViewState, SymbolDiffContext, SymbolRefByName,
-            View,
+            View, match_color_for_symbol, symbol_context_menu_ui, symbol_hover_ui, symbol_list_ui,
         },
         write_text,
     },

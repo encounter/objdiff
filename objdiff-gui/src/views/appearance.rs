@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use egui::{text::LayoutJob, Color32, FontFamily, FontId, TextFormat, TextStyle, Widget};
+use egui::{Color32, FontFamily, FontId, TextFormat, TextStyle, Widget, text::LayoutJob};
 use time::UtcOffset;
 
 use crate::fonts::load_font_if_needed;

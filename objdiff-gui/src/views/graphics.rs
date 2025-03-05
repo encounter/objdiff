@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::Result;
-use egui::{text::LayoutJob, Context, FontId, RichText, TextFormat, TextStyle, Window};
+use egui::{Context, FontId, RichText, TextFormat, TextStyle, Window, text::LayoutJob};
 use serde::{Deserialize, Serialize};
 
 use crate::views::{appearance::Appearance, frame_history::FrameHistory};

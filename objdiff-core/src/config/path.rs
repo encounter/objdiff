@@ -31,11 +31,7 @@ pub mod unix_path_serde_option {
 
     pub fn serialize<S>(path: &Option<Utf8UnixPathBuf>, s: S) -> Result<S::Ok, S::Error>
     where S: Serializer {
-        if let Some(path) = path {
-            s.serialize_some(path.as_str())
-        } else {
-            s.serialize_none()
-        }
+        if let Some(path) = path { s.serialize_some(path.as_str()) } else { s.serialize_none() }
     }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Utf8UnixPathBuf>, D::Error>
@@ -51,11 +47,7 @@ pub mod platform_path_serde_option {
 
     pub fn serialize<S>(path: &Option<Utf8PlatformPathBuf>, s: S) -> Result<S::Ok, S::Error>
     where S: Serializer {
-        if let Some(path) = path {
-            s.serialize_some(path.as_str())
-        } else {
-            s.serialize_none()
-        }
+        if let Some(path) = path { s.serialize_some(path.as_str()) } else { s.serialize_none() }
     }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Utf8PlatformPathBuf>, D::Error>

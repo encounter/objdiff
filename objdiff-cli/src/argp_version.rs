@@ -4,7 +4,7 @@
 //! For now, this only adds a --version/-V option which causes early-exit.
 use std::ffi::OsStr;
 
-use argp::{parser::ParseGlobalOptions, EarlyExit, FromArgs, TopLevelCommand};
+use argp::{EarlyExit, FromArgs, TopLevelCommand, parser::ParseGlobalOptions};
 
 struct ArgsOrVersion<T>(T)
 where T: FromArgs;

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use globset::Glob;
-use objdiff_core::config::{try_project_config, DEFAULT_WATCH_PATTERNS};
+use objdiff_core::config::{DEFAULT_WATCH_PATTERNS, try_project_config};
 use typed_path::{Utf8UnixComponent, Utf8UnixPath};
 
 use crate::app::{AppState, ObjectConfig};

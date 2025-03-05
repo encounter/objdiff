@@ -1,11 +1,11 @@
 use std::{cmp::min, default::Default, mem::take};
 
-use egui::{text::LayoutJob, Label, Sense, Widget};
+use egui::{Label, Sense, Widget, text::LayoutJob};
 use objdiff_core::{
     diff::{
-        data::resolve_relocation,
-        display::{relocation_context, relocation_hover, ContextItem, HoverItem},
         DataDiff, DataDiffKind, DataRelocationDiff,
+        data::resolve_relocation,
+        display::{ContextItem, HoverItem, relocation_context, relocation_hover},
     },
     obj::Object,
 };

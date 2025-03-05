@@ -1,18 +1,18 @@
 use std::mem::take;
 
 use egui::{
-    style::ScrollAnimation, text::LayoutJob, CollapsingHeader, Color32, Id, OpenUrl, ScrollArea,
-    SelectableLabel, Ui, Widget,
+    CollapsingHeader, Color32, Id, OpenUrl, ScrollArea, SelectableLabel, Ui, Widget,
+    style::ScrollAnimation, text::LayoutJob,
 };
 use objdiff_core::{
     diff::{
-        display::{
-            display_sections, symbol_context, symbol_hover, HighlightKind, SectionDisplay,
-            SymbolFilter, SymbolNavigationKind,
-        },
         ObjectDiff, SymbolDiff,
+        display::{
+            HighlightKind, SectionDisplay, SymbolFilter, SymbolNavigationKind, display_sections,
+            symbol_context, symbol_hover,
+        },
     },
-    jobs::{create_scratch::CreateScratchResult, objdiff::ObjDiffResult, Job, JobQueue, JobResult},
+    jobs::{Job, JobQueue, JobResult, create_scratch::CreateScratchResult, objdiff::ObjDiffResult},
     obj::{Object, Section, SectionKind, Symbol, SymbolFlag},
 };
 use regex::{Regex, RegexBuilder};

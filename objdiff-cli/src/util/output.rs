@@ -5,7 +5,7 @@ use std::{
     path::Path,
 };
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use tracing::info;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]

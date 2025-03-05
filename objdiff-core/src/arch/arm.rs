@@ -5,14 +5,14 @@ use alloc::{
     vec::Vec,
 };
 
-use anyhow::{bail, Result};
-use arm_attr::{enums::CpuArch, tag::Tag, BuildAttrs};
-use object::{elf, Endian as _, Object as _, ObjectSection as _, ObjectSymbol as _};
+use anyhow::{Result, bail};
+use arm_attr::{BuildAttrs, enums::CpuArch, tag::Tag};
+use object::{Endian as _, Object as _, ObjectSection as _, ObjectSymbol as _, elf};
 use unarm::{args, arm, thumb};
 
 use crate::{
     arch::Arch,
-    diff::{display::InstructionPart, ArmArchVersion, ArmR9Usage, DiffObjConfig},
+    diff::{ArmArchVersion, ArmR9Usage, DiffObjConfig, display::InstructionPart},
     obj::{
         InstructionRef, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation,
         ScannedInstruction, SymbolFlag, SymbolFlagSet, SymbolKind,
@@ -58,11 +58,7 @@ impl ArchArm {
                 }
                 // Only checking first CpuArch tag. Others may exist, but that's very unlikely.
                 let cpu_arch = subsection.into_public_tag_iter()?.find_map(|(_, tag)| {
-                    if let Tag::CpuArch(cpu_arch) = tag {
-                        Some(cpu_arch)
-                    } else {
-                        None
-                    }
+                    if let Tag::CpuArch(cpu_arch) = tag { Some(cpu_arch) } else { None }
                 });
                 match cpu_arch {
                     Some(CpuArch::V4T) => return Ok(Some(unarm::ArmVersion::V4T)),
@@ -358,11 +354,7 @@ impl Arch for ArchArm {
     }
 
     fn symbol_address(&self, address: u64, kind: SymbolKind) -> u64 {
-        if kind == SymbolKind::Function {
-            address & !1
-        } else {
-            address
-        }
+        if kind == SymbolKind::Function { address & !1 } else { address }
     }
 
     fn extra_symbol_flags(&self, symbol: &object::Symbol) -> SymbolFlagSet {

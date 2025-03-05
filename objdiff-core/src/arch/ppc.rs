@@ -5,17 +5,17 @@ use alloc::{
     vec::Vec,
 };
 
-use anyhow::{bail, ensure, Result};
-use cwextab::{decode_extab, ExceptionTableData};
+use anyhow::{Result, bail, ensure};
+use cwextab::{ExceptionTableData, decode_extab};
 use flagset::Flags;
-use object::{elf, Object as _, ObjectSection as _, ObjectSymbol as _};
+use object::{Object as _, ObjectSection as _, ObjectSymbol as _, elf};
 
 use crate::{
     arch::{Arch, DataType},
     diff::{
+        DiffObjConfig,
         data::resolve_relocation,
         display::{ContextItem, HoverItem, HoverItemColor, InstructionPart, SymbolNavigationKind},
-        DiffObjConfig,
     },
     obj::{
         InstructionRef, Object, Relocation, RelocationFlags, ResolvedInstructionRef,
@@ -826,8 +826,8 @@ fn generate_fake_pool_relocations_for_function(
             for unseen_addr in unseen_addrs {
                 let prev_bctr_gpr_state = gpr_state_at_bctr
                     .iter()
-                    .filter(|(&addr, _)| addr < unseen_addr)
-                    .min_by_key(|(&addr, _)| addr)
+                    .filter(|&(&addr, _)| addr < unseen_addr)
+                    .min_by_key(|&(&addr, _)| addr)
                     .map(|(_, gpr_state)| gpr_state);
                 if let Some(gpr_pool_relocs) = prev_bctr_gpr_state {
                     let dest_offset_into_func = unseen_addr - func_address as u32;

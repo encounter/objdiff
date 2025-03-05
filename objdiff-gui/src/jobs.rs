@@ -3,18 +3,18 @@ use std::{
     task::{Wake, Waker},
 };
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use jobs::create_scratch;
 use objdiff_core::{
     build::BuildConfig,
     diff::MappingConfig,
     jobs,
-    jobs::{check_update::CheckUpdateConfig, objdiff, update::UpdateConfig, Job, JobQueue},
+    jobs::{Job, JobQueue, check_update::CheckUpdateConfig, objdiff, update::UpdateConfig},
 };
 
 use crate::{
     app::{AppConfig, AppState},
-    update::{build_updater, BIN_NAME_NEW, BIN_NAME_OLD},
+    update::{BIN_NAME_NEW, BIN_NAME_OLD, build_updater},
 };
 
 struct EguiWaker(egui::Context);

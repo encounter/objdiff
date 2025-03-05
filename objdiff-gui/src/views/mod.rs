@@ -1,4 +1,4 @@
-use egui::{text::LayoutJob, Color32, FontId, TextFormat};
+use egui::{Color32, FontId, TextFormat, text::LayoutJob};
 
 pub(crate) mod appearance;
 pub(crate) mod column_layout;

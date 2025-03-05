@@ -1,18 +1,18 @@
 use core::cmp::Ordering;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind};
 use objdiff_core::{
     diff::{
-        display::{display_row, DiffText, DiffTextColor, HighlightKind},
         DiffObjConfig, FunctionRelocDiffs, InstructionDiffKind, ObjectDiff, SymbolDiff,
+        display::{DiffText, DiffTextColor, HighlightKind, display_row},
     },
     obj::Object,
 };
 use ratatui::{
+    Frame,
     prelude::*,
     widgets::{Block, Borders, Clear, Paragraph, Scrollbar, ScrollbarOrientation, ScrollbarState},
-    Frame,
 };
 
 use super::{EventControlFlow, EventResult, UiView};

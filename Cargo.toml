@@ -5,7 +5,7 @@ members = [
     "objdiff-gui",
     "objdiff-wasm",
 ]
-resolver = "2"
+resolver = "3"
 
 [profile.release-lto]
 inherits = "release"
@@ -16,7 +16,7 @@ codegen-units = 1
 [workspace.package]
 version = "3.0.0-beta.1"
 authors = ["Luke Street <luke@street.dev>"]
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/encounter/objdiff"
-rust-version = "1.82"
+rust-version = "1.85"

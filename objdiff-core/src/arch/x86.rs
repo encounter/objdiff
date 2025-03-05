@@ -1,15 +1,15 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use iced_x86::{
     Decoder, DecoderOptions, DecoratorKind, FormatterOutput, FormatterTextKind, GasFormatter,
     Instruction, IntelFormatter, MasmFormatter, NasmFormatter, NumberKind, OpKind, Register,
 };
-use object::{pe, Endian as _, Object as _, ObjectSection as _};
+use object::{Endian as _, Object as _, ObjectSection as _, pe};
 
 use crate::{
     arch::Arch,
-    diff::{display::InstructionPart, DiffObjConfig, X86Formatter},
+    diff::{DiffObjConfig, X86Formatter, display::InstructionPart},
     obj::{InstructionRef, RelocationFlags, ResolvedInstructionRef, ScannedInstruction},
 };
 
@@ -89,7 +89,7 @@ impl Arch for ArchX86 {
         let mut reloc_replace = None;
         if let Some(reloc) = resolved.relocation {
             const PLACEHOLDER: u64 = 0x7BDE3E7D; // chosen by fair dice roll.
-                                                 // guaranteed to be random.
+            // guaranteed to be random.
             let reloc_offset = reloc.relocation.address - resolved.ins_ref.address;
             let reloc_size = reloc_size(reloc.relocation.flags).unwrap_or(usize::MAX);
             let offsets = decoder.get_constant_offsets(&instruction);

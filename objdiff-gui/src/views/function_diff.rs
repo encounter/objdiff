@@ -1,14 +1,14 @@
 use std::{cmp::Ordering, default::Default};
 
-use egui::{text::LayoutJob, Label, Response, Sense, Widget};
+use egui::{Label, Response, Sense, Widget, text::LayoutJob};
 use egui_extras::TableRow;
 use objdiff_core::{
     diff::{
-        display::{
-            display_row, instruction_context, instruction_hover, DiffText, DiffTextColor,
-            DiffTextSegment, HighlightKind,
-        },
         DiffObjConfig, InstructionDiffKind, InstructionDiffRow, ObjectDiff,
+        display::{
+            DiffText, DiffTextColor, DiffTextSegment, HighlightKind, display_row,
+            instruction_context, instruction_hover,
+        },
     },
     obj::{InstructionArgValue, InstructionRef, Object},
     util::ReallySigned,

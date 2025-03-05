@@ -17,7 +17,7 @@ use anyhow::{Error, Result};
 use argp::{FromArgValue, FromArgs};
 use enable_ansi_support::enable_ansi_support;
 use supports_color::Stream;
-use tracing_subscriber::{filter::LevelFilter, EnvFilter};
+use tracing_subscriber::{EnvFilter, filter::LevelFilter};
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 enum LogLevel {

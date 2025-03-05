@@ -1,13 +1,13 @@
 use alloc::{borrow::Cow, boxed::Box, format, string::String, vec::Vec};
 use core::{ffi::CStr, fmt, fmt::Debug};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use object::Endian as _;
 
 use crate::{
     diff::{
-        display::{ContextItem, HoverItem, InstructionPart},
         DiffObjConfig,
+        display::{ContextItem, HoverItem, InstructionPart},
     },
     obj::{
         InstructionArg, Object, ParsedInstruction, Relocation, RelocationFlags,
@@ -66,7 +66,9 @@ impl DataType {
     pub fn display_literals(&self, endian: object::Endianness, bytes: &[u8]) -> Vec<String> {
         let mut strs = Vec::new();
         if self.required_len().is_some_and(|l| bytes.len() < l) {
-            log::warn!("Failed to display a symbol value for a symbol whose size is too small for instruction referencing it.");
+            log::warn!(
+                "Failed to display a symbol value for a symbol whose size is too small for instruction referencing it."
+            );
             return strs;
         }
         let mut bytes = bytes;

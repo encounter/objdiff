@@ -26,13 +26,7 @@ pub mod display;
 include!(concat!(env!("OUT_DIR"), "/config.gen.rs"));
 
 impl DiffObjConfig {
-    pub fn separator(&self) -> &'static str {
-        if self.space_between_args {
-            ", "
-        } else {
-            ","
-        }
-    }
+    pub fn separator(&self) -> &'static str { if self.space_between_args { ", " } else { "," } }
 }
 
 #[derive(Debug, Clone)]

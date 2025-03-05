@@ -11,7 +11,7 @@ use objdiff_core::{
 };
 use typed_path::{Utf8PlatformPathBuf, Utf8UnixPathBuf};
 
-use crate::app::{AppConfig, ObjectConfig, CONFIG_KEY};
+use crate::app::{AppConfig, CONFIG_KEY, ObjectConfig};
 
 #[derive(Clone, serde::Deserialize, serde::Serialize)]
 pub struct AppConfigVersion {

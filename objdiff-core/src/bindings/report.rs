@@ -7,7 +7,7 @@ use alloc::{
 };
 use core::ops::AddAssign;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use prost::Message;
 
 // Protobuf report types
@@ -441,11 +441,7 @@ impl From<LegacyReportItem> for ReportItem {
 #[cfg(feature = "serde")]
 fn serialize_hex<S>(x: &Option<u64>, s: S) -> Result<S::Ok, S::Error>
 where S: serde::Serializer {
-    if let Some(x) = x {
-        s.serialize_str(&format!("{:#x}", x))
-    } else {
-        s.serialize_none()
-    }
+    if let Some(x) = x { s.serialize_str(&format!("{:#x}", x)) } else { s.serialize_none() }
 }
 
 #[cfg(feature = "serde")]

@@ -5,7 +5,7 @@ use alloc::{
 };
 use core::cmp::Ordering;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use object::elf;
 use yaxpeax_arch::{Arch as YaxpeaxArch, Decoder, Reader, U8Reader};
 use yaxpeax_arm::armv8::a64::{
@@ -15,7 +15,7 @@ use yaxpeax_arm::armv8::a64::{
 
 use crate::{
     arch::Arch,
-    diff::{display::InstructionPart, DiffObjConfig},
+    diff::{DiffObjConfig, display::InstructionPart},
     obj::{
         InstructionRef, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation,
         ScannedInstruction,
@@ -216,11 +216,7 @@ where Cb: FnMut(InstructionPart<'static>) {
                 unreachable!("movn operand 1 is always ImmShift");
             };
             let imm = if let Operand::Register(size, _) = ins.operands[0] {
-                if size == SizeCode::W {
-                    imm as u32 as u64
-                } else {
-                    imm
-                }
+                if size == SizeCode::W { imm as u32 as u64 } else { imm }
             } else {
                 unreachable!("movn operand 0 is always Register");
             };
@@ -237,11 +233,7 @@ where Cb: FnMut(InstructionPart<'static>) {
                 unreachable!("movz operand is always ImmShift");
             };
             let imm = if let Operand::Register(size, _) = ins.operands[0] {
-                if size == SizeCode::W {
-                    imm as u32 as u64
-                } else {
-                    imm
-                }
+                if size == SizeCode::W { imm as u32 as u64 } else { imm }
             } else {
                 unreachable!("movz operand 0 is always Register");
             };
@@ -574,11 +566,7 @@ where Cb: FnMut(InstructionPart<'static>) {
             {
                 if immr < imms {
                     let size = if let Operand::Register(size, _) = ins.operands[0] {
-                        if size == SizeCode::W {
-                            32
-                        } else {
-                            64
-                        }
+                        if size == SizeCode::W { 32 } else { 64 }
                     } else {
                         unreachable!("operand 0 is always a register");
                     };

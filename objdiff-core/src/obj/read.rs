@@ -6,16 +6,16 @@ use alloc::{
 };
 use core::cmp::Ordering;
 
-use anyhow::{anyhow, bail, ensure, Context, Result};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
 
 use crate::{
-    arch::{new_arch, Arch},
+    arch::{Arch, new_arch},
     diff::DiffObjConfig,
     obj::{
-        split_meta::{SplitMeta, SPLITMETA_SECTION},
         Object, Relocation, RelocationFlags, Section, SectionData, SectionFlag, SectionKind,
         Symbol, SymbolFlag, SymbolKind,
+        split_meta::{SPLITMETA_SECTION, SplitMeta},
     },
     util::{read_u16, read_u32},
 };

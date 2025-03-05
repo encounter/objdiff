@@ -1,18 +1,18 @@
 use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
 use core::ops::Range;
 
-use anyhow::{bail, Result};
-use object::{elf, Endian as _, Object as _, ObjectSection as _, ObjectSymbol as _};
+use anyhow::{Result, bail};
+use object::{Endian as _, Object as _, ObjectSection as _, ObjectSymbol as _, elf};
 use rabbitizer::{
-    abi::Abi,
-    operands::{ValuedOperand, IU16},
-    registers_meta::Register,
     IsaExtension, IsaVersion, Vram,
+    abi::Abi,
+    operands::{IU16, ValuedOperand},
+    registers_meta::Register,
 };
 
 use crate::{
     arch::Arch,
-    diff::{display::InstructionPart, DiffObjConfig, MipsAbi, MipsInstrCategory},
+    diff::{DiffObjConfig, MipsAbi, MipsInstrCategory, display::InstructionPart},
     obj::{
         InstructionArg, InstructionArgValue, InstructionRef, Relocation, RelocationFlags,
         ResolvedInstructionRef, ResolvedRelocation, ScannedInstruction,

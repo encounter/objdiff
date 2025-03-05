@@ -1,11 +1,11 @@
 use std::{fs, sync::mpsc::Receiver, task::Waker};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{Context, Result, anyhow, bail};
 use typed_path::{Utf8PlatformPathBuf, Utf8UnixPathBuf};
 
 use crate::{
-    build::{run_make, BuildConfig, BuildStatus},
-    jobs::{start_job, update_status, Job, JobContext, JobResult, JobState},
+    build::{BuildConfig, BuildStatus, run_make},
+    jobs::{Job, JobContext, JobResult, JobState, start_job, update_status},
 };
 
 #[derive(Debug, Clone)]

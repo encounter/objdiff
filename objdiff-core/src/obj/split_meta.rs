@@ -1,7 +1,7 @@
 use alloc::{string::String, vec, vec::Vec};
 
-use anyhow::{anyhow, Result};
-use object::{elf::SHT_NOTE, Endian, ObjectSection};
+use anyhow::{Result, anyhow};
+use object::{Endian, ObjectSection, elf::SHT_NOTE};
 
 pub const SPLITMETA_SECTION: &str = ".note.split";
 pub const SHT_SPLITMETA: u32 = SHT_NOTE;

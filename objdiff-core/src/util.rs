@@ -1,7 +1,7 @@
 use alloc::format;
 use core::fmt;
 
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use num_traits::PrimInt;
 use object::{Endian, Object};
 

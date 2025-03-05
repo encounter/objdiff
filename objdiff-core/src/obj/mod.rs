@@ -11,7 +11,7 @@ use alloc::{
 };
 use core::{fmt, num::NonZeroU32};
 
-use flagset::{flags, FlagSet};
+use flagset::{FlagSet, flags};
 
 use crate::{
     arch::{Arch, ArchDummy},

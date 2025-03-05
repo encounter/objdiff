@@ -1,5 +1,5 @@
 use egui::{
-    style::ScrollAnimation, vec2, Context, Key, KeyboardShortcut, Modifiers, PointerButton,
+    Context, Key, KeyboardShortcut, Modifiers, PointerButton, style::ScrollAnimation, vec2,
 };
 
 fn any_widget_focused(ctx: &Context) -> bool { ctx.memory(|mem| mem.focused().is_some()) }
