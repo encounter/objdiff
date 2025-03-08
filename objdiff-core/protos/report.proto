@@ -2,6 +2,18 @@ syntax = "proto3";
 
 package objdiff.report;
 
+// Project progress report
+message Report {
+  // Overall progress info
+  Measures measures = 1;
+  // Units within this report
+  repeated ReportUnit units = 2;
+  // Report version
+  uint32 version = 3;
+  // Progress categories
+  repeated ReportCategory categories = 4;
+}
+
 // Progress info for a report or unit
 message Measures {
   // Overall match percent, including partially matched functions and data
@@ -36,18 +48,6 @@ message Measures {
   uint32 total_units = 15;
   // Completed (or "linked") units
   uint32 complete_units = 16;
-}
-
-// Project progress report
-message Report {
-  // Overall progress info
-  Measures measures = 1;
-  // Units within this report
-  repeated ReportUnit units = 2;
-  // Report version
-  uint32 version = 3;
-  // Progress categories
-  repeated ReportCategory categories = 4;
 }
 
 message ReportCategory {
@@ -107,58 +107,4 @@ message ReportItemMetadata {
   optional string demangled_name = 1;
   // The virtual address of the function or section
   optional uint64 virtual_address = 2;
-}
-
-// A pair of reports to compare and generate changes
-message ChangesInput {
-  // The previous report
-  Report from = 1;
-  // The current report
-  Report to = 2;
-}
-
-// Changes between two reports
-message Changes {
-  // The progress info for the previous report
-  Measures from = 1;
-  // The progress info for the current report
-  Measures to = 2;
-  // Units that changed
-  repeated ChangeUnit units = 3;
-}
-
-// A changed unit
-message ChangeUnit {
-  // The name of the unit
-  string name = 1;
-  // The previous progress info (omitted if new)
-  optional Measures from = 2;
-  // The current progress info (omitted if removed)
-  optional Measures to = 3;
-  // Sections that changed
-  repeated ChangeItem sections = 4;
-  // Functions that changed
-  repeated ChangeItem functions = 5;
-  // Extra metadata for this unit
-  optional ReportUnitMetadata metadata = 6;
-}
-
-// A changed section or function
-message ChangeItem {
-  // The name of the item
-  string name = 1;
-  // The previous progress info (omitted if new)
-  optional ChangeItemInfo from = 2;
-  // The current progress info (omitted if removed)
-  optional ChangeItemInfo to = 3;
-  // Extra metadata for this item
-  optional ReportItemMetadata metadata = 4;
-}
-
-// Progress info for a section or function
-message ChangeItemInfo {
-  // The overall match percent for this item
-  float fuzzy_match_percent = 1;
-  // The size of the item in bytes
-  uint64 size = 2;
 }

@@ -19,7 +19,15 @@ fn compile_protos() {
         .map(|m| m.modified().unwrap())
         .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
     let mut run_protoc = false;
-    let proto_files = vec![root.join("report.proto")];
+    let proto_files = root
+        .read_dir()
+        .unwrap()
+        .filter_map(|e| {
+            let e = e.unwrap();
+            let path = e.path();
+            (path.extension() == Some(std::ffi::OsStr::new("proto"))).then_some(path)
+        })
+        .collect::<Vec<_>>();
     for proto_file in &proto_files {
         println!("cargo:rerun-if-changed={}", proto_file.display());
         let mtime = match std::fs::metadata(proto_file) {
