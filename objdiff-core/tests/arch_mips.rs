@@ -14,3 +14,26 @@ fn read_mips() {
     let output = common::display_diff(&obj, &diff, symbol_idx, &diff_config);
     insta::assert_snapshot!(output);
 }
+
+#[test]
+#[cfg(feature = "mips")]
+fn cross_endian_diff() {
+    let diff_config = diff::DiffObjConfig::default();
+    let obj_be = obj::read::parse(include_object!("data/mips/code_be.o"), &diff_config).unwrap();
+    assert_eq!(obj_be.endianness, object::Endianness::Big);
+    let obj_le = obj::read::parse(include_object!("data/mips/code_le.o"), &diff_config).unwrap();
+    assert_eq!(obj_le.endianness, object::Endianness::Little);
+    let left_symbol_idx = obj_be.symbols.iter().position(|s| s.name == "func_00000000").unwrap();
+    let right_symbol_idx =
+        obj_le.symbols.iter().position(|s| s.name == "func_00000000__FPcPc").unwrap();
+    let (left_diff, right_diff) =
+        diff::code::diff_code(&obj_be, &obj_le, left_symbol_idx, right_symbol_idx, &diff_config)
+            .unwrap();
+    // Although the objects differ in endianness, the instructions should match.
+    assert_eq!(left_diff.instruction_rows[0].kind, diff::InstructionDiffKind::None);
+    assert_eq!(right_diff.instruction_rows[0].kind, diff::InstructionDiffKind::None);
+    assert_eq!(left_diff.instruction_rows[1].kind, diff::InstructionDiffKind::None);
+    assert_eq!(right_diff.instruction_rows[1].kind, diff::InstructionDiffKind::None);
+    assert_eq!(left_diff.instruction_rows[2].kind, diff::InstructionDiffKind::None);
+    assert_eq!(right_diff.instruction_rows[2].kind, diff::InstructionDiffKind::None);
+}

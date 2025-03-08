@@ -91,7 +91,7 @@ pub fn diff_code(
         left_section_idx,
         diff_config,
     )?;
-    let right_ops = left_obj.arch.scan_instructions(
+    let right_ops = right_obj.arch.scan_instructions(
         right_symbol.address,
         right_data,
         right_section_idx,
@@ -437,7 +437,7 @@ fn diff_instruction(
     {
         // If either the raw code bytes or relocations don't match, process instructions and compare args
         let left_ins = left_obj.arch.process_instruction(left_resolved, diff_config)?;
-        let right_ins = left_obj.arch.process_instruction(right_resolved, diff_config)?;
+        let right_ins = right_obj.arch.process_instruction(right_resolved, diff_config)?;
         if left_ins.args.len() != right_ins.args.len() {
             state.diff_score += PENALTY_REPLACE;
             return Ok(InstructionDiffResult::new(InstructionDiffKind::Replace));
