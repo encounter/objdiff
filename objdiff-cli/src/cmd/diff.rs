@@ -22,7 +22,7 @@ use crossterm::{
 use objdiff_core::{
     bindings::diff::DiffResult,
     build::{
-        BuildConfig,
+        BuildConfig, BuildStatus,
         watcher::{Watcher, create_watcher},
     },
     config::{
@@ -251,6 +251,8 @@ pub struct AppState {
     pub project_config: Option<ProjectConfig>,
     pub target_path: Option<Utf8PlatformPathBuf>,
     pub base_path: Option<Utf8PlatformPathBuf>,
+    pub left_status: Option<BuildStatus>,
+    pub right_status: Option<BuildStatus>,
     pub left_obj: Option<(Object, ObjectDiff)>,
     pub right_obj: Option<(Object, ObjectDiff)>,
     pub prev_obj: Option<(Object, ObjectDiff)>,
@@ -348,6 +350,8 @@ impl AppState {
                 JobResult::None => unreachable!("Unexpected JobResult::None"),
                 JobResult::ObjDiff(result) => {
                     let result = result.unwrap();
+                    self.left_status = Some(result.first_status);
+                    self.right_status = Some(result.second_status);
                     self.left_obj = result.first_obj;
                     self.right_obj = result.second_obj;
                     self.reload_time = Some(result.time);
@@ -388,6 +392,8 @@ fn run_interactive(
         project_config,
         target_path,
         base_path,
+        left_status: None,
+        right_status: None,
         left_obj: None,
         right_obj: None,
         prev_obj: None,

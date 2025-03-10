@@ -1,8 +1,9 @@
 use core::cmp::Ordering;
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use crossterm::event::{Event, KeyCode, KeyEventKind, KeyModifiers, MouseButton, MouseEventKind};
 use objdiff_core::{
+    build::BuildStatus,
     diff::{
         DiffObjConfig, FunctionRelocDiffs, InstructionDiffKind, ObjectDiff, SymbolDiff,
         display::{DiffText, DiffTextColor, HighlightKind, display_row},
@@ -126,6 +127,11 @@ impl UiView for FunctionDiffUi {
             );
             max_width = max_width.max(text.width());
             left_text = Some(text);
+        } else if let Some(status) = &state.left_status {
+            let mut text = Text::default();
+            self.print_build_status(&mut text, status);
+            max_width = max_width.max(text.width());
+            left_text = Some(text);
         }
 
         let mut right_text = None;
@@ -155,6 +161,11 @@ impl UiView for FunctionDiffUi {
             let rect = content_chunks[1].inner(Margin::new(1, 1));
             self.print_margin(&mut text, symbol_diff, rect);
             margin_text = Some(text);
+        } else if let Some(status) = &state.right_status {
+            let mut text = Text::default();
+            self.print_build_status(&mut text, status);
+            max_width = max_width.max(text.width());
+            right_text = Some(text);
         }
 
         let mut prev_text = None;
@@ -453,7 +464,7 @@ impl UiView for FunctionDiffUi {
             }
             (Some((_l, _ls, ld)), None) => ld.instruction_rows.len(),
             (None, Some((_r, _rs, rd))) => rd.instruction_rows.len(),
-            (None, None) => bail!("Symbol not found: {}", self.symbol_name),
+            (None, None) => 0,
         };
         self.left_sym = left_sym;
         self.right_sym = right_sym;
@@ -594,6 +605,18 @@ impl FunctionDiffUi {
             } else {
                 out.lines.push(Line::raw(" "));
             }
+        }
+    }
+
+    fn print_build_status<'a>(&self, out: &mut Text<'a>, status: &'a BuildStatus) {
+        if !status.cmdline.is_empty() {
+            out.lines.push(Line::styled(status.cmdline.clone(), Style::new().fg(Color::LightBlue)));
+        }
+        for line in status.stdout.lines() {
+            out.lines.push(Line::styled(line, Style::new().fg(Color::White)));
+        }
+        for line in status.stderr.lines() {
+            out.lines.push(Line::styled(line, Style::new().fg(Color::Red)));
         }
     }
 }
