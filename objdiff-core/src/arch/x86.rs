@@ -15,17 +15,36 @@ use crate::{
 
 #[derive(Debug)]
 pub struct ArchX86 {
-    bits: u32,
+    arch: Architecture,
     endianness: object::Endianness,
+}
+
+#[derive(Debug)]
+enum Architecture {
+    X86,
+    X86_64,
 }
 
 impl ArchX86 {
     pub fn new(object: &object::File) -> Result<Self> {
-        Ok(Self { bits: if object.is_64() { 64 } else { 32 }, endianness: object.endianness() })
+        let arch = match object.architecture() {
+            object::Architecture::I386 => Architecture::X86,
+            object::Architecture::X86_64 => Architecture::X86_64,
+            _ => bail!("Unsupported architecture for ArchX86: {:?}", object.architecture()),
+        };
+        Ok(Self { arch, endianness: object.endianness() })
     }
 
     fn decoder<'a>(&self, code: &'a [u8], address: u64) -> Decoder<'a> {
-        Decoder::with_ip(self.bits, code, address, DecoderOptions::NONE)
+        Decoder::with_ip(
+            match self.arch {
+                Architecture::X86 => 32,
+                Architecture::X86_64 => 64,
+            },
+            code,
+            address,
+            DecoderOptions::NONE,
+        )
     }
 
     fn formatter(&self, diff_config: &DiffObjConfig) -> Box<dyn iced_x86::Formatter> {
@@ -37,6 +56,27 @@ impl ArchX86 {
         };
         formatter.options_mut().set_space_after_operand_separator(diff_config.space_between_args);
         formatter
+    }
+
+    fn reloc_size(&self, flags: RelocationFlags) -> Option<usize> {
+        match self.arch {
+            Architecture::X86 => match flags {
+                RelocationFlags::Coff(typ) => match typ {
+                    pe::IMAGE_REL_I386_DIR16 | pe::IMAGE_REL_I386_REL16 => Some(2),
+                    pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32 => Some(4),
+                    _ => None,
+                },
+                _ => None,
+            },
+            Architecture::X86_64 => match flags {
+                RelocationFlags::Coff(typ) => match typ {
+                    pe::IMAGE_REL_AMD64_ADDR32NB | pe::IMAGE_REL_AMD64_REL32 => Some(4),
+                    pe::IMAGE_REL_AMD64_ADDR64 => Some(8),
+                    _ => None,
+                },
+                _ => None,
+            },
+        }
     }
 }
 
@@ -88,10 +128,9 @@ impl Arch for ArchX86 {
         // memory operand.
         let mut reloc_replace = None;
         if let Some(reloc) = resolved.relocation {
-            const PLACEHOLDER: u64 = 0x7BDE3E7D; // chosen by fair dice roll.
-            // guaranteed to be random.
+            const PLACEHOLDER: u64 = 0x7BDE3E7D; // chosen by fair dice roll. guaranteed to be random.
             let reloc_offset = reloc.relocation.address - resolved.ins_ref.address;
-            let reloc_size = reloc_size(reloc.relocation.flags).unwrap_or(usize::MAX);
+            let reloc_size = self.reloc_size(reloc.relocation.flags).unwrap_or(usize::MAX);
             let offsets = decoder.get_constant_offsets(&instruction);
             if reloc_offset == offsets.displacement_offset() as u64
                 && reloc_size == offsets.displacement_size()
@@ -148,12 +187,28 @@ impl Arch for ArchX86 {
         _relocation: &object::Relocation,
         flags: RelocationFlags,
     ) -> Result<i64> {
-        match flags {
-            RelocationFlags::Coff(pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32) => {
-                let data = section.data()?[address as usize..address as usize + 4].try_into()?;
-                Ok(self.endianness.read_i32_bytes(data) as i64)
-            }
-            flags => bail!("Unsupported x86 implicit relocation {flags:?}"),
+        match self.arch {
+            Architecture::X86 => match flags {
+                RelocationFlags::Coff(pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32) => {
+                    let data =
+                        section.data()?[address as usize..address as usize + 4].try_into()?;
+                    Ok(self.endianness.read_i32_bytes(data) as i64)
+                }
+                flags => bail!("Unsupported x86 implicit relocation {flags:?}"),
+            },
+            Architecture::X86_64 => match flags {
+                RelocationFlags::Coff(pe::IMAGE_REL_AMD64_ADDR32NB | pe::IMAGE_REL_AMD64_REL32) => {
+                    let data =
+                        section.data()?[address as usize..address as usize + 4].try_into()?;
+                    Ok(self.endianness.read_i32_bytes(data) as i64)
+                }
+                RelocationFlags::Coff(pe::IMAGE_REL_AMD64_ADDR64) => {
+                    let data =
+                        section.data()?[address as usize..address as usize + 8].try_into()?;
+                    Ok(self.endianness.read_i64_bytes(data))
+                }
+                flags => bail!("Unsupported x86-64 implicit relocation {flags:?}"),
+            },
         }
     }
 
@@ -168,27 +223,29 @@ impl Arch for ArchX86 {
     }
 
     fn reloc_name(&self, flags: RelocationFlags) -> Option<&'static str> {
-        match flags {
-            RelocationFlags::Coff(typ) => match typ {
-                pe::IMAGE_REL_I386_DIR32 => Some("IMAGE_REL_I386_DIR32"),
-                pe::IMAGE_REL_I386_REL32 => Some("IMAGE_REL_I386_REL32"),
+        match self.arch {
+            Architecture::X86 => match flags {
+                RelocationFlags::Coff(typ) => match typ {
+                    pe::IMAGE_REL_I386_DIR32 => Some("IMAGE_REL_I386_DIR32"),
+                    pe::IMAGE_REL_I386_REL32 => Some("IMAGE_REL_I386_REL32"),
+                    _ => None,
+                },
                 _ => None,
             },
-            _ => None,
+            Architecture::X86_64 => match flags {
+                RelocationFlags::Coff(typ) => match typ {
+                    pe::IMAGE_REL_AMD64_ADDR64 => Some("IMAGE_REL_AMD64_ADDR64"),
+                    pe::IMAGE_REL_AMD64_ADDR32NB => Some("IMAGE_REL_AMD64_ADDR32NB"),
+                    pe::IMAGE_REL_AMD64_REL32 => Some("IMAGE_REL_AMD64_REL32"),
+                    _ => None,
+                },
+                _ => None,
+            },
         }
     }
 
-    fn data_reloc_size(&self, flags: RelocationFlags) -> usize { reloc_size(flags).unwrap_or(1) }
-}
-
-fn reloc_size(flags: RelocationFlags) -> Option<usize> {
-    match flags {
-        RelocationFlags::Coff(typ) => match typ {
-            pe::IMAGE_REL_I386_DIR16 | pe::IMAGE_REL_I386_REL16 => Some(2),
-            pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32 => Some(4),
-            _ => None,
-        },
-        _ => None,
+    fn data_reloc_size(&self, flags: RelocationFlags) -> usize {
+        self.reloc_size(flags).unwrap_or(1)
     }
 }
 
@@ -343,7 +400,7 @@ mod test {
 
     #[test]
     fn test_scan_instructions() {
-        let arch = ArchX86 { bits: 32, endianness: object::Endianness::Little };
+        let arch = ArchX86 { arch: Architecture::X86, endianness: object::Endianness::Little };
         let code = [
             0xc7, 0x85, 0x68, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x8b, 0x04, 0x85, 0x00,
             0x00, 0x00, 0x00,
@@ -362,7 +419,7 @@ mod test {
 
     #[test]
     fn test_process_instruction() {
-        let arch = ArchX86 { bits: 32, endianness: object::Endianness::Little };
+        let arch = ArchX86 { arch: Architecture::X86, endianness: object::Endianness::Little };
         let code = [0xc7, 0x85, 0x68, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00];
         let opcode = iced_x86::Mnemonic::Mov as u16;
         let mut parts = Vec::new();
@@ -398,7 +455,7 @@ mod test {
 
     #[test]
     fn test_process_instruction_with_reloc_1() {
-        let arch = ArchX86 { bits: 32, endianness: object::Endianness::Little };
+        let arch = ArchX86 { arch: Architecture::X86, endianness: object::Endianness::Little };
         let code = [0xc7, 0x85, 0x68, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00];
         let opcode = iced_x86::Mnemonic::Mov as u16;
         let mut parts = Vec::new();
@@ -443,7 +500,7 @@ mod test {
 
     #[test]
     fn test_process_instruction_with_reloc_2() {
-        let arch = ArchX86 { bits: 32, endianness: object::Endianness::Little };
+        let arch = ArchX86 { arch: Architecture::X86, endianness: object::Endianness::Little };
         let code = [0x8b, 0x04, 0x85, 0x00, 0x00, 0x00, 0x00];
         let opcode = iced_x86::Mnemonic::Mov as u16;
         let mut parts = Vec::new();
@@ -486,7 +543,7 @@ mod test {
 
     #[test]
     fn test_process_instruction_with_reloc_3() {
-        let arch = ArchX86 { bits: 32, endianness: object::Endianness::Little };
+        let arch = ArchX86 { arch: Architecture::X86, endianness: object::Endianness::Little };
         let code = [0xe8, 0x00, 0x00, 0x00, 0x00];
         let opcode = iced_x86::Mnemonic::Call as u16;
         let mut parts = Vec::new();

@@ -4,7 +4,7 @@ expression: obj
 ---
 Object {
     arch: ArchX86 {
-        bits: 32,
+        arch: X86,
         endianness: Little,
     },
     endianness: Little,
