@@ -323,6 +323,7 @@ impl FormatterOutput for InstructionFormatterOutput<'_> {
         if let (Some(operand), Some((target_op_kind, reloc_size, target_value))) =
             (instruction_operand, self.reloc_replace)
         {
+            #[allow(clippy::match_like_matches_macro)]
             if instruction.op_kind(operand) == target_op_kind
                 && match (number_kind, reloc_size) {
                     (NumberKind::Int8 | NumberKind::UInt8, 1)
