@@ -61,7 +61,7 @@ fn diff_ppc() {
     let base_diff = diff.right.as_ref().unwrap();
     let sections_display = display::display_sections(
         &target_obj,
-        &target_diff,
+        target_diff,
         display::SymbolFilter::None,
         false,
         false,

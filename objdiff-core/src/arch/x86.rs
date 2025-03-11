@@ -137,7 +137,7 @@ impl Arch for ArchX86 {
             {
                 instruction.set_memory_displacement64(PLACEHOLDER);
                 // Formatter always writes the displacement as Int32
-                reloc_replace = Some((OpKind::Memory, NumberKind::Int32, PLACEHOLDER));
+                reloc_replace = Some((OpKind::Memory, 4, PLACEHOLDER));
             } else if reloc_offset == offsets.immediate_offset() as u64
                 && reloc_size == offsets.immediate_size()
             {
@@ -155,18 +155,12 @@ impl Arch for ArchX86 {
                         _ => OpKind::default(),
                     }
                 };
-                let number_kind = match reloc_size {
-                    2 => NumberKind::UInt16,
-                    4 => NumberKind::UInt32,
-                    8 => NumberKind::UInt64,
-                    _ => NumberKind::default(),
-                };
                 if is_branch {
                     instruction.set_near_branch64(PLACEHOLDER);
                 } else {
                     instruction.set_immediate32(PLACEHOLDER as u32);
                 }
-                reloc_replace = Some((op_kind, number_kind, PLACEHOLDER));
+                reloc_replace = Some((op_kind, reloc_size, PLACEHOLDER));
             }
         }
 
@@ -251,7 +245,7 @@ impl Arch for ArchX86 {
 
 struct InstructionFormatterOutput<'a> {
     cb: &'a mut dyn FnMut(InstructionPart<'_>) -> Result<()>,
-    reloc_replace: Option<(OpKind, NumberKind, u64)>,
+    reloc_replace: Option<(OpKind, usize, u64)>,
     error: Option<anyhow::Error>,
     skip_next: bool,
 }
@@ -326,11 +320,17 @@ impl FormatterOutput for InstructionFormatterOutput<'_> {
             return;
         }
 
-        if let (Some(operand), Some((target_op_kind, target_number_kind, target_value))) =
+        if let (Some(operand), Some((target_op_kind, reloc_size, target_value))) =
             (instruction_operand, self.reloc_replace)
         {
             if instruction.op_kind(operand) == target_op_kind
-                && number_kind == target_number_kind
+                && match (number_kind, reloc_size) {
+                    (NumberKind::Int8 | NumberKind::UInt8, 1)
+                    | (NumberKind::Int16 | NumberKind::UInt16, 2)
+                    | (NumberKind::Int32 | NumberKind::UInt32, 4)
+                    | (NumberKind::Int64 | NumberKind::UInt64, 8) => true,
+                    _ => false,
+                }
                 && value == target_value
             {
                 if let Err(e) = (self.cb)(InstructionPart::reloc()) {
@@ -570,5 +570,44 @@ mod test {
         )
         .unwrap();
         assert_eq!(parts, &[InstructionPart::opcode("call", opcode), InstructionPart::reloc()]);
+    }
+
+    #[test]
+    fn test_process_instruction_with_reloc_4() {
+        let arch = ArchX86 { arch: Architecture::X86, endianness: object::Endianness::Little };
+        let code = [0x8b, 0x15, 0xa4, 0x21, 0x7e, 0x00];
+        let opcode = iced_x86::Mnemonic::Mov as u16;
+        let mut parts = Vec::new();
+        arch.display_instruction(
+            ResolvedInstructionRef {
+                ins_ref: InstructionRef { address: 0x1234, size: 6, opcode },
+                code: &code,
+                relocation: Some(ResolvedRelocation {
+                    relocation: &Relocation {
+                        flags: RelocationFlags::Coff(pe::IMAGE_REL_I386_DIR32),
+                        address: 0x1234 + 2,
+                        target_symbol: 0,
+                        addend: 0,
+                    },
+                    symbol: &Default::default(),
+                }),
+                ..Default::default()
+            },
+            &DiffObjConfig::default(),
+            &mut |part| {
+                parts.push(part.into_static());
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(parts, &[
+            InstructionPart::opcode("mov", opcode),
+            InstructionPart::opaque("edx"),
+            InstructionPart::basic(","),
+            InstructionPart::basic(" "),
+            InstructionPart::basic("["),
+            InstructionPart::reloc(),
+            InstructionPart::basic("]"),
+        ]);
     }
 }

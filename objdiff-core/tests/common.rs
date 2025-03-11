@@ -13,7 +13,7 @@ pub fn display_diff(
     for row in &diff.instruction_rows {
         output.push('[');
         let mut separator = false;
-        objdiff_core::diff::display::display_row(&obj, symbol_idx, row, &diff_config, |segment| {
+        objdiff_core::diff::display::display_row(obj, symbol_idx, row, diff_config, |segment| {
             if separator {
                 output.push_str(", ");
             } else {
@@ -47,6 +47,6 @@ macro_rules! include_bytes_align_as {
 #[macro_export]
 macro_rules! include_object {
     ($path:literal) => {
-        include_bytes_align_as!(u32, $path)
+        include_bytes_align_as!(u64, $path)
     };
 }
