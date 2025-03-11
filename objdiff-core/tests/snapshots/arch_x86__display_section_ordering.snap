@@ -1,0 +1,210 @@
+---
+source: objdiff-core/tests/arch_x86.rs
+expression: section_display
+---
+[
+    SectionDisplay {
+        id: ".text-0",
+        name: ".text",
+        size: 47,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 28,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-1",
+        name: ".text",
+        size: 65,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 29,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-2",
+        name: ".text",
+        size: 5,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 30,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-3",
+        name: ".text",
+        size: 141,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 31,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-4",
+        name: ".text",
+        size: 120,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 34,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-5",
+        name: ".text",
+        size: 378,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 37,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-6",
+        name: ".text",
+        size: 130,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 38,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-7",
+        name: ".text",
+        size: 123,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 39,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-8",
+        name: ".text",
+        size: 70,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 40,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-9",
+        name: ".text",
+        size: 90,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 41,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-10",
+        name: ".text",
+        size: 82,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 42,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-11",
+        name: ".text",
+        size: 336,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 43,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-12",
+        name: ".text",
+        size: 193,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 50,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-13",
+        name: ".text",
+        size: 544,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 53,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-14",
+        name: ".text",
+        size: 250,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 56,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-15",
+        name: ".text",
+        size: 89,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 57,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+    SectionDisplay {
+        id: ".text-16",
+        name: ".text",
+        size: 119,
+        match_percent: None,
+        symbols: [
+            SectionDisplaySymbol {
+                symbol: 60,
+                is_mapping_symbol: false,
+            },
+        ],
+    },
+]

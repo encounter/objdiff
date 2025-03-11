@@ -701,7 +701,7 @@ pub fn display_sections(
             });
         }
     }
-    sections.sort_by(|a, b| a.id.cmp(&b.id));
+    sections.sort_by(|a, b| a.name.cmp(&b.name));
     sections
 }
 
