@@ -8,7 +8,7 @@ use alloc::{
 use core::cell::RefCell;
 
 use objdiff_core::{diff, obj};
-use regex::RegexBuilder;
+use regex::{Regex, RegexBuilder};
 
 use super::logging;
 
@@ -86,19 +86,31 @@ impl GuestDiff for Component {
     }
 }
 
+fn build_regex(s: &str) -> Option<Regex> {
+    if s.is_empty() {
+        return None;
+    }
+    let e = match RegexBuilder::new(s).case_insensitive(true).build() {
+        Ok(regex) => return Some(regex),
+        Err(e) => e,
+    };
+    // Use the string as a literal if the regex fails to compile
+    let escaped = regex::escape(s);
+    if let Ok(regex) = RegexBuilder::new(&escaped).case_insensitive(true).build() {
+        return Some(regex);
+    }
+    // Use the original error if the escaped string also fails
+    log::warn!("Failed to compile regex: {}", e);
+    None
+}
+
 impl GuestDisplay for Component {
     fn display_sections(
         diff: ObjectDiffBorrow,
         filter: SymbolFilter,
         config: DisplayConfig,
     ) -> Vec<SectionDisplay> {
-        let regex = filter.regex.as_ref().and_then(|s| {
-            RegexBuilder::new(s).case_insensitive(true).build().ok().or_else(|| {
-                // Use the string as a literal if the regex fails to compile
-                let escaped = regex::escape(s);
-                RegexBuilder::new(&escaped).case_insensitive(true).build().ok()
-            })
-        });
+        let regex = filter.regex.as_deref().and_then(build_regex);
         let filter = if let Some(mapping) = filter.mapping {
             diff::display::SymbolFilter::Mapping(mapping as usize, regex.as_ref())
         } else if let Some(regex) = &regex {

@@ -24,7 +24,7 @@ std = ["objdiff-core/std"]
 
 [dependencies]
 log = { version = "0.4", default-features = false }
-regex = { version = "1.11", default-features = false }
+regex = { version = "1.11", default-features = false, features = ["unicode-case"] }
 
 [dependencies.objdiff-core]
 path = "../objdiff-core"
@@ -35,7 +35,7 @@ features = ["arm", "arm64", "mips", "ppc", "x86", "dwarf"]
 talc = { version = "4.4", default-features = false, features = ["lock_api"] }
 
 [target.'cfg(target_os = "wasi")'.dependencies]
-wit-bindgen = { version = "0.39", default-features = false, features = ["macros"] }
+wit-bindgen = { version = "0.40", default-features = false, features = ["macros"] }
 
 [build-dependencies]
 wit-deps = "0.5"

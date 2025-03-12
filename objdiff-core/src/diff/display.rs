@@ -563,7 +563,7 @@ pub fn instruction_hover(
     out
 }
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone)]
 pub enum SymbolFilter<'a> {
     None,
     Search(&'a Regex),
