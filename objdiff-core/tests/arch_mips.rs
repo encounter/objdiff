@@ -37,3 +37,11 @@ fn cross_endian_diff() {
     assert_eq!(left_diff.instruction_rows[2].kind, diff::InstructionDiffKind::None);
     assert_eq!(right_diff.instruction_rows[2].kind, diff::InstructionDiffKind::None);
 }
+
+#[test]
+#[cfg(feature = "mips")]
+fn filter_non_matching() {
+    let diff_config = diff::DiffObjConfig::default();
+    let obj = obj::read::parse(include_object!("data/mips/vw_main.c.o"), &diff_config).unwrap();
+    insta::assert_debug_snapshot!(obj.symbols);
+}

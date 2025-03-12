@@ -320,6 +320,7 @@ impl From<obj::SymbolFlagSet> for SymbolFlags {
                 obj::SymbolFlag::Hidden => SymbolFlags::HIDDEN,
                 obj::SymbolFlag::HasExtra => SymbolFlags::HAS_EXTRA,
                 obj::SymbolFlag::SizeInferred => SymbolFlags::SIZE_INFERRED,
+                obj::SymbolFlag::Ignored => SymbolFlags::IGNORED,
             };
         }
         out

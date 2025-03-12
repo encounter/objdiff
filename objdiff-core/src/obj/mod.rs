@@ -42,6 +42,8 @@ flags! {
         HasExtra,
         /// Symbol size was missing and was inferred
         SizeInferred,
+        /// Symbol should be ignored by any diffing
+        Ignored,
     }
 }
 

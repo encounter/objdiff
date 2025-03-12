@@ -371,7 +371,10 @@ fn generate_mapping_symbols(
     };
     let base_section_kind = symbol_section_kind(base_obj, &base_obj.symbols[base_symbol_ref]);
     for (target_symbol_index, target_symbol) in target_obj.symbols.iter().enumerate() {
-        if symbol_section_kind(target_obj, target_symbol) != base_section_kind {
+        if target_symbol.size == 0
+            || target_symbol.flags.contains(SymbolFlag::Ignored)
+            || symbol_section_kind(target_obj, target_symbol) != base_section_kind
+        {
             continue;
         }
         match base_section_kind {
@@ -526,6 +529,9 @@ fn matching_symbols(
             )?;
         }
         for (symbol_idx, symbol) in left.symbols.iter().enumerate() {
+            if symbol.size == 0 || symbol.flags.contains(SymbolFlag::Ignored) {
+                continue;
+            }
             let section_kind = symbol_section_kind(left, symbol);
             if section_kind == SectionKind::Unknown {
                 continue;
@@ -547,6 +553,9 @@ fn matching_symbols(
     }
     if let Some(right) = right {
         for (symbol_idx, symbol) in right.symbols.iter().enumerate() {
+            if symbol.size == 0 || symbol.flags.contains(SymbolFlag::Ignored) {
+                continue;
+            }
             let section_kind = symbol_section_kind(right, symbol);
             if section_kind == SectionKind::Unknown {
                 continue;
@@ -572,9 +581,10 @@ fn unmatched_symbols<'obj, 'used>(
 where
     'obj: 'used,
 {
-    obj.symbols.iter().enumerate().filter(move |&(symbol_idx, _)| {
-        // Skip symbols that have already been matched
-        !used.is_some_and(|u| u.contains(&symbol_idx))
+    obj.symbols.iter().enumerate().filter(move |&(symbol_idx, symbol)| {
+        !symbol.flags.contains(SymbolFlag::Ignored)
+            // Skip symbols that have already been matched
+            && !used.is_some_and(|u| u.contains(&symbol_idx))
     })
 }
 

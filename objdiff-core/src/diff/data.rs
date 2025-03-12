@@ -139,27 +139,13 @@ pub fn diff_data_section(
 ) -> Result<(SectionDiff, SectionDiff)> {
     let left_section = &left_obj.sections[left_section_idx];
     let right_section = &right_obj.sections[right_section_idx];
-    let left_max = left_obj
-        .symbols
-        .iter()
-        .filter_map(|s| {
-            if s.section != Some(left_section_idx) || s.kind == SymbolKind::Section {
-                return None;
-            }
-            s.address.checked_sub(left_section.address).map(|a| a + s.size)
-        })
+    let left_max = symbols_matching_section(&left_obj.symbols, left_section_idx)
+        .filter_map(|(_, s)| s.address.checked_sub(left_section.address).map(|a| a + s.size))
         .max()
         .unwrap_or(0)
         .min(left_section.size);
-    let right_max = right_obj
-        .symbols
-        .iter()
-        .filter_map(|s| {
-            if s.section != Some(right_section_idx) || s.kind == SymbolKind::Section {
-                return None;
-            }
-            s.address.checked_sub(right_section.address).map(|a| a + s.size)
-        })
+    let right_max = symbols_matching_section(&right_obj.symbols, right_section_idx)
+        .filter_map(|(_, s)| s.address.checked_sub(right_section.address).map(|a| a + s.size))
         .max()
         .unwrap_or(0)
         .min(right_section.size);
@@ -412,21 +398,13 @@ pub fn diff_generic_section(
     left_section_idx: usize,
     _right_section_idx: usize,
 ) -> Result<(SectionDiff, SectionDiff)> {
-    let match_percent = if left_obj
-        .symbols
-        .iter()
-        .enumerate()
-        .filter(|(_, s)| s.section == Some(left_section_idx) && s.kind != SymbolKind::Section)
+    let match_percent = if symbols_matching_section(&left_obj.symbols, left_section_idx)
         .map(|(i, _)| &left_diff.symbols[i])
         .all(|d| d.match_percent == Some(100.0))
     {
         100.0 // Avoid fp precision issues
     } else {
-        let (matched, total) = left_obj
-            .symbols
-            .iter()
-            .enumerate()
-            .filter(|(_, s)| s.section == Some(left_section_idx) && s.kind != SymbolKind::Section)
+        let (matched, total) = symbols_matching_section(&left_obj.symbols, left_section_idx)
             .map(|(i, s)| (s, &left_diff.symbols[i]))
             .fold((0.0, 0.0), |(matched, total), (s, d)| {
                 (matched + d.match_percent.unwrap_or(0.0) * s.size as f32, total + s.size as f32)
@@ -449,19 +427,11 @@ pub fn diff_bss_section(
     right_section_idx: usize,
 ) -> Result<(SectionDiff, SectionDiff)> {
     let left_section = &left_obj.sections[left_section_idx];
-    let left_sizes = left_obj
-        .symbols
-        .iter()
-        .enumerate()
-        .filter(|(_, s)| s.section == Some(left_section_idx) && s.kind != SymbolKind::Section)
+    let left_sizes = symbols_matching_section(&left_obj.symbols, left_section_idx)
         .filter_map(|(_, s)| s.address.checked_sub(left_section.address).map(|a| (a, s.size)))
         .collect::<Vec<_>>();
     let right_section = &right_obj.sections[right_section_idx];
-    let right_sizes = right_obj
-        .symbols
-        .iter()
-        .enumerate()
-        .filter(|(_, s)| s.section == Some(right_section_idx) && s.kind != SymbolKind::Section)
+    let right_sizes = symbols_matching_section(&right_obj.symbols, right_section_idx)
         .filter_map(|(_, s)| s.address.checked_sub(right_section.address).map(|a| (a, s.size)))
         .collect::<Vec<_>>();
     let ops = capture_diff_slices(Algorithm::Patience, &left_sizes, &right_sizes);
@@ -486,4 +456,16 @@ pub fn diff_bss_section(
         SectionDiff { match_percent: Some(match_percent), data_diff: vec![], reloc_diff: vec![] },
         SectionDiff { match_percent: Some(match_percent), data_diff: vec![], reloc_diff: vec![] },
     ))
+}
+
+fn symbols_matching_section(
+    symbols: &[Symbol],
+    section_idx: usize,
+) -> impl Iterator<Item = (usize, &Symbol)> + '_ {
+    symbols.iter().enumerate().filter(move |(_, s)| {
+        s.section == Some(section_idx)
+            && s.kind != SymbolKind::Section
+            && s.size > 0
+            && !s.flags.contains(SymbolFlag::Ignored)
+    })
 }

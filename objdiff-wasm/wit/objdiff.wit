@@ -89,6 +89,7 @@ interface display {
     hidden,
     has-extra,
     size-inferred,
+    ignored,
   }
 
   record symbol-display {

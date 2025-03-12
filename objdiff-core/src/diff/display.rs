@@ -580,7 +580,11 @@ fn symbol_matches_filter(
     if symbol.section.is_none() && !symbol.flags.contains(SymbolFlag::Common) {
         return false;
     }
-    if !show_hidden_symbols && (symbol.size == 0 || symbol.flags.contains(SymbolFlag::Hidden)) {
+    if !show_hidden_symbols
+        && (symbol.size == 0
+            || symbol.flags.contains(SymbolFlag::Hidden)
+            || symbol.flags.contains(SymbolFlag::Ignored))
+    {
         return false;
     }
     match filter {

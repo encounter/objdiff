@@ -232,6 +232,7 @@ fn report_object(
             if symbol.section != Some(section_idx)
                 || symbol.size == 0
                 || symbol.flags.contains(SymbolFlag::Hidden)
+                || symbol.flags.contains(SymbolFlag::Ignored)
             {
                 continue;
             }

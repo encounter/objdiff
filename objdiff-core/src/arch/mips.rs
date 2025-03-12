@@ -1,4 +1,8 @@
-use alloc::{collections::BTreeMap, string::ToString, vec::Vec};
+use alloc::{
+    collections::{BTreeMap, BTreeSet},
+    string::ToString,
+    vec::Vec,
+};
 use core::ops::Range;
 
 use anyhow::{Result, bail};
@@ -15,7 +19,7 @@ use crate::{
     diff::{DiffObjConfig, MipsAbi, MipsInstrCategory, display::InstructionPart},
     obj::{
         InstructionArg, InstructionArgValue, InstructionRef, Relocation, RelocationFlags,
-        ResolvedInstructionRef, ResolvedRelocation, ScannedInstruction,
+        ResolvedInstructionRef, ResolvedRelocation, ScannedInstruction, SymbolFlag, SymbolFlagSet,
     },
 };
 
@@ -26,6 +30,7 @@ pub struct ArchMips {
     pub isa_extension: Option<IsaExtension>,
     pub ri_gp_value: i32,
     pub paired_relocations: Vec<BTreeMap<u64, i64>>,
+    pub ignored_symbols: BTreeSet<usize>,
 }
 
 const EF_MIPS_ABI: u32 = 0x0000F000;
@@ -118,7 +123,25 @@ impl ArchMips {
             paired_relocations[section_index] = addends;
         }
 
-        Ok(Self { endianness, abi, isa_extension, ri_gp_value, paired_relocations })
+        let mut ignored_symbols = BTreeSet::new();
+        for obj_symbol in object.symbols() {
+            let Ok(name) = obj_symbol.name() else { continue };
+            if let Some(prefix) = name.strip_suffix(".NON_MATCHING") {
+                ignored_symbols.insert(obj_symbol.index().0);
+                if let Some(target_symbol) = object.symbol_by_name(prefix) {
+                    ignored_symbols.insert(target_symbol.index().0);
+                }
+            }
+        }
+
+        Ok(Self {
+            endianness,
+            abi,
+            isa_extension,
+            ri_gp_value,
+            paired_relocations,
+            ignored_symbols,
+        })
     }
 
     fn instruction_flags(&self, diff_config: &DiffObjConfig) -> rabbitizer::InstructionFlags {
@@ -293,6 +316,14 @@ impl Arch for ArchMips {
             },
             _ => 1,
         }
+    }
+
+    fn extra_symbol_flags(&self, symbol: &object::Symbol) -> SymbolFlagSet {
+        let mut flags = SymbolFlagSet::default();
+        if self.ignored_symbols.contains(&symbol.index().0) {
+            flags |= SymbolFlag::Ignored;
+        }
+        flags
     }
 }
 
