@@ -81,6 +81,8 @@ std = [
 ]
 mips = [
     "any-arch",
+    "dep:cpp_demangle",
+    "dep:cwdemangle",
     "dep:rabbitizer",
 ]
 ppc = [
