@@ -143,15 +143,15 @@ If not specified, objdiff will use the default patterns listed above.
 `units` _(optional)_: If specified, objdiff will display a list of objects in the sidebar for easy navigation.
 
 > `name` _(optional)_: The name of the object in the UI. If not specified, the object's `path` will be used.
-> 
+>
 > `target_path`: Path to the "target" or "expected" object from the project root.  
 > This object is the **intended result** of the match.
-> 
+>
 > `base_path`: Path to the "base" or "actual" object from the project root.  
 > This object is built from the **current source code**.
-> 
+>
 > `metadata.auto_generated` _(optional)_: Hides the object from the object list, but still includes it in reports.
-> 
+>
 > `metadata.complete` _(optional)_: Marks the object as "complete" (or "linked") in the object list.  
 > This is useful for marking objects that are fully decompiled. A value of `false` will mark the object as "incomplete".
 
@@ -172,6 +172,21 @@ $ cargo install --locked --git https://github.com/encounter/objdiff.git objdiff-
 ```
 
 The binaries will be installed to `~/.cargo/bin` as `objdiff` and `objdiff-cli`.
+
+## Installing `pre-commit`
+
+When contributing, it's recommended to install `pre-commit` to automatically run the linter and formatter before a commit.
+
+[`uv`](https://github.com/astral-sh/uv#installation) is recommended to manage Python version and tools.
+
+Rust nightly is required for `cargo +nightly fmt` and `cargo +nightly clippy`.
+
+```shell
+$ cargo install --locked cargo-deny
+$ rustup toolchain install nightly
+$ uv tool install pre-commit
+$ pre-commit install
+```
 
 ## License
 

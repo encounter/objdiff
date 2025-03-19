@@ -1,0 +1,36 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: fix-byte-order-marker
+      - id: check-yaml
+      - id: check-added-large-files
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        description: Run cargo fmt on all project files.
+        language: system
+        entry: cargo
+        args: ["+nightly", "fmt", "--all"]
+        pass_filenames: false
+      - id: cargo clippy
+        name: cargo clippy
+        description: Run cargo clippy on all project files.
+        language: system
+        entry: cargo
+        args: ["+nightly", "clippy", "--all-targets", "--all-features"]
+        pass_filenames: false
+      - id: cargo-deny
+        name: cargo deny
+        description: Run cargo deny on all project files.
+        language: system
+        entry: cargo
+        args: ["deny", "check"]
+        pass_filenames: false
+        always_run: true
