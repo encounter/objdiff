@@ -5,7 +5,7 @@ expression: obj
 Object {
     arch: ArchArm {
         disasm_modes: {
-            1: [
+            0: [
                 DisasmMode {
                     address: 0,
                     mapping: Thumb,

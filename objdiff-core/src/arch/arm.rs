@@ -84,16 +84,9 @@ impl ArchArm {
                     .filter_map(|s| DisasmMode::from_symbol(&s))
                     .collect();
                 mapping_symbols.sort_unstable_by_key(|x| x.address);
-                (s.index().0, mapping_symbols)
+                (s.index().0 - 1, mapping_symbols)
             })
             .collect()
-    }
-
-    fn endian(&self) -> unarm::Endian {
-        match self.endianness {
-            object::Endianness::Little => unarm::Endian::Little,
-            object::Endianness::Big => unarm::Endian::Big,
-        }
     }
 
     fn parse_flags(&self, diff_config: &DiffObjConfig) -> unarm::ParseFlags {
@@ -130,6 +123,31 @@ impl ArchArm {
         code: &[u8],
         diff_config: &DiffObjConfig,
     ) -> Result<(unarm::Ins, unarm::ParsedIns)> {
+        if ins_ref.opcode == thumb::Opcode::BlH as u16 && ins_ref.size == 4 {
+            // Special case: combined thumb BL instruction
+            let parse_flags = self.parse_flags(diff_config);
+            let first_ins = thumb::Ins {
+                code: match self.endianness {
+                    object::Endianness::Little => u16::from_le_bytes([code[0], code[1]]),
+                    object::Endianness::Big => u16::from_be_bytes([code[0], code[1]]),
+                } as u32,
+                op: thumb::Opcode::BlH,
+            };
+            let second_ins = thumb::Ins::new(
+                match self.endianness {
+                    object::Endianness::Little => u16::from_le_bytes([code[2], code[3]]),
+                    object::Endianness::Big => u16::from_be_bytes([code[2], code[3]]),
+                } as u32,
+                &parse_flags,
+            );
+            let first_parsed = first_ins.parse(&parse_flags);
+            let second_parsed = second_ins.parse(&parse_flags);
+            return Ok((
+                unarm::Ins::Thumb(first_ins),
+                first_parsed.combine_thumb_bl(&second_parsed),
+            ));
+        }
+
         let code = match (self.endianness, ins_ref.size) {
             (object::Endianness::Little, 2) => u16::from_le_bytes([code[0], code[1]]) as u32,
             (object::Endianness::Little, 4) => {
@@ -153,11 +171,7 @@ impl ArchArm {
         } else {
             let ins = thumb::Ins { code, op: thumb::Opcode::from(ins_ref.opcode as u8) };
             let parsed = ins.parse(&self.parse_flags(diff_config));
-            if ins.is_half_bl() {
-                todo!("Combine thumb BL instructions");
-            } else {
-                (unarm::Ins::Thumb(ins), parsed)
-            }
+            (unarm::Ins::Thumb(ins), parsed)
         };
         Ok((ins, parsed_ins))
     }
@@ -185,60 +199,127 @@ impl Arch for ArchArm {
         let first_mapping_idx = mapping_symbols
             .binary_search_by_key(&start_addr, |x| x.address)
             .unwrap_or_else(|idx| idx - 1);
-        let first_mapping = mapping_symbols[first_mapping_idx].mapping;
+        let mut mode = mapping_symbols[first_mapping_idx].mapping;
 
-        let mut mappings_iter =
-            mapping_symbols.iter().skip(first_mapping_idx + 1).take_while(|x| x.address < end_addr);
+        let mut mappings_iter = mapping_symbols
+            .iter()
+            .copied()
+            .skip(first_mapping_idx + 1)
+            .take_while(|x| x.address < end_addr);
         let mut next_mapping = mappings_iter.next();
 
-        let ins_count = code.len() / first_mapping.instruction_size(start_addr);
+        let ins_count = code.len() / mode.instruction_size(start_addr);
         let mut ops = Vec::<ScannedInstruction>::with_capacity(ins_count);
 
-        let endian = self.endian();
         let parse_flags = self.parse_flags(diff_config);
-        let mut parser = unarm::Parser::new(first_mapping, start_addr, endian, parse_flags, code);
 
-        while let Some((address, ins, _parsed_ins)) = parser.next() {
-            let size = parser.mode.instruction_size(address);
-            if let Some(next) = next_mapping {
-                let next_address = parser.address;
-                if next_address >= next.address {
-                    // Change mapping
-                    parser.mode = next.mapping;
-                    next_mapping = mappings_iter.next();
-                }
+        let mut address = start_addr;
+        while address < end_addr {
+            while let Some(next) = next_mapping.take_if(|x| address >= x.address) {
+                // Change mapping
+                mode = next.mapping;
+                next_mapping = mappings_iter.next();
             }
-            let (opcode, branch_dest) = match ins {
-                unarm::Ins::Arm(x) => {
-                    let opcode = x.op as u16 | (1 << 15);
-                    let branch_dest = match x.op {
+
+            let mut ins_size = mode.instruction_size(address);
+            let data = &code[(address - start_addr) as usize..];
+            if data.len() < ins_size {
+                // Push the remainder as data
+                ops.push(ScannedInstruction {
+                    ins_ref: InstructionRef {
+                        address: address as u64,
+                        size: data.len() as u8,
+                        opcode: u16::MAX,
+                    },
+                    branch_dest: None,
+                });
+                break;
+            }
+            let code = match (self.endianness, ins_size) {
+                (object::Endianness::Little, 2) => u16::from_le_bytes([data[0], data[1]]) as u32,
+                (object::Endianness::Little, 4) => {
+                    u32::from_le_bytes([data[0], data[1], data[2], data[3]])
+                }
+                (object::Endianness::Big, 2) => u16::from_be_bytes([data[0], data[1]]) as u32,
+                (object::Endianness::Big, 4) => {
+                    u32::from_be_bytes([data[0], data[1], data[2], data[3]])
+                }
+                _ => {
+                    // Invalid instruction size
+                    ops.push(ScannedInstruction {
+                        ins_ref: InstructionRef {
+                            address: address as u64,
+                            size: ins_size as u8,
+                            opcode: u16::MAX,
+                        },
+                        branch_dest: None,
+                    });
+                    address += ins_size as u32;
+                    continue;
+                }
+            };
+
+            let (opcode, branch_dest) = match mode {
+                unarm::ParseMode::Arm => {
+                    let ins = arm::Ins::new(code, &parse_flags);
+                    let opcode = ins.op as u16 | (1 << 15);
+                    let branch_dest = match ins.op {
                         arm::Opcode::B | arm::Opcode::Bl => {
-                            address.checked_add_signed(x.field_branch_offset())
+                            address.checked_add_signed(ins.field_branch_offset())
                         }
-                        arm::Opcode::BlxI => address.checked_add_signed(x.field_blx_offset()),
+                        arm::Opcode::BlxI => address.checked_add_signed(ins.field_blx_offset()),
                         _ => None,
                     };
                     (opcode, branch_dest)
                 }
-                unarm::Ins::Thumb(x) => {
-                    let opcode = x.op as u16;
-                    let branch_dest = match x.op {
+                unarm::ParseMode::Thumb => {
+                    let ins = thumb::Ins::new(code, &parse_flags);
+                    let opcode = ins.op as u16;
+                    let branch_dest = match ins.op {
                         thumb::Opcode::B | thumb::Opcode::Bl => {
-                            address.checked_add_signed(x.field_branch_offset_8())
+                            address.checked_add_signed(ins.field_branch_offset_8())
+                        }
+                        thumb::Opcode::BlH if data.len() >= 4 => {
+                            // Combine BL instructions
+                            let second_ins = thumb::Ins::new(
+                                match self.endianness {
+                                    object::Endianness::Little => {
+                                        u16::from_le_bytes([data[2], data[3]]) as u32
+                                    }
+                                    object::Endianness::Big => {
+                                        u16::from_be_bytes([data[2], data[3]]) as u32
+                                    }
+                                },
+                                &parse_flags,
+                            );
+                            if let Some(low) = match second_ins.op {
+                                thumb::Opcode::Bl => Some(second_ins.field_low_branch_offset_11()),
+                                thumb::Opcode::BlxI => Some(second_ins.field_low_blx_offset_11()),
+                                _ => None,
+                            } {
+                                ins_size = 4;
+                                address.checked_add_signed(
+                                    (ins.field_high_branch_offset_11() + (low as i32)) << 9 >> 9,
+                                )
+                            } else {
+                                None
+                            }
                         }
                         thumb::Opcode::BLong => {
-                            address.checked_add_signed(x.field_branch_offset_11())
+                            address.checked_add_signed(ins.field_branch_offset_11())
                         }
                         _ => None,
                     };
                     (opcode, branch_dest)
                 }
-                unarm::Ins::Data => (u16::MAX, None),
+                unarm::ParseMode::Data => (u16::MAX, None),
             };
+
             ops.push(ScannedInstruction {
-                ins_ref: InstructionRef { address: address as u64, size: size as u8, opcode },
+                ins_ref: InstructionRef { address: address as u64, size: ins_size as u8, opcode },
                 branch_dest: branch_dest.map(|x| x as u64),
             });
+            address += ins_size as u32;
         }
 
         Ok(ops)
@@ -391,7 +472,7 @@ fn push_args(
     let reloc_arg = find_reloc_arg(parsed_ins, relocation);
     let mut writeback = false;
     let mut deref = false;
-    for (i, arg) in parsed_ins.args_iter().enumerate() {
+    for (i, &arg) in parsed_ins.args_iter().enumerate() {
         // Emit punctuation before separator
         if deref {
             match arg {
@@ -463,19 +544,19 @@ fn push_args(
                 | args::Argument::CoOpcode(value)
                 | args::Argument::SatImm(value) => {
                     arg_cb(InstructionPart::basic("#"))?;
-                    arg_cb(InstructionPart::unsigned(*value))?;
+                    arg_cb(InstructionPart::unsigned(value))?;
                 }
                 args::Argument::SImm(value)
                 | args::Argument::OffsetImm(args::OffsetImm { post_indexed: _, value }) => {
                     arg_cb(InstructionPart::basic("#"))?;
-                    arg_cb(InstructionPart::signed(*value))?;
+                    arg_cb(InstructionPart::signed(value))?;
                 }
                 args::Argument::BranchDest(value) => {
-                    arg_cb(InstructionPart::branch_dest(cur_addr.wrapping_add_signed(*value)))?;
+                    arg_cb(InstructionPart::branch_dest(cur_addr.wrapping_add_signed(value)))?;
                 }
                 args::Argument::CoOption(value) => {
                     arg_cb(InstructionPart::basic("{"))?;
-                    arg_cb(InstructionPart::unsigned(*value))?;
+                    arg_cb(InstructionPart::unsigned(value))?;
                     arg_cb(InstructionPart::basic("}"))?;
                 }
                 args::Argument::CoprocNum(value) => {
