@@ -202,6 +202,9 @@ fn report_object(
     for ((section_idx, section), section_diff) in
         obj.sections.iter().enumerate().zip(&obj_diff.sections)
     {
+        if section.kind == SectionKind::Unknown {
+            continue;
+        }
         let section_match_percent = section_diff.match_percent.unwrap_or_else(|| {
             // Support cases where we don't have a target object,
             // assume complete means 100% match
