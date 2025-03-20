@@ -55,3 +55,16 @@ fn display_section_ordering() {
         diff::display::display_sections(&obj, &obj_diff, SymbolFilter::None, false, false, false);
     insta::assert_debug_snapshot!(section_display);
 }
+
+#[test]
+#[cfg(feature = "x86")]
+fn read_x86_jumptable() {
+    let diff_config = diff::DiffObjConfig::default();
+    let obj = obj::read::parse(include_object!("data/x86/jumptable.o"), &diff_config).unwrap();
+    insta::assert_debug_snapshot!(obj);
+    let symbol_idx = obj.symbols.iter().position(|s| s.name == "?test@@YAHH@Z").unwrap();
+    let diff = diff::code::no_diff_code(&obj, symbol_idx, &diff_config).unwrap();
+    insta::assert_debug_snapshot!(diff.instruction_rows);
+    let output = common::display_diff(&obj, &diff, symbol_idx, &diff_config);
+    insta::assert_snapshot!(output);
+}

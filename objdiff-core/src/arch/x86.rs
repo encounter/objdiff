@@ -1,6 +1,6 @@
 use alloc::{boxed::Box, string::String, vec::Vec};
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use iced_x86::{
     Decoder, DecoderOptions, DecoratorKind, FormatterOutput, FormatterTextKind, GasFormatter,
     Instruction, IntelFormatter, MasmFormatter, NasmFormatter, NumberKind, OpKind, Register,
@@ -10,7 +10,9 @@ use object::{Endian as _, Object as _, ObjectSection as _, pe};
 use crate::{
     arch::Arch,
     diff::{DiffObjConfig, X86Formatter, display::InstructionPart},
-    obj::{InstructionRef, RelocationFlags, ResolvedInstructionRef, ScannedInstruction},
+    obj::{
+        InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, ScannedInstruction,
+    },
 };
 
 #[derive(Debug)]
@@ -80,18 +82,48 @@ impl ArchX86 {
     }
 }
 
+const DATA_OPCODE: u16 = u16::MAX - 1;
+
 impl Arch for ArchX86 {
     fn scan_instructions(
         &self,
         address: u64,
         code: &[u8],
         _section_index: usize,
+        relocations: &[Relocation],
         _diff_config: &DiffObjConfig,
     ) -> Result<Vec<ScannedInstruction>> {
         let mut out = Vec::with_capacity(code.len() / 2);
         let mut decoder = self.decoder(code, address);
         let mut instruction = Instruction::default();
-        while decoder.can_decode() {
+        let mut reloc_iter = relocations.iter().peekable();
+        'outer: while decoder.can_decode() {
+            let address = decoder.ip();
+            while let Some(reloc) = reloc_iter.peek() {
+                if reloc.address < address {
+                    reloc_iter.next();
+                } else if reloc.address == address {
+                    // If the instruction starts at a relocation, it's inline data
+                    let size = self.reloc_size(reloc.flags).with_context(|| {
+                        format!("Unsupported inline x86 relocation {:?}", reloc.flags)
+                    })?;
+                    if decoder.set_position(decoder.position() + size).is_ok() {
+                        decoder.set_ip(address + size as u64);
+                        out.push(ScannedInstruction {
+                            ins_ref: InstructionRef {
+                                address,
+                                size: size as u8,
+                                opcode: DATA_OPCODE,
+                            },
+                            branch_dest: None,
+                        });
+                        reloc_iter.next();
+                        continue 'outer;
+                    }
+                } else {
+                    break;
+                }
+            }
             decoder.decode_out(&mut instruction);
             let branch_dest = match instruction.op0_kind() {
                 OpKind::NearBranch16 => Some(instruction.near_branch16() as u64),
@@ -101,7 +133,7 @@ impl Arch for ArchX86 {
             };
             out.push(ScannedInstruction {
                 ins_ref: InstructionRef {
-                    address: instruction.ip(),
+                    address,
                     size: instruction.len() as u8,
                     opcode: instruction.mnemonic() as u16,
                 },
@@ -117,6 +149,21 @@ impl Arch for ArchX86 {
         diff_config: &DiffObjConfig,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
+        if resolved.ins_ref.opcode == DATA_OPCODE {
+            let (mnemonic, imm) = match resolved.ins_ref.size {
+                2 => (".word", self.endianness.read_u16_bytes(resolved.code.try_into()?) as u64),
+                4 => (".dword", self.endianness.read_u32_bytes(resolved.code.try_into()?) as u64),
+                _ => bail!("Unsupported x86 inline data size {}", resolved.ins_ref.size),
+            };
+            cb(InstructionPart::opcode(mnemonic, DATA_OPCODE))?;
+            if resolved.relocation.is_some() {
+                cb(InstructionPart::reloc())?;
+            } else {
+                cb(InstructionPart::unsigned(imm))?;
+            }
+            return Ok(());
+        }
+
         let mut decoder = self.decoder(resolved.code, resolved.ins_ref.address);
         let mut formatter = self.formatter(diff_config);
         let mut instruction = Instruction::default();
@@ -406,7 +453,7 @@ mod test {
             0xc7, 0x85, 0x68, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x8b, 0x04, 0x85, 0x00,
             0x00, 0x00, 0x00,
         ];
-        let scanned = arch.scan_instructions(0, &code, 0, &DiffObjConfig::default()).unwrap();
+        let scanned = arch.scan_instructions(0, &code, 0, &[], &DiffObjConfig::default()).unwrap();
         assert_eq!(scanned.len(), 2);
         assert_eq!(scanned[0].ins_ref.address, 0);
         assert_eq!(scanned[0].ins_ref.size, 10);

@@ -194,6 +194,7 @@ impl Arch for ArchMips {
         address: u64,
         code: &[u8],
         _section_index: usize,
+        _relocations: &[Relocation],
         diff_config: &DiffObjConfig,
     ) -> Result<Vec<ScannedInstruction>> {
         let instruction_flags = self.instruction_flags(diff_config);

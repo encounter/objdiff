@@ -14,7 +14,7 @@ use crate::{
     arch::Arch,
     diff::{ArmArchVersion, ArmR9Usage, DiffObjConfig, display::InstructionPart},
     obj::{
-        InstructionRef, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation,
+        InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation,
         ScannedInstruction, SymbolFlag, SymbolFlagSet, SymbolKind,
     },
 };
@@ -183,6 +183,7 @@ impl Arch for ArchArm {
         address: u64,
         code: &[u8],
         section_index: usize,
+        _relocations: &[Relocation],
         diff_config: &DiffObjConfig,
     ) -> Result<Vec<ScannedInstruction>> {
         let start_addr = address as u32;

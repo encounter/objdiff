@@ -32,7 +32,13 @@ pub fn no_diff_code(
             symbol.address + symbol.size
         )
     })?;
-    let ops = obj.arch.scan_instructions(symbol.address, data, section_index, diff_config)?;
+    let ops = obj.arch.scan_instructions(
+        symbol.address,
+        data,
+        section_index,
+        &section.relocations,
+        diff_config,
+    )?;
     let mut instruction_rows = Vec::<InstructionDiffRow>::new();
     for i in &ops {
         instruction_rows
@@ -89,12 +95,14 @@ pub fn diff_code(
         left_symbol.address,
         left_data,
         left_section_idx,
+        &left_section.relocations,
         diff_config,
     )?;
     let right_ops = right_obj.arch.scan_instructions(
         right_symbol.address,
         right_data,
         right_section_idx,
+        &right_section.relocations,
         diff_config,
     )?;
     let (mut left_rows, mut right_rows) = diff_instructions(&left_ops, &right_ops)?;

@@ -87,6 +87,7 @@ impl Arch for ArchPpc {
         address: u64,
         code: &[u8],
         _section_index: usize,
+        _relocations: &[Relocation],
         _diff_config: &DiffObjConfig,
     ) -> Result<Vec<ScannedInstruction>> {
         ensure!(code.len() & 3 == 0, "Code length must be a multiple of 4");

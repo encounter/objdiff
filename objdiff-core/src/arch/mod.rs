@@ -170,6 +170,7 @@ pub trait Arch: Send + Sync + Debug {
         address: u64,
         code: &[u8],
         section_index: usize,
+        relocations: &[Relocation],
         diff_config: &DiffObjConfig,
     ) -> Result<Vec<ScannedInstruction>>;
 
@@ -301,6 +302,7 @@ impl Arch for ArchDummy {
         _address: u64,
         _code: &[u8],
         _section_index: usize,
+        _relocations: &[Relocation],
         _diff_config: &DiffObjConfig,
     ) -> Result<Vec<ScannedInstruction>> {
         Ok(Vec::new())
