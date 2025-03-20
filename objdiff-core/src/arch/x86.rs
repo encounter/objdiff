@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, string::String, vec::Vec};
+use alloc::{boxed::Box, format, string::String, vec::Vec};
 
 use anyhow::{Context, Result, anyhow, bail};
 use iced_x86::{
