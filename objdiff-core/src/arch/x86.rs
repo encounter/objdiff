@@ -1,4 +1,5 @@
 use alloc::{boxed::Box, format, string::String, vec::Vec};
+use core::cmp::Ordering;
 
 use anyhow::{Context, Result, anyhow, bail};
 use iced_x86::{
@@ -100,28 +101,30 @@ impl Arch for ArchX86 {
         'outer: while decoder.can_decode() {
             let address = decoder.ip();
             while let Some(reloc) = reloc_iter.peek() {
-                if reloc.address < address {
-                    reloc_iter.next();
-                } else if reloc.address == address {
-                    // If the instruction starts at a relocation, it's inline data
-                    let size = self.reloc_size(reloc.flags).with_context(|| {
-                        format!("Unsupported inline x86 relocation {:?}", reloc.flags)
-                    })?;
-                    if decoder.set_position(decoder.position() + size).is_ok() {
-                        decoder.set_ip(address + size as u64);
-                        out.push(ScannedInstruction {
-                            ins_ref: InstructionRef {
-                                address,
-                                size: size as u8,
-                                opcode: DATA_OPCODE,
-                            },
-                            branch_dest: None,
-                        });
+                match reloc.address.cmp(&address) {
+                    Ordering::Less => {
                         reloc_iter.next();
-                        continue 'outer;
                     }
-                } else {
-                    break;
+                    Ordering::Equal => {
+                        // If the instruction starts at a relocation, it's inline data
+                        let size = self.reloc_size(reloc.flags).with_context(|| {
+                            format!("Unsupported inline x86 relocation {:?}", reloc.flags)
+                        })?;
+                        if decoder.set_position(decoder.position() + size).is_ok() {
+                            decoder.set_ip(address + size as u64);
+                            out.push(ScannedInstruction {
+                                ins_ref: InstructionRef {
+                                    address,
+                                    size: size as u8,
+                                    opcode: DATA_OPCODE,
+                                },
+                                branch_dest: None,
+                            });
+                            reloc_iter.next();
+                            continue 'outer;
+                        }
+                    }
+                    Ordering::Greater => break,
                 }
             }
             decoder.decode_out(&mut instruction);
