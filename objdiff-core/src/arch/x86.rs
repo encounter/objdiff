@@ -376,6 +376,7 @@ impl FormatterOutput for InstructionFormatterOutput<'_> {
                     (NumberKind::Int8 | NumberKind::UInt8, 1)
                     | (NumberKind::Int16 | NumberKind::UInt16, 2)
                     | (NumberKind::Int32 | NumberKind::UInt32, 4)
+                    | (NumberKind::Int64 | NumberKind::UInt64, 4) // x86_64
                     | (NumberKind::Int64 | NumberKind::UInt64, 8) => true,
                     _ => false,
                 }
@@ -657,5 +658,75 @@ mod test {
             InstructionPart::reloc(),
             InstructionPart::basic("]"),
         ]);
+    }
+
+    #[test]
+    fn test_process_x86_64_instruction_with_reloc_1() {
+        let arch = ArchX86 { arch: Architecture::X86_64, endianness: object::Endianness::Little };
+        let code = [0x48, 0x8b, 0x05, 0x00, 0x00, 0x00, 0x00];
+        let opcode = iced_x86::Mnemonic::Mov as u16;
+        let mut parts = Vec::new();
+        arch.display_instruction(
+            ResolvedInstructionRef {
+                ins_ref: InstructionRef { address: 0x1234, size: 7, opcode },
+                code: &code,
+                relocation: Some(ResolvedRelocation {
+                    relocation: &Relocation {
+                        flags: RelocationFlags::Coff(pe::IMAGE_REL_AMD64_REL32),
+                        address: 0x1234 + 3,
+                        target_symbol: 0,
+                        addend: 0,
+                    },
+                    symbol: &Default::default(),
+                }),
+                ..Default::default()
+            },
+            &DiffObjConfig::default(),
+            &mut |part| {
+                parts.push(part.into_static());
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(parts, &[
+            InstructionPart::opcode("mov", opcode),
+            InstructionPart::opaque("rax"),
+            InstructionPart::basic(","),
+            InstructionPart::basic(" "),
+            InstructionPart::basic("["),
+            InstructionPart::reloc(),
+            InstructionPart::basic("]"),
+        ]);
+    }
+
+    #[test]
+    fn test_process_x86_64_instruction_with_reloc_2() {
+        let arch = ArchX86 { arch: Architecture::X86_64, endianness: object::Endianness::Little };
+        let code = [0xe8, 0x00, 0x00, 0x00, 0x00];
+        let opcode = iced_x86::Mnemonic::Call as u16;
+        let mut parts = Vec::new();
+        arch.display_instruction(
+            ResolvedInstructionRef {
+                ins_ref: InstructionRef { address: 0x1234, size: 5, opcode },
+                code: &code,
+                relocation: Some(ResolvedRelocation {
+                    relocation: &Relocation {
+                        flags: RelocationFlags::Coff(pe::IMAGE_REL_AMD64_REL32),
+                        address: 0x1234 + 1,
+                        target_symbol: 0,
+                        addend: 0,
+                    },
+                    symbol: &Default::default(),
+                }),
+                ..Default::default()
+            },
+            &DiffObjConfig::default(),
+            &mut |part| {
+                parts.push(part.into_static());
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(parts, &[InstructionPart::opcode("call", opcode), InstructionPart::reloc()]);
     }
 }
