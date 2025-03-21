@@ -20,6 +20,8 @@ interface diff {
       data: list<u8>,
       config: borrow<diff-config>,
     ) -> result<object, string>;
+
+    hash: func() -> u64;
   }
 
   resource object-diff {

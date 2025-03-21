@@ -1,6 +1,6 @@
 use alloc::{
     format,
-    rc::Rc,
+    rc::{Rc, Weak},
     str::FromStr,
     string::{String, ToString},
     vec::Vec,
@@ -9,6 +9,7 @@ use core::cell::RefCell;
 
 use objdiff_core::{diff, obj};
 use regex::{Regex, RegexBuilder};
+use xxhash_rust::xxh3::xxh3_64;
 
 use super::logging;
 
@@ -41,8 +42,7 @@ impl Guest for Component {
     fn version() -> String { env!("CARGO_PKG_VERSION").to_string() }
 }
 
-#[repr(transparent)]
-struct ResourceObject(Rc<obj::Object>);
+struct ResourceObject(Rc<obj::Object>, u64);
 
 struct ResourceObjectDiff(Rc<obj::Object>, diff::ObjectDiff);
 
@@ -421,13 +421,49 @@ impl GuestDiffConfig for ResourceDiffConfig {
     }
 }
 
+struct CachedObject(Weak<obj::Object>, u64);
+
+struct ObjectCache(RefCell<Vec<CachedObject>>);
+
+impl ObjectCache {
+    #[inline]
+    const fn new() -> Self { Self(RefCell::new(Vec::new())) }
+}
+
+impl core::ops::Deref for ObjectCache {
+    type Target = RefCell<Vec<CachedObject>>;
+
+    fn deref(&self) -> &Self::Target { &self.0 }
+}
+
+// Assume single-threaded environment
+unsafe impl Sync for ObjectCache {}
+
+static OBJECT_CACHE: ObjectCache = ObjectCache::new();
+
 impl GuestObject for ResourceObject {
     fn parse(data: Vec<u8>, diff_config: DiffConfigBorrow) -> Result<Object, String> {
+        let hash = xxh3_64(&data);
+        let mut cached = None;
+        OBJECT_CACHE.borrow_mut().retain(|c| {
+            if c.0.strong_count() == 0 {
+                return false;
+            }
+            if c.1 == hash {
+                cached = c.0.upgrade();
+            }
+            true
+        });
+        if let Some(obj) = cached {
+            return Ok(Object::new(ResourceObject(obj, hash)));
+        }
         let diff_config = diff_config.get::<ResourceDiffConfig>().0.borrow();
-        obj::read::parse(&data, &diff_config)
-            .map(|o| Object::new(ResourceObject(Rc::new(o))))
-            .map_err(|e| e.to_string())
+        let obj = Rc::new(obj::read::parse(&data, &diff_config).map_err(|e| e.to_string())?);
+        OBJECT_CACHE.borrow_mut().push(CachedObject(Rc::downgrade(&obj), hash));
+        Ok(Object::new(ResourceObject(obj, hash)))
     }
+
+    fn hash(&self) -> u64 { self.1 }
 }
 
 impl GuestObjectDiff for ResourceObjectDiff {

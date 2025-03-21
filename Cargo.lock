@@ -3280,7 +3280,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-cli"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "anyhow",
  "argp",
@@ -3303,7 +3303,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-core"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "anyhow",
  "arm-attr",
@@ -3356,7 +3356,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-gui"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -3392,7 +3392,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-wasm"
-version = "3.0.0-beta.4"
+version = "3.0.0-beta.5"
 dependencies = [
  "log",
  "objdiff-core",
@@ -3400,6 +3400,7 @@ dependencies = [
  "talc",
  "wit-bindgen",
  "wit-deps",
+ "xxhash-rust",
 ]
 
 [[package]]
@@ -6546,6 +6547,12 @@ name = "xml-rs"
 version = "0.8.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c5b940ebc25896e71dd073bad2dbaa2abfe97b0a391415e22ad1326d9c54e3c4"
+
+[[package]]
+name = "xxhash-rust"
+version = "0.8.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdd20c5420375476fbd4394763288da7eb0cc0b8c11deed431a91562af7335d3"
 
 [[package]]
 name = "yaxpeax-arch"

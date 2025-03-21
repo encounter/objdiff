@@ -25,6 +25,7 @@ std = ["objdiff-core/std"]
 [dependencies]
 log = { version = "0.4", default-features = false }
 regex = { version = "1.11", default-features = false, features = ["unicode-case"] }
+xxhash-rust = { version = "0.8", default-features = false, features = ["xxh3"] }
 
 [dependencies.objdiff-core]
 path = "../objdiff-core"
