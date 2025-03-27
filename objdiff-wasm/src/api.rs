@@ -230,10 +230,15 @@ impl GuestDisplay for Component {
     ) -> Vec<HoverItem> {
         let obj_diff = diff.get::<ResourceObjectDiff>();
         let obj = obj_diff.0.as_ref();
-        diff::display::symbol_hover(obj, symbol_display.symbol as usize, 0 /* TODO */)
-            .into_iter()
-            .map(|item| HoverItem::from(item))
-            .collect()
+        diff::display::symbol_hover(
+            obj,
+            symbol_display.symbol as usize,
+            0,
+            diff::display::HoverItemColor::Normal, // TODO: colorize replaced/deleted/inserted relocations
+        )
+        .into_iter()
+        .map(|item| HoverItem::from(item))
+        .collect()
     }
 
     fn instruction_context(
@@ -501,6 +506,8 @@ impl From<diff::display::HoverItemColor> for HoverItemColor {
             diff::display::HoverItemColor::Normal => HoverItemColor::Normal,
             diff::display::HoverItemColor::Emphasized => HoverItemColor::Emphasized,
             diff::display::HoverItemColor::Special => HoverItemColor::Special,
+            diff::display::HoverItemColor::Delete => HoverItemColor::Delete,
+            diff::display::HoverItemColor::Insert => HoverItemColor::Insert,
         }
     }
 }
