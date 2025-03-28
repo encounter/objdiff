@@ -19,6 +19,7 @@ fn data_row_hover(obj: &Object, diffs: &[(DataDiff, Vec<DataRelocationDiff>)]) -
     let mut out = Vec::new();
     let reloc_diffs = diffs.iter().flat_map(|(_, reloc_diffs)| reloc_diffs);
     let mut prev_reloc = None;
+    let mut first = true;
     for reloc_diff in reloc_diffs {
         let reloc = &reloc_diff.reloc;
         if prev_reloc == Some(reloc) {
@@ -29,10 +30,16 @@ fn data_row_hover(obj: &Object, diffs: &[(DataDiff, Vec<DataRelocationDiff>)]) -
         }
         prev_reloc = Some(reloc);
 
+        if first {
+            first = false;
+        } else {
+            out.push(HoverItem::Separator);
+        }
+
         let color = get_hover_item_color_for_diff_kind(reloc_diff.kind);
 
         let reloc = resolve_relocation(&obj.symbols, reloc);
-        out.append(&mut relocation_hover(obj, reloc, color));
+        out.append(&mut relocation_hover(obj, reloc, Some(color)));
     }
     out
 }
