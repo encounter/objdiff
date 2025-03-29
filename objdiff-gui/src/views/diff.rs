@@ -795,6 +795,8 @@ pub fn hover_items_ui(ui: &mut Ui, items: Vec<HoverItem>, appearance: &Appearanc
                 if !label.is_empty() {
                     let label_color = match color {
                         HoverItemColor::Special => appearance.replace_color,
+                        HoverItemColor::Delete => appearance.delete_color,
+                        HoverItemColor::Insert => appearance.insert_color,
                         _ => appearance.highlight_color,
                     };
                     write_text(&label, label_color, &mut job, appearance.code_font.clone());

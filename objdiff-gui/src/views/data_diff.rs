@@ -5,7 +5,7 @@ use objdiff_core::{
     diff::{
         DataDiff, DataDiffKind, DataRelocationDiff,
         data::resolve_relocation,
-        display::{ContextItem, HoverItem, relocation_context, relocation_hover},
+        display::{ContextItem, HoverItem, HoverItemColor, relocation_context, relocation_hover},
     },
     obj::Object,
 };
@@ -19,6 +19,7 @@ fn data_row_hover(obj: &Object, diffs: &[(DataDiff, Vec<DataRelocationDiff>)]) -
     let mut out = Vec::new();
     let reloc_diffs = diffs.iter().flat_map(|(_, reloc_diffs)| reloc_diffs);
     let mut prev_reloc = None;
+    let mut first = true;
     for reloc_diff in reloc_diffs {
         let reloc = &reloc_diff.reloc;
         if prev_reloc == Some(reloc) {
@@ -29,11 +30,16 @@ fn data_row_hover(obj: &Object, diffs: &[(DataDiff, Vec<DataRelocationDiff>)]) -
         }
         prev_reloc = Some(reloc);
 
-        // TODO: Change hover text color depending on Insert/Delete/Replace kind
-        // let color = get_color_for_diff_kind(reloc_diff.kind, appearance);
+        if first {
+            first = false;
+        } else {
+            out.push(HoverItem::Separator);
+        }
+
+        let color = get_hover_item_color_for_diff_kind(reloc_diff.kind);
 
         let reloc = resolve_relocation(&obj.symbols, reloc);
-        out.append(&mut relocation_hover(obj, reloc));
+        out.append(&mut relocation_hover(obj, reloc, Some(color)));
     }
     out
 }
@@ -94,6 +100,15 @@ fn get_color_for_diff_kind(diff_kind: DataDiffKind, appearance: &Appearance) -> 
         DataDiffKind::Replace => appearance.replace_color,
         DataDiffKind::Delete => appearance.delete_color,
         DataDiffKind::Insert => appearance.insert_color,
+    }
+}
+
+fn get_hover_item_color_for_diff_kind(diff_kind: DataDiffKind) -> HoverItemColor {
+    match diff_kind {
+        DataDiffKind::None => HoverItemColor::Normal,
+        DataDiffKind::Replace => HoverItemColor::Special,
+        DataDiffKind::Delete => HoverItemColor::Delete,
+        DataDiffKind::Insert => HoverItemColor::Insert,
     }
 }
 

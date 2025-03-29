@@ -325,10 +325,14 @@ pub enum SymbolNavigationKind {
     Extab,
 }
 
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
 pub enum HoverItemColor {
-    Normal,     // Gray
+    #[default]
+    Normal, // Gray
     Emphasized, // White
     Special,    // Blue
+    Delete,     // Red
+    Insert,     // Green
 }
 
 pub enum HoverItem {
@@ -355,7 +359,12 @@ pub fn symbol_context(obj: &Object, symbol_index: usize) -> Vec<ContextItem> {
     out
 }
 
-pub fn symbol_hover(obj: &Object, symbol_index: usize, addend: i64) -> Vec<HoverItem> {
+pub fn symbol_hover(
+    obj: &Object,
+    symbol_index: usize,
+    addend: i64,
+    override_color: Option<HoverItemColor>,
+) -> Vec<HoverItem> {
     let symbol = &obj.symbols[symbol_index];
     let addend_str = match addend.cmp(&0i64) {
         Ordering::Greater => format!("+{:x}", addend),
@@ -366,51 +375,51 @@ pub fn symbol_hover(obj: &Object, symbol_index: usize, addend: i64) -> Vec<Hover
     out.push(HoverItem::Text {
         label: "Name".into(),
         value: format!("{}{}", symbol.name, addend_str),
-        color: HoverItemColor::Normal,
+        color: override_color.clone().unwrap_or_default(),
     });
     if let Some(demangled_name) = &symbol.demangled_name {
         out.push(HoverItem::Text {
             label: "Demangled".into(),
             value: demangled_name.into(),
-            color: HoverItemColor::Normal,
+            color: override_color.clone().unwrap_or_default(),
         });
     }
     if let Some(section) = symbol.section {
         out.push(HoverItem::Text {
             label: "Section".into(),
             value: obj.sections[section].name.clone(),
-            color: HoverItemColor::Normal,
+            color: override_color.clone().unwrap_or_default(),
         });
         out.push(HoverItem::Text {
             label: "Address".into(),
             value: format!("{:x}{}", symbol.address, addend_str),
-            color: HoverItemColor::Normal,
+            color: override_color.clone().unwrap_or_default(),
         });
         if symbol.flags.contains(SymbolFlag::SizeInferred) {
             out.push(HoverItem::Text {
                 label: "Size".into(),
                 value: format!("{:x} (inferred)", symbol.size),
-                color: HoverItemColor::Normal,
+                color: override_color.clone().unwrap_or_default(),
             });
         } else {
             out.push(HoverItem::Text {
                 label: "Size".into(),
                 value: format!("{:x}", symbol.size),
-                color: HoverItemColor::Normal,
+                color: override_color.clone().unwrap_or_default(),
             });
         }
         if let Some(align) = symbol.align {
             out.push(HoverItem::Text {
                 label: "Alignment".into(),
                 value: align.get().to_string(),
-                color: HoverItemColor::Normal,
+                color: override_color.clone().unwrap_or_default(),
             });
         }
         if let Some(address) = symbol.virtual_address {
             out.push(HoverItem::Text {
                 label: "Virtual address".into(),
                 value: format!("{:x}", address),
-                color: HoverItemColor::Special,
+                color: override_color.clone().unwrap_or(HoverItemColor::Special),
             });
         }
     } else {
@@ -443,22 +452,31 @@ pub fn relocation_context(
     out
 }
 
-pub fn relocation_hover(obj: &Object, reloc: ResolvedRelocation) -> Vec<HoverItem> {
+pub fn relocation_hover(
+    obj: &Object,
+    reloc: ResolvedRelocation,
+    override_color: Option<HoverItemColor>,
+) -> Vec<HoverItem> {
     let mut out = Vec::new();
     if let Some(name) = obj.arch.reloc_name(reloc.relocation.flags) {
         out.push(HoverItem::Text {
             label: "Relocation".into(),
             value: name.to_string(),
-            color: HoverItemColor::Normal,
+            color: override_color.clone().unwrap_or_default(),
         });
     } else {
         out.push(HoverItem::Text {
             label: "Relocation".into(),
             value: format!("<{:?}>", reloc.relocation.flags),
-            color: HoverItemColor::Normal,
+            color: override_color.clone().unwrap_or_default(),
         });
     }
-    out.append(&mut symbol_hover(obj, reloc.relocation.target_symbol, reloc.relocation.addend));
+    out.append(&mut symbol_hover(
+        obj,
+        reloc.relocation.target_symbol,
+        reloc.relocation.addend,
+        override_color,
+    ));
     out
 }
 
@@ -545,7 +563,7 @@ pub fn instruction_hover(
     }
     if let Some(reloc) = resolved.relocation {
         out.push(HoverItem::Separator);
-        out.append(&mut relocation_hover(obj, reloc));
+        out.append(&mut relocation_hover(obj, reloc, None));
         if let Some(ty) = obj.arch.guess_data_type(resolved) {
             let literals = display_ins_data_literals(obj, resolved);
             if !literals.is_empty() {

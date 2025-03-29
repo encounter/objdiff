@@ -137,6 +137,8 @@ interface display {
     normal,
     emphasized,
     special,
+    delete,
+    insert,
   }
 
   record hover-item-text {

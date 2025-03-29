@@ -512,7 +512,7 @@ pub fn symbol_hover_ui(
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
-        hover_items_ui(ui, symbol_hover(ctx.obj, symbol_idx, 0), appearance);
+        hover_items_ui(ui, symbol_hover(ctx.obj, symbol_idx, 0, None), appearance);
     });
 }
 
