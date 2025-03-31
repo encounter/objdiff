@@ -199,7 +199,7 @@ impl Arch for ArchArm {
             .unwrap_or(&fallback_mappings);
         let first_mapping_idx = mapping_symbols
             .binary_search_by_key(&start_addr, |x| x.address)
-            .unwrap_or_else(|idx| idx - 1);
+            .unwrap_or_else(|idx| idx.saturating_sub(1));
         let mut mode = mapping_symbols[first_mapping_idx].mapping;
 
         let mut mappings_iter = mapping_symbols
