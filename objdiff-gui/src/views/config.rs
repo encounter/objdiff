@@ -297,8 +297,7 @@ pub fn config_ui(
             node_open = NodeOpen::Open;
         }
 
-        egui::ScrollArea::both().show(ui, |ui| {
-            ui.set_width(ui.available_width());
+        egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
             CollapsingHeader::new(RichText::new("🗀 Objects").font(FontId {
                 size: appearance.ui_font.size,
                 family: appearance.code_font.family.clone(),
