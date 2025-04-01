@@ -775,9 +775,7 @@ impl eframe::App for App {
 
         if side_panel_available {
             egui::SidePanel::left("side_panel").show_animated(ctx, *show_side_panel, |ui| {
-                egui::ScrollArea::both().show(ui, |ui| {
-                    config_ui(ui, state, show_project_config, config_state, appearance);
-                });
+                config_ui(ui, state, show_project_config, config_state, appearance);
             });
         }
 

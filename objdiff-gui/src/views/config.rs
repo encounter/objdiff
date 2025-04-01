@@ -297,27 +297,36 @@ pub fn config_ui(
             node_open = NodeOpen::Open;
         }
 
-        CollapsingHeader::new(RichText::new("🗀 Objects").font(FontId {
-            size: appearance.ui_font.size,
-            family: appearance.code_font.family.clone(),
-        }))
-        .open(root_open)
-        .default_open(true)
-        .show(ui, |ui| {
-            let search = config_state.object_search.to_ascii_lowercase();
-            ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-            for node in object_nodes.iter().filter_map(|node| {
-                filter_node(
-                    objects,
-                    node,
-                    &search,
-                    config_state.filter_diffable,
-                    config_state.filter_incomplete,
-                    config_state.show_hidden,
-                )
-            }) {
-                display_node(ui, &mut new_selected_index, objects, &node, appearance, node_open);
-            }
+        egui::ScrollArea::both().show(ui, |ui| {
+            CollapsingHeader::new(RichText::new("🗀 Objects").font(FontId {
+                size: appearance.ui_font.size,
+                family: appearance.code_font.family.clone(),
+            }))
+            .open(root_open)
+            .default_open(true)
+            .show(ui, |ui| {
+                let search = config_state.object_search.to_ascii_lowercase();
+                ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+                for node in object_nodes.iter().filter_map(|node| {
+                    filter_node(
+                        objects,
+                        node,
+                        &search,
+                        config_state.filter_diffable,
+                        config_state.filter_incomplete,
+                        config_state.show_hidden,
+                    )
+                }) {
+                    display_node(
+                        ui,
+                        &mut new_selected_index,
+                        objects,
+                        &node,
+                        appearance,
+                        node_open,
+                    );
+                }
+            });
         });
     }
     if new_selected_index != selected_index {
@@ -326,11 +335,6 @@ pub fn config_ui(
             let config = objects[idx].clone();
             state_guard.set_selected_obj(config);
         }
-    }
-    if state_guard.config.selected_obj.is_some()
-        && ui.add_enabled(!config_state.build_running, egui::Button::new("Build")).clicked()
-    {
-        config_state.queue_build = true;
     }
 }
 
