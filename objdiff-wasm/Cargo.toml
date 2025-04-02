@@ -1,9 +1,7 @@
 [package]
 name = "objdiff-wasm"
 version.workspace = true
-# TODO: Update to 2024
-# https://github.com/bytecodealliance/wit-bindgen/pull/1183
-edition = "2021"
+edition = "2024"
 rust-version.workspace = true
 authors.workspace = true
 license.workspace = true
@@ -36,7 +34,7 @@ features = ["arm", "arm64", "mips", "ppc", "x86", "dwarf"]
 talc = { version = "4.4", default-features = false, features = ["lock_api"] }
 
 [target.'cfg(target_os = "wasi")'.dependencies]
-wit-bindgen = { version = "0.40", default-features = false, features = ["macros"] }
+wit-bindgen = { version = "0.41", default-features = false, features = ["macros"] }
 
 [build-dependencies]
 wit-deps = "0.5"

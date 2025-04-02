@@ -20,7 +20,7 @@
 //! this is defined as a "weak" symbol. This means that other definitions are
 //! allowed to overwrite it if they are present in a compilation.
 
-use alloc::{alloc, Layout};
+use alloc::{Layout, alloc};
 use core::ptr;
 
 #[used]
@@ -31,7 +31,7 @@ static FORCE_CODEGEN_OF_CABI_REALLOC: unsafe extern "C" fn(
     usize,
 ) -> *mut u8 = cabi_realloc;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cabi_realloc(
     old_ptr: *mut u8,
     old_len: usize,
@@ -51,12 +51,12 @@ pub unsafe extern "C" fn cabi_realloc(
         if new_len == 0 {
             return ptr::without_provenance_mut(align);
         }
-        layout = Layout::from_size_align_unchecked(new_len, align);
-        alloc::alloc(layout)
+        layout = unsafe { Layout::from_size_align_unchecked(new_len, align) };
+        unsafe { alloc::alloc(layout) }
     } else {
         debug_assert_ne!(new_len, 0, "non-zero old_len requires non-zero new_len!");
-        layout = Layout::from_size_align_unchecked(old_len, align);
-        alloc::realloc(old_ptr, layout, new_len)
+        layout = unsafe { Layout::from_size_align_unchecked(old_len, align) };
+        unsafe { alloc::realloc(old_ptr, layout, new_len) }
     };
     if ptr.is_null() {
         // Print a nice message in debug mode, but in release mode don't
