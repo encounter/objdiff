@@ -449,7 +449,7 @@ fn decode_exception_info(
                 log::warn!(
                     "Exception table decoding failed for function {}, reason: {}",
                     extab_func_name,
-                    e.to_string()
+                    e
                 );
                 return Ok(None);
             }
