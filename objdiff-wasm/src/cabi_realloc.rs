@@ -35,9 +35,17 @@ static FORCE_CODEGEN_OF_CABI_REALLOC: unsafe extern "C" fn(
 pub unsafe extern "C" fn cabi_realloc(
     old_ptr: *mut u8,
     old_len: usize,
-    align: usize,
+    mut align: usize,
     new_len: usize,
 ) -> *mut u8 {
+    // HACK: The object crate requires the data alignment for 64-bit objects to be 8,
+    // but in wasm32, our allocator will have a minimum alignment of 4. We can't specify
+    // the alignment of `list<u8>` in the component model, so we work around this here.
+    // https://github.com/WebAssembly/component-model/issues/258
+    #[cfg(target_pointer_width = "32")]
+    if align == 1 {
+        align = 8;
+    }
     let layout;
     let ptr = if old_len == 0 {
         if new_len == 0 {

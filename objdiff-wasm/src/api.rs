@@ -3,6 +3,7 @@ use alloc::{
     rc::{Rc, Weak},
     str::FromStr,
     string::{String, ToString},
+    vec,
     vec::Vec,
 };
 use core::cell::RefCell;
@@ -153,16 +154,17 @@ impl GuestDisplay for Component {
         let obj = obj_diff.0.as_ref();
         let obj_diff = &obj_diff.1;
         let symbol_idx = symbol_display.symbol as usize;
-        let symbol = &obj.symbols[symbol_idx];
+        let Some(symbol) = obj.symbols.get(symbol_idx) else {
+            return SymbolDisplay { name: "<unknown>".to_string(), ..Default::default() };
+        };
         let symbol_diff = if symbol_display.is_mapping_symbol {
             obj_diff
                 .mapping_symbols
                 .iter()
                 .find(|s| s.symbol_index == symbol_idx)
                 .map(|s| &s.symbol_diff)
-                .unwrap()
         } else {
-            &obj_diff.symbols[symbol_idx]
+            obj_diff.symbols.get(symbol_idx)
         };
         SymbolDisplay {
             name: symbol.name.clone(),
@@ -174,10 +176,10 @@ impl GuestDisplay for Component {
             flags: SymbolFlags::from(symbol.flags),
             align: symbol.align.map(|a| a.get()),
             virtual_address: symbol.virtual_address,
-            target_symbol: symbol_diff.target_symbol.map(|s| s as u32),
-            match_percent: symbol_diff.match_percent,
-            diff_score: symbol_diff.diff_score,
-            row_count: symbol_diff.instruction_rows.len() as u32,
+            target_symbol: symbol_diff.and_then(|sd| sd.target_symbol.map(|s| s as u32)),
+            match_percent: symbol_diff.and_then(|sd| sd.match_percent),
+            diff_score: symbol_diff.and_then(|sd| sd.diff_score),
+            row_count: symbol_diff.map_or(0, |sd| sd.instruction_rows.len() as u32),
         }
     }
 
@@ -187,7 +189,6 @@ impl GuestDisplay for Component {
         row_index: u32,
         diff_config: DiffConfigBorrow,
     ) -> InstructionDiffRow {
-        let mut segments = Vec::with_capacity(16);
         let obj_diff = diff.get::<ResourceObjectDiff>();
         let obj = obj_diff.0.as_ref();
         let obj_diff = &obj_diff.1;
@@ -198,12 +199,15 @@ impl GuestDisplay for Component {
                 .iter()
                 .find(|s| s.symbol_index == symbol_idx)
                 .map(|s| &s.symbol_diff)
-                .unwrap()
         } else {
-            &obj_diff.symbols[symbol_idx]
+            obj_diff.symbols.get(symbol_idx)
         };
-        let row = &symbol_diff.instruction_rows[row_index as usize];
+        let Some(row) = symbol_diff.and_then(|sd| sd.instruction_rows.get(row_index as usize))
+        else {
+            return InstructionDiffRow::default();
+        };
         let diff_config = diff_config.get::<ResourceDiffConfig>().0.borrow();
+        let mut segments = Vec::with_capacity(16);
         diff::display::display_row(obj, symbol_idx, row, &diff_config, |segment| {
             segments.push(DiffTextSegment::from(segment));
             Ok(())
@@ -230,9 +234,9 @@ impl GuestDisplay for Component {
     ) -> Vec<HoverItem> {
         let obj_diff = diff.get::<ResourceObjectDiff>();
         let obj = obj_diff.0.as_ref();
-        // TODO: colorize replaced/deleted/inserted relocations
-        let override_color = None;
-        diff::display::symbol_hover(obj, symbol_display.symbol as usize, 0, override_color)
+        let addend = 0; // TODO
+        let override_color = None; // TODO: colorize replaced/deleted/inserted relocations
+        diff::display::symbol_hover(obj, symbol_display.symbol as usize, addend, override_color)
             .into_iter()
             .map(|item| HoverItem::from(item))
             .collect()
@@ -243,7 +247,7 @@ impl GuestDisplay for Component {
         symbol_display: SectionDisplaySymbol,
         row_index: u32,
         diff_config: DiffConfigBorrow,
-    ) -> Result<Vec<ContextItem>, String> {
+    ) -> Vec<ContextItem> {
         let obj_diff = diff.get::<ResourceObjectDiff>();
         let obj = obj_diff.0.as_ref();
         let obj_diff = &obj_diff.1;
@@ -254,24 +258,35 @@ impl GuestDisplay for Component {
                 .iter()
                 .find(|s| s.symbol_index == symbol_idx)
                 .map(|s| &s.symbol_diff)
-                .unwrap()
         } else {
-            &obj_diff.symbols[symbol_idx]
+            obj_diff.symbols.get(symbol_idx)
         };
-        let row = &symbol_diff.instruction_rows[row_index as usize];
-        let Some(ins_ref) = row.ins_ref else {
-            return Ok(Vec::new());
+        let Some(ins_ref) = symbol_diff
+            .and_then(|sd| sd.instruction_rows.get(row_index as usize))
+            .and_then(|row| row.ins_ref)
+        else {
+            return Vec::new();
         };
         let diff_config = diff_config.get::<ResourceDiffConfig>().0.borrow();
         let Some(resolved) = obj.resolve_instruction_ref(symbol_idx, ins_ref) else {
-            return Err("Failed to resolve instruction".into());
+            return vec![ContextItem::Copy(ContextItemCopy {
+                value: "Failed to resolve instruction".to_string(),
+                label: Some("error".to_string()),
+            })];
         };
-        let ins =
-            obj.arch.process_instruction(resolved, &diff_config).map_err(|e| e.to_string())?;
-        Ok(diff::display::instruction_context(obj, resolved, &ins)
+        let ins = match obj.arch.process_instruction(resolved, &diff_config) {
+            Ok(ins) => ins,
+            Err(e) => {
+                return vec![ContextItem::Copy(ContextItemCopy {
+                    value: e.to_string(),
+                    label: Some("error".to_string()),
+                })];
+            }
+        };
+        diff::display::instruction_context(obj, resolved, &ins)
             .into_iter()
             .map(|item| ContextItem::from(item))
-            .collect())
+            .collect()
     }
 
     fn instruction_hover(
@@ -279,7 +294,7 @@ impl GuestDisplay for Component {
         symbol_display: SectionDisplaySymbol,
         row_index: u32,
         diff_config: DiffConfigBorrow,
-    ) -> Result<Vec<HoverItem>, String> {
+    ) -> Vec<HoverItem> {
         let obj_diff = diff.get::<ResourceObjectDiff>();
         let obj = obj_diff.0.as_ref();
         let obj_diff = &obj_diff.1;
@@ -290,24 +305,37 @@ impl GuestDisplay for Component {
                 .iter()
                 .find(|s| s.symbol_index == symbol_idx)
                 .map(|s| &s.symbol_diff)
-                .unwrap()
         } else {
-            &obj_diff.symbols[symbol_idx]
+            obj_diff.symbols.get(symbol_idx)
         };
-        let row = &symbol_diff.instruction_rows[row_index as usize];
-        let Some(ins_ref) = row.ins_ref else {
-            return Ok(Vec::new());
+        let Some(ins_ref) = symbol_diff
+            .and_then(|sd| sd.instruction_rows.get(row_index as usize))
+            .and_then(|row| row.ins_ref)
+        else {
+            return Vec::new();
         };
         let diff_config = diff_config.get::<ResourceDiffConfig>().0.borrow();
         let Some(resolved) = obj.resolve_instruction_ref(symbol_idx, ins_ref) else {
-            return Err("Failed to resolve instruction".into());
+            return vec![HoverItem::Text(HoverItemText {
+                label: "Error".to_string(),
+                value: "Failed to resolve instruction".to_string(),
+                color: HoverItemColor::Delete,
+            })];
         };
-        let ins =
-            obj.arch.process_instruction(resolved, &diff_config).map_err(|e| e.to_string())?;
-        Ok(diff::display::instruction_hover(obj, resolved, &ins)
+        let ins = match obj.arch.process_instruction(resolved, &diff_config) {
+            Ok(ins) => ins,
+            Err(e) => {
+                return vec![HoverItem::Text(HoverItemText {
+                    label: "Error".to_string(),
+                    value: e.to_string(),
+                    color: HoverItemColor::Delete,
+                })];
+            }
+        };
+        diff::display::instruction_hover(obj, resolved, &ins)
             .into_iter()
             .map(|item| HoverItem::from(item))
-            .collect())
+            .collect()
     }
 }
 
@@ -532,6 +560,42 @@ impl From<diff::display::SymbolNavigationKind> for SymbolNavigationKind {
         match kind {
             diff::display::SymbolNavigationKind::Normal => SymbolNavigationKind::Normal,
             diff::display::SymbolNavigationKind::Extab => SymbolNavigationKind::Extab,
+        }
+    }
+}
+
+impl Default for InstructionDiffKind {
+    fn default() -> Self { Self::None }
+}
+
+impl Default for InstructionDiffRow {
+    fn default() -> Self { Self { segments: Default::default(), diff_kind: Default::default() } }
+}
+
+impl Default for SymbolKind {
+    fn default() -> Self { Self::Unknown }
+}
+
+impl Default for SymbolFlags {
+    fn default() -> Self { Self::empty() }
+}
+
+impl Default for SymbolDisplay {
+    fn default() -> Self {
+        Self {
+            name: Default::default(),
+            demangled_name: Default::default(),
+            address: Default::default(),
+            size: Default::default(),
+            kind: Default::default(),
+            section: Default::default(),
+            flags: Default::default(),
+            align: Default::default(),
+            virtual_address: Default::default(),
+            target_symbol: Default::default(),
+            match_percent: Default::default(),
+            diff_score: Default::default(),
+            row_count: Default::default(),
         }
     }
 }

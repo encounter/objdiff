@@ -257,14 +257,14 @@ interface display {
     symbol: section-display-symbol,
     row-index: u32,
     config: borrow<diff-config>,
-  ) -> result<list<context-item>, string>;
+  ) -> list<context-item>;
 
   instruction-hover: func(
     diff: borrow<object-diff>,
     symbol: section-display-symbol,
     row-index: u32,
     config: borrow<diff-config>,
-  ) -> result<list<hover-item>, string>;
+  ) -> list<hover-item>;
 }
 
 world api {
