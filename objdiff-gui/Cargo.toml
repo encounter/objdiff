@@ -42,7 +42,7 @@ png = "0.17"
 pollster = "0.4"
 regex = "1.11"
 rfd = { version = "0.15" } #, default-features = false, features = ['xdg-portal']
-rlwinmdec = { version = "1.0", git = "https://github.com/CelestialAmber/rlwinmdec.git" }
+rlwinmdec = "1.1"
 ron = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 time = { version = "0.3", features = ["formatting", "local-offset"] }

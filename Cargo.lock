@@ -956,7 +956,8 @@ checksum = "c2e06f9bce634a3c898eb1e5cb949ff63133cbb218af93cc9b38b31d6f3ea285"
 [[package]]
 name = "cwextab"
 version = "1.0.4"
-source = "git+https://github.com/CelestialAmber/cwextab.git#a81d42980912afebf6d3243dddf7309b138c4e28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "78a1be2fee628a2f9109d28b6786ae591ff173d5b02118821cf4bd9a2d77ddfe"
 dependencies = [
  "thiserror 2.0.11",
 ]
@@ -4233,7 +4234,8 @@ dependencies = [
 [[package]]
 name = "rlwinmdec"
 version = "1.1.0"
-source = "git+https://github.com/CelestialAmber/rlwinmdec.git#06e9a86eec1f21466a97cc48a752e9177985e1eb"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a87635cbde819eb81b94808ad035491693c7a07ee076ceb49d06f964e8ac38e3"
 dependencies = [
  "anyhow",
 ]
