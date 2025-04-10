@@ -24,6 +24,8 @@ pub mod arm64;
 pub mod mips;
 #[cfg(feature = "ppc")]
 pub mod ppc;
+#[cfg(feature = "superh")]
+pub mod superh;
 #[cfg(feature = "x86")]
 pub mod x86;
 
@@ -285,6 +287,8 @@ pub fn new_arch(object: &object::File) -> Result<Box<dyn Arch>> {
         object::Architecture::Arm => Box::new(arm::ArchArm::new(object)?),
         #[cfg(feature = "arm64")]
         object::Architecture::Aarch64 => Box::new(arm64::ArchArm64::new(object)?),
+        #[cfg(feature = "superh")]
+        object::Architecture::SuperH => Box::new(superh::ArchSuperH::new(object)?),
         arch => bail!("Unsupported architecture: {arch:?}"),
     })
 }

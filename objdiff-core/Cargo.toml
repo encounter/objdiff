@@ -27,6 +27,7 @@ all = [
     "mips",
     "ppc",
     "x86",
+    "superh"
 ]
 # Implicit, used to check if any arch is enabled
 any-arch = [
@@ -110,6 +111,9 @@ arm64 = [
     "dep:cpp_demangle",
     "dep:yaxpeax-arch",
     "dep:yaxpeax-arm",
+]
+superh = [
+    "any-arch",
 ]
 
 [package.metadata.docs.rs]
