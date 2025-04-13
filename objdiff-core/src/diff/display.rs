@@ -564,7 +564,8 @@ pub fn instruction_hover(
     if let Some(reloc) = resolved.relocation {
         out.push(HoverItem::Separator);
         out.append(&mut relocation_hover(obj, reloc, None));
-        if let Some(ty) = obj.arch.guess_data_type(resolved) {
+        let bytes = obj.symbol_data(reloc.relocation.target_symbol).unwrap_or(&[]);
+        if let Some(ty) = obj.arch.guess_data_type(resolved, bytes) {
             let literals = display_ins_data_literals(obj, resolved);
             if !literals.is_empty() {
                 out.push(HoverItem::Separator);
@@ -758,7 +759,7 @@ pub fn display_ins_data_labels(obj: &Object, resolved: ResolvedInstructionRef) -
     };
     let bytes = &data[reloc.relocation.addend as usize..];
     obj.arch
-        .guess_data_type(resolved)
+        .guess_data_type(resolved, bytes)
         .map(|ty| ty.display_labels(obj.endianness, bytes))
         .unwrap_or_default()
 }
@@ -775,7 +776,7 @@ pub fn display_ins_data_literals(obj: &Object, resolved: ResolvedInstructionRef)
     };
     let bytes = &data[reloc.relocation.addend as usize..];
     obj.arch
-        .guess_data_type(resolved)
+        .guess_data_type(resolved, bytes)
         .map(|ty| ty.display_literals(obj.endianness, bytes))
         .unwrap_or_default()
 }

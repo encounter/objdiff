@@ -247,7 +247,13 @@ pub trait Arch: Send + Sync + Debug {
         SymbolFlagSet::default()
     }
 
-    fn guess_data_type(&self, _resolved: ResolvedInstructionRef) -> Option<DataType> { None }
+    fn guess_data_type(
+        &self,
+        _resolved: ResolvedInstructionRef,
+        _bytes: &[u8],
+    ) -> Option<DataType> {
+        None
+    }
 
     fn symbol_hover(&self, _obj: &Object, _symbol_index: usize) -> Vec<HoverItem> { Vec::new() }
 
