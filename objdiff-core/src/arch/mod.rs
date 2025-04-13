@@ -2,6 +2,7 @@ use alloc::{borrow::Cow, boxed::Box, format, string::String, vec::Vec};
 use core::{ffi::CStr, fmt, fmt::Debug};
 
 use anyhow::{Result, bail};
+use encoding_rs::SHIFT_JIS;
 use object::Endian as _;
 
 use crate::{
@@ -137,6 +138,16 @@ impl DataType {
             DataType::String => {
                 if let Ok(cstr) = CStr::from_bytes_until_nul(bytes) {
                     strs.push(format!("{:?}", cstr));
+                }
+                if let Some(nul_idx) = bytes.iter().position(|&c| c == b'\0') {
+                    let (cow, _, had_errors) = SHIFT_JIS.decode(&bytes[..nul_idx]);
+                    if !had_errors {
+                        let str = format!("{:?}", cow);
+                        // Only add the Shift JIS string if it's different from the ASCII string.
+                        if !strs.contains(&str) {
+                            strs.push(str);
+                        }
+                    }
                 }
             }
         }
