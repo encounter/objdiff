@@ -221,12 +221,21 @@ impl Arch for ArchPpc {
         }
     }
 
-    fn guess_data_type(&self, resolved: ResolvedInstructionRef) -> Option<DataType> {
+    fn guess_data_type(&self, resolved: ResolvedInstructionRef, bytes: &[u8]) -> Option<DataType> {
         if resolved.relocation.is_some_and(|r| r.symbol.name.starts_with("@stringBase")) {
+            // Pooled string.
             return Some(DataType::String);
         }
         let opcode = ppc750cl::Opcode::from(resolved.ins_ref.opcode as u8);
-        guess_data_type_from_load_store_inst_op(opcode)
+        if let Some(ty) = guess_data_type_from_load_store_inst_op(opcode) {
+            // Numeric type.
+            return Some(ty);
+        }
+        if bytes.len() >= 2 && bytes.iter().position(|&c| c == b'\0') == Some(bytes.len() - 1) {
+            // It may be an unpooled string if the symbol contains exactly one null byte at the end of the symbol.
+            return Some(DataType::String);
+        }
+        None
     }
 
     fn symbol_hover(&self, _obj: &Object, symbol_index: usize) -> Vec<HoverItem> {
