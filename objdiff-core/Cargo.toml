@@ -27,6 +27,7 @@ all = [
     "mips",
     "ppc",
     "x86",
+    "superh"
 ]
 # Implicit, used to check if any arch is enabled
 any-arch = [
@@ -111,6 +112,9 @@ arm64 = [
     "dep:yaxpeax-arch",
     "dep:yaxpeax-arm",
 ]
+superh = [
+    "any-arch",
+]
 
 [package.metadata.docs.rs]
 features = ["all"]
@@ -123,7 +127,7 @@ itertools = { version = "0.14", default-features = false, features = ["use_alloc
 log = { version = "0.4", default-features = false, optional = true }
 memmap2 = { version = "0.9", optional = true }
 num-traits = { version = "0.2", default-features = false, optional = true }
-object = { version = "0.36", default-features = false, features = ["read_core", "elf", "pe"] }
+object = { git = "https://github.com/gimli-rs/object", rev = "a74579249e21ab8fcd3a86be588de336f18297cb", default-features = false, features = ["read_core", "elf", "pe"] }
 pbjson = { version = "0.7", default-features = false, optional = true }
 prost = { version = "0.13", default-features = false, features = ["prost-derive"], optional = true }
 regex = { version = "1.11", default-features = false, features = [], optional = true }
