@@ -330,6 +330,7 @@ fn reloc_eq(
                     || address_eq(left_reloc, right_reloc))
                 && (diff_config.function_reloc_diffs == FunctionRelocDiffs::NameAddress
                     || left_reloc.symbol.kind != SymbolKind::Object
+                    || right_reloc.symbol.size == 0 // Likely a pool symbol like ...data, don't treat this as a diff
                     || display_ins_data_literals(left_obj, left_ins)
                         == display_ins_data_literals(right_obj, right_ins))
         }
