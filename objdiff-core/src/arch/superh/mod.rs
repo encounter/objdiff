@@ -155,7 +155,7 @@ mod test {
     use super::*;
     use crate::obj::InstructionArg;
 
-    impl<'a> Display for InstructionPart<'a> {
+    impl Display for InstructionPart<'_> {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             match self {
                 InstructionPart::Basic(s) => write!(f, "{}", s),
@@ -166,7 +166,7 @@ mod test {
         }
     }
 
-    impl<'a> Display for InstructionArg<'a> {
+    impl Display for InstructionArg<'_> {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             match self {
                 InstructionArg::Value(v) => write!(f, "{}", v),
