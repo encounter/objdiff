@@ -475,7 +475,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "miniz_oxide",
- "object",
+ "object 0.36.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-demangle",
  "windows-targets 0.52.6",
 ]
@@ -3352,7 +3352,7 @@ dependencies = [
  "notify-debouncer-full",
  "num-traits",
  "objdiff-core",
- "object",
+ "object 0.36.7 (git+https://github.com/gimli-rs/object?rev=a74579249e21ab8fcd3a86be588de336f18297cb)",
  "pbjson",
  "pbjson-build",
  "ppc750cl",
@@ -3435,6 +3435,14 @@ name = "object"
 version = "0.36.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62948e14d923ea95ea2c7c86c71013138b66525b86bdc08d2dcc262bdb497b87"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "object"
+version = "0.36.7"
+source = "git+https://github.com/gimli-rs/object?rev=a74579249e21ab8fcd3a86be588de336f18297cb#a74579249e21ab8fcd3a86be588de336f18297cb"
 dependencies = [
  "memchr",
 ]
