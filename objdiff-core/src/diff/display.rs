@@ -444,8 +444,8 @@ pub fn relocation_context(
         let literals = display_ins_data_literals(obj, ins);
         if !literals.is_empty() {
             out.push(ContextItem::Separator);
-            for literal in literals {
-                out.push(ContextItem::Copy { value: literal, label: None });
+            for (literal, label_override) in literals {
+                out.push(ContextItem::Copy { value: literal, label: label_override });
             }
         }
     }
@@ -568,9 +568,9 @@ pub fn instruction_hover(
             let literals = display_ins_data_literals(obj, resolved);
             if !literals.is_empty() {
                 out.push(HoverItem::Separator);
-                for literal in literals {
+                for (literal, label_override) in literals {
                     out.push(HoverItem::Text {
-                        label: format!("{}", ty),
+                        label: label_override.unwrap_or_else(|| format!("{}", ty)),
                         value: literal,
                         color: HoverItemColor::Normal,
                     });
@@ -763,7 +763,10 @@ pub fn display_ins_data_labels(obj: &Object, resolved: ResolvedInstructionRef) -
         .unwrap_or_default()
 }
 
-pub fn display_ins_data_literals(obj: &Object, resolved: ResolvedInstructionRef) -> Vec<String> {
+pub fn display_ins_data_literals(
+    obj: &Object,
+    resolved: ResolvedInstructionRef,
+) -> Vec<(String, Option<String>)> {
     let Some(reloc) = resolved.relocation else {
         return Vec::new();
     };
