@@ -3337,6 +3337,7 @@ dependencies = [
  "cpp_demangle",
  "cwdemangle",
  "cwextab",
+ "encoding_rs",
  "filetime",
  "flagset",
  "gimli",

@@ -2,6 +2,7 @@ use alloc::{borrow::Cow, boxed::Box, format, string::String, vec::Vec};
 use core::{ffi::CStr, fmt, fmt::Debug};
 
 use anyhow::{Result, bail};
+use encoding_rs::SHIFT_JIS;
 use object::Endian as _;
 
 use crate::{
@@ -57,13 +58,18 @@ impl fmt::Display for DataType {
 impl DataType {
     pub fn display_labels(&self, endian: object::Endianness, bytes: &[u8]) -> Vec<String> {
         let mut strs = Vec::new();
-        for literal in self.display_literals(endian, bytes) {
-            strs.push(format!("{}: {}", self, literal))
+        for (literal, label_override) in self.display_literals(endian, bytes) {
+            let label = label_override.unwrap_or_else(|| format!("{}", self));
+            strs.push(format!("{}: {}", label, literal))
         }
         strs
     }
 
-    pub fn display_literals(&self, endian: object::Endianness, bytes: &[u8]) -> Vec<String> {
+    pub fn display_literals(
+        &self,
+        endian: object::Endianness,
+        bytes: &[u8],
+    ) -> Vec<(String, Option<String>)> {
         let mut strs = Vec::new();
         if self.required_len().is_some_and(|l| bytes.len() < l) {
             log::warn!(
@@ -87,56 +93,72 @@ impl DataType {
         match self {
             DataType::Int8 => {
                 let i = i8::from_ne_bytes(bytes.try_into().unwrap());
-                strs.push(format!("{:#x}", i));
+                strs.push((format!("{:#x}", i), None));
 
                 if i < 0 {
-                    strs.push(format!("{:#x}", ReallySigned(i)));
+                    strs.push((format!("{:#x}", ReallySigned(i)), None));
                 }
             }
             DataType::Int16 => {
                 let i = endian.read_i16_bytes(bytes.try_into().unwrap());
-                strs.push(format!("{:#x}", i));
+                strs.push((format!("{:#x}", i), None));
 
                 if i < 0 {
-                    strs.push(format!("{:#x}", ReallySigned(i)));
+                    strs.push((format!("{:#x}", ReallySigned(i)), None));
                 }
             }
             DataType::Int32 => {
                 let i = endian.read_i32_bytes(bytes.try_into().unwrap());
-                strs.push(format!("{:#x}", i));
+                strs.push((format!("{:#x}", i), None));
 
                 if i < 0 {
-                    strs.push(format!("{:#x}", ReallySigned(i)));
+                    strs.push((format!("{:#x}", ReallySigned(i)), None));
                 }
             }
             DataType::Int64 => {
                 let i = endian.read_i64_bytes(bytes.try_into().unwrap());
-                strs.push(format!("{:#x}", i));
+                strs.push((format!("{:#x}", i), None));
 
                 if i < 0 {
-                    strs.push(format!("{:#x}", ReallySigned(i)));
+                    strs.push((format!("{:#x}", ReallySigned(i)), None));
                 }
             }
             DataType::Float => {
                 let bytes: [u8; 4] = bytes.try_into().unwrap();
-                strs.push(format!("{:?}f", match endian {
-                    object::Endianness::Little => f32::from_le_bytes(bytes),
-                    object::Endianness::Big => f32::from_be_bytes(bytes),
-                }));
+                strs.push((
+                    format!("{:?}f", match endian {
+                        object::Endianness::Little => f32::from_le_bytes(bytes),
+                        object::Endianness::Big => f32::from_be_bytes(bytes),
+                    }),
+                    None,
+                ));
             }
             DataType::Double => {
                 let bytes: [u8; 8] = bytes.try_into().unwrap();
-                strs.push(format!("{:?}", match endian {
-                    object::Endianness::Little => f64::from_le_bytes(bytes),
-                    object::Endianness::Big => f64::from_be_bytes(bytes),
-                }));
+                strs.push((
+                    format!("{:?}", match endian {
+                        object::Endianness::Little => f64::from_le_bytes(bytes),
+                        object::Endianness::Big => f64::from_be_bytes(bytes),
+                    }),
+                    None,
+                ));
             }
             DataType::Bytes => {
-                strs.push(format!("{:#?}", bytes));
+                strs.push((format!("{:#?}", bytes), None));
             }
             DataType::String => {
                 if let Ok(cstr) = CStr::from_bytes_until_nul(bytes) {
-                    strs.push(format!("{:?}", cstr));
+                    strs.push((format!("{:?}", cstr), None));
+                }
+                if let Some(nul_idx) = bytes.iter().position(|&c| c == b'\0') {
+                    let (cow, _, had_errors) = SHIFT_JIS.decode(&bytes[..nul_idx]);
+                    if !had_errors {
+                        let str = format!("{:?}", cow);
+                        // Only add the Shift JIS string if it's different from the ASCII string.
+                        if !strs.iter().any(|x| x.0 == str) {
+                            strs.push((str, Some("Shift JIS".into())));
+                        }
+                    }
                 }
             }
         }
