@@ -38,7 +38,7 @@ impl Arch for ArchSuperH {
             let mut branch_dest: Option<u64> = None;
             sh2_disasm(
                 offset.try_into().unwrap(),
-                opcode.into(),
+                opcode,
                 true,
                 &mut parts,
                 &resolved,
@@ -49,11 +49,8 @@ impl Arch for ArchSuperH {
                 Some(InstructionPart::Opcode(_, val)) => *val,
                 _ => 0,
             };
-            let ins_ref: InstructionRef = InstructionRef {
-                address: offset.try_into().unwrap(),
-                size: 2,
-                opcode: opcode_enum,
-            };
+            let ins_ref: InstructionRef =
+                InstructionRef { address: offset, size: 2, opcode: opcode_enum };
             ops.push(ScannedInstruction { ins_ref, branch_dest });
             offset += 2;
         }
@@ -70,7 +67,7 @@ impl Arch for ArchSuperH {
         let opcode = u16::from_be_bytes(resolved.code.try_into().unwrap());
         let mut parts: Vec<InstructionPart> = vec![];
         let mut branch_dest: Option<u64> = None;
-        sh2_disasm(0, opcode.into(), true, &mut parts, &resolved, &mut branch_dest);
+        sh2_disasm(0, opcode, true, &mut parts, &resolved, &mut branch_dest);
 
         for part in parts {
             cb(part)?;
@@ -144,10 +141,8 @@ impl Arch for ArchSuperH {
 
     fn data_reloc_size(&self, flags: RelocationFlags) -> usize {
         match flags {
-            RelocationFlags::Elf(r_type) => match r_type {
-                elf::R_SH_DIR32 => 4,
-                _ => 1,
-            },
+            RelocationFlags::Elf(elf::R_SH_DIR32) => 4,
+            RelocationFlags::Elf(_) => 1,
             _ => 1,
         }
     }
@@ -201,7 +196,7 @@ mod test {
 
             arch.display_instruction(
                 ResolvedInstructionRef {
-                    ins_ref: InstructionRef { address: 0x1000, size: 2, opcode: opcode as u16 },
+                    ins_ref: InstructionRef { address: 0x1000, size: 2, opcode },
                     code: &code,
                     ..Default::default()
                 },
@@ -279,7 +274,7 @@ mod test {
 
             arch.display_instruction(
                 ResolvedInstructionRef {
-                    ins_ref: InstructionRef { address: 0x1000, size: 2, opcode: opcode as u16 },
+                    ins_ref: InstructionRef { address: 0x1000, size: 2, opcode },
                     code: &code,
                     ..Default::default()
                 },
@@ -362,7 +357,7 @@ mod test {
 
             arch.display_instruction(
                 ResolvedInstructionRef {
-                    ins_ref: InstructionRef { address: 0x1000, size: 2, opcode: opcode as u16 },
+                    ins_ref: InstructionRef { address: 0x1000, size: 2, opcode },
                     code: &code,
                     ..Default::default()
                 },
@@ -584,7 +579,7 @@ mod test {
         let arch = ArchSuperH {};
         let ops: &[(u16, u32, &str)] = &[
             (0x70FF, 0x0000, "add #0xff, r0"),
-            (0xe0FF, 0x0000, "mov #0xff, r0"),
+            (0xE0FF, 0x0000, "mov #0xff, r0"),
             (0x0000, 0x0000, ".word 0x0000 /* unknown instruction */"),
         ];
 

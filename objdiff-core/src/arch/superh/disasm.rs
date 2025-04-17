@@ -1354,7 +1354,7 @@ pub fn sh2_disasm(
     resolved: &ResolvedInstructionRef,
     branch_dest: &mut Option<u64>,
 ) {
-    match op & 0xffff {
+    match op {
         0x0008 => parts.push(InstructionPart::opcode("clrt", Ops::Clrt as u16)),
         0x0028 => parts.push(InstructionPart::opcode("clrmac", Ops::Clrmac as u16)),
         0x0019 => parts.push(InstructionPart::opcode("div0u", Ops::Div0u as u16)),
