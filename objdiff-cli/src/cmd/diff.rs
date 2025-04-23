@@ -1,7 +1,6 @@
 use std::{
     io::stdout,
     mem,
-    str::FromStr,
     sync::{
         Arc,
         atomic::{AtomicBool, Ordering},
@@ -29,10 +28,7 @@ use objdiff_core::{
         ProjectConfig, ProjectObject, ProjectObjectMetadata, build_globset,
         path::{check_path_buf, platform_path, platform_path_serde_option},
     },
-    diff::{
-        self, ConfigEnum, ConfigPropertyId, ConfigPropertyKind, DiffObjConfig, MappingConfig,
-        ObjectDiff,
-    },
+    diff::{self, DiffObjConfig, MappingConfig, ObjectDiff},
     jobs::{
         Job, JobQueue, JobResult,
         objdiff::{ObjDiffConfig, start_build},
@@ -43,6 +39,7 @@ use ratatui::prelude::*;
 use typed_path::{Utf8PlatformPath, Utf8PlatformPathBuf};
 
 use crate::{
+    cmd::apply_config_args,
     util::{
         output::{OutputFormat, write_output},
         term::crossterm_panic_handler,
@@ -183,28 +180,7 @@ pub fn run(args: Args) -> Result<()> {
 
 fn build_config_from_args(args: &Args) -> Result<(DiffObjConfig, MappingConfig)> {
     let mut diff_config = DiffObjConfig::default();
-    for config in &args.config {
-        let (key, value) = config.split_once('=').context("--config expects \"key=value\"")?;
-        let property_id = ConfigPropertyId::from_str(key)
-            .map_err(|()| anyhow!("Invalid configuration property: {}", key))?;
-        diff_config.set_property_value_str(property_id, value).map_err(|()| {
-            let mut options = String::new();
-            match property_id.kind() {
-                ConfigPropertyKind::Boolean => {
-                    options = "true, false".to_string();
-                }
-                ConfigPropertyKind::Choice(variants) => {
-                    for (i, variant) in variants.iter().enumerate() {
-                        if i > 0 {
-                            options.push_str(", ");
-                        }
-                        options.push_str(variant.value);
-                    }
-                }
-            }
-            anyhow!("Invalid value for {}. Expected one of: {}", property_id.name(), options)
-        })?;
-    }
+    apply_config_args(&mut diff_config, &args.config)?;
     let mut mapping_config = MappingConfig {
         mappings: Default::default(),
         selecting_left: args.selecting_left.clone(),

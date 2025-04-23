@@ -17,7 +17,7 @@ use tracing::{info, warn};
 use typed_path::{Utf8PlatformPath, Utf8PlatformPathBuf};
 
 use crate::{
-    cmd::diff::ObjectConfig,
+    cmd::{apply_config_args, diff::ObjectConfig},
     util::output::{OutputFormat, write_output},
 };
 
@@ -52,6 +52,9 @@ pub struct GenerateArgs {
     #[argp(option, short = 'f')]
     /// Output format (json, json-pretty, proto) (default: json)
     format: Option<String>,
+    #[argp(option, short = 'c')]
+    /// Configuration property (key=value)
+    config: Vec<String>,
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
@@ -80,6 +83,12 @@ pub fn run(args: Args) -> Result<()> {
 }
 
 fn generate(args: GenerateArgs) -> Result<()> {
+    let mut diff_config = diff::DiffObjConfig {
+        function_reloc_diffs: diff::FunctionRelocDiffs::None,
+        ..Default::default()
+    };
+    apply_config_args(&mut diff_config, &args.config)?;
+
     let output_format = OutputFormat::from_option(args.format.as_deref())?;
     let project_dir = args.project.as_deref().unwrap_or_else(|| Utf8PlatformPath::new("."));
     info!("Loading project {}", project_dir);
@@ -114,14 +123,15 @@ fn generate(args: GenerateArgs) -> Result<()> {
     if args.deduplicate {
         // If deduplicating, we need to run single-threaded
         for object in &objects {
-            if let Some(unit) = report_object(object, Some(&mut existing_functions))? {
+            if let Some(unit) = report_object(object, &diff_config, Some(&mut existing_functions))?
+            {
                 units.push(unit);
             }
         }
     } else {
         let vec = objects
             .par_iter()
-            .map(|object| report_object(object, None))
+            .map(|object| report_object(object, &diff_config, None))
             .collect::<Result<Vec<Option<ReportUnit>>>>()?;
         units = vec.into_iter().flatten().collect();
     }
@@ -145,6 +155,7 @@ fn generate(args: GenerateArgs) -> Result<()> {
 
 fn report_object(
     object: &ObjectConfig,
+    diff_config: &diff::DiffObjConfig,
     mut existing_functions: Option<&mut HashSet<String>>,
 ) -> Result<Option<ReportUnit>> {
     match (&object.target_path, &object.base_path) {
@@ -158,16 +169,12 @@ fn report_object(
         }
         _ => {}
     }
-    let diff_config = diff::DiffObjConfig {
-        function_reloc_diffs: diff::FunctionRelocDiffs::None,
-        ..Default::default()
-    };
     let mapping_config = diff::MappingConfig::default();
     let target = object
         .target_path
         .as_ref()
         .map(|p| {
-            obj::read::read(p.as_ref(), &diff_config)
+            obj::read::read(p.as_ref(), diff_config)
                 .with_context(|| format!("Failed to open {}", p))
         })
         .transpose()?;
@@ -175,12 +182,12 @@ fn report_object(
         .base_path
         .as_ref()
         .map(|p| {
-            obj::read::read(p.as_ref(), &diff_config)
+            obj::read::read(p.as_ref(), diff_config)
                 .with_context(|| format!("Failed to open {}", p))
         })
         .transpose()?;
     let result =
-        diff::diff_objs(target.as_ref(), base.as_ref(), None, &diff_config, &mapping_config)?;
+        diff::diff_objs(target.as_ref(), base.as_ref(), None, diff_config, &mapping_config)?;
 
     let metadata = ReportUnitMetadata {
         complete: object.metadata.complete,
