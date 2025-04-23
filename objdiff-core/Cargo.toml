@@ -150,7 +150,7 @@ ppc750cl = { version = "0.3", optional = true }
 rlwinmdec = { version = "1.1", optional = true }
 
 # mips
-rabbitizer = { git = "https://github.com/Decompollaborate/rabbitizer.git", branch = "🦀", default-features = false, features = ["all_extensions"], optional = true }
+rabbitizer = { version = "2.0.0-alpha.1", default-features = false, features = ["all_extensions"], optional = true }
 
 # x86
 cpp_demangle = { version = "0.4", default-features = false, features = ["alloc"], optional = true }
