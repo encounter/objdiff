@@ -1,4 +1,5 @@
 use alloc::{string::String, vec::Vec};
+use std::collections::HashMap;
 
 use anyhow::{Result, bail};
 use object::elf;
@@ -7,11 +8,9 @@ use crate::{
     arch::{Arch, superh::disasm::sh2_disasm},
     diff::{DiffObjConfig, display::InstructionPart},
     obj::{
-        InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, ScannedInstruction
+        InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, ScannedInstruction,
     },
 };
-
-use std::collections::HashMap;
 
 pub mod disasm;
 
@@ -21,7 +20,6 @@ pub struct ArchSuperH {}
 impl ArchSuperH {
     pub fn new(_file: &object::File) -> Result<Self> { Ok(Self {}) }
 }
-
 
 struct DataInfo {
     address: u64,
@@ -104,8 +102,6 @@ impl Arch for ArchSuperH {
             }
 
             let pos = resolved.ins_ref.address - resolved.symbol.address;
-            let a = resolved.ins_ref.address;
-            let b = resolved.symbol.address;
 
             // add the data info
             if let Some(value) = data_offsets.get(&pos) {
@@ -217,8 +213,7 @@ mod test {
     use std::fmt::{self, Display};
 
     use super::*;
-    use crate::obj::InstructionArg;
-    use crate::obj::Symbol;
+    use crate::obj::{InstructionArg, Symbol};
 
     impl Display for InstructionPart<'_> {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
