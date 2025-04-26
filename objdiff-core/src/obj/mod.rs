@@ -109,6 +109,12 @@ impl Section {
         }
     }
 
+    // The alignment to use when "Combine data/text sections" is enabled.
+    pub fn combined_alignment(&self) -> u64 {
+        const MIN_ALIGNMENT: u64 = 4;
+        self.align.map(|align| align.get().max(MIN_ALIGNMENT)).unwrap_or(MIN_ALIGNMENT)
+    }
+
     pub fn relocation_at<'obj>(
         &'obj self,
         obj: &'obj Object,

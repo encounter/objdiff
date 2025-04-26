@@ -747,10 +747,10 @@ expression: obj.sections
         id: ".text-combined",
         name: ".text",
         address: 0,
-        size: 280,
+        size: 320,
         kind: Code,
         data: SectionData(
-            280,
+            320,
         ),
         flags: FlagSet(Combined),
         align: Some(
@@ -777,7 +777,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 31,
+                address: 43,
                 target_symbol: 60,
                 addend: 0,
             },
@@ -785,7 +785,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 50,
+                address: 62,
                 target_symbol: 52,
                 addend: 0,
             },
@@ -793,7 +793,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 72,
+                address: 84,
                 target_symbol: 11,
                 addend: 0,
             },
@@ -801,7 +801,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 88,
+                address: 100,
                 target_symbol: 64,
                 addend: 0,
             },
@@ -809,7 +809,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 108,
+                address: 124,
                 target_symbol: 66,
                 addend: 0,
             },
@@ -817,7 +817,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 128,
+                address: 156,
                 target_symbol: 6,
                 addend: 0,
             },
@@ -825,7 +825,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 138,
+                address: 166,
                 target_symbol: 8,
                 addend: 0,
             },
@@ -833,7 +833,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 149,
+                address: 177,
                 target_symbol: 57,
                 addend: 0,
             },
@@ -841,7 +841,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 157,
+                address: 185,
                 target_symbol: 54,
                 addend: 0,
             },
@@ -849,7 +849,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 179,
+                address: 219,
                 target_symbol: 54,
                 addend: 0,
             },
@@ -857,7 +857,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 198,
+                address: 238,
                 target_symbol: 52,
                 addend: 0,
             },
@@ -865,7 +865,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 227,
+                address: 267,
                 target_symbol: 57,
                 addend: 0,
             },
@@ -873,7 +873,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 246,
+                address: 286,
                 target_symbol: 52,
                 addend: 0,
             },
@@ -881,7 +881,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 268,
+                address: 308,
                 target_symbol: 68,
                 addend: 0,
             },
@@ -889,7 +889,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 273,
+                address: 313,
                 target_symbol: 60,
                 addend: 0,
             },

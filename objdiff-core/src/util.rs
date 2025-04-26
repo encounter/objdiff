@@ -42,8 +42,6 @@ pub fn read_u16(obj_file: &object::File, reader: &mut &[u8]) -> Result<u16> {
 
 pub fn align_size_to_4(size: usize) -> usize { (size + 3) & !3 }
 
-pub fn align_u64_to_4(size: u64) -> u64 { (size + 3) & !3 }
-
 #[cfg(feature = "std")]
 pub fn align_data_to_4<W: std::io::Write + ?Sized>(
     writer: &mut W,
@@ -56,7 +54,9 @@ pub fn align_data_to_4<W: std::io::Write + ?Sized>(
     Ok(())
 }
 
-pub fn align_data_slice_to_4(data: &mut Vec<u8>) {
+pub fn align_u64_to(len: u64, align: u64) -> u64 { len + ((align - (len % align)) % align) }
+
+pub fn align_data_slice_to(data: &mut Vec<u8>, align: u64) {
     const ALIGN_BYTE: u8 = 0;
-    data.resize(align_size_to_4(data.len()), ALIGN_BYTE);
+    data.resize(align_u64_to(data.len() as u64, align) as usize, ALIGN_BYTE);
 }
