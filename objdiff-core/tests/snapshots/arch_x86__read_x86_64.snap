@@ -866,6 +866,9 @@ Object {
                 0,
             ),
             flags: FlagSet(),
+            align: Some(
+                1,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -880,6 +883,9 @@ Object {
                 0,
             ),
             flags: FlagSet(),
+            align: Some(
+                1,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -894,6 +900,9 @@ Object {
                 429,
             ),
             flags: FlagSet(),
+            align: Some(
+                16,
+            ),
             relocations: [
                 Relocation {
                     flags: Coff(
@@ -1029,6 +1038,9 @@ Object {
                 141,
             ),
             flags: FlagSet(),
+            align: Some(
+                16,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -1043,6 +1055,9 @@ Object {
                 87,
             ),
             flags: FlagSet(),
+            align: Some(
+                16,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -1057,6 +1072,9 @@ Object {
                 105,
             ),
             flags: FlagSet(),
+            align: Some(
+                16,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -1071,6 +1089,9 @@ Object {
                 82,
             ),
             flags: FlagSet(),
+            align: Some(
+                16,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -1085,6 +1106,9 @@ Object {
                 8,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -1099,6 +1123,9 @@ Object {
                 12,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [
                 Relocation {
                     flags: Coff(
@@ -1138,6 +1165,9 @@ Object {
                 8,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -1152,6 +1182,9 @@ Object {
                 12,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [
                 Relocation {
                     flags: Coff(
@@ -1191,6 +1224,9 @@ Object {
                 8,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -1205,6 +1241,9 @@ Object {
                 12,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [
                 Relocation {
                     flags: Coff(
@@ -1244,6 +1283,9 @@ Object {
                 8,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -1258,6 +1300,9 @@ Object {
                 12,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [
                 Relocation {
                     flags: Coff(
@@ -1297,6 +1342,9 @@ Object {
                 256,
             ),
             flags: FlagSet(),
+            align: Some(
+                16,
+            ),
             relocations: [
                 Relocation {
                     flags: Coff(
@@ -1344,6 +1392,9 @@ Object {
                 20,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [
                 Relocation {
                     flags: Coff(
@@ -1367,6 +1418,9 @@ Object {
                 12,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [
                 Relocation {
                     flags: Coff(
@@ -1406,6 +1460,9 @@ Object {
                 0,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -1420,6 +1477,9 @@ Object {
                 8,
             ),
             flags: FlagSet(),
+            align: Some(
+                8,
+            ),
             relocations: [
                 Relocation {
                     flags: Coff(
@@ -1443,6 +1503,9 @@ Object {
                 8,
             ),
             flags: FlagSet(),
+            align: Some(
+                8,
+            ),
             relocations: [
                 Relocation {
                     flags: Coff(
@@ -1466,6 +1529,9 @@ Object {
                 4,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -1480,6 +1546,9 @@ Object {
                 4,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -1494,6 +1563,9 @@ Object {
                 0,
             ),
             flags: FlagSet(),
+            align: Some(
+                16,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,

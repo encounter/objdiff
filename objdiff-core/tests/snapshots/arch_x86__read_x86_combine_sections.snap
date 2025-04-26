@@ -1,6 +1,5 @@
 ---
 source: objdiff-core/tests/arch_x86.rs
-assertion_line: 27
 expression: obj.sections
 ---
 [
@@ -14,6 +13,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(),
+        align: Some(
+            1,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -28,6 +30,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(),
+        align: Some(
+            1,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -42,6 +47,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -56,6 +64,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -70,6 +81,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            16,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -84,6 +98,9 @@ expression: obj.sections
             56,
         ),
         flags: FlagSet(Combined),
+        align: Some(
+            4,
+        ),
         relocations: [
             Relocation {
                 flags: Coff(
@@ -139,6 +156,9 @@ expression: obj.sections
             304,
         ),
         flags: FlagSet(Combined),
+        align: Some(
+            4,
+        ),
         relocations: [
             Relocation {
                 flags: Coff(
@@ -410,6 +430,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -424,6 +447,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -438,6 +464,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -452,6 +481,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -466,6 +498,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -480,6 +515,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -494,6 +532,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -508,6 +549,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -522,6 +566,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -536,6 +583,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -550,6 +600,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -564,6 +617,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -578,6 +634,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            1,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -592,6 +651,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -606,6 +668,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            16,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -620,6 +685,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            16,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -634,6 +702,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            16,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -648,6 +719,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            16,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -662,6 +736,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            16,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -676,6 +753,9 @@ expression: obj.sections
             280,
         ),
         flags: FlagSet(Combined),
+        align: Some(
+            16,
+        ),
         relocations: [
             Relocation {
                 flags: Coff(
@@ -827,6 +907,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            16,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -841,6 +924,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -855,6 +941,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -869,6 +958,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -883,6 +975,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -897,6 +992,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -911,6 +1009,9 @@ expression: obj.sections
             4,
         ),
         flags: FlagSet(),
+        align: Some(
+            4,
+        ),
         relocations: [
             Relocation {
                 flags: Coff(
@@ -934,6 +1035,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(),
+        align: Some(
+            16,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,

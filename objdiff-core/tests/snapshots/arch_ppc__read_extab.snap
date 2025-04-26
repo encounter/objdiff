@@ -317,6 +317,9 @@ Object {
                 552,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [
                 Relocation {
                     flags: Elf(
@@ -340,6 +343,9 @@ Object {
                 40,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [
                 Relocation {
                     flags: Elf(
@@ -363,6 +369,9 @@ Object {
                 36,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [
                 Relocation {
                     flags: Elf(
@@ -426,6 +435,9 @@ Object {
                 0,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -440,6 +452,9 @@ Object {
                 0,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -454,6 +469,9 @@ Object {
                 0,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -468,6 +486,9 @@ Object {
                 0,
             ),
             flags: FlagSet(),
+            align: Some(
+                4,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -482,6 +503,9 @@ Object {
                 0,
             ),
             flags: FlagSet(),
+            align: Some(
+                1,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -496,6 +520,9 @@ Object {
                 0,
             ),
             flags: FlagSet(),
+            align: Some(
+                1,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -510,6 +537,9 @@ Object {
                 0,
             ),
             flags: FlagSet(),
+            align: Some(
+                1,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,

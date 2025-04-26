@@ -9,7 +9,10 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use core::{fmt, num::NonZeroU32};
+use core::{
+    fmt,
+    num::{NonZeroU32, NonZeroU64},
+};
 
 use flagset::{FlagSet, flags};
 
@@ -70,6 +73,7 @@ pub struct Section {
     pub kind: SectionKind,
     pub data: SectionData,
     pub flags: SectionFlagSet,
+    pub align: Option<NonZeroU64>,
     pub relocations: Vec<Relocation>,
     /// Line number info (.line or .debug_line section)
     pub line_info: BTreeMap<u64, u32>,
@@ -363,6 +367,7 @@ static DUMMY_SECTION: Section = Section {
     kind: SectionKind::Unknown,
     data: SectionData(Vec::new()),
     flags: SectionFlagSet::empty(),
+    align: None,
     relocations: Vec::new(),
     line_info: BTreeMap::new(),
     virtual_address: None,

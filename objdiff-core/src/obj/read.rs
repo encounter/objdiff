@@ -4,7 +4,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use core::cmp::Ordering;
+use core::{cmp::Ordering, num::NonZeroU64};
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
@@ -257,6 +257,7 @@ fn map_sections(
             kind,
             data: SectionData(data),
             flags: Default::default(),
+            align: NonZeroU64::new(section.align()),
             relocations: Default::default(),
             virtual_address,
             line_info: Default::default(),
