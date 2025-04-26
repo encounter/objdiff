@@ -3,6 +3,10 @@ use alloc::{string::String, vec, vec::Vec};
 use anyhow::{Result, anyhow};
 use object::{Endian, ObjectSection, elf::SHT_NOTE};
 
+#[cfg(feature = "std")]
+use crate::util::align_data_to_4;
+use crate::util::align_size_to_4;
+
 pub const SPLITMETA_SECTION: &str = ".note.split";
 pub const SHT_SPLITMETA: u32 = SHT_NOTE;
 pub const ELF_NOTE_SPLIT: &[u8] = b"Split";
@@ -188,17 +192,6 @@ where E: Endian
             })),
         }
     }
-}
-
-fn align_size_to_4(size: usize) -> usize { (size + 3) & !3 }
-
-#[cfg(feature = "std")]
-fn align_data_to_4<W: std::io::Write + ?Sized>(writer: &mut W, len: usize) -> std::io::Result<()> {
-    const ALIGN_BYTES: &[u8] = &[0; 4];
-    if len % 4 != 0 {
-        writer.write_all(&ALIGN_BYTES[..4 - len % 4])?;
-    }
-    Ok(())
 }
 
 // ELF note format:

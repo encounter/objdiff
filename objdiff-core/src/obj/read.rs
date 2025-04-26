@@ -17,7 +17,7 @@ use crate::{
         Symbol, SymbolFlag, SymbolKind,
         split_meta::{SPLITMETA_SECTION, SplitMeta},
     },
-    util::{read_u16, read_u32},
+    util::{align_data_slice_to_4, align_size_to_4, align_u64_to_4, read_u16, read_u32},
 };
 
 fn map_section_kind(section: &object::Section) -> SectionKind {
@@ -739,7 +739,9 @@ fn do_combine_sections(
         }
         offsets.push(current_offset);
         current_offset += section.size;
+        current_offset = align_u64_to_4(current_offset);
         data_size += section.data.len();
+        data_size = align_size_to_4(data_size);
         num_relocations += section.relocations.len();
     }
     if data_size > 0 {
@@ -754,6 +756,7 @@ fn do_combine_sections(
         let section = &mut sections[i];
         section.size = 0;
         data.append(&mut section.data.0);
+        align_data_slice_to_4(&mut data);
         section.relocations.iter_mut().for_each(|r| r.address += offset);
         relocations.append(&mut section.relocations);
         line_info.append(&mut section.line_info.iter().map(|(&a, &l)| (a + offset, l)).collect());
