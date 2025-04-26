@@ -843,7 +843,7 @@ pub fn read(obj_path: &std::path::Path, config: &DiffObjConfig) -> Result<Object
 
 pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<Object> {
     let obj_file = object::File::parse(data)?;
-    let arch = new_arch(&obj_file)?;
+    let mut arch = new_arch(&obj_file)?;
     let split_meta = parse_split_meta(&obj_file)?;
     let (mut sections, section_indices) =
         map_sections(arch.as_ref(), &obj_file, split_meta.as_ref())?;
@@ -857,6 +857,7 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<Object> {
     if config.combine_data_sections || config.combine_text_sections {
         combine_sections(&mut sections, &mut symbols, config)?;
     }
+    arch.post_init(&sections, &symbols);
     Ok(Object {
         arch,
         endianness: obj_file.endianness(),

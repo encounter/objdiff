@@ -12,7 +12,7 @@ use crate::{
     },
     obj::{
         InstructionArg, Object, ParsedInstruction, Relocation, RelocationFlags,
-        ResolvedInstructionRef, ScannedInstruction, Symbol, SymbolFlagSet, SymbolKind,
+        ResolvedInstructionRef, ScannedInstruction, Section, Symbol, SymbolFlagSet, SymbolKind,
     },
     util::ReallySigned,
 };
@@ -183,6 +183,9 @@ impl DataType {
 }
 
 pub trait Arch: Send + Sync + Debug {
+    // Finishes arch-specific initialization that must be done after sections have been combined.
+    fn post_init(&mut self, _sections: &[Section], _symbols: &[Symbol]) {}
+
     /// Generate a list of instructions references (offset, size, opcode) from the given code.
     ///
     /// The opcode IDs are used to generate the initial diff. Implementations should do as little
