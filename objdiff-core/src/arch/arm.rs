@@ -330,6 +330,7 @@ impl Arch for ArchArm {
         &self,
         resolved: ResolvedInstructionRef,
         diff_config: &DiffObjConfig,
+        _code: Option<&[u8]>,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
         let (ins, parsed_ins) = self.parse_ins_ref(resolved.ins_ref, resolved.code, diff_config)?;

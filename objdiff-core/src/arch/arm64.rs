@@ -80,6 +80,7 @@ impl Arch for ArchArm64 {
         &self,
         resolved: ResolvedInstructionRef,
         _diff_config: &DiffObjConfig,
+        _code: Option<&[u8]>,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
         let mut reader = U8Reader::new(resolved.code);

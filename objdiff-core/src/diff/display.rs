@@ -7,7 +7,7 @@ use alloc::{
 };
 use core::cmp::Ordering;
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use itertools::Itertools;
 use regex::Regex;
 
@@ -186,80 +186,97 @@ pub fn display_row(
     }
     let mut arg_idx = 0;
     let mut displayed_relocation = false;
-    obj.arch.display_instruction(resolved, diff_config, &mut |part| match part {
-        InstructionPart::Basic(text) => {
-            if text.chars().all(|c| c == ' ') {
-                cb(DiffTextSegment::spacing(text.len() as u8))
-            } else {
-                cb(DiffTextSegment::basic(&text, base_color))
+
+    let symbol = &obj.symbols[symbol_index];
+    let section_index = symbol.section.ok_or_else(|| anyhow!("Missing section for symbol"))?;
+    let section = &obj.sections[section_index];
+    let code_data = section.data_range(symbol.address, symbol.size as usize).ok_or_else(|| {
+        anyhow!(
+            "Symbol data out of bounds: {:#x}..{:#x}",
+            symbol.address,
+            symbol.address + symbol.size
+        )
+    })?;
+
+    obj.arch.display_instruction(
+        resolved,
+        diff_config,
+        Some(code_data),
+        &mut |part| match part {
+            InstructionPart::Basic(text) => {
+                if text.chars().all(|c| c == ' ') {
+                    cb(DiffTextSegment::spacing(text.len() as u8))
+                } else {
+                    cb(DiffTextSegment::basic(&text, base_color))
+                }
             }
-        }
-        InstructionPart::Opcode(mnemonic, opcode) => cb(DiffTextSegment {
-            text: DiffText::Opcode(mnemonic.as_ref(), opcode),
-            color: match ins_row.kind {
-                InstructionDiffKind::OpMismatch => DiffTextColor::Replace,
-                _ => base_color,
-            },
-            pad_to: 10,
-        }),
-        InstructionPart::Arg(arg) => {
-            let diff_index = ins_row.arg_diff.get(arg_idx).copied().unwrap_or_default();
-            arg_idx += 1;
-            match arg {
-                InstructionArg::Value(value) => cb(DiffTextSegment {
-                    text: DiffText::Argument(value),
-                    color: diff_index
-                        .get()
-                        .map_or(base_color, |i| DiffTextColor::Rotating(i as u8)),
-                    pad_to: 0,
-                }),
-                InstructionArg::Reloc => {
-                    displayed_relocation = true;
-                    let resolved = resolved.relocation.unwrap();
-                    let color = diff_index
-                        .get()
-                        .map_or(DiffTextColor::Bright, |i| DiffTextColor::Rotating(i as u8));
-                    cb(DiffTextSegment {
-                        text: DiffText::Symbol(resolved.symbol),
-                        color,
+            InstructionPart::Opcode(mnemonic, opcode) => cb(DiffTextSegment {
+                text: DiffText::Opcode(mnemonic.as_ref(), opcode),
+                color: match ins_row.kind {
+                    InstructionDiffKind::OpMismatch => DiffTextColor::Replace,
+                    _ => base_color,
+                },
+                pad_to: 10,
+            }),
+            InstructionPart::Arg(arg) => {
+                let diff_index = ins_row.arg_diff.get(arg_idx).copied().unwrap_or_default();
+                arg_idx += 1;
+                match arg {
+                    InstructionArg::Value(value) => cb(DiffTextSegment {
+                        text: DiffText::Argument(value),
+                        color: diff_index
+                            .get()
+                            .map_or(base_color, |i| DiffTextColor::Rotating(i as u8)),
                         pad_to: 0,
-                    })?;
-                    if resolved.relocation.addend != 0 {
+                    }),
+                    InstructionArg::Reloc => {
+                        displayed_relocation = true;
+                        let resolved = resolved.relocation.unwrap();
+                        let color = diff_index
+                            .get()
+                            .map_or(DiffTextColor::Bright, |i| DiffTextColor::Rotating(i as u8));
                         cb(DiffTextSegment {
-                            text: DiffText::Addend(resolved.relocation.addend),
+                            text: DiffText::Symbol(resolved.symbol),
                             color,
                             pad_to: 0,
                         })?;
+                        if resolved.relocation.addend != 0 {
+                            cb(DiffTextSegment {
+                                text: DiffText::Addend(resolved.relocation.addend),
+                                color,
+                                pad_to: 0,
+                            })?;
+                        }
+                        Ok(())
                     }
-                    Ok(())
-                }
-                InstructionArg::BranchDest(dest) => {
-                    if let Some(addr) = dest.checked_sub(resolved.symbol.address) {
-                        cb(DiffTextSegment {
-                            text: DiffText::BranchDest(addr),
-                            color: diff_index
-                                .get()
-                                .map_or(base_color, |i| DiffTextColor::Rotating(i as u8)),
-                            pad_to: 0,
-                        })
-                    } else {
-                        cb(DiffTextSegment {
-                            text: DiffText::Argument(InstructionArgValue::Opaque(Cow::Borrowed(
-                                "<invalid>",
-                            ))),
-                            color: diff_index
-                                .get()
-                                .map_or(base_color, |i| DiffTextColor::Rotating(i as u8)),
-                            pad_to: 0,
-                        })
+                    InstructionArg::BranchDest(dest) => {
+                        if let Some(addr) = dest.checked_sub(resolved.symbol.address) {
+                            cb(DiffTextSegment {
+                                text: DiffText::BranchDest(addr),
+                                color: diff_index
+                                    .get()
+                                    .map_or(base_color, |i| DiffTextColor::Rotating(i as u8)),
+                                pad_to: 0,
+                            })
+                        } else {
+                            cb(DiffTextSegment {
+                                text: DiffText::Argument(InstructionArgValue::Opaque(
+                                    Cow::Borrowed("<invalid>"),
+                                )),
+                                color: diff_index
+                                    .get()
+                                    .map_or(base_color, |i| DiffTextColor::Rotating(i as u8)),
+                                pad_to: 0,
+                            })
+                        }
                     }
                 }
             }
-        }
-        InstructionPart::Separator => {
-            cb(DiffTextSegment::basic(diff_config.separator(), base_color))
-        }
-    })?;
+            InstructionPart::Separator => {
+                cb(DiffTextSegment::basic(diff_config.separator(), base_color))
+            }
+        },
+    )?;
     // Fallback for relocation that wasn't displayed
     if resolved.relocation.is_some() && !displayed_relocation {
         cb(DiffTextSegment::basic(" <", base_color))?;
