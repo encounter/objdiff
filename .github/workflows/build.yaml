@@ -8,6 +8,10 @@ on:
       - "LICENSE*"
   workflow_dispatch:
 
+permissions:
+  # For npm publish provenance
+  id-token: write
+
 env:
   BUILD_PROFILE: release-lto
   CARGO_INCREMENTAL: 0
