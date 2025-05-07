@@ -28,7 +28,7 @@ xxhash-rust = { version = "0.8", default-features = false, features = ["xxh3"] }
 [dependencies.objdiff-core]
 path = "../objdiff-core"
 default-features = false
-features = ["arm", "arm64", "mips", "ppc", "x86", "dwarf"]
+features = ["arm", "arm64", "mips", "ppc", "superh", "x86", "dwarf"]
 
 [target.'cfg(target_family = "wasm")'.dependencies]
 talc = { version = "4.4", default-features = false, features = ["lock_api"] }
