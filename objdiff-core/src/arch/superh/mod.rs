@@ -750,7 +750,6 @@ mod test {
         code.extend_from_slice(&0x00B0_u16.to_be_bytes());
 
         for &(opcode, addr, expected_str) in ops {
-            let code_slice = &code;
             let mut parts = Vec::new();
 
             arch.display_instruction(
