@@ -4,7 +4,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use core::cmp::Ordering;
+use core::{cmp::Ordering, num::NonZeroU64};
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
@@ -17,7 +17,7 @@ use crate::{
         Symbol, SymbolFlag, SymbolKind,
         split_meta::{SPLITMETA_SECTION, SplitMeta},
     },
-    util::{read_u16, read_u32},
+    util::{align_data_slice_to, align_u64_to, read_u16, read_u32},
 };
 
 fn map_section_kind(section: &object::Section) -> SectionKind {
@@ -257,6 +257,7 @@ fn map_sections(
             kind,
             data: SectionData(data),
             flags: Default::default(),
+            align: NonZeroU64::new(section.align()),
             relocations: Default::default(),
             virtual_address,
             line_info: Default::default(),
@@ -739,7 +740,10 @@ fn do_combine_sections(
         }
         offsets.push(current_offset);
         current_offset += section.size;
+        let align = section.combined_alignment();
+        current_offset = align_u64_to(current_offset, align);
         data_size += section.data.len();
+        data_size = align_u64_to(data_size as u64, align) as usize;
         num_relocations += section.relocations.len();
     }
     if data_size > 0 {
@@ -754,6 +758,7 @@ fn do_combine_sections(
         let section = &mut sections[i];
         section.size = 0;
         data.append(&mut section.data.0);
+        align_data_slice_to(&mut data, section.combined_alignment());
         section.relocations.iter_mut().for_each(|r| r.address += offset);
         relocations.append(&mut section.relocations);
         line_info.append(&mut section.line_info.iter().map(|(&a, &l)| (a + offset, l)).collect());

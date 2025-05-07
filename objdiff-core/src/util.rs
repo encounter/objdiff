@@ -1,4 +1,4 @@
-use alloc::format;
+use alloc::{format, vec::Vec};
 use core::fmt;
 
 use anyhow::{Result, ensure};
@@ -38,4 +38,25 @@ pub fn read_u16(obj_file: &object::File, reader: &mut &[u8]) -> Result<u16> {
     let value = u16::from_ne_bytes(reader[..2].try_into()?);
     *reader = &reader[2..];
     Ok(obj_file.endianness().read_u16(value))
+}
+
+pub fn align_size_to_4(size: usize) -> usize { (size + 3) & !3 }
+
+#[cfg(feature = "std")]
+pub fn align_data_to_4<W: std::io::Write + ?Sized>(
+    writer: &mut W,
+    len: usize,
+) -> std::io::Result<()> {
+    const ALIGN_BYTES: &[u8] = &[0; 4];
+    if len % 4 != 0 {
+        writer.write_all(&ALIGN_BYTES[..4 - len % 4])?;
+    }
+    Ok(())
+}
+
+pub fn align_u64_to(len: u64, align: u64) -> u64 { len + ((align - (len % align)) % align) }
+
+pub fn align_data_slice_to(data: &mut Vec<u8>, align: u64) {
+    const ALIGN_BYTE: u8 = 0;
+    data.resize(align_u64_to(data.len() as u64, align) as usize, ALIGN_BYTE);
 }

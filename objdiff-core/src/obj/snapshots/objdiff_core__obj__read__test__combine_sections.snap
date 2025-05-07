@@ -14,6 +14,7 @@ expression: "(sections, symbols)"
                 8,
             ),
             flags: FlagSet(),
+            align: None,
             relocations: [
                 Relocation {
                     flags: Elf(
@@ -53,6 +54,7 @@ expression: "(sections, symbols)"
                 12,
             ),
             flags: FlagSet(Combined),
+            align: None,
             relocations: [
                 Relocation {
                     flags: Elf(
@@ -87,6 +89,7 @@ expression: "(sections, symbols)"
                 0,
             ),
             flags: FlagSet(Hidden),
+            align: None,
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -101,6 +104,7 @@ expression: "(sections, symbols)"
                 0,
             ),
             flags: FlagSet(Hidden),
+            align: None,
             relocations: [],
             line_info: {},
             virtual_address: None,
