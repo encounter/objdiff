@@ -347,6 +347,7 @@ impl Arch for ArchArm {
             cb(InstructionPart::reloc())?;
         } else {
             push_args(
+                ins,
                 &parsed_ins,
                 resolved.relocation,
                 resolved.ins_ref.address as u32,
@@ -478,6 +479,7 @@ impl DisasmMode {
 }
 
 fn push_args(
+    ins: unarm::Ins,
     parsed_ins: &unarm::ParsedIns,
     relocation: Option<ResolvedRelocation>,
     cur_addr: u32,
@@ -623,6 +625,14 @@ fn push_args(
             arg_cb(InstructionPart::opaque("!"))?;
         }
     }
+
+    let branch_dest = get_pc_relative_load_address(ins, cur_addr);
+    if let Some(branch_dest) = branch_dest {
+        arg_cb(InstructionPart::basic(" (->"))?;
+        arg_cb(InstructionPart::branch_dest(branch_dest))?;
+        arg_cb(InstructionPart::basic(")"))?;
+    }
+
     Ok(())
 }
 
@@ -648,5 +658,23 @@ fn find_reloc_arg(
         }
     } else {
         None
+    }
+}
+
+fn get_pc_relative_load_address(ins: unarm::Ins, address: u32) -> Option<u32> {
+    match ins {
+        unarm::Ins::Arm(ins)
+            if ins.op == arm::Opcode::Ldr
+                && ins.modifier_addr_ldr_str() == arm::AddrLdrStr::Imm
+                && ins.field_rn_deref().reg == args::Register::Pc =>
+        {
+            let offset = ins.field_offset_12().value;
+            Some(address.wrapping_add_signed(offset + 8))
+        }
+        unarm::Ins::Thumb(ins) if ins.op == thumb::Opcode::LdrPc => {
+            let offset = ins.field_rel_immed_8().value;
+            Some((address & !3).wrapping_add_signed(offset + 4))
+        }
+        _ => None,
     }
 }
