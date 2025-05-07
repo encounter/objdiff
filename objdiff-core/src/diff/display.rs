@@ -600,9 +600,7 @@ fn symbol_matches_filter(
         return false;
     }
     if !show_hidden_symbols
-        && (symbol.size == 0
-            || symbol.flags.contains(SymbolFlag::Hidden)
-            || symbol.flags.contains(SymbolFlag::Ignored))
+        && (symbol.size == 0 || symbol.flags.contains(SymbolFlag::Hidden | SymbolFlag::Ignored))
     {
         return false;
     }

@@ -274,7 +274,6 @@ pub fn diff_data_section(
         // We only do this when all relocations on the left side match.
         if left_section_diff.match_percent.unwrap_or(-1.0) < match_percent {
             left_section_diff.match_percent = Some(match_percent);
-            right_section_diff.match_percent = Some(match_percent);
         }
     }
     Ok((left_section_diff, right_section_diff))
@@ -413,7 +412,7 @@ pub fn diff_generic_section(
     };
     Ok((
         SectionDiff { match_percent: Some(match_percent), data_diff: vec![], reloc_diff: vec![] },
-        SectionDiff { match_percent: Some(match_percent), data_diff: vec![], reloc_diff: vec![] },
+        SectionDiff { match_percent: None, data_diff: vec![], reloc_diff: vec![] },
     ))
 }
 
@@ -454,7 +453,7 @@ pub fn diff_bss_section(
 
     Ok((
         SectionDiff { match_percent: Some(match_percent), data_diff: vec![], reloc_diff: vec![] },
-        SectionDiff { match_percent: Some(match_percent), data_diff: vec![], reloc_diff: vec![] },
+        SectionDiff { match_percent: None, data_diff: vec![], reloc_diff: vec![] },
     ))
 }
 

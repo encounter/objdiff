@@ -658,7 +658,11 @@ fn find_symbol(
 
 /// Find matching sections between each object.
 fn matching_sections(left: Option<&Object>, right: Option<&Object>) -> Result<Vec<SectionMatch>> {
-    let mut matches = Vec::new();
+    let mut matches = Vec::with_capacity(
+        left.as_ref()
+            .map_or(0, |o| o.sections.len())
+            .max(right.as_ref().map_or(0, |o| o.sections.len())),
+    );
     if let Some(left) = left {
         for (section_idx, section) in left.sections.iter().enumerate() {
             if section.kind == SectionKind::Unknown {
@@ -666,7 +670,7 @@ fn matching_sections(left: Option<&Object>, right: Option<&Object>) -> Result<Ve
             }
             matches.push(SectionMatch {
                 left: Some(section_idx),
-                right: find_section(right, &section.name, section.kind),
+                right: find_section(right, &section.name, section.kind, &matches),
                 section_kind: section.kind,
             });
         }
@@ -689,6 +693,13 @@ fn matching_sections(left: Option<&Object>, right: Option<&Object>) -> Result<Ve
     Ok(matches)
 }
 
-fn find_section(obj: Option<&Object>, name: &str, section_kind: SectionKind) -> Option<usize> {
-    obj?.sections.iter().position(|s| s.kind == section_kind && s.name == name)
+fn find_section(
+    obj: Option<&Object>,
+    name: &str,
+    section_kind: SectionKind,
+    matches: &[SectionMatch],
+) -> Option<usize> {
+    obj?.sections.iter().enumerate().position(|(i, s)| {
+        s.kind == section_kind && s.name == name && !matches.iter().any(|m| m.right == Some(i))
+    })
 }
