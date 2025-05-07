@@ -85,6 +85,9 @@ pub fn run(args: Args) -> Result<()> {
 fn generate(args: GenerateArgs) -> Result<()> {
     let mut diff_config = diff::DiffObjConfig {
         function_reloc_diffs: diff::FunctionRelocDiffs::None,
+        combine_data_sections: true,
+        combine_text_sections: true,
+        ppc_calculate_pool_relocations: false,
         ..Default::default()
     };
     apply_config_args(&mut diff_config, &args.config)?;
@@ -241,14 +244,12 @@ fn report_object(
         for (symbol, symbol_diff) in obj.symbols.iter().zip(&obj_diff.symbols) {
             if symbol.section != Some(section_idx)
                 || symbol.size == 0
-                || symbol.flags.contains(SymbolFlag::Hidden)
-                || symbol.flags.contains(SymbolFlag::Ignored)
+                || symbol.flags.contains(SymbolFlag::Hidden | SymbolFlag::Ignored)
             {
                 continue;
             }
             if let Some(existing_functions) = &mut existing_functions {
-                if (symbol.flags.contains(SymbolFlag::Global)
-                    || symbol.flags.contains(SymbolFlag::Weak))
+                if symbol.flags.contains(SymbolFlag::Global | SymbolFlag::Weak)
                     && !existing_functions.insert(symbol.name.clone())
                 {
                     continue;
