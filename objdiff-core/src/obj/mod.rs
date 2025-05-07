@@ -109,6 +109,11 @@ impl Section {
         }
     }
 
+    pub fn symbol_data(&self, symbol: &Symbol) -> Option<&[u8]> {
+        let offset = symbol.address.checked_sub(self.address)?;
+        self.data.get(offset as usize..offset as usize + symbol.size as usize)
+    }
+
     // The alignment to use when "Combine data/text sections" is enabled.
     pub fn combined_alignment(&self) -> u64 {
         const MIN_ALIGNMENT: u64 = 4;
