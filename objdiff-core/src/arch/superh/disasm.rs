@@ -1,3 +1,5 @@
+use alloc::{format, vec::Vec};
+
 use crate::{diff::display::InstructionPart, obj::ResolvedInstructionRef};
 
 static REG_NAMES: [&str; 16] = [

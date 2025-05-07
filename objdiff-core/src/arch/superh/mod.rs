@@ -1,5 +1,4 @@
-use alloc::{string::String, vec::Vec};
-use std::collections::HashMap;
+use alloc::{collections::BTreeMap, format, string::String, vec, vec::Vec};
 
 use anyhow::{Result, bail};
 use object::elf;
@@ -80,7 +79,7 @@ impl Arch for ArchSuperH {
         if let Some(symbol_data) = resolved.section.symbol_data(resolved.symbol) {
             // scan for data
             // map of instruction offsets to data target offsets
-            let mut data_offsets: HashMap<u64, DataInfo> = HashMap::<u64, DataInfo>::new();
+            let mut data_offsets = BTreeMap::<u64, DataInfo>::new();
 
             let mut pos: u64 = 0;
             for chunk in symbol_data.chunks_exact(2) {
