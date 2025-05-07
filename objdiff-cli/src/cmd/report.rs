@@ -228,6 +228,7 @@ fn report_object(
                 demangled_name: None,
                 virtual_address: section.virtual_address,
             }),
+            address: None,
         });
 
         match section.kind {
@@ -273,6 +274,7 @@ fn report_object(
                     demangled_name: symbol.demangled_name.clone(),
                     virtual_address: symbol.virtual_address,
                 }),
+                address: symbol.address.checked_sub(section.address),
             });
             if match_percent == 100.0 {
                 measures.matched_functions += 1;
@@ -280,6 +282,16 @@ fn report_object(
             measures.total_functions += 1;
         }
     }
+    sections.sort_by(|a, b| a.name.cmp(&b.name));
+    let reverse_fn_order = object.metadata.reverse_fn_order.unwrap_or(false);
+    functions.sort_by(|a, b| {
+        if reverse_fn_order {
+            b.address.unwrap_or(0).cmp(&a.address.unwrap_or(0))
+        } else {
+            a.address.unwrap_or(u64::MAX).cmp(&b.address.unwrap_or(u64::MAX))
+        }
+        .then_with(|| a.size.cmp(&b.size))
+    });
     if metadata.complete.unwrap_or(false) {
         measures.complete_code = measures.total_code;
         measures.complete_data = measures.total_data;

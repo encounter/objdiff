@@ -99,6 +99,8 @@ message ReportItem {
   float fuzzy_match_percent = 3;
   // Extra metadata for this item
   optional ReportItemMetadata metadata = 4;
+  // Address of the item (section-relative offset)
+  optional uint64 address = 5;
 }
 
 // Extra metadata for an item

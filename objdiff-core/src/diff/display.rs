@@ -687,19 +687,20 @@ pub fn display_sections(
                 continue;
             }
             let section_diff = &diff.sections[section_idx];
-            if section.kind == SectionKind::Code && reverse_fn_order {
-                symbols.sort_by(|a, b| {
-                    let a_symbol = &obj.symbols[a.symbol];
-                    let b_symbol = &obj.symbols[b.symbol];
-                    symbol_sort_reverse(a_symbol, b_symbol)
-                });
-            } else {
-                symbols.sort_by(|a, b| {
-                    let a_symbol = &obj.symbols[a.symbol];
-                    let b_symbol = &obj.symbols[b.symbol];
-                    symbol_sort(a_symbol, b_symbol)
-                });
-            }
+            let reverse_fn_order = section.kind == SectionKind::Code && reverse_fn_order;
+            symbols.sort_by(|a, b| {
+                let a = &obj.symbols[a.symbol];
+                let b = &obj.symbols[b.symbol];
+                section_symbol_sort(a, b)
+                    .then_with(|| {
+                        if reverse_fn_order {
+                            b.address.cmp(&a.address)
+                        } else {
+                            a.address.cmp(&b.address)
+                        }
+                    })
+                    .then_with(|| a.size.cmp(&b.size))
+            });
             sections.push(SectionDisplay {
                 id: section.id.clone(),
                 name: if section.flags.contains(SectionFlag::Combined) {
@@ -735,14 +736,6 @@ fn section_symbol_sort(a: &Symbol, b: &Symbol) -> Ordering {
         return Ordering::Greater;
     }
     Ordering::Equal
-}
-
-fn symbol_sort(a: &Symbol, b: &Symbol) -> Ordering {
-    section_symbol_sort(a, b).then(a.address.cmp(&b.address)).then(a.size.cmp(&b.size))
-}
-
-fn symbol_sort_reverse(a: &Symbol, b: &Symbol) -> Ordering {
-    section_symbol_sort(a, b).then(b.address.cmp(&a.address)).then(b.size.cmp(&a.size))
 }
 
 pub fn display_ins_data_labels(obj: &Object, resolved: ResolvedInstructionRef) -> Vec<String> {

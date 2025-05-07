@@ -434,6 +434,7 @@ impl From<LegacyReportItem> for ReportItem {
                 demangled_name: value.demangled_name,
                 virtual_address: value.address,
             }),
+            address: None,
         }
     }
 }
