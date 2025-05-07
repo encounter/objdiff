@@ -219,7 +219,6 @@ impl Arch for ArchMips {
         &self,
         resolved: ResolvedInstructionRef,
         diff_config: &DiffObjConfig,
-        _code: Option<&[u8]>,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
         let instruction = self.parse_ins_ref(resolved.ins_ref, resolved.code, diff_config)?;

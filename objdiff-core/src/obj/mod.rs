@@ -105,6 +105,11 @@ impl Section {
         }
     }
 
+    pub fn symbol_data(&self, symbol: &Symbol) -> Option<&[u8]> {
+        let offset = symbol.address.checked_sub(self.address)?;
+        self.data.get(offset as usize..offset as usize + symbol.size as usize)
+    }
+
     pub fn relocation_at<'obj>(
         &'obj self,
         obj: &'obj Object,

@@ -69,7 +69,6 @@ impl Arch for ArchSuperH {
         &self,
         resolved: ResolvedInstructionRef,
         _diff_config: &DiffObjConfig,
-        _code: Option<&[u8]>,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
         let opcode = u16::from_be_bytes(resolved.code.try_into().unwrap());
@@ -78,13 +77,13 @@ impl Arch for ArchSuperH {
 
         sh2_disasm(0, opcode, true, &mut parts, &resolved, &mut branch_dest);
 
-        if let Some(code) = _code {
+        if let Some(symbol_data) = resolved.section.symbol_data(resolved.symbol) {
             // scan for data
             // map of instruction offsets to data target offsets
             let mut data_offsets: HashMap<u64, DataInfo> = HashMap::<u64, DataInfo>::new();
 
             let mut pos: u64 = 0;
-            for chunk in code.chunks_exact(2) {
+            for chunk in symbol_data.chunks_exact(2) {
                 let opcode = u16::from_be_bytes(chunk.try_into().unwrap());
                 // mov.w
                 if (opcode & 0xf000) == 0x9000 {
@@ -105,9 +104,9 @@ impl Arch for ArchSuperH {
 
             // add the data info
             if let Some(value) = data_offsets.get(&pos) {
-                if value.size == 2 && value.address as usize + 1 < code.len() {
+                if value.size == 2 && value.address as usize + 1 < symbol_data.len() {
                     let data = u16::from_be_bytes(
-                        code[value.address as usize..value.address as usize + 2]
+                        symbol_data[value.address as usize..value.address as usize + 2]
                             .try_into()
                             .unwrap(),
                     );
@@ -115,9 +114,9 @@ impl Arch for ArchSuperH {
                     parts.push(InstructionPart::basic("0x"));
                     parts.push(InstructionPart::basic(format!("{:04X}", data)));
                     parts.push(InstructionPart::basic(" */"));
-                } else if value.size == 4 && value.address as usize + 3 < code.len() {
+                } else if value.size == 4 && value.address as usize + 3 < symbol_data.len() {
                     let data = u32::from_be_bytes(
-                        code[value.address as usize..value.address as usize + 4]
+                        symbol_data[value.address as usize..value.address as usize + 4]
                             .try_into()
                             .unwrap(),
                     );
@@ -213,7 +212,7 @@ mod test {
     use std::fmt::{self, Display};
 
     use super::*;
-    use crate::obj::{InstructionArg, Symbol};
+    use crate::obj::{InstructionArg, Section, SectionData, Symbol};
 
     impl Display for InstructionPart<'_> {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -261,7 +260,6 @@ mod test {
                     ..Default::default()
                 },
                 &DiffObjConfig::default(),
-                None,
                 &mut |part| {
                     parts.push(part.into_static());
                     Ok(())
@@ -340,7 +338,6 @@ mod test {
                     ..Default::default()
                 },
                 &DiffObjConfig::default(),
-                None,
                 &mut |part| {
                     parts.push(part.into_static());
                     Ok(())
@@ -424,7 +421,6 @@ mod test {
                     ..Default::default()
                 },
                 &DiffObjConfig::default(),
-                None,
                 &mut |part| {
                     parts.push(part.into_static());
                     Ok(())
@@ -462,7 +458,6 @@ mod test {
                     ..Default::default()
                 },
                 &DiffObjConfig::default(),
-                None,
                 &mut |part| {
                     parts.push(part.into_static());
                     Ok(())
@@ -512,7 +507,6 @@ mod test {
                     ..Default::default()
                 },
                 &DiffObjConfig::default(),
-                None,
                 &mut |part| {
                     parts.push(part.into_static());
                     Ok(())
@@ -549,7 +543,6 @@ mod test {
                     ..Default::default()
                 },
                 &DiffObjConfig::default(),
-                None,
                 &mut |part| {
                     parts.push(part.into_static());
                     Ok(())
@@ -589,7 +582,6 @@ mod test {
                     ..Default::default()
                 },
                 &DiffObjConfig::default(),
-                None,
                 &mut |part| {
                     parts.push(part.into_static());
                     Ok(())
@@ -629,7 +621,6 @@ mod test {
                     ..Default::default()
                 },
                 &DiffObjConfig::default(),
-                None,
                 &mut |part| {
                     parts.push(part.into_static());
                     Ok(())
@@ -662,7 +653,6 @@ mod test {
                     ..Default::default()
                 },
                 &DiffObjConfig::default(),
-                None,
                 &mut |part| {
                     parts.push(part.into_static());
                     Ok(())
@@ -692,7 +682,6 @@ mod test {
                     ..Default::default()
                 },
                 &DiffObjConfig::default(),
-                None,
                 &mut |part| {
                     parts.push(part.into_static());
                     Ok(())
@@ -716,7 +705,6 @@ mod test {
         code.extend_from_slice(&0x00B0_u16.to_be_bytes());
 
         for &(opcode, addr, expected_str) in ops {
-            let code_slice = &code;
             let mut parts = Vec::new();
 
             arch.display_instruction(
@@ -725,12 +713,18 @@ mod test {
                     code: &opcode.to_be_bytes(),
                     symbol: &Symbol {
                         address: 0x0606F378, // func base address
+                        size: code.len() as u64,
+                        ..Default::default()
+                    },
+                    section: &Section {
+                        address: 0x0606F378,
+                        size: code.len() as u64,
+                        data: SectionData(code.clone()),
                         ..Default::default()
                     },
                     ..Default::default()
                 },
                 &DiffObjConfig::default(),
-                Some(code_slice),
                 &mut |part| {
                     parts.push(part.into_static());
                     Ok(())
@@ -765,12 +759,18 @@ mod test {
                     code: &opcode.to_be_bytes(),
                     symbol: &Symbol {
                         address: 0x0606F378, // func base address
+                        size: code.len() as u64,
+                        ..Default::default()
+                    },
+                    section: &Section {
+                        address: 0x0606F378,
+                        size: code.len() as u64,
+                        data: SectionData(code.clone()),
                         ..Default::default()
                     },
                     ..Default::default()
                 },
                 &DiffObjConfig::default(),
-                Some(code_slice),
                 &mut |part| {
                     parts.push(part.into_static());
                     Ok(())

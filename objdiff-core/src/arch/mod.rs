@@ -208,7 +208,7 @@ pub trait Arch: Send + Sync + Debug {
     ) -> Result<ParsedInstruction> {
         let mut mnemonic = None;
         let mut args = Vec::with_capacity(8);
-        self.display_instruction(resolved, diff_config, None, &mut |part| {
+        self.display_instruction(resolved, diff_config, &mut |part| {
             match part {
                 InstructionPart::Opcode(m, _) => mnemonic = Some(Cow::Owned(m.into_owned())),
                 InstructionPart::Arg(arg) => args.push(arg.into_static()),
@@ -236,7 +236,6 @@ pub trait Arch: Send + Sync + Debug {
         &self,
         resolved: ResolvedInstructionRef,
         diff_config: &DiffObjConfig,
-        code: Option<&[u8]>,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()>;
 
@@ -345,7 +344,6 @@ impl Arch for ArchDummy {
         &self,
         _resolved: ResolvedInstructionRef,
         _diff_config: &DiffObjConfig,
-        _code: Option<&[u8]>,
         _cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
         Ok(())

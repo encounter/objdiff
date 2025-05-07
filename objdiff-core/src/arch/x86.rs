@@ -150,7 +150,6 @@ impl Arch for ArchX86 {
         &self,
         resolved: ResolvedInstructionRef,
         diff_config: &DiffObjConfig,
-        _code: Option<&[u8]>,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
         if resolved.ins_ref.opcode == DATA_OPCODE {
@@ -483,7 +482,6 @@ mod test {
                 ..Default::default()
             },
             &DiffObjConfig::default(),
-            None,
             &mut |part| {
                 parts.push(part.into_static());
                 Ok(())
@@ -529,7 +527,6 @@ mod test {
                 ..Default::default()
             },
             &DiffObjConfig::default(),
-            None,
             &mut |part| {
                 parts.push(part.into_static());
                 Ok(())
@@ -575,7 +572,6 @@ mod test {
                 ..Default::default()
             },
             &DiffObjConfig::default(),
-            None,
             &mut |part| {
                 parts.push(part.into_static());
                 Ok(())
@@ -619,7 +615,6 @@ mod test {
                 ..Default::default()
             },
             &DiffObjConfig::default(),
-            None,
             &mut |part| {
                 parts.push(part.into_static());
                 Ok(())
@@ -651,7 +646,6 @@ mod test {
                 ..Default::default()
             },
             &DiffObjConfig::default(),
-            None,
             &mut |part| {
                 parts.push(part.into_static());
                 Ok(())
@@ -691,7 +685,6 @@ mod test {
                 ..Default::default()
             },
             &DiffObjConfig::default(),
-            None,
             &mut |part| {
                 parts.push(part.into_static());
                 Ok(())
@@ -731,7 +724,6 @@ mod test {
                 ..Default::default()
             },
             &DiffObjConfig::default(),
-            None,
             &mut |part| {
                 parts.push(part.into_static());
                 Ok(())

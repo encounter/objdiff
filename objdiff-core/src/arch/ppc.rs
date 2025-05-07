@@ -110,7 +110,6 @@ impl Arch for ArchPpc {
         &self,
         resolved: ResolvedInstructionRef,
         _diff_config: &DiffObjConfig,
-        _code: Option<&[u8]>,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
         let ins = self.parse_ins_ref(resolved)?.simplified();
