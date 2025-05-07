@@ -46,7 +46,7 @@ rlwinmdec = "1.1"
 ron = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 time = { version = "0.3", features = ["formatting", "local-offset"] }
-typed-path = "0.10"
+typed-path = "0.11"
 winit = { version = "0.30", features = ["wayland-csd-adwaita"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 

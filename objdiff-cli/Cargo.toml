@@ -28,7 +28,7 @@ supports-color = "3.0"
 time = { version = "0.3", features = ["formatting", "local-offset"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-typed-path = "0.10"
+typed-path = "0.11"
 
 [target.'cfg(target_env = "musl")'.dependencies]
 mimalloc = "0.1"
