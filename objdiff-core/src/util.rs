@@ -57,6 +57,5 @@ pub fn align_data_to_4<W: std::io::Write + ?Sized>(
 pub fn align_u64_to(len: u64, align: u64) -> u64 { len + ((align - (len % align)) % align) }
 
 pub fn align_data_slice_to(data: &mut Vec<u8>, align: u64) {
-    const ALIGN_BYTE: u8 = 0;
-    data.resize(align_u64_to(data.len() as u64, align) as usize, ALIGN_BYTE);
+    data.resize(align_u64_to(data.len() as u64, align) as usize, 0);
 }

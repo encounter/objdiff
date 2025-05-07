@@ -76,7 +76,9 @@ impl Arch for ArchSuperH {
 
         sh2_disasm(0, opcode, true, &mut parts, &resolved, &mut branch_dest);
 
-        if let Some(symbol_data) = resolved.section.symbol_data(resolved.symbol) {
+        if let Some(symbol_data) =
+            resolved.section.data_range(resolved.symbol.address, resolved.symbol.size as usize)
+        {
             // scan for data
             // map of instruction offsets to data target offsets
             let mut data_offsets = BTreeMap::<u64, DataInfo>::new();

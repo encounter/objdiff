@@ -99,19 +99,8 @@ impl fmt::Debug for SectionData {
 
 impl Section {
     pub fn data_range(&self, address: u64, size: usize) -> Option<&[u8]> {
-        let start = self.address;
-        let end = start + self.size;
-        if address >= start && address + size as u64 <= end {
-            let offset = (address - start) as usize;
-            Some(&self.data[offset..offset + size])
-        } else {
-            None
-        }
-    }
-
-    pub fn symbol_data(&self, symbol: &Symbol) -> Option<&[u8]> {
-        let offset = symbol.address.checked_sub(self.address)?;
-        self.data.get(offset as usize..offset as usize + symbol.size as usize)
+        let offset = address.checked_sub(self.address)?;
+        self.data.get(offset as usize..offset as usize + size)
     }
 
     // The alignment to use when "Combine data/text sections" is enabled.
