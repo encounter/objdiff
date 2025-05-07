@@ -9,7 +9,10 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use core::{fmt, num::NonZeroU32};
+use core::{
+    fmt,
+    num::{NonZeroU32, NonZeroU64},
+};
 
 use flagset::{FlagSet, flags};
 
@@ -70,6 +73,7 @@ pub struct Section {
     pub kind: SectionKind,
     pub data: SectionData,
     pub flags: SectionFlagSet,
+    pub align: Option<NonZeroU64>,
     pub relocations: Vec<Relocation>,
     /// Line number info (.line or .debug_line section)
     pub line_info: BTreeMap<u64, u32>,
@@ -108,6 +112,12 @@ impl Section {
     pub fn symbol_data(&self, symbol: &Symbol) -> Option<&[u8]> {
         let offset = symbol.address.checked_sub(self.address)?;
         self.data.get(offset as usize..offset as usize + symbol.size as usize)
+    }
+
+    // The alignment to use when "Combine data/text sections" is enabled.
+    pub fn combined_alignment(&self) -> u64 {
+        const MIN_ALIGNMENT: u64 = 4;
+        self.align.map(|align| align.get().max(MIN_ALIGNMENT)).unwrap_or(MIN_ALIGNMENT)
     }
 
     pub fn relocation_at<'obj>(
@@ -368,6 +378,7 @@ static DUMMY_SECTION: Section = Section {
     kind: SectionKind::Unknown,
     data: SectionData(Vec::new()),
     flags: SectionFlagSet::empty(),
+    align: None,
     relocations: Vec::new(),
     line_info: BTreeMap::new(),
     virtual_address: None,

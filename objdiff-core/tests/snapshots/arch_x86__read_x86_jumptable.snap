@@ -201,6 +201,9 @@ Object {
                 0,
             ),
             flags: FlagSet(),
+            align: Some(
+                1,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,
@@ -215,6 +218,9 @@ Object {
                 96,
             ),
             flags: FlagSet(),
+            align: Some(
+                16,
+            ),
             relocations: [
                 Relocation {
                     flags: Coff(
@@ -294,6 +300,9 @@ Object {
                 0,
             ),
             flags: FlagSet(),
+            align: Some(
+                1,
+            ),
             relocations: [],
             line_info: {},
             virtual_address: None,

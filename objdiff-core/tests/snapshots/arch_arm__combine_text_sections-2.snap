@@ -1,0 +1,7 @@
+---
+source: objdiff-core/tests/arch_arm.rs
+expression: output
+---
+[(Line(90), Dim, 5), (Address(0), Normal, 5), (Spacing(4), Normal, 0), (Opcode("ldr", 32799), Normal, 10), (Argument(Opaque("r12")), Normal, 0), (Basic(", "), Normal, 0), (Basic("["), Normal, 0), (Argument(Opaque("pc")), Normal, 0), (Basic(", "), Normal, 0), (Basic("#"), Normal, 0), (Argument(Signed(0)), Normal, 0), (Basic("]"), Normal, 0), (Basic(" (->"), Normal, 0), (BranchDest(8), Normal, 0), (Basic(")"), Normal, 0), (Eol, Normal, 0)]
+[(Line(90), Dim, 5), (Address(4), Normal, 5), (Spacing(4), Normal, 0), (Opcode("bx", 32779), Normal, 10), (Argument(Opaque("r12")), Normal, 0), (Eol, Normal, 0)]
+[(Line(90), Dim, 5), (Address(8), Normal, 5), (Spacing(4), Normal, 0), (Opcode(".word", 65535), Normal, 10), (Symbol(Symbol { name: "esEnemyDraw", demangled_name: None, address: 0, size: 0, kind: Unknown, section: None, flags: FlagSet(Global), align: None, virtual_address: None }), Bright, 0), (Eol, Normal, 0)]

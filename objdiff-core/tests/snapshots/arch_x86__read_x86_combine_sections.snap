@@ -13,6 +13,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(),
+        align: Some(
+            1,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -27,6 +30,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(),
+        align: Some(
+            1,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -41,6 +47,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -55,6 +64,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -69,6 +81,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            16,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -83,6 +98,9 @@ expression: obj.sections
             56,
         ),
         flags: FlagSet(Combined),
+        align: Some(
+            4,
+        ),
         relocations: [
             Relocation {
                 flags: Coff(
@@ -132,12 +150,15 @@ expression: obj.sections
         id: ".rdata-combined",
         name: ".rdata",
         address: 0,
-        size: 295,
+        size: 304,
         kind: Data,
         data: SectionData(
-            295,
+            304,
         ),
         flags: FlagSet(Combined),
+        align: Some(
+            4,
+        ),
         relocations: [
             Relocation {
                 flags: Coff(
@@ -159,7 +180,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 21,
+                address: 24,
                 target_symbol: 13,
                 addend: 0,
             },
@@ -167,7 +188,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 45,
+                address: 48,
                 target_symbol: 15,
                 addend: 0,
             },
@@ -175,7 +196,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 61,
+                address: 64,
                 target_symbol: 25,
                 addend: 0,
             },
@@ -183,7 +204,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 65,
+                address: 68,
                 target_symbol: 27,
                 addend: 0,
             },
@@ -191,7 +212,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 70,
+                address: 76,
                 target_symbol: 21,
                 addend: 0,
             },
@@ -199,7 +220,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 94,
+                address: 100,
                 target_symbol: 23,
                 addend: 0,
             },
@@ -207,7 +228,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 110,
+                address: 116,
                 target_symbol: 31,
                 addend: 0,
             },
@@ -215,7 +236,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 114,
+                address: 120,
                 target_symbol: 33,
                 addend: 0,
             },
@@ -223,7 +244,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 130,
+                address: 136,
                 target_symbol: 35,
                 addend: 0,
             },
@@ -231,7 +252,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 134,
+                address: 140,
                 target_symbol: 37,
                 addend: 0,
             },
@@ -239,7 +260,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 138,
+                address: 144,
                 target_symbol: 19,
                 addend: 0,
             },
@@ -247,7 +268,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 142,
+                address: 148,
                 target_symbol: 39,
                 addend: 0,
             },
@@ -255,7 +276,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 147,
+                address: 156,
                 target_symbol: 31,
                 addend: 0,
             },
@@ -263,7 +284,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 171,
+                address: 180,
                 target_symbol: 33,
                 addend: 0,
             },
@@ -271,7 +292,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 175,
+                address: 184,
                 target_symbol: 21,
                 addend: 0,
             },
@@ -279,7 +300,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 199,
+                address: 208,
                 target_symbol: 23,
                 addend: 0,
             },
@@ -287,7 +308,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 215,
+                address: 224,
                 target_symbol: 31,
                 addend: 0,
             },
@@ -295,7 +316,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 219,
+                address: 228,
                 target_symbol: 33,
                 addend: 0,
             },
@@ -303,7 +324,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 235,
+                address: 244,
                 target_symbol: 13,
                 addend: 0,
             },
@@ -311,7 +332,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 239,
+                address: 248,
                 target_symbol: 15,
                 addend: 0,
             },
@@ -319,7 +340,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 255,
+                address: 264,
                 target_symbol: 21,
                 addend: 0,
             },
@@ -327,7 +348,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 259,
+                address: 268,
                 target_symbol: 23,
                 addend: 0,
             },
@@ -335,7 +356,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 263,
+                address: 272,
                 target_symbol: 29,
                 addend: 0,
             },
@@ -343,7 +364,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 267,
+                address: 276,
                 target_symbol: 11,
                 addend: 0,
             },
@@ -351,7 +372,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 271,
+                address: 280,
                 target_symbol: 43,
                 addend: 0,
             },
@@ -359,7 +380,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 275,
+                address: 284,
                 target_symbol: 41,
                 addend: 0,
             },
@@ -367,7 +388,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 279,
+                address: 288,
                 target_symbol: 70,
                 addend: 0,
             },
@@ -375,7 +396,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 283,
+                address: 292,
                 target_symbol: 56,
                 addend: 0,
             },
@@ -383,7 +404,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 287,
+                address: 296,
                 target_symbol: 72,
                 addend: 0,
             },
@@ -391,7 +412,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 291,
+                address: 300,
                 target_symbol: 59,
                 addend: 0,
             },
@@ -409,6 +430,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -423,6 +447,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -437,6 +464,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -451,6 +481,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -465,6 +498,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -479,6 +515,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -493,6 +532,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -507,6 +549,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -521,6 +566,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -535,6 +583,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -549,6 +600,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -563,6 +617,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -577,6 +634,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            1,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -591,6 +651,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -605,6 +668,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            16,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -619,6 +685,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            16,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -633,6 +702,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            16,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -647,6 +719,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            16,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -661,6 +736,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            16,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -669,12 +747,15 @@ expression: obj.sections
         id: ".text-combined",
         name: ".text",
         address: 0,
-        size: 268,
+        size: 320,
         kind: Code,
         data: SectionData(
-            268,
+            320,
         ),
         flags: FlagSet(Combined),
+        align: Some(
+            16,
+        ),
         relocations: [
             Relocation {
                 flags: Coff(
@@ -696,7 +777,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 29,
+                address: 43,
                 target_symbol: 60,
                 addend: 0,
             },
@@ -704,7 +785,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 48,
+                address: 62,
                 target_symbol: 52,
                 addend: 0,
             },
@@ -712,7 +793,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 68,
+                address: 84,
                 target_symbol: 11,
                 addend: 0,
             },
@@ -720,7 +801,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 84,
+                address: 100,
                 target_symbol: 64,
                 addend: 0,
             },
@@ -728,7 +809,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 104,
+                address: 124,
                 target_symbol: 66,
                 addend: 0,
             },
@@ -736,7 +817,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 124,
+                address: 156,
                 target_symbol: 6,
                 addend: 0,
             },
@@ -744,7 +825,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 134,
+                address: 166,
                 target_symbol: 8,
                 addend: 0,
             },
@@ -752,7 +833,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 145,
+                address: 177,
                 target_symbol: 57,
                 addend: 0,
             },
@@ -760,7 +841,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 153,
+                address: 185,
                 target_symbol: 54,
                 addend: 0,
             },
@@ -768,7 +849,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 172,
+                address: 219,
                 target_symbol: 54,
                 addend: 0,
             },
@@ -776,7 +857,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 191,
+                address: 238,
                 target_symbol: 52,
                 addend: 0,
             },
@@ -784,7 +865,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 218,
+                address: 267,
                 target_symbol: 57,
                 addend: 0,
             },
@@ -792,7 +873,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 237,
+                address: 286,
                 target_symbol: 52,
                 addend: 0,
             },
@@ -800,7 +881,7 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
-                address: 257,
+                address: 308,
                 target_symbol: 68,
                 addend: 0,
             },
@@ -808,7 +889,7 @@ expression: obj.sections
                 flags: Coff(
                     20,
                 ),
-                address: 262,
+                address: 313,
                 target_symbol: 60,
                 addend: 0,
             },
@@ -826,6 +907,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            16,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -840,6 +924,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -854,6 +941,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -868,6 +958,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -882,6 +975,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -896,6 +992,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(Hidden),
+        align: Some(
+            4,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,
@@ -910,6 +1009,9 @@ expression: obj.sections
             4,
         ),
         flags: FlagSet(),
+        align: Some(
+            4,
+        ),
         relocations: [
             Relocation {
                 flags: Coff(
@@ -933,6 +1035,9 @@ expression: obj.sections
             0,
         ),
         flags: FlagSet(),
+        align: Some(
+            16,
+        ),
         relocations: [],
         line_info: {},
         virtual_address: None,

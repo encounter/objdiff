@@ -15,7 +15,7 @@ use crate::{
     diff::{ArmArchVersion, ArmR9Usage, DiffObjConfig, display::InstructionPart},
     obj::{
         InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation,
-        ScannedInstruction, SymbolFlag, SymbolFlagSet, SymbolKind,
+        ScannedInstruction, Section, SectionKind, Symbol, SymbolFlag, SymbolFlagSet, SymbolKind,
     },
 };
 
@@ -32,7 +32,8 @@ impl ArchArm {
         let endianness = file.endianness();
         match file {
             object::File::Elf32(_) => {
-                let disasm_modes = Self::elf_get_mapping_symbols(file);
+                // The disasm_modes mapping is populated later in the post_init step so that we have access to merged sections.
+                let disasm_modes = BTreeMap::new();
                 let detected_version = Self::elf_detect_arm_version(file)?;
                 Ok(Self { disasm_modes, detected_version, endianness })
             }
@@ -73,18 +74,22 @@ impl ArchArm {
         Ok(None)
     }
 
-    fn elf_get_mapping_symbols(file: &object::File) -> BTreeMap<usize, Vec<DisasmMode>> {
-        file.sections()
-            .filter(|s| s.kind() == object::SectionKind::Text)
-            .map(|s| {
-                let index = s.index();
-                let mut mapping_symbols: Vec<_> = file
-                    .symbols()
-                    .filter(|s| s.section_index().map(|i| i == index).unwrap_or(false))
-                    .filter_map(|s| DisasmMode::from_symbol(&s))
+    fn get_mapping_symbols(
+        sections: &[Section],
+        symbols: &[Symbol],
+    ) -> BTreeMap<usize, Vec<DisasmMode>> {
+        sections
+            .iter()
+            .enumerate()
+            .filter(|(_, section)| section.kind == SectionKind::Code)
+            .map(|(index, _)| {
+                let mut mapping_symbols: Vec<_> = symbols
+                    .iter()
+                    .filter(|s| s.section.map(|i| i == index).unwrap_or(false))
+                    .filter_map(DisasmMode::from_symbol)
                     .collect();
                 mapping_symbols.sort_unstable_by_key(|x| x.address);
-                (s.index().0 - 1, mapping_symbols)
+                (index, mapping_symbols)
             })
             .collect()
     }
@@ -178,6 +183,10 @@ impl ArchArm {
 }
 
 impl Arch for ArchArm {
+    fn post_init(&mut self, sections: &[Section], symbols: &[Symbol]) {
+        self.disasm_modes = Self::get_mapping_symbols(sections, symbols);
+    }
+
     fn scan_instructions(
         &self,
         address: u64,
@@ -338,6 +347,7 @@ impl Arch for ArchArm {
             cb(InstructionPart::reloc())?;
         } else {
             push_args(
+                ins,
                 &parsed_ins,
                 resolved.relocation,
                 resolved.ins_ref.address as u32,
@@ -441,7 +451,7 @@ impl Arch for ArchArm {
 
     fn extra_symbol_flags(&self, symbol: &object::Symbol) -> SymbolFlagSet {
         let mut flags = SymbolFlagSet::default();
-        if DisasmMode::from_symbol(symbol).is_some() {
+        if DisasmMode::from_object_symbol(symbol).is_some() {
             flags |= SymbolFlag::Hidden;
         }
         flags
@@ -455,15 +465,21 @@ struct DisasmMode {
 }
 
 impl DisasmMode {
-    fn from_symbol<'a>(sym: &object::Symbol<'a, '_, &'a [u8]>) -> Option<Self> {
+    fn from_object_symbol<'a>(sym: &object::Symbol<'a, '_, &'a [u8]>) -> Option<Self> {
         sym.name()
             .ok()
             .and_then(unarm::ParseMode::from_mapping_symbol)
             .map(|mapping| DisasmMode { address: sym.address() as u32, mapping })
     }
+
+    fn from_symbol(sym: &Symbol) -> Option<Self> {
+        unarm::ParseMode::from_mapping_symbol(&sym.name)
+            .map(|mapping| DisasmMode { address: sym.address as u32, mapping })
+    }
 }
 
 fn push_args(
+    ins: unarm::Ins,
     parsed_ins: &unarm::ParsedIns,
     relocation: Option<ResolvedRelocation>,
     cur_addr: u32,
@@ -609,6 +625,14 @@ fn push_args(
             arg_cb(InstructionPart::opaque("!"))?;
         }
     }
+
+    let branch_dest = get_pc_relative_load_address(ins, cur_addr);
+    if let Some(branch_dest) = branch_dest {
+        arg_cb(InstructionPart::basic(" (->"))?;
+        arg_cb(InstructionPart::branch_dest(branch_dest))?;
+        arg_cb(InstructionPart::basic(")"))?;
+    }
+
     Ok(())
 }
 
@@ -634,5 +658,23 @@ fn find_reloc_arg(
         }
     } else {
         None
+    }
+}
+
+fn get_pc_relative_load_address(ins: unarm::Ins, address: u32) -> Option<u32> {
+    match ins {
+        unarm::Ins::Arm(ins)
+            if ins.op == arm::Opcode::Ldr
+                && ins.modifier_addr_ldr_str() == arm::AddrLdrStr::Imm
+                && ins.field_rn_deref().reg == args::Register::Pc =>
+        {
+            let offset = ins.field_offset_12().value;
+            Some(address.wrapping_add_signed(offset + 8))
+        }
+        unarm::Ins::Thumb(ins) if ins.op == thumb::Opcode::LdrPc => {
+            let offset = ins.field_rel_immed_8().value;
+            Some((address & !3).wrapping_add_signed(offset + 4))
+        }
+        _ => None,
     }
 }
