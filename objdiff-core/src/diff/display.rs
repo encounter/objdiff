@@ -684,7 +684,7 @@ pub fn display_sections(
             .collect::<Vec<_>>();
         if let Some(section_idx) = section_idx {
             let section = &obj.sections[section_idx];
-            if section.kind == SectionKind::Unknown || section.flags.contains(SectionFlag::Hidden) {
+            if section.kind == SectionKind::Unknown {
                 // Skip unknown and hidden sections
                 continue;
             }

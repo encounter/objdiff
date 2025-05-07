@@ -42,11 +42,11 @@ expression: obj.sections
         name: ".rdata",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -59,11 +59,11 @@ expression: obj.sections
         name: ".rdata",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -76,11 +76,11 @@ expression: obj.sections
         name: ".text$mn",
         address: 0,
         size: 0,
-        kind: Code,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             16,
         ),
@@ -425,11 +425,11 @@ expression: obj.sections
         name: ".rdata$r",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -442,11 +442,11 @@ expression: obj.sections
         name: ".rdata$r",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -459,11 +459,11 @@ expression: obj.sections
         name: ".data$rs",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -476,11 +476,11 @@ expression: obj.sections
         name: ".rdata$r",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -493,11 +493,11 @@ expression: obj.sections
         name: ".rdata$r",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -510,11 +510,11 @@ expression: obj.sections
         name: ".rdata$r",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -527,11 +527,11 @@ expression: obj.sections
         name: ".rdata$r",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -544,11 +544,11 @@ expression: obj.sections
         name: ".data$rs",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -561,11 +561,11 @@ expression: obj.sections
         name: ".rdata$r",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -578,11 +578,11 @@ expression: obj.sections
         name: ".rdata$r",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -595,11 +595,11 @@ expression: obj.sections
         name: ".rdata$r",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -612,11 +612,11 @@ expression: obj.sections
         name: ".rdata$r",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -629,11 +629,11 @@ expression: obj.sections
         name: ".text$mn",
         address: 0,
         size: 0,
-        kind: Code,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             1,
         ),
@@ -646,11 +646,11 @@ expression: obj.sections
         name: ".rdata$r",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -663,11 +663,11 @@ expression: obj.sections
         name: ".text$mn",
         address: 0,
         size: 0,
-        kind: Code,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             16,
         ),
@@ -680,11 +680,11 @@ expression: obj.sections
         name: ".text$mn",
         address: 0,
         size: 0,
-        kind: Code,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             16,
         ),
@@ -697,11 +697,11 @@ expression: obj.sections
         name: ".text$mn",
         address: 0,
         size: 0,
-        kind: Code,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             16,
         ),
@@ -714,11 +714,11 @@ expression: obj.sections
         name: ".text$mn",
         address: 0,
         size: 0,
-        kind: Code,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             16,
         ),
@@ -731,11 +731,11 @@ expression: obj.sections
         name: ".text$mn",
         address: 0,
         size: 0,
-        kind: Code,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             16,
         ),
@@ -902,11 +902,11 @@ expression: obj.sections
         name: ".text$yd",
         address: 0,
         size: 0,
-        kind: Code,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             16,
         ),
@@ -919,11 +919,11 @@ expression: obj.sections
         name: ".rdata",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -936,11 +936,11 @@ expression: obj.sections
         name: ".rdata",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -953,11 +953,11 @@ expression: obj.sections
         name: ".data",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -970,11 +970,11 @@ expression: obj.sections
         name: ".rdata$r",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
@@ -987,11 +987,11 @@ expression: obj.sections
         name: ".rdata$r",
         address: 0,
         size: 0,
-        kind: Data,
+        kind: Unknown,
         data: SectionData(
             0,
         ),
-        flags: FlagSet(Hidden),
+        flags: FlagSet(),
         align: Some(
             4,
         ),

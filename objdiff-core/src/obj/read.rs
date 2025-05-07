@@ -764,7 +764,7 @@ fn do_combine_sections(
         line_info.append(&mut section.line_info.iter().map(|(&a, &l)| (a + offset, l)).collect());
         section.line_info.clear();
         if offset > 0 {
-            section.flags |= SectionFlag::Hidden;
+            section.kind = SectionKind::Unknown;
         }
     }
     {

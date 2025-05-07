@@ -57,7 +57,6 @@ flags! {
     pub enum SectionFlag: u8 {
         /// Section combined from multiple input sections
         Combined,
-        Hidden,
     }
 }
 
