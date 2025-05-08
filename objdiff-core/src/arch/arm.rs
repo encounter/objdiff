@@ -15,7 +15,7 @@ use crate::{
     diff::{ArmArchVersion, ArmR9Usage, DiffObjConfig, display::InstructionPart},
     obj::{
         InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation,
-        ScannedInstruction, Section, SectionKind, Symbol, SymbolFlag, SymbolFlagSet, SymbolKind,
+        Section, SectionKind, Symbol, SymbolFlag, SymbolFlagSet, SymbolKind,
     },
 };
 
@@ -187,14 +187,14 @@ impl Arch for ArchArm {
         self.disasm_modes = Self::get_mapping_symbols(sections, symbols);
     }
 
-    fn scan_instructions(
+    fn scan_instructions_internal(
         &self,
         address: u64,
         code: &[u8],
         section_index: usize,
         _relocations: &[Relocation],
         diff_config: &DiffObjConfig,
-    ) -> Result<Vec<ScannedInstruction>> {
+    ) -> Result<Vec<InstructionRef>> {
         let start_addr = address as u32;
         let end_addr = start_addr + code.len() as u32;
 
@@ -219,7 +219,7 @@ impl Arch for ArchArm {
         let mut next_mapping = mappings_iter.next();
 
         let ins_count = code.len() / mode.instruction_size(start_addr);
-        let mut ops = Vec::<ScannedInstruction>::with_capacity(ins_count);
+        let mut ops = Vec::<InstructionRef>::with_capacity(ins_count);
 
         let parse_flags = self.parse_flags(diff_config);
 
@@ -235,12 +235,10 @@ impl Arch for ArchArm {
             let data = &code[(address - start_addr) as usize..];
             if data.len() < ins_size {
                 // Push the remainder as data
-                ops.push(ScannedInstruction {
-                    ins_ref: InstructionRef {
-                        address: address as u64,
-                        size: data.len() as u8,
-                        opcode: u16::MAX,
-                    },
+                ops.push(InstructionRef {
+                    address: address as u64,
+                    size: data.len() as u8,
+                    opcode: u16::MAX,
                     branch_dest: None,
                 });
                 break;
@@ -256,12 +254,10 @@ impl Arch for ArchArm {
                 }
                 _ => {
                     // Invalid instruction size
-                    ops.push(ScannedInstruction {
-                        ins_ref: InstructionRef {
-                            address: address as u64,
-                            size: ins_size as u8,
-                            opcode: u16::MAX,
-                        },
+                    ops.push(InstructionRef {
+                        address: address as u64,
+                        size: ins_size as u8,
+                        opcode: u16::MAX,
                         branch_dest: None,
                     });
                     address += ins_size as u32;
@@ -325,8 +321,10 @@ impl Arch for ArchArm {
                 unarm::ParseMode::Data => (u16::MAX, None),
             };
 
-            ops.push(ScannedInstruction {
-                ins_ref: InstructionRef { address: address as u64, size: ins_size as u8, opcode },
+            ops.push(InstructionRef {
+                address: address as u64,
+                size: ins_size as u8,
+                opcode,
                 branch_dest: branch_dest.map(|x| x as u64),
             });
             address += ins_size as u32;

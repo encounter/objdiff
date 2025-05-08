@@ -18,7 +18,6 @@ use crate::{
     diff::{DiffObjConfig, display::InstructionPart},
     obj::{
         InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation,
-        ScannedInstruction,
     },
 };
 
@@ -30,16 +29,16 @@ impl ArchArm64 {
 }
 
 impl Arch for ArchArm64 {
-    fn scan_instructions(
+    fn scan_instructions_internal(
         &self,
         address: u64,
         code: &[u8],
         _section_index: usize,
         _relocations: &[Relocation],
         _diff_config: &DiffObjConfig,
-    ) -> Result<Vec<ScannedInstruction>> {
+    ) -> Result<Vec<InstructionRef>> {
         let start_address = address;
-        let mut ops = Vec::<ScannedInstruction>::with_capacity(code.len() / 4);
+        let mut ops = Vec::<InstructionRef>::with_capacity(code.len() / 4);
 
         let mut reader = U8Reader::new(code);
         let decoder = InstDecoder::default();
@@ -58,8 +57,10 @@ impl Arch for ArchArm64 {
                     DecodeError::InvalidOpcode
                     | DecodeError::InvalidOperand
                     | DecodeError::IncompleteDecoder => {
-                        ops.push(ScannedInstruction {
-                            ins_ref: InstructionRef { address, size: 4, opcode: u16::MAX },
+                        ops.push(InstructionRef {
+                            address,
+                            size: 4,
+                            opcode: u16::MAX,
                             branch_dest: None,
                         });
                         continue;
@@ -68,9 +69,9 @@ impl Arch for ArchArm64 {
             }
 
             let opcode = opcode_to_u16(ins.opcode);
-            let ins_ref = InstructionRef { address, size: 4, opcode };
-            let branch_dest = branch_dest(ins_ref, &code[offset as usize..offset as usize + 4]);
-            ops.push(ScannedInstruction { ins_ref, branch_dest });
+            let branch_dest =
+                branch_dest(opcode, address, &code[offset as usize..offset as usize + 4]);
+            ops.push(InstructionRef { address, size: 4, opcode, branch_dest });
         }
 
         Ok(ops)
@@ -163,7 +164,7 @@ impl Arch for ArchArm64 {
     }
 }
 
-fn branch_dest(ins_ref: InstructionRef, code: &[u8]) -> Option<u64> {
+fn branch_dest(opcode: u16, address: u64, code: &[u8]) -> Option<u64> {
     const OPCODE_B: u16 = opcode_to_u16(Opcode::B);
     const OPCODE_BL: u16 = opcode_to_u16(Opcode::BL);
     const OPCODE_BCC: u16 = opcode_to_u16(Opcode::Bcc(0));
@@ -173,21 +174,21 @@ fn branch_dest(ins_ref: InstructionRef, code: &[u8]) -> Option<u64> {
     const OPCODE_TBNZ: u16 = opcode_to_u16(Opcode::TBNZ);
 
     let word = u32::from_le_bytes(code.try_into().ok()?);
-    match ins_ref.opcode {
+    match opcode {
         OPCODE_B | OPCODE_BL => {
             let offset = ((word & 0x03ff_ffff) << 2) as i32;
             let extended_offset = (offset << 4) >> 4;
-            ins_ref.address.checked_add_signed(extended_offset as i64)
+            address.checked_add_signed(extended_offset as i64)
         }
         OPCODE_BCC | OPCODE_CBZ | OPCODE_CBNZ => {
             let offset = (word as i32 & 0x00ff_ffe0) >> 3;
             let extended_offset = (offset << 11) >> 11;
-            ins_ref.address.checked_add_signed(extended_offset as i64)
+            address.checked_add_signed(extended_offset as i64)
         }
         OPCODE_TBZ | OPCODE_TBNZ => {
             let offset = (word as i32 & 0x0007_ffe0) >> 3;
             let extended_offset = (offset << 16) >> 16;
-            ins_ref.address.checked_add_signed(extended_offset as i64)
+            address.checked_add_signed(extended_offset as i64)
         }
         _ => None,
     }

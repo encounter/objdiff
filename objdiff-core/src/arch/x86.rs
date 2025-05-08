@@ -11,9 +11,7 @@ use object::{Endian as _, Object as _, ObjectSection as _, pe};
 use crate::{
     arch::Arch,
     diff::{DiffObjConfig, X86Formatter, display::InstructionPart},
-    obj::{
-        InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, ScannedInstruction,
-    },
+    obj::{InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef},
 };
 
 #[derive(Debug)]
@@ -86,14 +84,14 @@ impl ArchX86 {
 const DATA_OPCODE: u16 = u16::MAX - 1;
 
 impl Arch for ArchX86 {
-    fn scan_instructions(
+    fn scan_instructions_internal(
         &self,
         address: u64,
         code: &[u8],
         _section_index: usize,
         relocations: &[Relocation],
         _diff_config: &DiffObjConfig,
-    ) -> Result<Vec<ScannedInstruction>> {
+    ) -> Result<Vec<InstructionRef>> {
         let mut out = Vec::with_capacity(code.len() / 2);
         let mut decoder = self.decoder(code, address);
         let mut instruction = Instruction::default();
@@ -112,12 +110,10 @@ impl Arch for ArchX86 {
                         })?;
                         if decoder.set_position(decoder.position() + size).is_ok() {
                             decoder.set_ip(address + size as u64);
-                            out.push(ScannedInstruction {
-                                ins_ref: InstructionRef {
-                                    address,
-                                    size: size as u8,
-                                    opcode: DATA_OPCODE,
-                                },
+                            out.push(InstructionRef {
+                                address,
+                                size: size as u8,
+                                opcode: DATA_OPCODE,
                                 branch_dest: None,
                             });
                             reloc_iter.next();
@@ -134,12 +130,10 @@ impl Arch for ArchX86 {
                 OpKind::NearBranch64 => Some(instruction.near_branch64()),
                 _ => None,
             };
-            out.push(ScannedInstruction {
-                ins_ref: InstructionRef {
-                    address,
-                    size: instruction.len() as u8,
-                    opcode: instruction.mnemonic() as u16,
-                },
+            out.push(InstructionRef {
+                address,
+                size: instruction.len() as u8,
+                opcode: instruction.mnemonic() as u16,
                 branch_dest,
             });
         }
@@ -457,15 +451,16 @@ mod test {
             0xc7, 0x85, 0x68, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x8b, 0x04, 0x85, 0x00,
             0x00, 0x00, 0x00,
         ];
-        let scanned = arch.scan_instructions(0, &code, 0, &[], &DiffObjConfig::default()).unwrap();
+        let scanned =
+            arch.scan_instructions_internal(0, &code, 0, &[], &DiffObjConfig::default()).unwrap();
         assert_eq!(scanned.len(), 2);
-        assert_eq!(scanned[0].ins_ref.address, 0);
-        assert_eq!(scanned[0].ins_ref.size, 10);
-        assert_eq!(scanned[0].ins_ref.opcode, iced_x86::Mnemonic::Mov as u16);
+        assert_eq!(scanned[0].address, 0);
+        assert_eq!(scanned[0].size, 10);
+        assert_eq!(scanned[0].opcode, iced_x86::Mnemonic::Mov as u16);
         assert_eq!(scanned[0].branch_dest, None);
-        assert_eq!(scanned[1].ins_ref.address, 10);
-        assert_eq!(scanned[1].ins_ref.size, 7);
-        assert_eq!(scanned[1].ins_ref.opcode, iced_x86::Mnemonic::Mov as u16);
+        assert_eq!(scanned[1].address, 10);
+        assert_eq!(scanned[1].size, 7);
+        assert_eq!(scanned[1].opcode, iced_x86::Mnemonic::Mov as u16);
         assert_eq!(scanned[1].branch_dest, None);
     }
 
@@ -477,7 +472,7 @@ mod test {
         let mut parts = Vec::new();
         arch.display_instruction(
             ResolvedInstructionRef {
-                ins_ref: InstructionRef { address: 0x1234, size: 10, opcode },
+                ins_ref: InstructionRef { address: 0x1234, size: 10, opcode, branch_dest: None },
                 code: &code,
                 ..Default::default()
             },
@@ -513,7 +508,7 @@ mod test {
         let mut parts = Vec::new();
         arch.display_instruction(
             ResolvedInstructionRef {
-                ins_ref: InstructionRef { address: 0x1234, size: 10, opcode },
+                ins_ref: InstructionRef { address: 0x1234, size: 10, opcode, branch_dest: None },
                 code: &code,
                 relocation: Some(ResolvedRelocation {
                     relocation: &Relocation {
@@ -558,7 +553,7 @@ mod test {
         let mut parts = Vec::new();
         arch.display_instruction(
             ResolvedInstructionRef {
-                ins_ref: InstructionRef { address: 0x1234, size: 7, opcode },
+                ins_ref: InstructionRef { address: 0x1234, size: 7, opcode, branch_dest: None },
                 code: &code,
                 relocation: Some(ResolvedRelocation {
                     relocation: &Relocation {
@@ -601,7 +596,7 @@ mod test {
         let mut parts = Vec::new();
         arch.display_instruction(
             ResolvedInstructionRef {
-                ins_ref: InstructionRef { address: 0x1234, size: 5, opcode },
+                ins_ref: InstructionRef { address: 0x1234, size: 5, opcode, branch_dest: None },
                 code: &code,
                 relocation: Some(ResolvedRelocation {
                     relocation: &Relocation {
@@ -632,7 +627,7 @@ mod test {
         let mut parts = Vec::new();
         arch.display_instruction(
             ResolvedInstructionRef {
-                ins_ref: InstructionRef { address: 0x1234, size: 6, opcode },
+                ins_ref: InstructionRef { address: 0x1234, size: 6, opcode, branch_dest: None },
                 code: &code,
                 relocation: Some(ResolvedRelocation {
                     relocation: &Relocation {
@@ -671,7 +666,7 @@ mod test {
         let mut parts = Vec::new();
         arch.display_instruction(
             ResolvedInstructionRef {
-                ins_ref: InstructionRef { address: 0x1234, size: 7, opcode },
+                ins_ref: InstructionRef { address: 0x1234, size: 7, opcode, branch_dest: None },
                 code: &code,
                 relocation: Some(ResolvedRelocation {
                     relocation: &Relocation {
@@ -710,7 +705,7 @@ mod test {
         let mut parts = Vec::new();
         arch.display_instruction(
             ResolvedInstructionRef {
-                ins_ref: InstructionRef { address: 0x1234, size: 5, opcode },
+                ins_ref: InstructionRef { address: 0x1234, size: 5, opcode, branch_dest: None },
                 code: &code,
                 relocation: Some(ResolvedRelocation {
                     relocation: &Relocation {

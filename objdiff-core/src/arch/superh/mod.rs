@@ -6,9 +6,7 @@ use object::elf;
 use crate::{
     arch::{Arch, superh::disasm::sh2_disasm},
     diff::{DiffObjConfig, display::InstructionPart},
-    obj::{
-        InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, ScannedInstruction,
-    },
+    obj::{InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef},
 };
 
 pub mod disasm;
@@ -26,15 +24,15 @@ struct DataInfo {
 }
 
 impl Arch for ArchSuperH {
-    fn scan_instructions(
+    fn scan_instructions_internal(
         &self,
         address: u64,
         code: &[u8],
         _section_index: usize,
         _relocations: &[Relocation],
         _diff_config: &DiffObjConfig,
-    ) -> Result<Vec<ScannedInstruction>> {
-        let mut ops = Vec::<ScannedInstruction>::with_capacity(code.len() / 2);
+    ) -> Result<Vec<InstructionRef>> {
+        let mut ops = Vec::<InstructionRef>::with_capacity(code.len() / 2);
         let mut offset = address;
 
         for chunk in code.chunks_exact(2) {
@@ -55,9 +53,7 @@ impl Arch for ArchSuperH {
                 Some(InstructionPart::Opcode(_, val)) => *val,
                 _ => 0,
             };
-            let ins_ref: InstructionRef =
-                InstructionRef { address: offset, size: 2, opcode: opcode_enum };
-            ops.push(ScannedInstruction { ins_ref, branch_dest });
+            ops.push(InstructionRef { address: offset, size: 2, opcode: opcode_enum, branch_dest });
             offset += 2;
         }
 
@@ -256,7 +252,7 @@ mod test {
 
             arch.display_instruction(
                 ResolvedInstructionRef {
-                    ins_ref: InstructionRef { address: 0x1000, size: 2, opcode },
+                    ins_ref: InstructionRef { address: 0x1000, size: 2, opcode, branch_dest: None },
                     code: &code,
                     ..Default::default()
                 },
@@ -334,7 +330,7 @@ mod test {
 
             arch.display_instruction(
                 ResolvedInstructionRef {
-                    ins_ref: InstructionRef { address: 0x1000, size: 2, opcode },
+                    ins_ref: InstructionRef { address: 0x1000, size: 2, opcode, branch_dest: None },
                     code: &code,
                     ..Default::default()
                 },
@@ -417,7 +413,7 @@ mod test {
 
             arch.display_instruction(
                 ResolvedInstructionRef {
-                    ins_ref: InstructionRef { address: 0x1000, size: 2, opcode },
+                    ins_ref: InstructionRef { address: 0x1000, size: 2, opcode, branch_dest: None },
                     code: &code,
                     ..Default::default()
                 },
@@ -454,7 +450,7 @@ mod test {
 
             arch.display_instruction(
                 ResolvedInstructionRef {
-                    ins_ref: InstructionRef { address: 0x1000, size: 2, opcode },
+                    ins_ref: InstructionRef { address: 0x1000, size: 2, opcode, branch_dest: None },
                     code: &code,
                     ..Default::default()
                 },
@@ -503,7 +499,12 @@ mod test {
 
             arch.display_instruction(
                 ResolvedInstructionRef {
-                    ins_ref: InstructionRef { address: addr as u64, size: 2, opcode },
+                    ins_ref: InstructionRef {
+                        address: addr as u64,
+                        size: 2,
+                        opcode,
+                        branch_dest: None,
+                    },
                     code: &code,
                     ..Default::default()
                 },
@@ -539,7 +540,12 @@ mod test {
 
             arch.display_instruction(
                 ResolvedInstructionRef {
-                    ins_ref: InstructionRef { address: addr as u64, size: 2, opcode },
+                    ins_ref: InstructionRef {
+                        address: addr as u64,
+                        size: 2,
+                        opcode,
+                        branch_dest: None,
+                    },
                     code: &code,
                     ..Default::default()
                 },
@@ -578,7 +584,12 @@ mod test {
 
             arch.display_instruction(
                 ResolvedInstructionRef {
-                    ins_ref: InstructionRef { address: addr as u64, size: 2, opcode },
+                    ins_ref: InstructionRef {
+                        address: addr as u64,
+                        size: 2,
+                        opcode,
+                        branch_dest: None,
+                    },
                     code: &code,
                     ..Default::default()
                 },
@@ -617,7 +628,12 @@ mod test {
 
             arch.display_instruction(
                 ResolvedInstructionRef {
-                    ins_ref: InstructionRef { address: addr as u64, size: 2, opcode },
+                    ins_ref: InstructionRef {
+                        address: addr as u64,
+                        size: 2,
+                        opcode,
+                        branch_dest: None,
+                    },
                     code: &code,
                     ..Default::default()
                 },
@@ -649,7 +665,12 @@ mod test {
 
             arch.display_instruction(
                 ResolvedInstructionRef {
-                    ins_ref: InstructionRef { address: addr as u64, size: 2, opcode },
+                    ins_ref: InstructionRef {
+                        address: addr as u64,
+                        size: 2,
+                        opcode,
+                        branch_dest: None,
+                    },
                     code: &code,
                     ..Default::default()
                 },
@@ -678,7 +699,12 @@ mod test {
 
             arch.display_instruction(
                 ResolvedInstructionRef {
-                    ins_ref: InstructionRef { address: addr as u64, size: 2, opcode },
+                    ins_ref: InstructionRef {
+                        address: addr as u64,
+                        size: 2,
+                        opcode,
+                        branch_dest: None,
+                    },
                     code: &code,
                     ..Default::default()
                 },
@@ -710,7 +736,12 @@ mod test {
 
             arch.display_instruction(
                 ResolvedInstructionRef {
-                    ins_ref: InstructionRef { address: addr as u64, size: 2, opcode },
+                    ins_ref: InstructionRef {
+                        address: addr as u64,
+                        size: 2,
+                        opcode,
+                        branch_dest: None,
+                    },
                     code: &opcode.to_be_bytes(),
                     symbol: &Symbol {
                         address: 0x0606F378, // func base address
@@ -755,7 +786,12 @@ mod test {
 
             arch.display_instruction(
                 ResolvedInstructionRef {
-                    ins_ref: InstructionRef { address: addr as u64, size: 2, opcode },
+                    ins_ref: InstructionRef {
+                        address: addr as u64,
+                        size: 2,
+                        opcode,
+                        branch_dest: None,
+                    },
                     code: &opcode.to_be_bytes(),
                     symbol: &Symbol {
                         address: 0x0606F378, // func base address

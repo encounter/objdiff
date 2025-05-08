@@ -205,16 +205,18 @@ pub fn display_row(
         InstructionPart::Arg(arg) => {
             let diff_index = ins_row.arg_diff.get(arg_idx).copied().unwrap_or_default();
             arg_idx += 1;
-            match arg {
-                InstructionArg::Value(value) => cb(DiffTextSegment {
+            if arg == InstructionArg::Reloc {
+                displayed_relocation = true;
+            }
+            match (arg, resolved.ins_ref.branch_dest) {
+                (InstructionArg::Value(value), _) => cb(DiffTextSegment {
                     text: DiffText::Argument(value),
                     color: diff_index
                         .get()
                         .map_or(base_color, |i| DiffTextColor::Rotating(i as u8)),
                     pad_to: 0,
                 }),
-                InstructionArg::Reloc => {
-                    displayed_relocation = true;
+                (InstructionArg::Reloc, None) => {
                     let resolved = resolved.relocation.unwrap();
                     let color = diff_index
                         .get()
@@ -233,7 +235,9 @@ pub fn display_row(
                     }
                     Ok(())
                 }
-                InstructionArg::BranchDest(dest) => {
+                (InstructionArg::BranchDest(dest), _) |
+                // If the relocation was resolved to a branch destination, emit that instead.
+                (InstructionArg::Reloc, Some(dest))  => {
                     if let Some(addr) = dest.checked_sub(resolved.symbol.address) {
                         cb(DiffTextSegment {
                             text: DiffText::BranchDest(addr),

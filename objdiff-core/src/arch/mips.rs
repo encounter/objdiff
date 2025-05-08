@@ -3,7 +3,6 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use core::ops::Range;
 
 use anyhow::{Result, bail};
 use object::{Endian as _, Object as _, ObjectSection as _, ObjectSymbol as _, elf};
@@ -19,7 +18,7 @@ use crate::{
     diff::{DiffObjConfig, MipsAbi, MipsInstrCategory, display::InstructionPart},
     obj::{
         InstructionArg, InstructionArgValue, InstructionRef, Relocation, RelocationFlags,
-        ResolvedInstructionRef, ResolvedRelocation, ScannedInstruction, SymbolFlag, SymbolFlagSet,
+        ResolvedInstructionRef, ResolvedRelocation, SymbolFlag, SymbolFlagSet,
     },
 };
 
@@ -189,16 +188,16 @@ impl ArchMips {
 }
 
 impl Arch for ArchMips {
-    fn scan_instructions(
+    fn scan_instructions_internal(
         &self,
         address: u64,
         code: &[u8],
         _section_index: usize,
         _relocations: &[Relocation],
         diff_config: &DiffObjConfig,
-    ) -> Result<Vec<ScannedInstruction>> {
+    ) -> Result<Vec<InstructionRef>> {
         let instruction_flags = self.instruction_flags(diff_config);
-        let mut ops = Vec::<ScannedInstruction>::with_capacity(code.len() / 4);
+        let mut ops = Vec::<InstructionRef>::with_capacity(code.len() / 4);
         let mut cur_addr = address as u32;
         for chunk in code.chunks_exact(4) {
             let code = self.endianness.read_u32_bytes(chunk.try_into()?);
@@ -206,10 +205,7 @@ impl Arch for ArchMips {
                 rabbitizer::Instruction::new(code, Vram::new(cur_addr), instruction_flags);
             let opcode = instruction.opcode() as u16;
             let branch_dest = instruction.get_branch_vram_generic().map(|v| v.inner() as u64);
-            ops.push(ScannedInstruction {
-                ins_ref: InstructionRef { address: cur_addr as u64, size: 4, opcode },
-                branch_dest,
-            });
+            ops.push(InstructionRef { address: cur_addr as u64, size: 4, opcode, branch_dest });
             cur_addr += 4;
         }
         Ok(ops)
@@ -225,16 +221,7 @@ impl Arch for ArchMips {
         let display_flags = self.instruction_display_flags(diff_config);
         let opcode = instruction.opcode();
         cb(InstructionPart::opcode(opcode.name(), opcode as u16))?;
-        let start_address = resolved.symbol.address;
-        let function_range = start_address..start_address + resolved.symbol.size;
-        push_args(
-            &instruction,
-            resolved.relocation,
-            function_range,
-            resolved.section_index,
-            &display_flags,
-            cb,
-        )?;
+        push_args(&instruction, resolved.relocation, &display_flags, cb)?;
         Ok(())
     }
 
@@ -338,8 +325,6 @@ impl Arch for ArchMips {
 fn push_args(
     instruction: &rabbitizer::Instruction,
     relocation: Option<ResolvedRelocation>,
-    function_range: Range<u64>,
-    section_index: usize,
     display_flags: &rabbitizer::InstructionDisplayFlags,
     mut arg_cb: impl FnMut(InstructionPart) -> Result<()>,
 ) -> Result<()> {
@@ -362,23 +347,7 @@ fn push_args(
             }
             ValuedOperand::core_label(..) | ValuedOperand::core_branch_target_label(..) => {
                 if let Some(resolved) = relocation {
-                    // If the relocation target is within the current function, we can
-                    // convert it into a relative branch target. Note that we check
-                    // target_address > start_address instead of >= so that recursive
-                    // tail calls are not considered branch targets.
-                    let target_address =
-                        resolved.symbol.address.checked_add_signed(resolved.relocation.addend);
-                    if resolved.symbol.section == Some(section_index)
-                        && target_address.is_some_and(|addr| {
-                            addr > function_range.start && addr < function_range.end
-                        })
-                    {
-                        // TODO move this logic up a level
-                        let target_address = target_address.unwrap();
-                        arg_cb(InstructionPart::branch_dest(target_address))?;
-                    } else {
-                        push_reloc(resolved.relocation, &mut arg_cb)?;
-                    }
+                    push_reloc(resolved.relocation, &mut arg_cb)?;
                 } else if let Some(branch_dest) = instruction
                     .get_branch_offset_generic()
                     .map(|o| (instruction.vram() + o).inner() as u64)

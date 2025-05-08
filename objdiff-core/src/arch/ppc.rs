@@ -19,7 +19,7 @@ use crate::{
     },
     obj::{
         InstructionRef, Object, Relocation, RelocationFlags, ResolvedInstructionRef,
-        ResolvedRelocation, ScannedInstruction, Symbol, SymbolFlag, SymbolFlagSet,
+        ResolvedRelocation, Symbol, SymbolFlag, SymbolFlagSet,
     },
 };
 
@@ -82,24 +82,22 @@ impl ArchPpc {
 }
 
 impl Arch for ArchPpc {
-    fn scan_instructions(
+    fn scan_instructions_internal(
         &self,
         address: u64,
         code: &[u8],
         _section_index: usize,
         _relocations: &[Relocation],
         _diff_config: &DiffObjConfig,
-    ) -> Result<Vec<ScannedInstruction>> {
+    ) -> Result<Vec<InstructionRef>> {
         ensure!(code.len() & 3 == 0, "Code length must be a multiple of 4");
         let ins_count = code.len() / 4;
-        let mut insts = Vec::<ScannedInstruction>::with_capacity(ins_count);
+        let mut insts = Vec::<InstructionRef>::with_capacity(ins_count);
         for (cur_addr, ins) in ppc750cl::InsIter::new(code, address as u32) {
-            insts.push(ScannedInstruction {
-                ins_ref: InstructionRef {
-                    address: cur_addr as u64,
-                    size: 4,
-                    opcode: u8::from(ins.op) as u16,
-                },
+            insts.push(InstructionRef {
+                address: cur_addr as u64,
+                size: 4,
+                opcode: u8::from(ins.op) as u16,
                 branch_dest: ins.branch_dest(cur_addr).map(u64::from),
             });
         }

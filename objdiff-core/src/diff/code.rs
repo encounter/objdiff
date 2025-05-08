@@ -14,15 +14,15 @@ use super::{
 };
 use crate::obj::{
     InstructionArg, InstructionArgValue, InstructionRef, Object, ResolvedInstructionRef,
-    ResolvedRelocation, ScannedInstruction, SymbolFlag, SymbolKind,
+    ResolvedRelocation, ResolvedSymbol, SymbolFlag, SymbolKind,
 };
 
 pub fn no_diff_code(
     obj: &Object,
-    symbol_idx: usize,
+    symbol_index: usize,
     diff_config: &DiffObjConfig,
 ) -> Result<SymbolDiff> {
-    let symbol = &obj.symbols[symbol_idx];
+    let symbol = &obj.symbols[symbol_index];
     let section_index = symbol.section.ok_or_else(|| anyhow!("Missing section for symbol"))?;
     let section = &obj.sections[section_index];
     let data = section.data_range(symbol.address, symbol.size as usize).ok_or_else(|| {
@@ -33,18 +33,14 @@ pub fn no_diff_code(
         )
     })?;
     let ops = obj.arch.scan_instructions(
-        symbol.address,
-        data,
-        section_index,
-        &section.relocations,
+        ResolvedSymbol { obj, symbol_index, symbol, section_index, section, data },
         diff_config,
     )?;
     let mut instruction_rows = Vec::<InstructionDiffRow>::new();
     for i in &ops {
-        instruction_rows
-            .push(InstructionDiffRow { ins_ref: Some(i.ins_ref), ..Default::default() });
+        instruction_rows.push(InstructionDiffRow { ins_ref: Some(*i), ..Default::default() });
     }
-    resolve_branches(obj, section_index, &ops, &mut instruction_rows);
+    resolve_branches(&ops, &mut instruction_rows);
     Ok(SymbolDiff { target_symbol: None, match_percent: None, diff_score: None, instruction_rows })
 }
 
@@ -92,22 +88,30 @@ pub fn diff_code(
     let left_section_idx = left_symbol.section.unwrap();
     let right_section_idx = right_symbol.section.unwrap();
     let left_ops = left_obj.arch.scan_instructions(
-        left_symbol.address,
-        left_data,
-        left_section_idx,
-        &left_section.relocations,
+        ResolvedSymbol {
+            obj: left_obj,
+            symbol_index: left_symbol_idx,
+            symbol: left_symbol,
+            section_index: left_section_idx,
+            section: left_section,
+            data: left_data,
+        },
         diff_config,
     )?;
     let right_ops = right_obj.arch.scan_instructions(
-        right_symbol.address,
-        right_data,
-        right_section_idx,
-        &right_section.relocations,
+        ResolvedSymbol {
+            obj: right_obj,
+            symbol_index: right_symbol_idx,
+            symbol: right_symbol,
+            section_index: right_section_idx,
+            section: right_section,
+            data: right_data,
+        },
         diff_config,
     )?;
     let (mut left_rows, mut right_rows) = diff_instructions(&left_ops, &right_ops)?;
-    resolve_branches(left_obj, left_section_idx, &left_ops, &mut left_rows);
-    resolve_branches(right_obj, right_section_idx, &right_ops, &mut right_rows);
+    resolve_branches(&left_ops, &mut left_rows);
+    resolve_branches(&right_ops, &mut right_rows);
 
     let mut diff_state = InstructionDiffState::default();
     for (left_row, right_row) in left_rows.iter_mut().zip(right_rows.iter_mut()) {
@@ -154,21 +158,21 @@ pub fn diff_code(
 }
 
 fn diff_instructions(
-    left_insts: &[ScannedInstruction],
-    right_insts: &[ScannedInstruction],
+    left_insts: &[InstructionRef],
+    right_insts: &[InstructionRef],
 ) -> Result<(Vec<InstructionDiffRow>, Vec<InstructionDiffRow>)> {
-    let left_ops = left_insts.iter().map(|i| i.ins_ref.opcode).collect::<Vec<_>>();
-    let right_ops = right_insts.iter().map(|i| i.ins_ref.opcode).collect::<Vec<_>>();
+    let left_ops = left_insts.iter().map(|i| i.opcode).collect::<Vec<_>>();
+    let right_ops = right_insts.iter().map(|i| i.opcode).collect::<Vec<_>>();
     let ops = similar::capture_diff_slices(similar::Algorithm::Patience, &left_ops, &right_ops);
     if ops.is_empty() {
         ensure!(left_insts.len() == right_insts.len());
         let left_diff = left_insts
             .iter()
-            .map(|i| InstructionDiffRow { ins_ref: Some(i.ins_ref), ..Default::default() })
+            .map(|i| InstructionDiffRow { ins_ref: Some(*i), ..Default::default() })
             .collect();
         let right_diff = right_insts
             .iter()
-            .map(|i| InstructionDiffRow { ins_ref: Some(i.ins_ref), ..Default::default() })
+            .map(|i| InstructionDiffRow { ins_ref: Some(*i), ..Default::default() })
             .collect();
         return Ok((left_diff, right_diff));
     }
@@ -187,14 +191,17 @@ fn diff_instructions(
     for op in ops {
         let (_tag, left_range, right_range) = op.as_tag_tuple();
         let len = left_range.len().max(right_range.len());
-        left_diff.extend(left_range.clone().map(|i| InstructionDiffRow {
-            ins_ref: Some(left_insts[i].ins_ref),
-            ..Default::default()
-        }));
-        right_diff.extend(right_range.clone().map(|i| InstructionDiffRow {
-            ins_ref: Some(right_insts[i].ins_ref),
-            ..Default::default()
-        }));
+        left_diff.extend(
+            left_range
+                .clone()
+                .map(|i| InstructionDiffRow { ins_ref: Some(left_insts[i]), ..Default::default() }),
+        );
+        right_diff.extend(
+            right_range.clone().map(|i| InstructionDiffRow {
+                ins_ref: Some(right_insts[i]),
+                ..Default::default()
+            }),
+        );
         if left_range.len() < len {
             left_diff.extend((left_range.len()..len).map(|_| InstructionDiffRow::default()));
         }
@@ -215,13 +222,7 @@ fn arg_to_string(arg: &InstructionArg, reloc: Option<ResolvedRelocation>) -> Str
     }
 }
 
-fn resolve_branches(
-    obj: &Object,
-    section_index: usize,
-    ops: &[ScannedInstruction],
-    rows: &mut [InstructionDiffRow],
-) {
-    let section = &obj.sections[section_index];
+fn resolve_branches(ops: &[InstructionRef], rows: &mut [InstructionDiffRow]) {
     let mut branch_idx = 0u32;
     // Map addresses to indices
     let mut addr_map = BTreeMap::<u64, u32>::new();
@@ -235,17 +236,7 @@ fn resolve_branches(
     for ((i, ins_diff), ins) in
         rows.iter_mut().enumerate().filter(|(_, row)| row.ins_ref.is_some()).zip(ops)
     {
-        let branch_dest = if let Some(resolved) = section.relocation_at(obj, ins.ins_ref) {
-            if resolved.symbol.section == Some(section_index) {
-                // If the relocation target is in the same section, use it as the branch destination
-                resolved.symbol.address.checked_add_signed(resolved.relocation.addend)
-            } else {
-                None
-            }
-        } else {
-            ins.branch_dest
-        };
-        if let Some(ins_idx) = branch_dest.and_then(|a| addr_map.get(&a).copied()) {
+        if let Some(ins_idx) = ins.branch_dest.and_then(|a| addr_map.get(&a).copied()) {
             match branches.entry(ins_idx) {
                 btree_map::Entry::Vacant(e) => {
                     ins_diff.branch_to = Some(InstructionBranchTo { ins_idx, branch_idx });

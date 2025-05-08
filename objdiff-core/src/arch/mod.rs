@@ -11,8 +11,8 @@ use crate::{
         display::{ContextItem, HoverItem, InstructionPart},
     },
     obj::{
-        InstructionArg, Object, ParsedInstruction, Relocation, RelocationFlags,
-        ResolvedInstructionRef, ScannedInstruction, Section, Symbol, SymbolFlagSet, SymbolKind,
+        InstructionArg, InstructionRef, Object, ParsedInstruction, Relocation, RelocationFlags,
+        ResolvedInstructionRef, ResolvedSymbol, Section, Symbol, SymbolFlagSet, SymbolKind,
     },
     util::ReallySigned,
 };
@@ -182,46 +182,108 @@ impl DataType {
     }
 }
 
-pub trait Arch: Send + Sync + Debug {
-    // Finishes arch-specific initialization that must be done after sections have been combined.
-    fn post_init(&mut self, _sections: &[Section], _symbols: &[Symbol]) {}
-
+impl dyn Arch {
     /// Generate a list of instructions references (offset, size, opcode) from the given code.
     ///
-    /// The opcode IDs are used to generate the initial diff. Implementations should do as little
-    /// parsing as possible here: just enough to identify the base instruction opcode, size, and
-    /// possible branch destination (for visual representation). As needed, instructions are parsed
-    /// via `process_instruction` to compare their arguments.
-    fn scan_instructions(
+    /// See [`scan_instructions_internal`] for more details.
+    pub fn scan_instructions(
         &self,
-        address: u64,
-        code: &[u8],
-        section_index: usize,
-        relocations: &[Relocation],
+        resolved: ResolvedSymbol,
         diff_config: &DiffObjConfig,
-    ) -> Result<Vec<ScannedInstruction>>;
+    ) -> Result<Vec<InstructionRef>> {
+        let mut result = self.scan_instructions_internal(
+            resolved.symbol.address,
+            resolved.data,
+            resolved.section_index,
+            &resolved.section.relocations,
+            diff_config,
+        )?;
+
+        let function_start = resolved.symbol.address;
+        let function_end = function_start + resolved.symbol.size;
+
+        // Remove any branch destinations that are outside the function range
+        for ins in result.iter_mut() {
+            if let Some(branch_dest) = ins.branch_dest {
+                if branch_dest < function_start || branch_dest >= function_end {
+                    ins.branch_dest = None;
+                }
+            }
+        }
+
+        // Resolve relocation targets within the same function to branch destinations
+        let mut ins_iter = result.iter_mut().peekable();
+        'outer: for reloc in resolved
+            .section
+            .relocations
+            .iter()
+            .skip_while(|r| r.address < function_start)
+            .take_while(|r| r.address < function_end)
+        {
+            let ins = loop {
+                let Some(ins) = ins_iter.peek_mut() else {
+                    break 'outer;
+                };
+                if reloc.address < ins.address {
+                    continue 'outer;
+                }
+                let ins = ins_iter.next().unwrap();
+                if reloc.address >= ins.address && reloc.address < ins.address + ins.size as u64 {
+                    break ins;
+                }
+            };
+            // Clear existing branch destination for instructions with relocations
+            ins.branch_dest = None;
+            let Some(target) = resolved.obj.symbols.get(reloc.target_symbol) else {
+                continue;
+            };
+            if target.section != Some(resolved.section_index) {
+                continue;
+            }
+            let Some(target_address) = target.address.checked_add_signed(reloc.addend) else {
+                continue;
+            };
+            // If the target address is within the function range, set it as a branch destination
+            if target_address >= function_start && target_address < function_end {
+                ins.branch_dest = Some(target_address);
+            }
+        }
+
+        Ok(result)
+    }
 
     /// Parse an instruction to gather its mnemonic and arguments for more detailed comparison.
     ///
     /// This is called only when we need to compare the arguments of an instruction.
-    fn process_instruction(
+    pub fn process_instruction(
         &self,
         resolved: ResolvedInstructionRef,
         diff_config: &DiffObjConfig,
     ) -> Result<ParsedInstruction> {
         let mut mnemonic = None;
         let mut args = Vec::with_capacity(8);
+        let mut relocation_emitted = false;
         self.display_instruction(resolved, diff_config, &mut |part| {
             match part {
                 InstructionPart::Opcode(m, _) => mnemonic = Some(Cow::Owned(m.into_owned())),
-                InstructionPart::Arg(arg) => args.push(arg.into_static()),
+                InstructionPart::Arg(arg) => {
+                    if arg == InstructionArg::Reloc {
+                        relocation_emitted = true;
+                        // If the relocation was resolved to a branch destination, emit that instead.
+                        if let Some(dest) = resolved.ins_ref.branch_dest {
+                            args.push(InstructionArg::BranchDest(dest));
+                            return Ok(());
+                        }
+                    }
+                    args.push(arg.into_static());
+                }
                 _ => {}
             }
             Ok(())
         })?;
         // If the instruction has a relocation, but we didn't format it in the display, add it to
         // the end of the arguments list.
-        if resolved.relocation.is_some() && !args.contains(&InstructionArg::Reloc) {
+        if resolved.relocation.is_some() && !relocation_emitted {
             args.push(InstructionArg::Reloc);
         }
         Ok(ParsedInstruction {
@@ -230,6 +292,26 @@ pub trait Arch: Send + Sync + Debug {
             args,
         })
     }
+}
+
+pub trait Arch: Send + Sync + Debug {
+    /// Finishes arch-specific initialization that must be done after sections have been combined.
+    fn post_init(&mut self, _sections: &[Section], _symbols: &[Symbol]) {}
+
+    /// Generate a list of instructions references (offset, size, opcode) from the given code.
+    ///
+    /// The opcode IDs are used to generate the initial diff. Implementations should do as little
+    /// parsing as possible here: just enough to identify the base instruction opcode, size, and
+    /// possible branch destination (for visual representation). As needed, instructions are parsed
+    /// via `process_instruction` to compare their arguments.
+    fn scan_instructions_internal(
+        &self,
+        address: u64,
+        code: &[u8],
+        section_index: usize,
+        relocations: &[Relocation],
+        diff_config: &DiffObjConfig,
+    ) -> Result<Vec<InstructionRef>>;
 
     /// Format an instruction for display.
     ///
@@ -332,14 +414,14 @@ impl ArchDummy {
 }
 
 impl Arch for ArchDummy {
-    fn scan_instructions(
+    fn scan_instructions_internal(
         &self,
         _address: u64,
         _code: &[u8],
         _section_index: usize,
         _relocations: &[Relocation],
         _diff_config: &DiffObjConfig,
-    ) -> Result<Vec<ScannedInstruction>> {
+    ) -> Result<Vec<InstructionRef>> {
         Ok(Vec::new())
     }
 

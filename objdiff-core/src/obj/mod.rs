@@ -214,11 +214,6 @@ pub struct InstructionRef {
     pub address: u64,
     pub size: u8,
     pub opcode: u16,
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct ScannedInstruction {
-    pub ins_ref: InstructionRef,
     pub branch_dest: Option<u64>,
 }
 
@@ -333,6 +328,16 @@ pub enum RelocationFlags {
 pub struct ResolvedRelocation<'a> {
     pub relocation: &'a Relocation,
     pub symbol: &'a Symbol,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct ResolvedSymbol<'obj> {
+    pub obj: &'obj Object,
+    pub symbol_index: usize,
+    pub symbol: &'obj Symbol,
+    pub section_index: usize,
+    pub section: &'obj Section,
+    pub data: &'obj [u8],
 }
 
 #[derive(Debug, Copy, Clone)]
