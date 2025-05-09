@@ -175,6 +175,10 @@
           "type": "boolean",
           "description": "If true, objdiff will run the build command with the context file as an argument to generate it.",
           "default": false
+        },
+        "preset_id": {
+          "type": "number",
+          "description": "The decomp.me preset ID to use for the scratch.\nCompiler and flags in the config will take precedence over the preset, but the preset is useful for organizational purposes."
         }
       },
       "required": [
