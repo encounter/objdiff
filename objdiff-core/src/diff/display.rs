@@ -77,7 +77,7 @@ impl<'a> DiffTextSegment<'a> {
 const EOL_SEGMENT: DiffTextSegment<'static> =
     DiffTextSegment { text: DiffText::Eol, color: DiffTextColor::Normal, pad_to: 0 };
 
-#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone)]
 pub enum HighlightKind {
     #[default]
     None,
@@ -286,6 +286,18 @@ pub fn display_row(
     }
     cb(EOL_SEGMENT)?;
     Ok(())
+}
+
+impl PartialEq<HighlightKind> for HighlightKind {
+    fn eq(&self, other: &HighlightKind) -> bool {
+        match (self, other) {
+            (HighlightKind::Opcode(a), HighlightKind::Opcode(b)) => a == b,
+            (HighlightKind::Argument(a), HighlightKind::Argument(b)) => a.loose_eq(b),
+            (HighlightKind::Symbol(a), HighlightKind::Symbol(b)) => a == b,
+            (HighlightKind::Address(a), HighlightKind::Address(b)) => a == b,
+            _ => false,
+        }
+    }
 }
 
 impl PartialEq<DiffText<'_>> for HighlightKind {
