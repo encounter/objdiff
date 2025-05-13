@@ -77,7 +77,7 @@ impl<'a> DiffTextSegment<'a> {
 const EOL_SEGMENT: DiffTextSegment<'static> =
     DiffTextSegment { text: DiffText::Eol, color: DiffTextColor::Normal, pad_to: 0 };
 
-#[derive(Debug, Default, Clone, Eq)]
+#[derive(Debug, Default, Clone)]
 pub enum HighlightKind {
     #[default]
     None,
