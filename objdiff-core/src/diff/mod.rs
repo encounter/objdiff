@@ -341,11 +341,25 @@ pub fn diff_objs(
     if let (Some((right_obj, right_out)), Some((left_obj, left_out))) =
         (right.as_mut(), left.as_mut())
     {
-        if let Some(right_name) = &mapping_config.selecting_left {
-            generate_mapping_symbols(right_obj, right_name, left_obj, left_out, diff_config)?;
+        if let Some(right_name) = mapping_config.selecting_left.as_deref() {
+            generate_mapping_symbols(
+                left_obj,
+                left_out,
+                right_obj,
+                right_out,
+                MappingSymbol::Right(right_name),
+                diff_config,
+            )?;
         }
-        if let Some(left_name) = &mapping_config.selecting_right {
-            generate_mapping_symbols(left_obj, left_name, right_obj, right_out, diff_config)?;
+        if let Some(left_name) = mapping_config.selecting_right.as_deref() {
+            generate_mapping_symbols(
+                left_obj,
+                left_out,
+                right_obj,
+                right_out,
+                MappingSymbol::Left(left_name),
+                diff_config,
+            )?;
         }
     }
 
@@ -356,16 +370,27 @@ pub fn diff_objs(
     })
 }
 
+#[derive(Clone, Copy)]
+enum MappingSymbol<'a> {
+    Left(&'a str),
+    Right(&'a str),
+}
+
 /// When we're selecting a symbol to use as a comparison, we'll create comparisons for all
 /// symbols in the other object that match the selected symbol's section and kind. This allows
 /// us to display match percentages for all symbols in the other object that could be selected.
 fn generate_mapping_symbols(
-    base_obj: &Object,
-    base_name: &str,
-    target_obj: &Object,
-    target_out: &mut ObjectDiff,
+    left_obj: &Object,
+    left_out: &mut ObjectDiff,
+    right_obj: &Object,
+    right_out: &mut ObjectDiff,
+    mapping_symbol: MappingSymbol,
     config: &DiffObjConfig,
 ) -> Result<()> {
+    let (base_obj, base_name, target_obj) = match mapping_symbol {
+        MappingSymbol::Left(name) => (left_obj, name, right_obj),
+        MappingSymbol::Right(name) => (right_obj, name, left_obj),
+    };
     let Some(base_symbol_ref) = symbol_ref_by_name(base_obj, base_name) else {
         return Ok(());
     };
@@ -377,32 +402,30 @@ fn generate_mapping_symbols(
         {
             continue;
         }
-        match base_section_kind {
+        let (left_symbol_idx, right_symbol_idx) = match mapping_symbol {
+            MappingSymbol::Left(_) => (base_symbol_ref, target_symbol_index),
+            MappingSymbol::Right(_) => (target_symbol_index, base_symbol_ref),
+        };
+        let (left_diff, right_diff) = match base_section_kind {
             SectionKind::Code => {
-                let (left_diff, _right_diff) =
-                    diff_code(target_obj, base_obj, target_symbol_index, base_symbol_ref, config)?;
-                target_out.mapping_symbols.push(MappingSymbolDiff {
-                    symbol_index: target_symbol_index,
-                    symbol_diff: left_diff,
-                });
+                diff_code(left_obj, right_obj, left_symbol_idx, right_symbol_idx, config)
             }
             SectionKind::Data => {
-                let (left_diff, _right_diff) =
-                    diff_data_symbol(target_obj, base_obj, target_symbol_index, base_symbol_ref)?;
-                target_out.mapping_symbols.push(MappingSymbolDiff {
-                    symbol_index: target_symbol_index,
-                    symbol_diff: left_diff,
-                });
+                diff_data_symbol(left_obj, right_obj, left_symbol_idx, right_symbol_idx)
             }
             SectionKind::Bss | SectionKind::Common => {
-                let (left_diff, _right_diff) =
-                    diff_bss_symbol(target_obj, base_obj, target_symbol_index, base_symbol_ref)?;
-                target_out.mapping_symbols.push(MappingSymbolDiff {
-                    symbol_index: target_symbol_index,
-                    symbol_diff: left_diff,
-                });
+                diff_bss_symbol(left_obj, right_obj, left_symbol_idx, right_symbol_idx)
             }
-            SectionKind::Unknown => {}
+            SectionKind::Unknown => continue,
+        }?;
+        match mapping_symbol {
+            MappingSymbol::Left(_) => right_out.mapping_symbols.push(MappingSymbolDiff {
+                symbol_index: right_symbol_idx,
+                symbol_diff: right_diff,
+            }),
+            MappingSymbol::Right(_) => left_out
+                .mapping_symbols
+                .push(MappingSymbolDiff { symbol_index: left_symbol_idx, symbol_diff: left_diff }),
         }
     }
     Ok(())
