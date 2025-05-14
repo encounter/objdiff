@@ -1,5 +1,4 @@
-[target.x86_64-pc-windows-msvc]
-linker = "rust-lld"
-
-[target.aarch64-pc-windows-msvc]
-linker = "rust-lld"
+# statically link the C runtime so the executable does not depend on
+# that shared/dynamic library.
+[target.'cfg(all(target_env = "msvc", target_os = "windows"))']
+rustflags = ["-C", "target-feature=+crt-static"]
