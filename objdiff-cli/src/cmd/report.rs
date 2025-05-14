@@ -245,12 +245,14 @@ fn report_object(
         for (symbol, symbol_diff) in obj.symbols.iter().zip(&obj_diff.symbols) {
             if symbol.section != Some(section_idx)
                 || symbol.size == 0
-                || symbol.flags.contains(SymbolFlag::Hidden | SymbolFlag::Ignored)
+                || symbol.flags.contains(SymbolFlag::Hidden)
+                || symbol.flags.contains(SymbolFlag::Ignored)
             {
                 continue;
             }
             if let Some(existing_functions) = &mut existing_functions {
-                if symbol.flags.contains(SymbolFlag::Global | SymbolFlag::Weak)
+                if (symbol.flags.contains(SymbolFlag::Global)
+                    || symbol.flags.contains(SymbolFlag::Weak))
                     && !existing_functions.insert(symbol.name.clone())
                 {
                     continue;
