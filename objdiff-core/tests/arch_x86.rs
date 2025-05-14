@@ -68,3 +68,12 @@ fn read_x86_jumptable() {
     let output = common::display_diff(&obj, &diff, symbol_idx, &diff_config);
     insta::assert_snapshot!(output);
 }
+
+// Inferred size of functions should ignore symbols with specific prefixes
+#[test]
+#[cfg(feature = "x86")]
+fn read_x86_local_labels() {
+    let diff_config = diff::DiffObjConfig::default();
+    let obj = obj::read::parse(include_object!("data/x86/local_labels.obj"), &diff_config).unwrap();
+    insta::assert_debug_snapshot!(obj);
+}

@@ -118,7 +118,7 @@ impl Section {
             Err(i) => self
                 .relocations
                 .get(i)
-                .take_if(|r| r.address < ins_ref.address + ins_ref.size as u64),
+                .filter(|r| r.address < ins_ref.address + ins_ref.size as u64),
         }
         .and_then(|relocation| {
             let symbol = obj.symbols.get(relocation.target_symbol)?;

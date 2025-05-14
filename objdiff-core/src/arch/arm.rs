@@ -225,7 +225,7 @@ impl Arch for ArchArm {
 
         let mut address = start_addr;
         while address < end_addr {
-            while let Some(next) = next_mapping.take_if(|x| address >= x.address) {
+            while let Some(next) = next_mapping.filter(|x| address >= x.address) {
                 // Change mapping
                 mode = next.mapping;
                 next_mapping = mappings_iter.next();

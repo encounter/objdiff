@@ -121,6 +121,15 @@ fn map_symbols(
     Ok((symbols, symbol_indices))
 }
 
+/// When inferring a symbol's size, we ignore symbols that start with specific prefixes. They are
+/// usually emitted as branch targets and do not represent the start of a function or object.
+fn is_local_label(symbol: &Symbol) -> bool {
+    const LABEL_PREFIXES: &[&str] = &[".L", "LAB_"];
+    symbol.size == 0
+        && symbol.flags.contains(SymbolFlag::Local)
+        && LABEL_PREFIXES.iter().any(|p| symbol.name.starts_with(p))
+}
+
 fn infer_symbol_sizes(symbols: &mut [Symbol], sections: &[Section]) {
     // Create a sorted list of symbol indices by section
     let mut symbols_with_section = Vec::<usize>::with_capacity(symbols.len());
@@ -167,27 +176,28 @@ fn infer_symbol_sizes(symbols: &mut [Symbol], sections: &[Section]) {
         if last_end.0 == section_idx && last_end.1 > symbol.address {
             continue;
         }
-        let next_symbol = match symbol.kind {
-            // For function/object symbols, find the next function/object symbol (in other words:
-            // skip over labels)
-            SymbolKind::Function | SymbolKind::Object => loop {
-                if iter_idx >= symbols_with_section.len() {
-                    break None;
+        let next_symbol = loop {
+            if iter_idx >= symbols_with_section.len() {
+                break None;
+            }
+            let next_symbol = &symbols[symbols_with_section[iter_idx]];
+            if next_symbol.section != Some(section_idx) {
+                break None;
+            }
+            if match symbol.kind {
+                SymbolKind::Function | SymbolKind::Object => {
+                    // For function/object symbols, find the next function/object
+                    matches!(next_symbol.kind, SymbolKind::Function | SymbolKind::Object)
                 }
-                let next_symbol = &symbols[symbols_with_section[iter_idx]];
-                if next_symbol.section != Some(section_idx) {
-                    break None;
+                SymbolKind::Unknown | SymbolKind::Section => {
+                    // For labels (or anything else), stop at any symbol
+                    true
                 }
-                if let SymbolKind::Function | SymbolKind::Object = next_symbol.kind {
-                    break Some(next_symbol);
-                }
-                iter_idx += 1;
-            },
-            // For labels (or anything else), simply use the next symbol's address
-            SymbolKind::Unknown | SymbolKind::Section => symbols_with_section
-                .get(iter_idx)
-                .map(|&i| &symbols[i])
-                .take_if(|s| s.section == Some(section_idx)),
+            } && !is_local_label(next_symbol)
+            {
+                break Some(next_symbol);
+            }
+            iter_idx += 1;
         };
         let next_address = next_symbol.map(|s| s.address).unwrap_or_else(|| {
             let section = &sections[section_idx];
@@ -341,7 +351,7 @@ fn map_section_relocations(
                 let idx = if let Some(section_symbol) = obj_file
                     .symbol_by_index(idx)
                     .ok()
-                    .take_if(|s| s.kind() == object::SymbolKind::Section)
+                    .filter(|s| s.kind() == object::SymbolKind::Section)
                 {
                     let section_index =
                         section_symbol.section_index().context("Section symbol without section")?;
