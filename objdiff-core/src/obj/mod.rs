@@ -308,6 +308,10 @@ impl Object {
         let offset = symbol.address.checked_sub(section.address)?;
         section.data.get(offset as usize..offset as usize + symbol.size as usize)
     }
+
+    pub fn symbol_by_name(&self, name: &str) -> Option<usize> {
+        self.symbols.iter().position(|symbol| symbol.section.is_some() && symbol.name == name)
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]

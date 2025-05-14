@@ -49,7 +49,9 @@ impl<'a> DiffColumnContext<'a> {
         let selected_symbol = match view {
             View::SymbolDiff => None,
             View::FunctionDiff | View::ExtabDiff => match (obj, selected_symbol) {
-                (Some(obj), Some(s)) => find_symbol(&obj.0, s).map(SelectedSymbol::Symbol),
+                (Some(obj), Some(s)) => {
+                    obj.0.symbol_by_name(&s.symbol_name).map(SelectedSymbol::Symbol)
+                }
                 _ => None,
             },
             View::DataDiff => match (obj, selected_symbol) {
@@ -777,10 +779,6 @@ fn missing_obj_ui(ui: &mut Ui, appearance: &Appearance) {
 
         ui.colored_label(appearance.replace_color, "No object configured");
     });
-}
-
-fn find_symbol(obj: &Object, selected_symbol: &SymbolRefByName) -> Option<usize> {
-    obj.symbols.iter().position(|symbol| symbol.name == selected_symbol.symbol_name)
 }
 
 fn find_section(obj: &Object, section_name: &str) -> Option<usize> {

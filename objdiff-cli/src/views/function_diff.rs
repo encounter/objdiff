@@ -450,11 +450,11 @@ impl UiView for FunctionDiffUi {
 
     fn reload(&mut self, state: &AppState) -> Result<()> {
         let left_sym =
-            state.left_obj.as_ref().and_then(|(o, _)| find_function(o, &self.symbol_name));
+            state.left_obj.as_ref().and_then(|(o, _)| o.symbol_by_name(&self.symbol_name));
         let right_sym =
-            state.right_obj.as_ref().and_then(|(o, _)| find_function(o, &self.symbol_name));
+            state.right_obj.as_ref().and_then(|(o, _)| o.symbol_by_name(&self.symbol_name));
         let prev_sym =
-            state.prev_obj.as_ref().and_then(|(o, _)| find_function(o, &self.symbol_name));
+            state.prev_obj.as_ref().and_then(|(o, _)| o.symbol_by_name(&self.symbol_name));
         self.num_rows = match (
             get_symbol(state.left_obj.as_ref(), left_sym),
             get_symbol(state.right_obj.as_ref(), right_sym),
@@ -649,13 +649,4 @@ fn get_symbol(
     let (obj, diff) = obj?;
     let sym = sym?;
     Some((obj, sym, &diff.symbols[sym]))
-}
-
-fn find_function(obj: &Object, name: &str) -> Option<usize> {
-    for (symbol_idx, symbol) in obj.symbols.iter().enumerate() {
-        if symbol.name == name {
-            return Some(symbol_idx);
-        }
-    }
-    None
 }

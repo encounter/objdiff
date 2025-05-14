@@ -391,7 +391,7 @@ fn generate_mapping_symbols(
         MappingSymbol::Left(name) => (left_obj, name, right_obj),
         MappingSymbol::Right(name) => (right_obj, name, left_obj),
     };
-    let Some(base_symbol_ref) = symbol_ref_by_name(base_obj, base_name) else {
+    let Some(base_symbol_ref) = base_obj.symbol_by_name(base_name) else {
         return Ok(());
     };
     let base_section_kind = symbol_section_kind(base_obj, &base_obj.symbols[base_symbol_ref]);
@@ -457,10 +457,6 @@ pub struct MappingConfig {
     pub selecting_right: Option<String>,
 }
 
-fn symbol_ref_by_name(obj: &Object, name: &str) -> Option<usize> {
-    obj.symbols.iter().position(|s| s.name == name)
-}
-
 fn apply_symbol_mappings(
     left: &Object,
     right: &Object,
@@ -472,25 +468,25 @@ fn apply_symbol_mappings(
     // If we're selecting a symbol to use as a comparison, mark it as used
     // This ensures that we don't match it to another symbol at any point
     if let Some(left_name) = &mapping_config.selecting_left {
-        if let Some(left_symbol) = symbol_ref_by_name(left, left_name) {
+        if let Some(left_symbol) = left.symbol_by_name(left_name) {
             left_used.insert(left_symbol);
         }
     }
     if let Some(right_name) = &mapping_config.selecting_right {
-        if let Some(right_symbol) = symbol_ref_by_name(right, right_name) {
+        if let Some(right_symbol) = right.symbol_by_name(right_name) {
             right_used.insert(right_symbol);
         }
     }
 
     // Apply manual symbol mappings
     for (left_name, right_name) in &mapping_config.mappings {
-        let Some(left_symbol_index) = symbol_ref_by_name(left, left_name) else {
+        let Some(left_symbol_index) = left.symbol_by_name(left_name) else {
             continue;
         };
         if left_used.contains(&left_symbol_index) {
             continue;
         }
-        let Some(right_symbol_index) = symbol_ref_by_name(right, right_name) else {
+        let Some(right_symbol_index) = right.symbol_by_name(right_name) else {
             continue;
         };
         if right_used.contains(&right_symbol_index) {
