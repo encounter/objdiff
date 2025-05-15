@@ -147,14 +147,20 @@ pub(crate) fn data_row_ui(
             cur_addr += diff.len;
         } else {
             for byte in &diff.data {
+                let mut byte_text = format!("{byte:02x} ");
                 let mut byte_color = base_color;
-                if let Some(reloc_diff) = reloc_diffs.iter().find(|reloc_diff| {
-                    reloc_diff.kind != DataDiffKind::None
-                        && reloc_diff.range.contains(&cur_addr_actual)
-                }) {
-                    byte_color = get_color_for_diff_kind(reloc_diff.kind, appearance);
+                if let Some(reloc_diff) = reloc_diffs
+                    .iter()
+                    .find(|reloc_diff| reloc_diff.range.contains(&cur_addr_actual))
+                {
+                    if *byte == 0 {
+                        // Display 00 data bytes with a relocation as ?? instead.
+                        byte_text = "?? ".to_string();
+                    }
+                    if reloc_diff.kind != DataDiffKind::None {
+                        byte_color = get_color_for_diff_kind(reloc_diff.kind, appearance);
+                    }
                 }
-                let byte_text = format!("{byte:02x} ");
                 write_text(byte_text.as_str(), byte_color, &mut job, appearance.code_font.clone());
                 cur_addr += 1;
                 cur_addr_actual += 1;
