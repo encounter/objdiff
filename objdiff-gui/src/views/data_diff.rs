@@ -154,8 +154,8 @@ pub(crate) fn data_row_ui(
                     .find(|reloc_diff| reloc_diff.range.contains(&cur_addr_actual))
                 {
                     if *byte == 0 {
-                        // Display 00 data bytes with a relocation as xx instead.
-                        byte_text = "xx ".to_string();
+                        // Display 00 data bytes with a relocation as ?? instead.
+                        byte_text = "?? ".to_string();
                     }
                     if reloc_diff.kind != DataDiffKind::None {
                         byte_color = get_color_for_diff_kind(reloc_diff.kind, appearance);
