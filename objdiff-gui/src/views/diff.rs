@@ -499,6 +499,7 @@ pub fn diff_view_ui(
             (state.current_view, left_ctx.obj, right_ctx.obj, left_ctx.section, right_ctx.section)
         {
             // Joint diff view
+            hotkeys::check_scroll_hotkeys(ui, true);
             let left_total_bytes =
                 left_section_diff.data_diff.iter().fold(0usize, |accum, item| accum + item.len);
             let right_total_bytes =
