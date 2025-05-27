@@ -13,6 +13,7 @@ use core::{
     fmt,
     num::{NonZeroU32, NonZeroU64},
 };
+use std::collections::HashMap;
 
 use flagset::{FlagSet, flags};
 
@@ -233,6 +234,15 @@ pub enum SymbolKind {
     Section,
 }
 
+#[derive(Debug)]
+pub enum FlowAnalysisValue {
+    Text(String),
+}
+
+pub trait FlowAnalysisResult : std::fmt::Debug + Send {
+    fn get_argument_value_at_address(&self, address: u64, argument: u8) -> Option<&FlowAnalysisValue>;
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub struct Symbol {
     pub name: String,
@@ -260,6 +270,7 @@ pub struct Object {
     pub path: Option<std::path::PathBuf>,
     #[cfg(feature = "std")]
     pub timestamp: Option<filetime::FileTime>,
+    pub flow_analysis_results: HashMap<u64, Box<dyn FlowAnalysisResult>>,
 }
 
 impl Default for Object {
@@ -274,6 +285,7 @@ impl Default for Object {
             path: None,
             #[cfg(feature = "std")]
             timestamp: None,
+            flow_analysis_results: HashMap::<u64, Box<dyn FlowAnalysisResult>>::new(),
         }
     }
 }

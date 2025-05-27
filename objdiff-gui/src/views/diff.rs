@@ -245,15 +245,20 @@ pub fn diff_view_ui(
 
             // Third row
             if left_ctx.has_symbol() && right_ctx.has_symbol() {
-                if state.current_view == View::FunctionDiff
-                    && ui
+                if state.current_view == View::FunctionDiff {
+                    if ui
                         .button("Change target")
                         .on_hover_text_at_pointer("Choose a different symbol to use as the target")
                         .clicked()
                     || hotkeys::consume_change_target_shortcut(ui.ctx())
-                {
-                    if let Some(symbol_ref) = state.symbol_state.right_symbol.as_ref() {
-                        ret = Some(DiffViewAction::SelectingLeft(symbol_ref.clone()));
+                    {
+                        if let Some(symbol_ref) = state.symbol_state.right_symbol.as_ref() {
+                            ret = Some(DiffViewAction::SelectingLeft(symbol_ref.clone()));
+                        }
+                    }
+                    let mut placeholder = diff_config.show_data_flow;
+                    if ui.checkbox(&mut placeholder, "Show Data Flow").clicked() {
+                        ret = Some(DiffViewAction::ToggleShowDataFlow);
                     }
                 }
             } else if left_ctx.status.success && !left_ctx.has_symbol() {

@@ -8,19 +8,15 @@ use alloc::{
 use anyhow::{Result, bail, ensure};
 use cwextab::{ExceptionTableData, decode_extab};
 use flagset::Flags;
+use itertools::Itertools;
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _, elf};
 
 use crate::{
-    arch::{Arch, DataType},
-    diff::{
-        DiffObjConfig,
-        data::resolve_relocation,
-        display::{ContextItem, HoverItem, HoverItemColor, InstructionPart, SymbolNavigationKind},
-    },
-    obj::{
-        InstructionRef, Object, Relocation, RelocationFlags, ResolvedInstructionRef,
-        ResolvedRelocation, Symbol, SymbolFlag, SymbolFlagSet,
-    },
+    arch::{Arch, DataType}, diff::{
+        data::resolve_relocation, display::{ContextItem, HoverItem, HoverItemColor, InstructionPart, SymbolNavigationKind}, DiffObjConfig
+    }, obj::{
+        FlowAnalysisResult, FlowAnalysisValue, InstructionRef, Object, Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation, Symbol, SymbolFlag, SymbolFlagSet
+    }, parse_cpp_signature
 };
 
 // Relative relocation, can be Simm, Offset or BranchDest
@@ -157,14 +153,16 @@ impl Arch for ArchPpc {
         Ok(())
     }
 
-    fn generate_pooled_relocations(
+    fn data_flow_analysis(
         &self,
-        address: u64,
+        obj: &Object,
+        symbol: &Symbol,
         code: &[u8],
         relocations: &[Relocation],
-        symbols: &[Symbol],
-    ) -> Vec<Relocation> {
-        generate_fake_pool_relocations_for_function(address, code, relocations, symbols)
+    ) -> (Vec<Relocation>, Option<Box<dyn FlowAnalysisResult>>) {
+        let flow_result = ppc_data_flow_analysis(obj, symbol, code, relocations);
+        let relocations = generate_fake_pool_relocations_for_function(symbol, code, relocations, &obj.symbols);
+        return (relocations, Some(flow_result));
     }
 
     fn implcit_addend(
@@ -501,6 +499,394 @@ fn make_symbol_ref(symbol: &object::Symbol) -> Result<ExtabSymbolRef> {
     Ok(ExtabSymbolRef { original_index: symbol.index().0 - 1, name, demangled_name })
 }
 
+use ppc750cl::{self, ParsedIns};
+use core::{ops::IndexMut, u8};
+use std::{ops::Index, fmt};
+
+#[derive(Default, PartialEq, Copy, Clone, Debug)]
+enum RegisterContent {
+    #[default]
+    Unknown,
+    FloatConstant(f32),
+    DoubleConstant(f64),
+    IntConstant(u64),
+    Parameter(u8),
+    Symbol(usize),
+}
+
+impl fmt::Display for RegisterContent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RegisterContent::Unknown => write!(f, "unknown"),
+            RegisterContent::IntConstant(i) => write!(f, "0x{i:x}"),
+            RegisterContent::FloatConstant(fp) => write!(f, "{fp:?}f"),
+            RegisterContent::DoubleConstant(fp) => write!(f, "{fp:?}d"),
+            RegisterContent::Parameter(p) => write!(f, "arg{p}"),
+            RegisterContent::Symbol(_u) => write!(f, "relocation"),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct RegisterState {
+    gpr: [RegisterContent; 32],
+    fpr: [RegisterContent; 32],
+}
+
+impl RegisterState {
+    fn new() -> Self {
+        RegisterState {
+            gpr: [RegisterContent::Unknown; 32],
+            fpr: [RegisterContent::Unknown; 32],
+        }
+    }
+
+    fn clear_volatile(&mut self) {
+        self[ppc750cl::GPR(0)] = RegisterContent::Unknown;
+        for i in 3..12 {
+            self[ppc750cl::GPR(i)] = RegisterContent::Unknown;
+        }
+    }
+
+    // Unify currently known register contents in a give situation with new
+    // information about the register contents in that situation.
+    // Currently unknown register contents can be filled, but if there are
+    // conflicting contents, we go back to unknown.
+    fn unify(&mut self, other: &RegisterState) {
+        for i in 0..32 {
+            if self.gpr[i] != other.gpr[i] {
+                self.gpr[i] = if self.gpr[i] == RegisterContent::Unknown {
+                    // Unknown, assign register
+                    other.gpr[i]
+                } else {
+                    // Conflict, clear register
+                    RegisterContent::Unknown
+                };
+            }
+            if self.fpr[i] != other.fpr[i] {
+                self.fpr[i] = if self.fpr[i] == RegisterContent::Unknown {
+                    // Unknown, assign register
+                    other.fpr[i]
+                } else {
+                    // Conflict, clear register
+                    RegisterContent::Unknown
+                };
+            }
+        }
+    }
+}
+
+
+impl Index<ppc750cl::GPR> for RegisterState {
+    type Output = RegisterContent;
+    fn index(&self, gpr: ppc750cl::GPR) -> &Self::Output {
+        &self.gpr[gpr.0 as usize]
+    }
+}
+impl IndexMut<ppc750cl::GPR> for RegisterState {
+    fn index_mut(&mut self, gpr: ppc750cl::GPR) -> &mut Self::Output {
+        &mut self.gpr[gpr.0 as usize]
+    }
+}
+
+impl Index<ppc750cl::FPR> for RegisterState {
+    type Output = RegisterContent;
+    fn index(&self, fpr: ppc750cl::FPR) -> &Self::Output {
+        &self.fpr[fpr.0 as usize]
+    }
+}
+impl IndexMut<ppc750cl::FPR> for RegisterState {
+    fn index_mut(&mut self, fpr: ppc750cl::FPR) -> &mut Self::Output {
+        &mut self.fpr[fpr.0 as usize]
+    }
+}
+
+fn apply_input_arguments(registers: &mut RegisterState, args: parse_cpp_signature::FunctionSignature) {
+    // TODO: Find a way to init g_reg to 4 if a large struct is being returned,
+    // in that case register 3 is a pointer to the return area.
+    let mut g_reg = 3u8;
+    let mut f_reg = 1u8;
+    for (i, arg) in args.arguments.iter().enumerate() {
+        let parameter = RegisterContent::Parameter((i + 1) as u8);
+        if arg.is_pointer {
+            // Pointers are passed in GPRs
+            registers[ppc750cl::GPR(g_reg)] = parameter;
+            g_reg += 1;
+        } else if arg.base_type == "float" || arg.base_type == "double" {
+            // Floating point arguments are passed in FPRs
+            registers[ppc750cl::FPR(f_reg)] = parameter;
+            f_reg += 1;
+        } else {
+            // Assume anything else is passed in a GPR for now
+            // TODO: Handle larger types going in multiple GPRs
+            registers[ppc750cl::GPR(g_reg)] = parameter;
+            g_reg += 1;
+        }
+    }
+
+    // We also know the stack pointer
+    //registers[ppc750cl::GPR(1)] = RegisterContent::StackPointer;
+}
+
+fn execute_instruction(registers: &mut RegisterState, op: &ppc750cl::Opcode, args: &[ppc750cl::Argument; 5]) {
+    use ppc750cl::{Opcode, Argument};
+    match (op, args[0], args[1], args[2]) {
+        (Opcode::Or, Argument::GPR(a), Argument::GPR(b), Argument::GPR(c)) => {
+            // Move is implemented as or with self
+            if b == c {
+                registers[a] = registers[b];
+            } else {
+                registers[a] = RegisterContent::Unknown;
+            }
+        }
+        (Opcode::Addi, Argument::GPR(a), Argument::GPR(b), Argument::Simm(c)) => {
+            // Load immidiate implemented as addi with r0
+            if b.0 == 0x0 {
+                registers[a] = RegisterContent::IntConstant(c.0 as u64);
+            }
+        }
+        (Opcode::Bcctr, _, _, _) => {
+            // Called a function pointer, may have erased volatile registers
+            registers.clear_volatile();
+        }
+        (Opcode::B, _, _, _) => {
+            if get_branch_offset(args) == 0 {
+                // Call to another function
+                registers.clear_volatile();
+            }
+        }
+        (Opcode::Stbu | Opcode::Sthu | Opcode::Stwu |
+            Opcode::Stfsu | Opcode::Stfdu, _, _, Argument::GPR(rel)) => {
+            // Storing with update, clear updated register (third arg)
+            registers[rel] = RegisterContent::Unknown;
+        }
+        (Opcode::Stbux | Opcode::Sthux | Opcode::Stwux |
+            Opcode::Stfsux | Opcode::Stfdux, _, Argument::GPR(rel), _) => {
+            // Storing indexed with update, clear updated register (second arg)
+            registers[rel] = RegisterContent::Unknown;
+        }
+        (Opcode::Stb | Opcode::Sth | Opcode::Stw |
+            Opcode::Stbx | Opcode::Sthx | Opcode::Stwx |
+            Opcode::Stfs | Opcode::Stfd, _, _, _) => {
+            // Storing, does not change registers
+        }
+        (_, Argument::GPR(a), _, _) => {
+            // Other operations which write to GPR a
+            registers[a] = RegisterContent::Unknown;
+        }
+        (_, Argument::FPR(a), _, _) => {
+            // Other operations which write to FPR a
+            registers[a] = RegisterContent::Unknown;
+        }
+        (_, _, _, _) => {}
+    }
+    
+}
+
+fn get_branch_offset(args: &[ppc750cl::Argument; 5]) -> i32 {
+    for arg in args.iter() {
+        if let ppc750cl::Argument::BranchDest(dest) = arg {
+            return dest.0 / 4;
+        }
+    }
+    return 0;
+}
+
+#[derive(Debug)]
+struct PPCFlowAnalysisResult {
+    argument_contents: BTreeMap<(u64, u8), FlowAnalysisValue>,
+}
+
+impl PPCFlowAnalysisResult {
+    fn set_argument_value_at_address(&mut self, address: u64, argument: u8, value: FlowAnalysisValue) {
+        self.argument_contents.insert((address, argument), value);
+    }
+
+    fn new() -> Self {
+        PPCFlowAnalysisResult { argument_contents: Default::default() }
+    }
+}
+
+impl FlowAnalysisResult for PPCFlowAnalysisResult {
+    fn get_argument_value_at_address(&self, address: u64, argument: u8) -> Option<&FlowAnalysisValue> {
+        self.argument_contents.get(&(address, argument))
+    }
+}
+
+fn clamp_text_length(s: String, max: usize) -> String {
+    if s.len() <= max {
+        s
+    } else {
+        format!("{}…", s.chars().take(max - 3).collect::<String>())
+    }
+}
+
+fn generate_flow_analysis_result(
+    obj: &Object,
+    base_address: u64,
+    code: &[u8],
+    register_state_at: Vec::<RegisterState>,
+    relocations: &[Relocation]
+) -> Box<PPCFlowAnalysisResult> {
+    use ppc750cl::{InsIter, Argument};
+    let mut analysis_result = PPCFlowAnalysisResult::new();
+    for (addr, ins) in InsIter::new(code, 0) {
+        let ins_address = base_address + (addr as u64);
+
+        // If we're already showing relocations on a line don't also show data flow
+        if relocations.iter().any(|r| (r.address & !3) == ins_address) {
+            continue;
+        }
+
+        let ParsedIns {mnemonic, args} = ins.simplified();
+        let is_store = mnemonic.starts_with("st");
+        let index = addr / 4;
+        let default_register_state = RegisterState::new();
+        let registers = register_state_at.get(index as usize).unwrap_or(&default_register_state);
+        for (arg_index, arg) in args.into_iter().enumerate() {
+            // Hacky shorthand for determining which arguments are sources,
+            // We only want to show data flow for source registers, not target
+            // registers. Technically there are some non-"st_" operations which
+            // read from their first argument but they're rare.
+            if (arg_index == 0) && !is_store {
+                continue;
+            }
+            
+            let content = match arg {
+                Argument::GPR(gpr) => Some(registers[gpr]),
+                Argument::FPR(fpr) => Some(registers[fpr]),
+                _ => None,
+            };
+            let analysis_value = match content {
+                Some(RegisterContent::Symbol(s)) => {
+                    obj.symbols.get(s).map(|sym|
+                        FlowAnalysisValue::Text(
+                            clamp_text_length(sym.demangled_name.as_ref().unwrap_or(&sym.name).clone(), 20)))
+                }
+                Some(RegisterContent::Unknown) => None,
+                Some(value) => Some(FlowAnalysisValue::Text(format!("{value}"))),
+                None => None,
+            };
+            if let Some(analysis_value) = analysis_value {
+                analysis_result.set_argument_value_at_address(ins_address, arg_index as u8, analysis_value);
+            }
+        }
+    }
+
+    Box::new(analysis_result)
+}
+
+fn ppc_data_flow_analysis(
+    obj: &Object,
+    func_symbol: &Symbol,
+    code: &[u8],
+    relocations: &[Relocation],
+) -> Box<PPCFlowAnalysisResult> {
+    use std::collections::HashSet;
+    use ppc750cl::{InsIter, Argument, Opcode};
+    let instructions = InsIter::new(code, func_symbol.address as u32).map(|(_addr, ins)| {
+        (ins.op, ins.basic().args)
+    }).collect_vec();
+
+    let func_address = func_symbol.address;
+    let unnamed = "unnamed".to_string();
+    let func_name = func_symbol.demangled_name.as_ref().unwrap_or(&unnamed);
+
+    // Get initial register values from function parameters
+    let mut initial_register_state = RegisterState::new();
+    if let Ok(result) = parse_cpp_signature::parse_cpp_signature(func_name) {
+        apply_input_arguments(&mut initial_register_state, result);
+    }
+
+    let mut execution_queue = Vec::<(usize, RegisterState)>::new();
+    execution_queue.push((0, initial_register_state));
+
+    // Execute the instructions
+    let mut taken_branches = HashSet::<usize>::new();
+    let mut register_state_at = Vec::<RegisterState>::new();
+    register_state_at.resize_with(instructions.len(), RegisterState::new);
+    while let Some((mut index, mut current_state)) = execution_queue.pop() {
+        while let Some((op, args)) = instructions.get(index) {
+            // Record the state at this index
+            register_state_at[index].unify(&current_state);
+
+            // Execute the instruction to update the state
+            execute_instruction(&mut current_state, op, args);
+
+            // Look for relocations at this line
+            let cur_addr = (func_address as u32) + ((index * 4) as u32);
+            let reloc = relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
+            if let Some(reloc) = reloc {
+                let bytes = obj.symbol_data(reloc.target_symbol).unwrap_or(&[]);
+                let content = match guess_data_type_from_load_store_inst_op(*op) {
+                    Some(DataType::Float) => RegisterContent::FloatConstant(match obj.endianness {
+                        object::Endianness::Little => f32::from_le_bytes(bytes.try_into().unwrap_or([0; 4])),
+                        object::Endianness::Big => f32::from_be_bytes(bytes.try_into().unwrap_or([0; 4])),
+                    }),
+                    Some(DataType::Double) => RegisterContent::DoubleConstant(match obj.endianness {
+                        object::Endianness::Little => f64::from_le_bytes(bytes.try_into().unwrap_or([0; 8])),
+                        object::Endianness::Big => f64::from_be_bytes(bytes.try_into().unwrap_or([0; 8])),
+                    }),
+                    _ => RegisterContent::Symbol(reloc.target_symbol),
+                };
+                match (op, args[0]) {
+                    // Ignore stores, they're not updating the register state
+                    (Opcode::Stb | Opcode::Sth | Opcode::Stw, _) => {}
+
+                    // Everything else is a load of some sort
+                    (_, Argument::GPR(gpr)) => {
+                        current_state[gpr] = content;
+                    }
+                    (_, Argument::FPR(fpr)) => {
+                        current_state[fpr] = content;
+                    }
+                    _ => {}
+                }
+            }
+            
+            // Add conditional branches execution queue
+            // Only take a given branch once to avoid looping on backwards
+            // brarches. We do have to take the backwards branches at least once
+            // to avoid thinking that fixed inital values are present for every
+            // iteration of the loop. RegisterState.unify will clear those
+            // values on the second pass through the loop body.
+            if op == &ppc750cl::Opcode::Bc && !taken_branches.contains(&index) {
+                let offset = get_branch_offset(args);
+                let target_index = ((index as i32) + offset) as usize;
+                execution_queue.push((target_index, current_state.clone()));
+                taken_branches.insert(index);
+            }
+
+            // Update index
+            if op == &ppc750cl::Opcode::B {
+                // Unconditional branch
+                let offset = get_branch_offset(args);
+                if offset > 0 {
+                    // Jump table or branch to over else clause.
+                    index += offset as usize;
+                } else if offset == 0 {
+                    // Function call with relocation. We'll return to
+                    // the next instruction.
+                    index += 1;
+                } else {
+                    // Unconditionabl backwards branch (While true with breaks)
+                    if taken_branches.contains(&index) {
+                        break;
+                    }
+                    taken_branches.insert(index);
+                    index = ((index as i32) + offset) as usize;
+                }
+            } else {
+                // Normal execution of next instruction
+                index += 1;
+            }
+        }
+    }
+
+    // Store the relevant data flow values for simplified instructions
+    generate_flow_analysis_result(&obj, func_address, code, register_state_at, relocations)
+}
+
 fn guess_data_type_from_load_store_inst_op(inst_op: ppc750cl::Opcode) -> Option<DataType> {
     use ppc750cl::Opcode;
     match inst_op {
@@ -683,11 +1069,12 @@ fn make_fake_pool_reloc(
 // will require keeping track of what value is loaded into each register so we can retrieve the jump
 // table symbol when we encounter a `bctr`.
 fn generate_fake_pool_relocations_for_function(
-    func_address: u64,
+    func_symbol: &Symbol,
     code: &[u8],
     relocations: &[Relocation],
     symbols: &[Symbol],
 ) -> Vec<Relocation> {
+    let func_address = func_symbol.address;
     use ppc750cl::{Argument, InsIter, Opcode};
     let mut visited_ins_addrs = BTreeSet::new();
     let mut pool_reloc_for_addr = BTreeMap::new();

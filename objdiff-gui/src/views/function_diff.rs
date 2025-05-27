@@ -174,6 +174,7 @@ fn diff_text_ui(
         DiffTextColor::Normal => appearance.text_color,
         DiffTextColor::Dim => appearance.deemphasized_text_color,
         DiffTextColor::Bright => appearance.emphasized_text_color,
+        DiffTextColor::DataFlow => appearance.dataflow_color,
         DiffTextColor::Replace => appearance.replace_color,
         DiffTextColor::Delete => appearance.delete_color,
         DiffTextColor::Insert => appearance.insert_color,
