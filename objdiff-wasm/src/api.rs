@@ -24,14 +24,14 @@ wit_bindgen::generate!({
 use exports::objdiff::core::{
     diff::{
         DiffConfigBorrow, DiffResult, Guest as GuestDiff, GuestDiffConfig, GuestObject,
-        GuestObjectDiff, Object, ObjectBorrow, ObjectDiff, ObjectDiffBorrow,
+        GuestObjectDiff, MappingConfig, Object, ObjectBorrow, ObjectDiff, ObjectDiffBorrow,
+        SymbolFlags, SymbolInfo, SymbolKind, SymbolRef,
     },
     display::{
         ContextItem, ContextItemCopy, ContextItemNavigate, DiffText, DiffTextColor, DiffTextOpcode,
         DiffTextSegment, DiffTextSymbol, DisplayConfig, Guest as GuestDisplay, HoverItem,
         HoverItemColor, HoverItemText, InstructionDiffKind, InstructionDiffRow, SectionDisplay,
-        SectionDisplaySymbol, SymbolDisplay, SymbolFilter, SymbolFlags, SymbolKind,
-        SymbolNavigationKind, SymbolRef,
+        SymbolDisplay, SymbolFilter, SymbolNavigationKind,
     },
 };
 
@@ -59,15 +59,17 @@ impl GuestDiff for Component {
         left: Option<ObjectBorrow>,
         right: Option<ObjectBorrow>,
         diff_config: DiffConfigBorrow,
+        mapping_config: MappingConfig,
     ) -> Result<DiffResult, String> {
         let diff_config = diff_config.get::<ResourceDiffConfig>().0.borrow();
+        let mapping_config = diff::MappingConfig::from(mapping_config);
         log::debug!("Running diff with config: {:?}", diff_config);
         let result = diff::diff_objs(
             left.as_ref().map(|o| o.get::<ResourceObject>().0.as_ref()),
             right.as_ref().map(|o| o.get::<ResourceObject>().0.as_ref()),
             None,
             &diff_config,
-            &diff::MappingConfig::default(),
+            &mapping_config,
         )
         .map_err(|e| e.to_string())?;
         Ok(DiffResult {
@@ -134,48 +136,47 @@ impl GuestDisplay for Component {
             name: d.name,
             size: d.size,
             match_percent: d.match_percent,
-            symbols: d
-                .symbols
-                .into_iter()
-                .map(|s| SectionDisplaySymbol {
-                    symbol: s.symbol as SymbolRef,
-                    is_mapping_symbol: s.is_mapping_symbol,
-                })
-                .collect(),
+            symbols: d.symbols.into_iter().map(to_symbol_ref).collect(),
         })
         .collect()
     }
 
-    fn display_symbol(
-        diff: ObjectDiffBorrow,
-        symbol_display: SectionDisplaySymbol,
-    ) -> SymbolDisplay {
+    fn display_symbol(diff: ObjectDiffBorrow, symbol_ref: SymbolRef) -> SymbolDisplay {
         let obj_diff = diff.get::<ResourceObjectDiff>();
         let obj = obj_diff.0.as_ref();
         let obj_diff = &obj_diff.1;
-        let symbol_idx = symbol_display.symbol as usize;
-        let Some(symbol) = obj.symbols.get(symbol_idx) else {
-            return SymbolDisplay { name: "<unknown>".to_string(), ..Default::default() };
+        let symbol_display = from_symbol_ref(symbol_ref);
+        let Some(symbol) = obj.symbols.get(symbol_display.symbol) else {
+            return SymbolDisplay {
+                info: SymbolInfo { name: "<unknown>".to_string(), ..Default::default() },
+                ..Default::default()
+            };
         };
         let symbol_diff = if symbol_display.is_mapping_symbol {
             obj_diff
                 .mapping_symbols
                 .iter()
-                .find(|s| s.symbol_index == symbol_idx)
+                .find(|s| s.symbol_index == symbol_display.symbol)
                 .map(|s| &s.symbol_diff)
         } else {
-            obj_diff.symbols.get(symbol_idx)
+            obj_diff.symbols.get(symbol_display.symbol)
         };
         SymbolDisplay {
-            name: symbol.name.clone(),
-            demangled_name: symbol.demangled_name.clone(),
-            address: symbol.address,
-            size: symbol.size,
-            kind: SymbolKind::from(symbol.kind),
-            section: symbol.section.map(|s| s as u32),
-            flags: SymbolFlags::from(symbol.flags),
-            align: symbol.align.map(|a| a.get()),
-            virtual_address: symbol.virtual_address,
+            info: SymbolInfo {
+                id: to_symbol_ref(symbol_display),
+                name: symbol.name.clone(),
+                demangled_name: symbol.demangled_name.clone(),
+                address: symbol.address,
+                size: symbol.size,
+                kind: SymbolKind::from(symbol.kind),
+                section: symbol.section.map(|s| s as u32),
+                section_name: symbol
+                    .section
+                    .and_then(|s| obj.sections.get(s).map(|sec| sec.name.clone())),
+                flags: SymbolFlags::from(symbol.flags),
+                align: symbol.align.map(|a| a.get()),
+                virtual_address: symbol.virtual_address,
+            },
             target_symbol: symbol_diff.and_then(|sd| sd.target_symbol.map(|s| s as u32)),
             match_percent: symbol_diff.and_then(|sd| sd.match_percent),
             diff_score: symbol_diff.and_then(|sd| sd.diff_score),
@@ -185,22 +186,22 @@ impl GuestDisplay for Component {
 
     fn display_instruction_row(
         diff: ObjectDiffBorrow,
-        symbol_display: SectionDisplaySymbol,
+        symbol_ref: SymbolRef,
         row_index: u32,
         diff_config: DiffConfigBorrow,
     ) -> InstructionDiffRow {
         let obj_diff = diff.get::<ResourceObjectDiff>();
         let obj = obj_diff.0.as_ref();
         let obj_diff = &obj_diff.1;
-        let symbol_idx = symbol_display.symbol as usize;
+        let symbol_display = from_symbol_ref(symbol_ref);
         let symbol_diff = if symbol_display.is_mapping_symbol {
             obj_diff
                 .mapping_symbols
                 .iter()
-                .find(|s| s.symbol_index == symbol_idx)
+                .find(|s| s.symbol_index == symbol_display.symbol)
                 .map(|s| &s.symbol_diff)
         } else {
-            obj_diff.symbols.get(symbol_idx)
+            obj_diff.symbols.get(symbol_display.symbol)
         };
         let Some(row) = symbol_diff.and_then(|sd| sd.instruction_rows.get(row_index as usize))
         else {
@@ -208,7 +209,7 @@ impl GuestDisplay for Component {
         };
         let diff_config = diff_config.get::<ResourceDiffConfig>().0.borrow();
         let mut segments = Vec::with_capacity(16);
-        diff::display::display_row(obj, symbol_idx, row, &diff_config, |segment| {
+        diff::display::display_row(obj, symbol_display.symbol, row, &diff_config, |segment| {
             segments.push(DiffTextSegment::from(segment));
             Ok(())
         })
@@ -216,26 +217,22 @@ impl GuestDisplay for Component {
         InstructionDiffRow { segments, diff_kind: InstructionDiffKind::from(row.kind) }
     }
 
-    fn symbol_context(
-        diff: ObjectDiffBorrow,
-        symbol_display: SectionDisplaySymbol,
-    ) -> Vec<ContextItem> {
+    fn symbol_context(diff: ObjectDiffBorrow, symbol_ref: SymbolRef) -> Vec<ContextItem> {
         let obj_diff = diff.get::<ResourceObjectDiff>();
         let obj = obj_diff.0.as_ref();
+        let symbol_display = from_symbol_ref(symbol_ref);
         diff::display::symbol_context(obj, symbol_display.symbol as usize)
             .into_iter()
             .map(|item| ContextItem::from(item))
             .collect()
     }
 
-    fn symbol_hover(
-        diff: ObjectDiffBorrow,
-        symbol_display: SectionDisplaySymbol,
-    ) -> Vec<HoverItem> {
+    fn symbol_hover(diff: ObjectDiffBorrow, symbol_ref: SymbolRef) -> Vec<HoverItem> {
         let obj_diff = diff.get::<ResourceObjectDiff>();
         let obj = obj_diff.0.as_ref();
         let addend = 0; // TODO
         let override_color = None; // TODO: colorize replaced/deleted/inserted relocations
+        let symbol_display = from_symbol_ref(symbol_ref);
         diff::display::symbol_hover(obj, symbol_display.symbol as usize, addend, override_color)
             .into_iter()
             .map(|item| HoverItem::from(item))
@@ -244,22 +241,22 @@ impl GuestDisplay for Component {
 
     fn instruction_context(
         diff: ObjectDiffBorrow,
-        symbol_display: SectionDisplaySymbol,
+        symbol_ref: SymbolRef,
         row_index: u32,
         diff_config: DiffConfigBorrow,
     ) -> Vec<ContextItem> {
         let obj_diff = diff.get::<ResourceObjectDiff>();
         let obj = obj_diff.0.as_ref();
         let obj_diff = &obj_diff.1;
-        let symbol_idx = symbol_display.symbol as usize;
+        let symbol_display = from_symbol_ref(symbol_ref);
         let symbol_diff = if symbol_display.is_mapping_symbol {
             obj_diff
                 .mapping_symbols
                 .iter()
-                .find(|s| s.symbol_index == symbol_idx)
+                .find(|s| s.symbol_index == symbol_display.symbol)
                 .map(|s| &s.symbol_diff)
         } else {
-            obj_diff.symbols.get(symbol_idx)
+            obj_diff.symbols.get(symbol_display.symbol)
         };
         let Some(ins_ref) = symbol_diff
             .and_then(|sd| sd.instruction_rows.get(row_index as usize))
@@ -268,7 +265,7 @@ impl GuestDisplay for Component {
             return Vec::new();
         };
         let diff_config = diff_config.get::<ResourceDiffConfig>().0.borrow();
-        let Some(resolved) = obj.resolve_instruction_ref(symbol_idx, ins_ref) else {
+        let Some(resolved) = obj.resolve_instruction_ref(symbol_display.symbol, ins_ref) else {
             return vec![ContextItem::Copy(ContextItemCopy {
                 value: "Failed to resolve instruction".to_string(),
                 label: Some("error".to_string()),
@@ -291,22 +288,22 @@ impl GuestDisplay for Component {
 
     fn instruction_hover(
         diff: ObjectDiffBorrow,
-        symbol_display: SectionDisplaySymbol,
+        symbol_ref: SymbolRef,
         row_index: u32,
         diff_config: DiffConfigBorrow,
     ) -> Vec<HoverItem> {
         let obj_diff = diff.get::<ResourceObjectDiff>();
         let obj = obj_diff.0.as_ref();
         let obj_diff = &obj_diff.1;
-        let symbol_idx = symbol_display.symbol as usize;
+        let symbol_display = from_symbol_ref(symbol_ref);
         let symbol_diff = if symbol_display.is_mapping_symbol {
             obj_diff
                 .mapping_symbols
                 .iter()
-                .find(|s| s.symbol_index == symbol_idx)
+                .find(|s| s.symbol_index == symbol_display.symbol)
                 .map(|s| &s.symbol_diff)
         } else {
-            obj_diff.symbols.get(symbol_idx)
+            obj_diff.symbols.get(symbol_display.symbol)
         };
         let Some(ins_ref) = symbol_diff
             .and_then(|sd| sd.instruction_rows.get(row_index as usize))
@@ -315,7 +312,7 @@ impl GuestDisplay for Component {
             return Vec::new();
         };
         let diff_config = diff_config.get::<ResourceDiffConfig>().0.borrow();
-        let Some(resolved) = obj.resolve_instruction_ref(symbol_idx, ins_ref) else {
+        let Some(resolved) = obj.resolve_instruction_ref(symbol_display.symbol, ins_ref) else {
             return vec![HoverItem::Text(HoverItemText {
                 label: "Error".to_string(),
                 value: "Failed to resolve instruction".to_string(),
@@ -497,20 +494,56 @@ impl GuestObject for ResourceObject {
 }
 
 impl GuestObjectDiff for ResourceObjectDiff {
-    fn find_symbol(&self, name: String, section_name: Option<String>) -> Option<SymbolRef> {
+    fn find_symbol(&self, name: String, section_name: Option<String>) -> Option<SymbolInfo> {
         let obj = self.0.as_ref();
-        obj.symbols
-            .iter()
-            .position(|s| {
-                s.name == name
-                    && match section_name.as_deref() {
-                        Some(section_name) => {
-                            s.section.is_some_and(|n| obj.sections[n].name == section_name)
-                        }
-                        None => true,
+        let symbol_idx = obj.symbols.iter().position(|s| {
+            s.name == name
+                && match section_name.as_deref() {
+                    Some(section_name) => {
+                        s.section.is_some_and(|n| obj.sections[n].name == section_name)
                     }
-            })
-            .map(|i| i as SymbolRef)
+                    None => true,
+                }
+        })?;
+        let symbol = obj.symbols.get(symbol_idx)?;
+        Some(SymbolInfo {
+            id: symbol_idx as SymbolRef,
+            name: symbol.name.clone(),
+            demangled_name: symbol.demangled_name.clone(),
+            address: symbol.address,
+            size: symbol.size,
+            kind: SymbolKind::from(symbol.kind),
+            section: symbol.section.map(|s| s as u32),
+            section_name: symbol
+                .section
+                .and_then(|s| obj.sections.get(s).map(|sec| sec.name.clone())),
+            flags: SymbolFlags::from(symbol.flags),
+            align: symbol.align.map(|a| a.get()),
+            virtual_address: symbol.virtual_address,
+        })
+    }
+
+    fn get_symbol(&self, symbol_ref: SymbolRef) -> Option<SymbolInfo> {
+        let obj = self.0.as_ref();
+        let symbol_display = from_symbol_ref(symbol_ref);
+        let Some(symbol) = obj.symbols.get(symbol_display.symbol) else {
+            return None;
+        };
+        Some(SymbolInfo {
+            id: to_symbol_ref(symbol_display),
+            name: symbol.name.clone(),
+            demangled_name: symbol.demangled_name.clone(),
+            address: symbol.address,
+            size: symbol.size,
+            kind: SymbolKind::from(symbol.kind),
+            section: symbol.section.map(|s| s as u32),
+            section_name: symbol
+                .section
+                .and_then(|s| obj.sections.get(s).map(|sec| sec.name.clone())),
+            flags: SymbolFlags::from(symbol.flags),
+            align: symbol.align.map(|a| a.get()),
+            virtual_address: symbol.virtual_address,
+        })
     }
 }
 
@@ -580,23 +613,59 @@ impl Default for SymbolFlags {
     fn default() -> Self { Self::empty() }
 }
 
-impl Default for SymbolDisplay {
+impl Default for SymbolInfo {
     fn default() -> Self {
         Self {
+            id: u32::MAX,
             name: Default::default(),
             demangled_name: Default::default(),
             address: Default::default(),
             size: Default::default(),
             kind: Default::default(),
             section: Default::default(),
+            section_name: Default::default(),
             flags: Default::default(),
             align: Default::default(),
             virtual_address: Default::default(),
+        }
+    }
+}
+
+impl Default for SymbolDisplay {
+    fn default() -> Self {
+        Self {
+            info: Default::default(),
             target_symbol: Default::default(),
             match_percent: Default::default(),
             diff_score: Default::default(),
             row_count: Default::default(),
         }
+    }
+}
+
+impl From<MappingConfig> for diff::MappingConfig {
+    fn from(config: MappingConfig) -> Self {
+        Self {
+            mappings: config.mappings.into_iter().collect(),
+            selecting_left: config.selecting_left,
+            selecting_right: config.selecting_right,
+        }
+    }
+}
+
+fn from_symbol_ref(symbol_ref: SymbolRef) -> diff::display::SectionDisplaySymbol {
+    diff::display::SectionDisplaySymbol {
+        symbol: (symbol_ref & !(1 << 31)) as usize,
+        is_mapping_symbol: (symbol_ref & (1 << 31)) != 0,
+    }
+}
+
+fn to_symbol_ref(display_symbol: diff::display::SectionDisplaySymbol) -> SymbolRef {
+    if display_symbol.is_mapping_symbol {
+        // Use the highest bit to indicate a mapping symbol
+        display_symbol.symbol as u32 | (1 << 31)
+    } else {
+        display_symbol.symbol as u32
     }
 }
 

@@ -24,57 +24,7 @@ interface diff {
     hash: func() -> u64;
   }
 
-  resource object-diff {
-    find-symbol: func(
-      name: string,
-      section-name: option<string>
-    ) -> option<u32>;
-  }
-
-  record diff-result {
-    left: option<object-diff>,
-    right: option<object-diff>,
-  }
-
-  run-diff: func(
-    left: option<borrow<object>>,
-    right: option<borrow<object>>,
-    config: borrow<diff-config>,
-  ) -> result<diff-result, string>;
-}
-
-interface display {
-  use diff.{
-    object,
-    object-diff,
-    diff-config
-  };
-
   type symbol-ref = u32;
-
-  record display-config {
-    show-hidden-symbols: bool,
-    show-mapped-symbols: bool,
-    reverse-fn-order: bool,
-  }
-
-  record symbol-filter {
-    regex: option<string>,
-    mapping: option<symbol-ref>,
-  }
-
-  record section-display-symbol {
-    symbol: symbol-ref,
-    is-mapping-symbol: bool,
-  }
-
-  record section-display {
-    id: string,
-    name: string,
-    size: u64,
-    match-percent: option<f32>,
-    symbols: list<section-display-symbol>,
-  }
 
   enum symbol-kind {
     unknown,
@@ -94,17 +44,74 @@ interface display {
     ignored,
   }
 
-  record symbol-display {
+  record symbol-info {
+    id: symbol-ref,
     name: string,
     demangled-name: option<string>,
     address: u64,
     size: u64,
     kind: symbol-kind,
     section: option<u32>,
+    section-name: option<string>,
     %flags: symbol-flags,
     align: option<u32>,
     virtual-address: option<u64>,
+  }
 
+  resource object-diff {
+    find-symbol: func(
+      name: string,
+      section-name: option<string>
+    ) -> option<symbol-info>;
+
+    get-symbol: func(
+      id: u32
+    ) -> option<symbol-info>;
+  }
+
+  record diff-result {
+    left: option<object-diff>,
+    right: option<object-diff>,
+  }
+
+  run-diff: func(
+    left: option<borrow<object>>,
+    right: option<borrow<object>>,
+    config: borrow<diff-config>,
+    mapping: mapping-config,
+  ) -> result<diff-result, string>;
+}
+
+interface display {
+  use diff.{
+    object,
+    object-diff,
+    diff-config,
+    symbol-info,
+    symbol-ref
+  };
+
+  record display-config {
+    show-hidden-symbols: bool,
+    show-mapped-symbols: bool,
+    reverse-fn-order: bool,
+  }
+
+  record symbol-filter {
+    regex: option<string>,
+    mapping: option<symbol-ref>,
+  }
+
+  record section-display {
+    id: string,
+    name: string,
+    size: u64,
+    match-percent: option<f32>,
+    symbols: list<symbol-ref>,
+  }
+
+  record symbol-display {
+    info: symbol-info,
     target-symbol: option<symbol-ref>,
     match-percent: option<f32>,
     diff-score: option<tuple<u64, u64>>,
@@ -232,36 +239,36 @@ interface display {
 
   display-symbol: func(
     diff: borrow<object-diff>,
-    symbol: section-display-symbol,
+    symbol: symbol-ref,
   ) -> symbol-display;
 
   display-instruction-row: func(
     diff: borrow<object-diff>,
-    symbol: section-display-symbol,
+    symbol: symbol-ref,
     row-index: u32,
     config: borrow<diff-config>,
   ) -> instruction-diff-row;
 
   symbol-context: func(
     diff: borrow<object-diff>,
-    symbol: section-display-symbol,
+    symbol: symbol-ref,
   ) -> list<context-item>;
 
   symbol-hover: func(
     diff: borrow<object-diff>,
-    symbol: section-display-symbol,
+    symbol: symbol-ref,
   ) -> list<hover-item>;
 
   instruction-context: func(
     diff: borrow<object-diff>,
-    symbol: section-display-symbol,
+    symbol: symbol-ref,
     row-index: u32,
     config: borrow<diff-config>,
   ) -> list<context-item>;
 
   instruction-hover: func(
     diff: borrow<object-diff>,
-    symbol: section-display-symbol,
+    symbol: symbol-ref,
     row-index: u32,
     config: borrow<diff-config>,
   ) -> list<hover-item>;
