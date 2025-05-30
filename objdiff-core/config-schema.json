@@ -26,6 +26,13 @@
       ]
     },
     {
+      "id": "showDataFlow",
+      "type": "boolean",
+      "default": true,
+      "name": "Show data flow",
+      "description": "When information is known about the value in a register, show that info instead of the register name"
+    },
+    {
       "id": "spaceBetweenArgs",
       "type": "boolean",
       "default": true,

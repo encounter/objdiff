@@ -18,3 +18,5 @@ pub mod jobs;
 pub mod obj;
 #[cfg(feature = "any-arch")]
 pub mod util;
+#[cfg(feature = "any-arch")]
+mod parse_cpp_signature;

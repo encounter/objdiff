@@ -570,6 +570,7 @@ impl FunctionDiffUi {
                     DiffTextColor::Normal => Color::Gray,
                     DiffTextColor::Dim => Color::DarkGray,
                     DiffTextColor::Bright => Color::White,
+                    DiffTextColor::DataFlow => Color::LightCyan,
                     DiffTextColor::Replace => Color::Cyan,
                     DiffTextColor::Delete => Color::Red,
                     DiffTextColor::Insert => Color::Green,
