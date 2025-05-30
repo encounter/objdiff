@@ -325,12 +325,11 @@ fn reloc_eq(
                     || display_ins_data_literals(left_obj, left_ins)
                         == display_ins_data_literals(right_obj, right_ins))
         }
-        (Some(_), None) => symbol_name_addend_matches,
         (None, Some(_)) => {
             // Match if possibly stripped weak symbol
             symbol_name_addend_matches && right_reloc.symbol.flags.contains(SymbolFlag::Weak)
         }
-        (None, None) => symbol_name_addend_matches,
+        (Some(_), None) | (None, None) => symbol_name_addend_matches,
     }
 }
 
