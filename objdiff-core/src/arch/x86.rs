@@ -6,7 +6,7 @@ use iced_x86::{
     Decoder, DecoderOptions, DecoratorKind, FormatterOutput, FormatterTextKind, GasFormatter,
     Instruction, IntelFormatter, MasmFormatter, NasmFormatter, NumberKind, OpKind, Register,
 };
-use object::{Endian as _, Object as _, ObjectSection as _, pe};
+use object::{Endian as _, Object as _, ObjectSection as _, elf, pe};
 
 use crate::{
     arch::Arch,
@@ -67,7 +67,11 @@ impl ArchX86 {
                     pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32 => Some(4),
                     _ => None,
                 },
-                _ => None,
+                RelocationFlags::Elf(typ) => match typ {
+                    elf::R_386_32 | elf::R_386_PC32 => Some(4),
+                    elf::R_386_16 => Some(2),
+                    _ => None,
+                },
             },
             Architecture::X86_64 => match flags {
                 RelocationFlags::Coff(typ) => match typ {
@@ -75,7 +79,11 @@ impl ArchX86 {
                     pe::IMAGE_REL_AMD64_ADDR64 => Some(8),
                     _ => None,
                 },
-                _ => None,
+                RelocationFlags::Elf(typ) => match typ {
+                    elf::R_X86_64_PC32 => Some(4),
+                    elf::R_X86_64_64 => Some(8),
+                    _ => None,
+                },
             },
         }
     }
@@ -227,7 +235,8 @@ impl Arch for ArchX86 {
     ) -> Result<i64> {
         match self.arch {
             Architecture::X86 => match flags {
-                RelocationFlags::Coff(pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32) => {
+                RelocationFlags::Coff(pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32)
+                | RelocationFlags::Elf(elf::R_386_32 | elf::R_386_PC32) => {
                     let data =
                         section.data()?[address as usize..address as usize + 4].try_into()?;
                     Ok(self.endianness.read_i32_bytes(data) as i64)
@@ -235,12 +244,14 @@ impl Arch for ArchX86 {
                 flags => bail!("Unsupported x86 implicit relocation {flags:?}"),
             },
             Architecture::X86_64 => match flags {
-                RelocationFlags::Coff(pe::IMAGE_REL_AMD64_ADDR32NB | pe::IMAGE_REL_AMD64_REL32) => {
+                RelocationFlags::Coff(pe::IMAGE_REL_AMD64_ADDR32NB | pe::IMAGE_REL_AMD64_REL32)
+                | RelocationFlags::Elf(elf::R_X86_64_32 | elf::R_X86_64_PC32) => {
                     let data =
                         section.data()?[address as usize..address as usize + 4].try_into()?;
                     Ok(self.endianness.read_i32_bytes(data) as i64)
                 }
-                RelocationFlags::Coff(pe::IMAGE_REL_AMD64_ADDR64) => {
+                RelocationFlags::Coff(pe::IMAGE_REL_AMD64_ADDR64)
+                | RelocationFlags::Elf(elf::R_X86_64_64) => {
                     let data =
                         section.data()?[address as usize..address as usize + 8].try_into()?;
                     Ok(self.endianness.read_i64_bytes(data))
