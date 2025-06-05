@@ -1,5 +1,5 @@
 use alloc::{borrow::Cow, boxed::Box, format, string::String, vec::Vec};
-use core::{ffi::CStr, fmt, fmt::Debug};
+use core::{ffi::CStr, fmt::{self, Debug}};
 
 use anyhow::{Result, bail};
 use encoding_rs::SHIFT_JIS;
@@ -7,12 +7,10 @@ use object::Endian as _;
 
 use crate::{
     diff::{
-        DiffObjConfig,
-        display::{ContextItem, HoverItem, InstructionPart},
+        display::{ContextItem, HoverItem, InstructionPart}, DiffObjConfig
     },
     obj::{
-        InstructionArg, InstructionRef, Object, ParsedInstruction, Relocation, RelocationFlags,
-        ResolvedInstructionRef, ResolvedSymbol, Section, Symbol, SymbolFlagSet, SymbolKind,
+        FlowAnalysisResult, InstructionArg, InstructionRef, Object, ParsedInstruction, Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedSymbol, Section, Symbol, SymbolFlagSet, SymbolKind
     },
     util::ReallySigned,
 };
@@ -31,6 +29,7 @@ pub mod superh;
 pub mod x86;
 
 /// Represents the type of data associated with an instruction
+#[derive(PartialEq)]
 pub enum DataType {
     Int8,
     Int16,
@@ -333,6 +332,17 @@ pub trait Arch: Send + Sync + Debug {
         _symbols: &[Symbol],
     ) -> Vec<Relocation> {
         Vec::new()
+    }
+
+    // Perform detailed data flow analysis
+    fn data_flow_analysis(
+        &self,
+        _obj: &Object,
+        _symbol: &Symbol,
+        _code: &[u8],
+        _relocations: &[Relocation],
+    ) -> Option<Box<dyn FlowAnalysisResult>> {
+        None
     }
 
     fn implcit_addend(

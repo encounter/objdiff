@@ -432,17 +432,18 @@ fn map_relocations(
     Ok(())
 }
 
-fn calculate_pooled_relocations(
-    arch: &dyn Arch,
-    sections: &mut [Section],
-    symbols: &[Symbol],
-) -> Result<()> {
-    for (section_index, section) in sections.iter_mut().enumerate() {
+fn perform_data_flow_analysis(obj: &mut Object, config: &DiffObjConfig) -> Result<()> {
+    // If neither of these settings are on, no flow analysis to perform
+    if !config.analyze_data_flow && !config.ppc_calculate_pool_relocations {
+        return Ok(());
+    }
+
+    let mut generated_relocations = Vec::<(usize, Vec<Relocation>)>::new();
+    for (section_index, section) in obj.sections.iter().enumerate() {
         if section.kind != SectionKind::Code {
             continue;
         }
-        let mut fake_pool_relocs = Vec::new();
-        for symbol in symbols {
+        for symbol in obj.symbols.iter() {
             if symbol.section != Some(section_index) {
                 continue;
             }
@@ -457,14 +458,36 @@ fn calculate_pooled_relocations(
                         symbol.address + symbol.size
                     )
                 })?;
-            fake_pool_relocs.append(&mut arch.generate_pooled_relocations(
-                symbol.address,
-                code,
-                &section.relocations,
-                symbols,
-            ));
+
+            // Optional pooled relocation computation
+            // Long view: This could be replaced by the full data flow analysis
+            // once that feature has stabilized.
+            if config.ppc_calculate_pool_relocations {
+                let relocations = obj.arch.generate_pooled_relocations(
+                    symbol.address,
+                    code,
+                    &section.relocations,
+                    &obj.symbols);
+                generated_relocations.push((section_index, relocations));
+            }
+
+            // Optional full data flow analysis
+            if config.analyze_data_flow {
+                obj.arch.data_flow_analysis(
+                    &obj,
+                    symbol,
+                    code,
+                    &section.relocations,
+                ).and_then(|flow_result| {
+                    obj.flow_analysis_results.insert(symbol.address, flow_result)
+                });
+            }
         }
-        section.relocations.append(&mut fake_pool_relocs);
+    }
+    for (section_index, mut relocations) in generated_relocations {
+        obj.sections[section_index].relocations.append(&mut relocations);
+    }
+    for section in obj.sections.iter_mut() {
         section.relocations.sort_by_key(|r| r.address);
     }
     Ok(())
@@ -865,15 +888,12 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<Object> {
     let (mut symbols, symbol_indices) =
         map_symbols(arch.as_ref(), &obj_file, &sections, &section_indices, split_meta.as_ref())?;
     map_relocations(arch.as_ref(), &obj_file, &mut sections, &section_indices, &symbol_indices)?;
-    if config.ppc_calculate_pool_relocations {
-        calculate_pooled_relocations(arch.as_ref(), &mut sections, &symbols)?;
-    }
     parse_line_info(&obj_file, &mut sections, &section_indices, data)?;
     if config.combine_data_sections || config.combine_text_sections {
         combine_sections(&mut sections, &mut symbols, config)?;
     }
     arch.post_init(&sections, &symbols);
-    Ok(Object {
+    let mut obj = Object {
         arch,
         endianness: obj_file.endianness(),
         symbols,
@@ -883,7 +903,14 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<Object> {
         path: None,
         #[cfg(feature = "std")]
         timestamp: None,
-    })
+        flow_analysis_results: Default::default(),
+    };
+
+    // Need to construct the obj first so that we have a convinient package to
+    // pass to flow analysis. Then the flow analysis will mutate obj adding
+    // additional data to it.
+    perform_data_flow_analysis(&mut obj, &config)?;
+    Ok(obj)
 }
 
 #[cfg(feature = "std")]

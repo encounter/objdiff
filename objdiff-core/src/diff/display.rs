@@ -12,11 +12,9 @@ use itertools::Itertools;
 use regex::Regex;
 
 use crate::{
-    diff::{DiffObjConfig, InstructionDiffKind, InstructionDiffRow, ObjectDiff, SymbolDiff},
-    obj::{
-        InstructionArg, InstructionArgValue, Object, ParsedInstruction, ResolvedInstructionRef,
-        ResolvedRelocation, SectionFlag, SectionKind, Symbol, SymbolFlag, SymbolKind,
-    },
+    diff::{DiffObjConfig, InstructionDiffKind, InstructionDiffRow, ObjectDiff, SymbolDiff}, obj::{
+        FlowAnalysisValue, InstructionArg, InstructionArgValue, Object, ParsedInstruction, ResolvedInstructionRef, ResolvedRelocation, SectionFlag, SectionKind, Symbol, SymbolFlag, SymbolKind
+    }
 };
 
 #[derive(Debug, Clone)]
@@ -46,12 +44,13 @@ pub enum DiffText<'a> {
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash)]
 pub enum DiffTextColor {
     #[default]
-    Normal, // Grey
-    Dim,     // Dark grey
-    Bright,  // White
-    Replace, // Blue
-    Delete,  // Red
-    Insert,  // Green
+    Normal,   // Grey
+    Dim,      // Dark grey
+    Bright,   // White
+    DataFlow, // Light blue
+    Replace,  // Blue
+    Delete,   // Red
+    Insert,   // Green
     Rotating(u8),
 }
 
@@ -186,6 +185,11 @@ pub fn display_row(
     }
     let mut arg_idx = 0;
     let mut displayed_relocation = false;
+    let analysis_result = if diff_config.show_data_flow {
+        obj.flow_analysis_results.get(&resolved.symbol.address)
+    } else {
+        None
+    };
     obj.arch.display_instruction(resolved, diff_config, &mut |part| match part {
         InstructionPart::Basic(text) => {
             if text.chars().all(|c| c == ' ') {
@@ -208,15 +212,30 @@ pub fn display_row(
             if arg == InstructionArg::Reloc {
                 displayed_relocation = true;
             }
-            match (arg, resolved.ins_ref.branch_dest) {
-                (InstructionArg::Value(value), _) => cb(DiffTextSegment {
-                    text: DiffText::Argument(value),
-                    color: diff_index
+            let data_flow_value =
+            analysis_result.map(|result|
+                result.as_ref().get_argument_value_at_address(
+                    ins_ref.address, (arg_idx - 1) as u8)).flatten();
+            match (arg, data_flow_value, resolved.ins_ref.branch_dest) {
+                // If we have a flow analysis result, always use that over anything else.
+                (InstructionArg::Value(_) | InstructionArg::Reloc, Some(FlowAnalysisValue::Text(text)), _) => {
+                    cb(DiffTextSegment {
+                        text: DiffText::Argument(InstructionArgValue::Opaque(Cow::Borrowed(text))),
+                        color: DiffTextColor::DataFlow,
+                        pad_to: 0,
+                    })
+                },
+                (InstructionArg::Value(value), None, _) => {
+                    let color = diff_index
                         .get()
-                        .map_or(base_color, |i| DiffTextColor::Rotating(i as u8)),
-                    pad_to: 0,
-                }),
-                (InstructionArg::Reloc, None) => {
+                        .map_or(base_color, |i| DiffTextColor::Rotating(i as u8));
+                    cb(DiffTextSegment {
+                        text: DiffText::Argument(value),
+                        color: color,
+                        pad_to: 0,
+                    })
+                },
+                (InstructionArg::Reloc, _, None) => {
                     let resolved = resolved.relocation.unwrap();
                     let color = diff_index
                         .get()
@@ -235,9 +254,9 @@ pub fn display_row(
                     }
                     Ok(())
                 }
-                (InstructionArg::BranchDest(dest), _) |
+                (InstructionArg::BranchDest(dest), _, _) |
                 // If the relocation was resolved to a branch destination, emit that instead.
-                (InstructionArg::Reloc, Some(dest))  => {
+                (InstructionArg::Reloc, _, Some(dest))  => {
                     if let Some(addr) = dest.checked_sub(resolved.symbol.address) {
                         cb(DiffTextSegment {
                             text: DiffText::BranchDest(addr),
