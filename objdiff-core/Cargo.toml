@@ -174,7 +174,7 @@ time = { version = "0.3", optional = true }
 encoding_rs = "0.8.35"
 
 [target.'cfg(windows)'.dependencies]
-winapi = { version = "0.3", optional = true }
+winapi = { version = "0.3", optional = true, features = ["winbase"] }
 
 # For Linux static binaries, use rustls
 [target.'cfg(target_os = "linux")'.dependencies]

@@ -5,6 +5,8 @@ use anyhow::{Result, ensure};
 use num_traits::PrimInt;
 use object::{Endian, Object};
 
+use std::hash::{Hash, Hasher};
+
 // https://stackoverflow.com/questions/44711012/how-do-i-format-a-signed-integer-to-a-sign-aware-hexadecimal-representation
 pub struct ReallySigned<N: PrimInt>(pub N);
 
@@ -58,4 +60,36 @@ pub fn align_u64_to(len: u64, align: u64) -> u64 { len + ((align - (len % align)
 
 pub fn align_data_slice_to(data: &mut Vec<u8>, align: u64) {
     data.resize(align_u64_to(data.len() as u64, align) as usize, 0);
+}
+
+// Float where we specifically care about comparing the raw bits rather than
+// caring about IEEE semantics.
+#[derive(Copy, Clone, Debug)]
+pub struct RawFloat(pub f32);
+impl PartialEq for RawFloat {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.to_bits() == other.0.to_bits()
+    }
+}
+impl Eq for RawFloat {}
+impl Hash for RawFloat {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.to_bits().hash(state)
+    }
+}
+
+// Double where we specifically care about comparing the raw bits rather than
+// caring about IEEE semantics.
+#[derive(Copy, Clone, Debug)]
+pub struct RawDouble(pub f64);
+impl PartialEq for RawDouble {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.to_bits() == other.0.to_bits()
+    }
+}
+impl Eq for RawDouble {}
+impl Hash for RawDouble {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.0.to_bits().hash(state)
+    }
 }

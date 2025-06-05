@@ -26,6 +26,20 @@
       ]
     },
     {
+      "id": "analyzeDataFlow",
+      "type": "boolean",
+      "default": false,
+      "name": "(Experimental) Perform data flow analysis",
+      "description": "Use data flow analysis to display known information about register contents where possible"
+    },
+    {
+      "id": "showDataFlow",
+      "type": "boolean",
+      "default": true,
+      "name": "Show data flow",
+      "description": "Show data flow analysis results in place of register name where present"
+    },
+    {
       "id": "spaceBetweenArgs",
       "type": "boolean",
       "default": true,
@@ -264,7 +278,8 @@
       "id": "ppc",
       "name": "PowerPC",
       "properties": [
-        "ppc.calculatePoolRelocations"
+        "ppc.calculatePoolRelocations",
+        "analyzeDataFlow"
       ]
     },
     {
