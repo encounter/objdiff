@@ -213,9 +213,9 @@ pub fn display_row(
                 displayed_relocation = true;
             }
             let data_flow_value =
-            analysis_result.map(|result|
+            analysis_result.and_then(|result|
                 result.as_ref().get_argument_value_at_address(
-                    ins_ref.address, (arg_idx - 1) as u8)).flatten();
+                    ins_ref.address, (arg_idx - 1) as u8));
             match (arg, data_flow_value, resolved.ins_ref.branch_dest) {
                 // If we have a flow analysis result, always use that over anything else.
                 (InstructionArg::Value(_) | InstructionArg::Reloc, Some(FlowAnalysisValue::Text(text)), _) => {
@@ -231,7 +231,7 @@ pub fn display_row(
                         .map_or(base_color, |i| DiffTextColor::Rotating(i as u8));
                     cb(DiffTextSegment {
                         text: DiffText::Argument(value),
-                        color: color,
+                        color,
                         pad_to: 0,
                     })
                 },

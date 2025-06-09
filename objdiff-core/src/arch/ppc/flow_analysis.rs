@@ -1,24 +1,43 @@
+use crate::{
+    arch::DataType,
+    obj::{FlowAnalysisResult, FlowAnalysisValue, Object, Relocation, Symbol},
+    util::{RawDouble, RawFloat},
+};
 use itertools::Itertools;
 use ppc750cl::Simm;
-use std::ops::{Index, IndexMut};
 use std::collections::BTreeMap;
-use crate::{
-    util::{RawFloat, RawDouble},
-    obj::{FlowAnalysisValue, FlowAnalysisResult, Object, Symbol, Relocation},
-    arch::DataType,
-};
 use std::ffi::CStr;
+use std::ops::{Index, IndexMut};
 
 fn is_store_instruction(op: ppc750cl::Opcode) -> bool {
     use ppc750cl::Opcode;
-    match op {
-        Opcode::Stbux | Opcode::Stbx | Opcode::Stfdux | Opcode::Stfdx | Opcode::Stfiwx |
-        Opcode::Stfsux | Opcode::Stfsx | Opcode::Sthbrx | Opcode::Sthux | Opcode::Sthx |
-        Opcode::Stswi | Opcode::Stswx | Opcode::Stwbrx | Opcode::Stwcx_ | Opcode::Stwux |
-        Opcode::Stwx | Opcode::Stwu | Opcode::Stb | Opcode::Stbu | Opcode::Sth | Opcode::Sthu |
-        Opcode::Stmw | Opcode::Stfs | Opcode::Stfsu | Opcode::Stfd | Opcode::Stfdu => true,
-        _ => false,
-    }
+    matches!(op,
+        Opcode::Stbux
+        | Opcode::Stbx
+        | Opcode::Stfdux
+        | Opcode::Stfdx
+        | Opcode::Stfiwx
+        | Opcode::Stfsux
+        | Opcode::Stfsx
+        | Opcode::Sthbrx
+        | Opcode::Sthux
+        | Opcode::Sthx
+        | Opcode::Stswi
+        | Opcode::Stswx
+        | Opcode::Stwbrx
+        | Opcode::Stwcx_
+        | Opcode::Stwux
+        | Opcode::Stwx
+        | Opcode::Stwu
+        | Opcode::Stb
+        | Opcode::Stbu
+        | Opcode::Sth
+        | Opcode::Sthu
+        | Opcode::Stmw
+        | Opcode::Stfs
+        | Opcode::Stfsu
+        | Opcode::Stfd
+        | Opcode::Stfdu)
 }
 
 pub fn guess_data_type_from_load_store_inst_op(inst_op: ppc750cl::Opcode) -> Option<DataType> {
@@ -58,8 +77,14 @@ impl std::fmt::Display for RegisterContent {
             RegisterContent::Unknown => write!(f, "unknown"),
             RegisterContent::Variable => write!(f, "variable"),
             RegisterContent::IntConstant(i) =>
-                // -i is safe because it's at most a 16 bit constant in the i32
-                if *i >= 0 { write!(f, "0x{:x}", i) } else { write!(f, "-0x{:x}", -i) },
+            // -i is safe because it's at most a 16 bit constant in the i32
+            {
+                if *i >= 0 {
+                    write!(f, "0x{:x}", i)
+                } else {
+                    write!(f, "-0x{:x}", -i)
+                }
+            }
             RegisterContent::FloatConstant(RawFloat(fp)) => write!(f, "{fp:?}f"),
             RegisterContent::DoubleConstant(RawDouble(fp)) => write!(f, "{fp:?}d"),
             RegisterContent::InputRegister(p) => write!(f, "input{p}"),
@@ -76,10 +101,7 @@ struct RegisterState {
 
 impl RegisterState {
     fn new() -> Self {
-        RegisterState {
-            gpr: [RegisterContent::Unknown; 32],
-            fpr: [RegisterContent::Unknown; 32],
-        }
+        RegisterState { gpr: [RegisterContent::Unknown; 32], fpr: [RegisterContent::Unknown; 32] }
     }
 
     // During a function call, these registers must be assumed trashed.
@@ -112,17 +134,15 @@ impl RegisterState {
     fn unify_values(current: &mut RegisterContent, new: &RegisterContent) -> bool {
         if *current == *new {
             false
+        } else if *current == RegisterContent::Unknown {
+            *current = *new;
+            true
+        } else if *current == RegisterContent::Variable {
+            // Already variable
+            false
         } else {
-            if *current == RegisterContent::Unknown {
-                *current = *new;
-                true
-            } else if *current == RegisterContent::Variable {
-                // Already variable
-                false
-            } else {
-                *current = RegisterContent::Variable;
-                true
-            }
+            *current = RegisterContent::Variable;
+            true
         }
     }
 
@@ -164,8 +184,12 @@ impl IndexMut<ppc750cl::FPR> for RegisterState {
     }
 }
 
-fn execute_instruction(registers: &mut RegisterState, op: &ppc750cl::Opcode, args: &[ppc750cl::Argument; 5]) {
-    use ppc750cl::{Opcode, Argument, GPR};
+fn execute_instruction(
+    registers: &mut RegisterState,
+    op: &ppc750cl::Opcode,
+    args: &[ppc750cl::Argument; 5],
+) {
+    use ppc750cl::{Argument, GPR, Opcode};
     match (op, args[0], args[1], args[2]) {
         (Opcode::Or, Argument::GPR(a), Argument::GPR(b), Argument::GPR(c)) => {
             // Move is implemented as or with self for ints
@@ -194,19 +218,37 @@ fn execute_instruction(registers: &mut RegisterState, op: &ppc750cl::Opcode, arg
                 registers.clear_volatile();
             }
         }
-        (Opcode::Stbu | Opcode::Sthu | Opcode::Stwu |
-            Opcode::Stfsu | Opcode::Stfdu, _, _, Argument::GPR(rel)) => {
+        (
+            Opcode::Stbu | Opcode::Sthu | Opcode::Stwu | Opcode::Stfsu | Opcode::Stfdu,
+            _,
+            _,
+            Argument::GPR(rel),
+        ) => {
             // Storing with update, clear updated register (third arg)
             registers[rel] = RegisterContent::Unknown;
         }
-        (Opcode::Stbux | Opcode::Sthux | Opcode::Stwux |
-            Opcode::Stfsux | Opcode::Stfdux, _, Argument::GPR(rel), _) => {
+        (
+            Opcode::Stbux | Opcode::Sthux | Opcode::Stwux | Opcode::Stfsux | Opcode::Stfdux,
+            _,
+            Argument::GPR(rel),
+            _,
+        ) => {
             // Storing indexed with update, clear updated register (second arg)
             registers[rel] = RegisterContent::Unknown;
         }
-        (Opcode::Stb | Opcode::Sth | Opcode::Stw |
-            Opcode::Stbx | Opcode::Sthx | Opcode::Stwx |
-            Opcode::Stfs | Opcode::Stfd, _, _, _) => {
+        (
+            Opcode::Stb
+            | Opcode::Sth
+            | Opcode::Stw
+            | Opcode::Stbx
+            | Opcode::Sthx
+            | Opcode::Stwx
+            | Opcode::Stfs
+            | Opcode::Stfd,
+            _,
+            _,
+            _,
+        ) => {
             // Storing, does not change registers
         }
         (Opcode::Lmw, Argument::GPR(target), _, _) => {
@@ -225,7 +267,6 @@ fn execute_instruction(registers: &mut RegisterState, op: &ppc750cl::Opcode, arg
         }
         (_, _, _, _) => {}
     }
-
 }
 
 fn get_branch_offset(args: &[ppc750cl::Argument; 5]) -> i32 {
@@ -234,7 +275,7 @@ fn get_branch_offset(args: &[ppc750cl::Argument; 5]) -> i32 {
             return dest.0 / 4;
         }
     }
-    return 0;
+    0
 }
 
 #[derive(Debug, Default)]
@@ -243,7 +284,12 @@ struct PPCFlowAnalysisResult {
 }
 
 impl PPCFlowAnalysisResult {
-    fn set_argument_value_at_address(&mut self, address: u64, argument: u8, value: FlowAnalysisValue) {
+    fn set_argument_value_at_address(
+        &mut self,
+        address: u64,
+        argument: u8,
+        value: FlowAnalysisValue,
+    ) {
         self.argument_contents.insert((address, argument), value);
     }
 
@@ -253,17 +299,17 @@ impl PPCFlowAnalysisResult {
 }
 
 impl FlowAnalysisResult for PPCFlowAnalysisResult {
-    fn get_argument_value_at_address(&self, address: u64, argument: u8) -> Option<&FlowAnalysisValue> {
+    fn get_argument_value_at_address(
+        &self,
+        address: u64,
+        argument: u8,
+    ) -> Option<&FlowAnalysisValue> {
         self.argument_contents.get(&(address, argument))
     }
 }
 
 fn clamp_text_length(s: String, max: usize) -> String {
-    if s.len() <= max {
-        s
-    } else {
-        format!("{}…", s.chars().take(max - 3).collect::<String>())
-    }
+    if s.len() <= max { s } else { format!("{}…", s.chars().take(max - 3).collect::<String>()) }
 }
 
 // Executing op with args at cur_address, update current_state with symbols that
@@ -278,14 +324,26 @@ fn fill_registers_from_relocation(
 ) {
     let content = if let Some(bytes) = obj.symbol_data(reloc.target_symbol) {
         match guess_data_type_from_load_store_inst_op(op) {
-            Some(DataType::Float) => RegisterContent::FloatConstant(RawFloat(match obj.endianness {
-                object::Endianness::Little => f32::from_le_bytes(bytes.try_into().unwrap_or([0; 4])),
-                object::Endianness::Big => f32::from_be_bytes(bytes.try_into().unwrap_or([0; 4])),
-            })),
-            Some(DataType::Double) => RegisterContent::DoubleConstant(RawDouble(match obj.endianness {
-                object::Endianness::Little => f64::from_le_bytes(bytes.try_into().unwrap_or([0; 8])),
-                object::Endianness::Big => f64::from_be_bytes(bytes.try_into().unwrap_or([0; 8])),
-            })),
+            Some(DataType::Float) => {
+                RegisterContent::FloatConstant(RawFloat(match obj.endianness {
+                    object::Endianness::Little => {
+                        f32::from_le_bytes(bytes.try_into().unwrap_or([0; 4]))
+                    }
+                    object::Endianness::Big => {
+                        f32::from_be_bytes(bytes.try_into().unwrap_or([0; 4]))
+                    }
+                }))
+            }
+            Some(DataType::Double) => {
+                RegisterContent::DoubleConstant(RawDouble(match obj.endianness {
+                    object::Endianness::Little => {
+                        f64::from_le_bytes(bytes.try_into().unwrap_or([0; 8]))
+                    }
+                    object::Endianness::Big => {
+                        f64::from_be_bytes(bytes.try_into().unwrap_or([0; 8]))
+                    }
+                }))
+            }
             _ => RegisterContent::Symbol(reloc.target_symbol),
         }
     } else {
@@ -309,14 +367,7 @@ fn fill_registers_from_relocation(
 
 // Special helper fragments generated by MWCC.
 // See: https://github.com/encounter/decomp-toolkit/blob/main/src/analysis/pass.rs
-const SLEDS: [&str; 6] = [
-    "_savefpr_",
-    "_restfpr_",
-    "_savegpr_",
-    "_restgpr_",
-    "_savev",
-    "_restv",
-];
+const SLEDS: [&str; 6] = ["_savefpr_", "_restfpr_", "_savegpr_", "_restgpr_", "_savev", "_restv"];
 
 fn is_sled_function(name: &str) -> bool {
     SLEDS.iter().any(|sled| name.starts_with(sled))
@@ -328,12 +379,12 @@ pub fn ppc_data_flow_analysis(
     code: &[u8],
     relocations: &[Relocation],
 ) -> Box<dyn FlowAnalysisResult> {
-    use std::collections::HashSet;
     use ppc750cl::InsIter;
+    use std::collections::HashSet;
     use std::collections::VecDeque;
-    let instructions = InsIter::new(code, func_symbol.address as u32).map(|(_addr, ins)| {
-        (ins.op, ins.basic().args)
-    }).collect_vec();
+    let instructions = InsIter::new(code, func_symbol.address as u32)
+        .map(|(_addr, ins)| (ins.op, ins.basic().args))
+        .collect_vec();
 
     let func_address = func_symbol.address;
 
@@ -366,11 +417,11 @@ pub fn ppc_data_flow_analysis(
             // Get symbol used in this instruction
             let cur_addr = (func_address as u32) + ((index * 4) as u32);
             let reloc = relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
-            
+
             // Is this a branch to a compiler generated helper? These helpers
             // do not trash registers like normal function calls, so we don't
             // want to treat this as normal execution.
-            let symbol = reloc.map(|r| obj.symbols.get(r.target_symbol)).flatten();
+            let symbol = reloc.and_then(|r| obj.symbols.get(r.target_symbol));
             let is_sled_invocation = symbol.is_some_and(|x| is_sled_function(&x.name));
 
             // Execute the instruction to update the state
@@ -385,7 +436,7 @@ pub fn ppc_data_flow_analysis(
             // handles references to global variables, floating point constants,
             // etc.
             if let Some(reloc) = reloc {
-                fill_registers_from_relocation(&reloc, &mut current_state, obj, *op, args);
+                fill_registers_from_relocation(reloc, &mut current_state, obj, *op, args);
             }
 
             // Add conditional branches to execution queue
@@ -445,20 +496,16 @@ pub fn ppc_data_flow_analysis(
     }
 
     // Store the relevant data flow values for simplified instructions
-    generate_flow_analysis_result(&obj, func_address, code, register_state_at, relocations)
+    generate_flow_analysis_result(obj, func_address, code, register_state_at, relocations)
 }
 
-fn get_string_data(
-    obj: &Object,
-    symbol_index: usize,
-    offset: Simm,
-) -> Option<&str> {
+fn get_string_data(obj: &Object, symbol_index: usize, offset: Simm) -> Option<&str> {
     if let Some(sym) = obj.symbols.get(symbol_index) {
         if sym.name.starts_with("@stringBase") && offset.0 != 0 {
             if let Some(data) = obj.symbol_data(symbol_index) {
                 let bytes = &data[offset.0 as usize..];
                 if let Ok(Ok(str)) = CStr::from_bytes_until_nul(bytes).map(|x| x.to_str()) {
-                    return Some(str)
+                    return Some(str);
                 }
             }
         }
@@ -475,16 +522,16 @@ fn generate_flow_analysis_result(
     obj: &Object,
     base_address: u64,
     code: &[u8],
-    register_state_at: Vec::<RegisterState>,
-    relocations: &[Relocation]
+    register_state_at: Vec<RegisterState>,
+    relocations: &[Relocation],
 ) -> Box<PPCFlowAnalysisResult> {
-    use ppc750cl::{InsIter, Argument, Offset, GPR};
+    use ppc750cl::{Argument, GPR, InsIter, Offset};
     let mut analysis_result = PPCFlowAnalysisResult::new();
     let default_register_state = RegisterState::new();
     for (addr, ins) in InsIter::new(code, 0) {
         let ins_address = base_address + (addr as u64);
         let index = addr / 4;
-        let ppc750cl::ParsedIns {mnemonic: _, args} = ins.simplified();
+        let ppc750cl::ParsedIns { mnemonic: _, args } = ins.simplified();
 
         // Special case to show float and double constants on the line where
         // they are being loaded.
@@ -494,18 +541,20 @@ fn generate_flow_analysis_result(
             // The value is set on the line AFTER the load, get it from there
             if let Some(next_state) = register_state_at.get(index as usize + 1) {
                 // When loading from SDA it will be a relocation so Reg+Offset will both be zero
-                match (args[0], args[1], args[2]) {
-                    (Argument::FPR(fpr), Argument::Offset(Offset(0)), Argument::GPR(GPR(0))) => {
-                        if let RegisterContent::Symbol(_index) = next_state[fpr] {
-                            // We loaded a global variable, not a constant,
-                            // don't do anything for this case.
-                        } else {
-                            analysis_result.set_argument_value_at_address(ins_address, 1,
-                                FlowAnalysisValue::Text(format!("{}", next_state[fpr])));
-                            continue;
-                        }
+                if let (Argument::FPR(fpr), Argument::Offset(Offset(0)), Argument::GPR(GPR(0))) =
+                    (args[0], args[1], args[2])
+                {
+                    if let RegisterContent::Symbol(_index) = next_state[fpr] {
+                        // We loaded a global variable, not a constant,
+                        // don't do anything for this case.
+                    } else {
+                        analysis_result.set_argument_value_at_address(
+                            ins_address,
+                            1,
+                            FlowAnalysisValue::Text(format!("{}", next_state[fpr])),
+                        );
+                        continue;
                     }
-                    _ => {}
                 }
             }
         }
@@ -513,13 +562,18 @@ fn generate_flow_analysis_result(
         // Special case to show string constants on the line where they are
         // being indexed to. This will typically be "addi t, stringbase, offset"
         let registers = register_state_at.get(index as usize).unwrap_or(&default_register_state);
-        if let (ppc750cl::Opcode::Addi, Argument::GPR(rel), Argument::Simm(offset)) = (ins.op, args[1], args[2]) {
+        if let (ppc750cl::Opcode::Addi, Argument::GPR(rel), Argument::Simm(offset)) =
+            (ins.op, args[1], args[2])
+        {
             if let RegisterContent::Symbol(sym_index) = registers[rel] {
                 if let Some(str) = get_string_data(obj, sym_index, offset) {
                     // Show the string constant in the analysis result
                     let formatted = format!("\"{}\"", str);
-                    analysis_result.set_argument_value_at_address(ins_address, 2,
-                        FlowAnalysisValue::Text(clamp_text_length(formatted, 20)));
+                    analysis_result.set_argument_value_at_address(
+                        ins_address,
+                        2,
+                        FlowAnalysisValue::Text(clamp_text_length(formatted, 20)),
+                    );
                     // Don't continue, we want to show the stringbase value as well
                 }
             }
@@ -546,11 +600,12 @@ fn generate_flow_analysis_result(
                 _ => None,
             };
             let analysis_value = match content {
-                Some(RegisterContent::Symbol(s)) => {
-                    obj.symbols.get(s).map(|sym|
-                        FlowAnalysisValue::Text(
-                            clamp_text_length(sym.demangled_name.as_ref().unwrap_or(&sym.name).clone(), 20)))
-                }
+                Some(RegisterContent::Symbol(s)) => obj.symbols.get(s).map(|sym| {
+                    FlowAnalysisValue::Text(clamp_text_length(
+                        sym.demangled_name.as_ref().unwrap_or(&sym.name).clone(),
+                        20,
+                    ))
+                }),
                 Some(RegisterContent::InputRegister(reg)) => {
                     let reg_name = match arg {
                         Argument::GPR(_) => format!("input_r{reg}"),
@@ -564,7 +619,11 @@ fn generate_flow_analysis_result(
                 None => None,
             };
             if let Some(analysis_value) = analysis_value {
-                analysis_result.set_argument_value_at_address(ins_address, arg_index as u8, analysis_value);
+                analysis_result.set_argument_value_at_address(
+                    ins_address,
+                    arg_index as u8,
+                    analysis_value,
+                );
             }
         }
     }

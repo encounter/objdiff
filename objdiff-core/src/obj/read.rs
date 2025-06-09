@@ -909,7 +909,7 @@ pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<Object> {
     // Need to construct the obj first so that we have a convinient package to
     // pass to flow analysis. Then the flow analysis will mutate obj adding
     // additional data to it.
-    perform_data_flow_analysis(&mut obj, &config)?;
+    perform_data_flow_analysis(&mut obj, config)?;
     Ok(obj)
 }
 
