@@ -474,7 +474,7 @@ fn perform_data_flow_analysis(obj: &mut Object, config: &DiffObjConfig) -> Resul
 
             // Optional full data flow analysis
             if config.analyze_data_flow {
-                obj.arch.data_flow_analysis(&obj, symbol, code, &section.relocations).and_then(
+                obj.arch.data_flow_analysis(obj, symbol, code, &section.relocations).and_then(
                     |flow_result| obj.flow_analysis_results.insert(symbol.address, flow_result),
                 );
             }
