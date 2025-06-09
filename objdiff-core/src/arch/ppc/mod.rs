@@ -5,8 +5,6 @@ use alloc::{
     vec::Vec,
 };
 
-use itertools::Itertools;
-use std::ops::{Index, IndexMut};
 use anyhow::{Result, bail, ensure};
 use cwextab::{ExceptionTableData, decode_extab};
 use flagset::Flags;
@@ -20,11 +18,12 @@ use crate::{
         display::{ContextItem, HoverItem, HoverItemColor, InstructionPart, SymbolNavigationKind},
     },
     obj::{
-        FlowAnalysisResult, FlowAnalysisValue, InstructionRef, Object, Relocation, RelocationFlags,
+        FlowAnalysisResult, InstructionRef, Object, Relocation, RelocationFlags,
         ResolvedInstructionRef, ResolvedRelocation, Symbol, SymbolFlag, SymbolFlagSet
     },
-    util::{RawFloat, RawDouble},
 };
+
+mod flow_analysis;
 
 // Relative relocation, can be Simm, Offset or BranchDest
 fn is_relative_arg(arg: &ppc750cl::Argument) -> bool {
@@ -45,18 +44,6 @@ fn is_rel_abs_arg(arg: &ppc750cl::Argument) -> bool {
 }
 
 fn is_offset_arg(arg: &ppc750cl::Argument) -> bool { matches!(arg, ppc750cl::Argument::Offset(_)) }
-
-fn is_store_instruction(op: ppc750cl::Opcode) -> bool {
-    use ppc750cl::Opcode;
-    match op {
-        Opcode::Stbux | Opcode::Stbx | Opcode::Stfdux | Opcode::Stfdx | Opcode::Stfiwx |
-        Opcode::Stfsux | Opcode::Stfsx | Opcode::Sthbrx | Opcode::Sthux | Opcode::Sthx |
-        Opcode::Stswi | Opcode::Stswx | Opcode::Stwbrx | Opcode::Stwcx_ | Opcode::Stwux |
-        Opcode::Stwx | Opcode::Stwu | Opcode::Stb | Opcode::Stbu | Opcode::Sth | Opcode::Sthu |
-        Opcode::Stmw | Opcode::Stfs | Opcode::Stfsu | Opcode::Stfd | Opcode::Stfdu => true,
-        _ => false,
-    }
-}
 
 #[derive(Debug)]
 pub struct ArchPpc {
@@ -190,7 +177,7 @@ impl Arch for ArchPpc {
         code: &[u8],
         relocations: &[Relocation],
     ) -> Option<Box<dyn FlowAnalysisResult>> {
-        Some(ppc_data_flow_analysis(obj, symbol, code, relocations))
+        Some(flow_analysis::ppc_data_flow_analysis(obj, symbol, code, relocations))
     }
 
     fn implcit_addend(
@@ -251,7 +238,7 @@ impl Arch for ArchPpc {
             return Some(DataType::String);
         }
         let opcode = ppc750cl::Opcode::from(resolved.ins_ref.opcode as u8);
-        if let Some(ty) = guess_data_type_from_load_store_inst_op(opcode) {
+        if let Some(ty) = flow_analysis::guess_data_type_from_load_store_inst_op(opcode) {
             // Numeric type.
             return Some(ty);
         }
@@ -527,482 +514,6 @@ fn make_symbol_ref(symbol: &object::Symbol) -> Result<ExtabSymbolRef> {
     Ok(ExtabSymbolRef { original_index: symbol.index().0 - 1, name, demangled_name })
 }
 
-#[derive(Default, PartialEq, Eq, Copy, Hash, Clone, Debug)]
-enum RegisterContent {
-    #[default]
-    Unknown,
-    Variable, // Multiple potential values
-    FloatConstant(RawFloat),
-    DoubleConstant(RawDouble),
-    IntConstant(i32),
-    InputRegister(u8),
-    Symbol(usize),
-}
-
-impl std::fmt::Display for RegisterContent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            RegisterContent::Unknown => write!(f, "unknown"),
-            RegisterContent::Variable => write!(f, "variable"),
-            RegisterContent::IntConstant(i) =>
-                // -i is safe because it's at most a 16 bit constant in the i32
-                if *i >= 0 { write!(f, "0x{:x}", i) } else { write!(f, "-0x{:x}", -i) },
-            RegisterContent::FloatConstant(RawFloat(fp)) => write!(f, "{fp:?}f"),
-            RegisterContent::DoubleConstant(RawDouble(fp)) => write!(f, "{fp:?}d"),
-            RegisterContent::InputRegister(p) => write!(f, "input{p}"),
-            RegisterContent::Symbol(_u) => write!(f, "relocation"),
-        }
-    }
-}
-
-#[derive(Clone, PartialEq, Eq, Hash)]
-struct RegisterState {
-    gpr: [RegisterContent; 32],
-    fpr: [RegisterContent; 32],
-}
-
-impl RegisterState {
-    fn new() -> Self {
-        RegisterState {
-            gpr: [RegisterContent::Unknown; 32],
-            fpr: [RegisterContent::Unknown; 32],
-        }
-    }
-
-    // During a function call, these registers must be assumed trashed.
-    fn clear_volatile(&mut self) {
-        self[ppc750cl::GPR(0)] = RegisterContent::Unknown;
-        for i in 0..=13 {
-            self[ppc750cl::GPR(i)] = RegisterContent::Unknown;
-        }
-        for i in 0..=13 {
-            self[ppc750cl::FPR(i)] = RegisterContent::Unknown;
-        }
-    }
-
-    // Mark potential input values.
-    // Subsequent flow analysis will "realize" that they are not actually inputs if
-    // they get overwritten with another value before getting read.
-    fn set_potential_inputs(&mut self) {
-        for g_reg in 3..=13 {
-            self[ppc750cl::GPR(g_reg)] = RegisterContent::InputRegister(g_reg);
-        }
-        for f_reg in 1..=13 {
-            self[ppc750cl::FPR(f_reg)] = RegisterContent::InputRegister(f_reg);
-        }
-    }
-
-    // If the there is no value, we can take the new known value.
-    // If there's a known value different than the new value, the content
-    // must is variable.
-    // Returns whether the current value was updated.
-    fn unify_values(current: &mut RegisterContent, new: &RegisterContent) -> bool {
-        if *current == *new {
-            false
-        } else {
-            if *current == RegisterContent::Unknown {
-                *current = *new;
-                true
-            } else if *current == RegisterContent::Variable {
-                // Already variable
-                false
-            } else {
-                *current = RegisterContent::Variable;
-                true
-            }
-        }
-    }
-
-    // Unify currently known register contents in a give situation with new
-    // information about the register contents in that situation.
-    // Currently unknown register contents can be filled, but if there are
-    // conflicting contents, we go back to unknown.
-    fn unify(&mut self, other: &RegisterState) -> bool {
-        let mut updated = false;
-        for i in 0..32 {
-            updated |= Self::unify_values(&mut self.gpr[i], &other.gpr[i]);
-            updated |= Self::unify_values(&mut self.fpr[i], &other.fpr[i]);
-        }
-        updated
-    }
-}
-
-impl Index<ppc750cl::GPR> for RegisterState {
-    type Output = RegisterContent;
-    fn index(&self, gpr: ppc750cl::GPR) -> &Self::Output {
-        &self.gpr[gpr.0 as usize]
-    }
-}
-impl IndexMut<ppc750cl::GPR> for RegisterState {
-    fn index_mut(&mut self, gpr: ppc750cl::GPR) -> &mut Self::Output {
-        &mut self.gpr[gpr.0 as usize]
-    }
-}
-
-impl Index<ppc750cl::FPR> for RegisterState {
-    type Output = RegisterContent;
-    fn index(&self, fpr: ppc750cl::FPR) -> &Self::Output {
-        &self.fpr[fpr.0 as usize]
-    }
-}
-impl IndexMut<ppc750cl::FPR> for RegisterState {
-    fn index_mut(&mut self, fpr: ppc750cl::FPR) -> &mut Self::Output {
-        &mut self.fpr[fpr.0 as usize]
-    }
-}
-
-fn execute_instruction(registers: &mut RegisterState, op: &ppc750cl::Opcode, args: &[ppc750cl::Argument; 5]) {
-    use ppc750cl::{Opcode, Argument, GPR};
-    match (op, args[0], args[1], args[2]) {
-        (Opcode::Or, Argument::GPR(a), Argument::GPR(b), Argument::GPR(c)) => {
-            // Move is implemented as or with self for ints
-            if b == c {
-                registers[a] = registers[b];
-            } else {
-                registers[a] = RegisterContent::Unknown;
-            }
-        }
-        (Opcode::Fmr, Argument::FPR(a), Argument::FPR(b), _) => {
-            registers[a] = registers[b];
-        }
-        (Opcode::Addi, Argument::GPR(a), Argument::GPR(GPR(0)), Argument::Simm(c)) => {
-            // Load immidiate implemented as addi with addend = r0
-            // Let Addi with other addends fall through to the case which
-            // overwrites the destination
-            registers[a] = RegisterContent::IntConstant(c.0 as i32);
-        }
-        (Opcode::Bcctr, _, _, _) => {
-            // Called a function pointer, may have erased volatile registers
-            registers.clear_volatile();
-        }
-        (Opcode::B, _, _, _) => {
-            if get_branch_offset(args) == 0 {
-                // Call to another function
-                registers.clear_volatile();
-            }
-        }
-        (Opcode::Stbu | Opcode::Sthu | Opcode::Stwu |
-            Opcode::Stfsu | Opcode::Stfdu, _, _, Argument::GPR(rel)) => {
-            // Storing with update, clear updated register (third arg)
-            registers[rel] = RegisterContent::Unknown;
-        }
-        (Opcode::Stbux | Opcode::Sthux | Opcode::Stwux |
-            Opcode::Stfsux | Opcode::Stfdux, _, Argument::GPR(rel), _) => {
-            // Storing indexed with update, clear updated register (second arg)
-            registers[rel] = RegisterContent::Unknown;
-        }
-        (Opcode::Stb | Opcode::Sth | Opcode::Stw |
-            Opcode::Stbx | Opcode::Sthx | Opcode::Stwx |
-            Opcode::Stfs | Opcode::Stfd, _, _, _) => {
-            // Storing, does not change registers
-        }
-        (Opcode::Lmw, Argument::GPR(target), _, _) => {
-            // `lmw` overwrites all registers from rd to r31.
-            for reg in target.0..31 {
-                registers[GPR(reg)] = RegisterContent::Unknown;
-            }
-        }
-        (_, Argument::GPR(a), _, _) => {
-            // Other operations which write to GPR a
-            registers[a] = RegisterContent::Unknown;
-        }
-        (_, Argument::FPR(a), _, _) => {
-            // Other operations which write to FPR a
-            registers[a] = RegisterContent::Unknown;
-        }
-        (_, _, _, _) => {}
-    }
-    
-}
-
-fn get_branch_offset(args: &[ppc750cl::Argument; 5]) -> i32 {
-    for arg in args.iter() {
-        if let ppc750cl::Argument::BranchDest(dest) = arg {
-            return dest.0 / 4;
-        }
-    }
-    return 0;
-}
-
-#[derive(Debug, Default)]
-struct PPCFlowAnalysisResult {
-    argument_contents: BTreeMap<(u64, u8), FlowAnalysisValue>,
-}
-
-impl PPCFlowAnalysisResult {
-    fn set_argument_value_at_address(&mut self, address: u64, argument: u8, value: FlowAnalysisValue) {
-        self.argument_contents.insert((address, argument), value);
-    }
-
-    fn new() -> Self {
-        PPCFlowAnalysisResult { argument_contents: Default::default() }
-    }
-}
-
-impl FlowAnalysisResult for PPCFlowAnalysisResult {
-    fn get_argument_value_at_address(&self, address: u64, argument: u8) -> Option<&FlowAnalysisValue> {
-        self.argument_contents.get(&(address, argument))
-    }
-}
-
-fn clamp_text_length(s: String, max: usize) -> String {
-    if s.len() <= max {
-        s
-    } else {
-        format!("{}…", s.chars().take(max - 3).collect::<String>())
-    }
-}
-
-// Executing op with args at cur_address, update current_state with symbols that
-// come from relocations. That is, references to globals, floating point
-// constants, string constants, etc.
-fn fill_registers_from_relocations(
-    current_state: &mut RegisterState,
-    obj: &Object,
-    cur_addr: u32,
-    op: ppc750cl::Opcode,
-    args: &[ppc750cl::Argument; 5],
-    relocations: &[Relocation],
-) {
-    let reloc = relocations.iter().find(|r| (r.address as u32 & !3) == cur_addr);
-    if let Some(reloc) = reloc {
-        let bytes = obj.symbol_data(reloc.target_symbol).unwrap_or(&[]);
-        let content = match guess_data_type_from_load_store_inst_op(op) {
-            Some(DataType::Float) => RegisterContent::FloatConstant(RawFloat(match obj.endianness {
-                object::Endianness::Little => f32::from_le_bytes(bytes.try_into().unwrap_or([0; 4])),
-                object::Endianness::Big => f32::from_be_bytes(bytes.try_into().unwrap_or([0; 4])),
-            })),
-            Some(DataType::Double) => RegisterContent::DoubleConstant(RawDouble(match obj.endianness {
-                object::Endianness::Little => f64::from_le_bytes(bytes.try_into().unwrap_or([0; 8])),
-                object::Endianness::Big => f64::from_be_bytes(bytes.try_into().unwrap_or([0; 8])),
-            })),
-            _ => RegisterContent::Symbol(reloc.target_symbol),
-        };
-        // Only update the register state for loads. We may store to a reloc
-        // address but that doesn't update register contents.
-        if !is_store_instruction(op) {
-            match (op, args[0]) {
-                // Everything else is a load of some sort
-                (_, ppc750cl::Argument::GPR(gpr)) => {
-                    current_state[gpr] = content;
-                }
-                (_, ppc750cl::Argument::FPR(fpr)) => {
-                    current_state[fpr] = content;
-                }
-                _ => {}
-            }
-        }
-    }
-}
-
-fn ppc_data_flow_analysis(
-    obj: &Object,
-    func_symbol: &Symbol,
-    code: &[u8],
-    relocations: &[Relocation],
-) -> Box<PPCFlowAnalysisResult> {
-    use std::collections::HashSet;
-    use ppc750cl::InsIter;
-    use std::collections::VecDeque;
-    let instructions = InsIter::new(code, func_symbol.address as u32).map(|(_addr, ins)| {
-        (ins.op, ins.basic().args)
-    }).collect_vec();
-
-    let func_address = func_symbol.address;
-
-    // Get initial register values from function parameters
-    let mut initial_register_state = RegisterState::new();
-    initial_register_state.set_potential_inputs();
-
-    let mut execution_queue = VecDeque::<(usize, RegisterState)>::new();
-    execution_queue.push_back((0, initial_register_state));
-
-    // Execute the instructions against abstract data
-    let mut failsafe_counter = 0;
-    let mut taken_branches = HashSet::<(usize, RegisterState)>::new();
-    let mut register_state_at = Vec::<RegisterState>::new();
-    register_state_at.resize_with(instructions.len(), RegisterState::new);
-    while let Some((mut index, mut current_state)) = execution_queue.pop_front() {
-        while let Some((op, args)) = instructions.get(index) {
-            // Record the state at this index
-            // If recording does not result in any changes to the known values
-            // we're done, because the subsequent values are a function of the
-            // current values so we'll get the same result as the last time
-            // we went down this path.
-            if !register_state_at[index].unify(&current_state) {
-                break;
-            }
-
-            // Execute the instruction to update the state
-            execute_instruction(&mut current_state, op, args);
-
-            // Fill in register state coming from relocations at this line. This
-            // handles references to global variables, floating point constants,
-            // etc.
-            let cur_addr = (func_address as u32) + ((index * 4) as u32);
-            fill_registers_from_relocations(&mut current_state, obj, cur_addr, *op, args, relocations);
-            
-            // Add conditional branches to execution queue
-            // Only take a given (address, register state) combination once. If
-            // the known register state is different we have to take the branch
-            // again to stabilize the known values for backwards branches.
-            if op == &ppc750cl::Opcode::Bc {
-                let branch_state = (index, current_state.clone());
-                if !taken_branches.contains(&branch_state) {
-                    let offset = get_branch_offset(args);
-                    let target_index = ((index as i32) + offset) as usize;
-                    execution_queue.push_back((target_index, current_state.clone()));
-                    taken_branches.insert(branch_state);
-
-                    // We should never hit this case, but avoid getting stuck in
-                    // an infinite loop if we hit some kind of bad behavior.
-                    failsafe_counter += 1;
-                    if failsafe_counter > 256 {
-                        println!("Analysis of {} failed to stabilize", func_symbol.name);
-                        return Default::default();
-                    }
-                }
-            }
-
-            // Update index
-            if op == &ppc750cl::Opcode::B {
-                // Unconditional branch
-                let offset = get_branch_offset(args);
-                if offset > 0 {
-                    // Jump table or branch to over else clause.
-                    index += offset as usize;
-                } else if offset == 0 {
-                    // Function call with relocation. We'll return to
-                    // the next instruction.
-                    index += 1;
-                } else {
-                    // Unconditional branch (E.g.: loop { ... })
-                    // Also some compilations of loops put the conditional at
-                    // the end and B to it for the check of the first iteration.
-                    let branch_state = (index, current_state.clone());
-                    if taken_branches.contains(&branch_state) {
-                        break;
-                    }
-                    taken_branches.insert(branch_state);
-                    index = ((index as i32) + offset) as usize;
-                }
-            } else {
-                // Normal execution of next instruction
-                index += 1;
-            }
-        }
-    }
-
-    // Store the relevant data flow values for simplified instructions
-    generate_flow_analysis_result(&obj, func_address, code, register_state_at, relocations)
-}
-
-// Write the relevant part of the flow analysis out into the FlowAnalysisResult
-// the rest of the application will use to query results of the flow analysis.
-// Flow analysis will compute the known contents of every register at every
-// line, but we only need to record the values of registers that are actually
-// referenced at each line.
-fn generate_flow_analysis_result(
-    obj: &Object,
-    base_address: u64,
-    code: &[u8],
-    register_state_at: Vec::<RegisterState>,
-    relocations: &[Relocation]
-) -> Box<PPCFlowAnalysisResult> {
-    use ppc750cl::{InsIter, Argument, Offset, GPR};
-    let mut analysis_result = PPCFlowAnalysisResult::new();
-    for (addr, ins) in InsIter::new(code, 0) {
-        let ins_address = base_address + (addr as u64);
-        let index = addr / 4;
-        let ppc750cl::ParsedIns {mnemonic, args} = ins.simplified();
-
-        // Special case to show float and double constants on the line where
-        // they are being loaded.
-        // We need to do this before we break out on showing relocations in the
-        // subsequent if statement.
-        if ins.op == ppc750cl::Opcode::Lfs || ins.op == ppc750cl::Opcode::Lfd {
-            // The value is set on the line AFTER the load, get it from there
-            if let Some(next_state) = register_state_at.get(index as usize + 1) {
-                // When loading from SDA it will be a relocation so Reg+Offset will both be zero
-                match (args[0], args[1], args[2]) {
-                    (Argument::FPR(fpr), Argument::Offset(Offset(0)), Argument::GPR(GPR(0))) => {
-                        analysis_result.set_argument_value_at_address(ins_address, 1,
-                            FlowAnalysisValue::Text(format!("{}", next_state[fpr])));
-                        continue;
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        // If we're already showing relocations on a line don't also show data flow
-        if relocations.iter().any(|r| (r.address & !3) == ins_address) {
-            continue;
-        }
-
-        let is_store = mnemonic.starts_with("st");
-        let default_register_state = RegisterState::new();
-        let registers = register_state_at.get(index as usize).unwrap_or(&default_register_state);
-        for (arg_index, arg) in args.into_iter().enumerate() {
-            // Hacky shorthand for determining which arguments are sources,
-            // We only want to show data flow for source registers, not target
-            // registers. Technically there are some non-"st_" operations which
-            // read from their first argument but they're rare.
-            if (arg_index == 0) && !is_store {
-                continue;
-            }
-            
-            let content = match arg {
-                Argument::GPR(gpr) => Some(registers[gpr]),
-                Argument::FPR(fpr) => Some(registers[fpr]),
-                _ => None,
-            };
-            let analysis_value = match content {
-                Some(RegisterContent::Symbol(s)) => {
-                    obj.symbols.get(s).map(|sym|
-                        FlowAnalysisValue::Text(
-                            clamp_text_length(sym.demangled_name.as_ref().unwrap_or(&sym.name).clone(), 20)))
-                }
-                Some(RegisterContent::InputRegister(reg)) => {
-                    let reg_name = match arg {
-                        Argument::GPR(_) => format!("input_r{reg}"),
-                        Argument::FPR(_) => format!("input_f{reg}"),
-                        _ => panic!("Register content should only be in a register"),
-                    };
-                    Some(FlowAnalysisValue::Text(reg_name))
-                }
-                Some(RegisterContent::Unknown) | Some(RegisterContent::Variable) => None,
-                Some(value) => Some(FlowAnalysisValue::Text(format!("{value}"))),
-                None => None,
-            };
-            if let Some(analysis_value) = analysis_value {
-                analysis_result.set_argument_value_at_address(ins_address, arg_index as u8, analysis_value);
-            }
-        }
-    }
-
-    Box::new(analysis_result)
-}
-
-fn guess_data_type_from_load_store_inst_op(inst_op: ppc750cl::Opcode) -> Option<DataType> {
-    use ppc750cl::Opcode;
-    match inst_op {
-        Opcode::Lbz | Opcode::Lbzu | Opcode::Lbzux | Opcode::Lbzx => Some(DataType::Int8),
-        Opcode::Lhz | Opcode::Lhzu | Opcode::Lhzux | Opcode::Lhzx => Some(DataType::Int16),
-        Opcode::Lha | Opcode::Lhau | Opcode::Lhaux | Opcode::Lhax => Some(DataType::Int16),
-        Opcode::Lwz | Opcode::Lwzu | Opcode::Lwzux | Opcode::Lwzx => Some(DataType::Int32),
-        Opcode::Lfs | Opcode::Lfsu | Opcode::Lfsux | Opcode::Lfsx => Some(DataType::Float),
-        Opcode::Lfd | Opcode::Lfdu | Opcode::Lfdux | Opcode::Lfdx => Some(DataType::Double),
-
-        Opcode::Stb | Opcode::Stbu | Opcode::Stbux | Opcode::Stbx => Some(DataType::Int8),
-        Opcode::Sth | Opcode::Sthu | Opcode::Sthux | Opcode::Sthx => Some(DataType::Int16),
-        Opcode::Stw | Opcode::Stwu | Opcode::Stwux | Opcode::Stwx => Some(DataType::Int32),
-        Opcode::Stfs | Opcode::Stfsu | Opcode::Stfsux | Opcode::Stfsx => Some(DataType::Float),
-        Opcode::Stfd | Opcode::Stfdu | Opcode::Stfdux | Opcode::Stfdx => Some(DataType::Double),
-        _ => None,
-    }
-}
-
 #[derive(Debug)]
 struct PoolReference {
     addr_src_gpr: ppc750cl::GPR,
@@ -1019,7 +530,7 @@ fn get_pool_reference_for_inst(
 ) -> Option<PoolReference> {
     use ppc750cl::{Argument, Opcode};
     let args = &simplified.args;
-    if guess_data_type_from_load_store_inst_op(opcode).is_some() {
+    if flow_analysis::guess_data_type_from_load_store_inst_op(opcode).is_some() {
         match (args[1], args[2]) {
             (Argument::Offset(offset), Argument::GPR(addr_src_gpr)) => {
                 // e.g. lwz. Immediate offset.
