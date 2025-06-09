@@ -3,41 +3,44 @@ use crate::{
     obj::{FlowAnalysisResult, FlowAnalysisValue, Object, Relocation, Symbol},
     util::{RawDouble, RawFloat},
 };
-use itertools::Itertools;
-use ppc750cl::Simm;
 use alloc::collections::{BTreeMap, BTreeSet};
+use alloc::{boxed::Box, format, string::String, vec::Vec};
 use core::ffi::CStr;
 use core::ops::{Index, IndexMut};
+use itertools::Itertools;
+use ppc750cl::Simm;
 
 fn is_store_instruction(op: ppc750cl::Opcode) -> bool {
     use ppc750cl::Opcode;
-    matches!(op,
+    matches!(
+        op,
         Opcode::Stbux
-        | Opcode::Stbx
-        | Opcode::Stfdux
-        | Opcode::Stfdx
-        | Opcode::Stfiwx
-        | Opcode::Stfsux
-        | Opcode::Stfsx
-        | Opcode::Sthbrx
-        | Opcode::Sthux
-        | Opcode::Sthx
-        | Opcode::Stswi
-        | Opcode::Stswx
-        | Opcode::Stwbrx
-        | Opcode::Stwcx_
-        | Opcode::Stwux
-        | Opcode::Stwx
-        | Opcode::Stwu
-        | Opcode::Stb
-        | Opcode::Stbu
-        | Opcode::Sth
-        | Opcode::Sthu
-        | Opcode::Stmw
-        | Opcode::Stfs
-        | Opcode::Stfsu
-        | Opcode::Stfd
-        | Opcode::Stfdu)
+            | Opcode::Stbx
+            | Opcode::Stfdux
+            | Opcode::Stfdx
+            | Opcode::Stfiwx
+            | Opcode::Stfsux
+            | Opcode::Stfsx
+            | Opcode::Sthbrx
+            | Opcode::Sthux
+            | Opcode::Sthx
+            | Opcode::Stswi
+            | Opcode::Stswx
+            | Opcode::Stwbrx
+            | Opcode::Stwcx_
+            | Opcode::Stwux
+            | Opcode::Stwx
+            | Opcode::Stwu
+            | Opcode::Stb
+            | Opcode::Stbu
+            | Opcode::Sth
+            | Opcode::Sthu
+            | Opcode::Stmw
+            | Opcode::Stfs
+            | Opcode::Stfsu
+            | Opcode::Stfd
+            | Opcode::Stfdu
+    )
 }
 
 pub fn guess_data_type_from_load_store_inst_op(inst_op: ppc750cl::Opcode) -> Option<DataType> {
@@ -379,8 +382,8 @@ pub fn ppc_data_flow_analysis(
     code: &[u8],
     relocations: &[Relocation],
 ) -> Box<dyn FlowAnalysisResult> {
-    use ppc750cl::InsIter;
     use alloc::collections::VecDeque;
+    use ppc750cl::InsIter;
     let instructions = InsIter::new(code, func_symbol.address as u32)
         .map(|(_addr, ins)| (ins.op, ins.basic().args))
         .collect_vec();
@@ -454,7 +457,7 @@ pub fn ppc_data_flow_analysis(
                     // an infinite loop if we hit some kind of bad behavior.
                     failsafe_counter += 1;
                     if failsafe_counter > 256 {
-                        println!("Analysis of {} failed to stabilize", func_symbol.name);
+                        //println!("Analysis of {} failed to stabilize", func_symbol.name);
                         return Box::new(PPCFlowAnalysisResult::new());
                     }
                 }
