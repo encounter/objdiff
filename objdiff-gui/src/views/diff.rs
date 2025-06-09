@@ -284,7 +284,8 @@ pub fn diff_view_ui(
 
             // Only need to check the first Object. Technically the first could not have a flow analysis
             // result while the second does but we don't want to waste space on two separate checkboxes.
-            if result.first_obj.as_ref().is_some_and(|(first, _)| first.has_flow_analysis_result()) {
+            if result.first_obj.as_ref().is_some_and(|(first, _)| first.has_flow_analysis_result())
+            {
                 let mut placeholder = diff_config.show_data_flow;
                 if ui
                     .checkbox(&mut placeholder, "Show data flow")

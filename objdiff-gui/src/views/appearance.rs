@@ -23,7 +23,7 @@ pub struct Appearance {
     #[serde(skip)]
     pub highlight_color: Color32, // WHITE
     #[serde(skip)]
-    pub dataflow_color: Color32, // 
+    pub dataflow_color: Color32, //
     #[serde(skip)]
     pub replace_color: Color32, // LIGHT_BLUE
     #[serde(skip)]

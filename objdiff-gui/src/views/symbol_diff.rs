@@ -356,7 +356,8 @@ impl DiffViewState {
                 let Ok(mut state) = state.write() else {
                     return;
                 };
-                state.config.diff_obj_config.show_data_flow = !state.config.diff_obj_config.show_data_flow;
+                state.config.diff_obj_config.show_data_flow =
+                    !state.config.diff_obj_config.show_data_flow;
             }
         }
     }

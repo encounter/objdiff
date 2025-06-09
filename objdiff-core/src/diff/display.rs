@@ -12,9 +12,12 @@ use itertools::Itertools;
 use regex::Regex;
 
 use crate::{
-    diff::{DiffObjConfig, InstructionDiffKind, InstructionDiffRow, ObjectDiff, SymbolDiff}, obj::{
-        FlowAnalysisValue, InstructionArg, InstructionArgValue, Object, ParsedInstruction, ResolvedInstructionRef, ResolvedRelocation, SectionFlag, SectionKind, Symbol, SymbolFlag, SymbolKind
-    }
+    diff::{DiffObjConfig, InstructionDiffKind, InstructionDiffRow, ObjectDiff, SymbolDiff},
+    obj::{
+        FlowAnalysisValue, InstructionArg, InstructionArgValue, Object, ParsedInstruction,
+        ResolvedInstructionRef, ResolvedRelocation, SectionFlag, SectionKind, Symbol, SymbolFlag,
+        SymbolKind,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -44,7 +47,7 @@ pub enum DiffText<'a> {
 #[derive(Debug, Copy, Clone, Default, PartialEq, Eq, Hash)]
 pub enum DiffTextColor {
     #[default]
-    Normal,   // Grey
+    Normal, // Grey
     Dim,      // Dark grey
     Bright,   // White
     DataFlow, // Light blue

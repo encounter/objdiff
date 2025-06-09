@@ -1,5 +1,8 @@
 use alloc::{borrow::Cow, boxed::Box, format, string::String, vec::Vec};
-use core::{ffi::CStr, fmt::{self, Debug}};
+use core::{
+    ffi::CStr,
+    fmt::{self, Debug},
+};
 
 use anyhow::{Result, bail};
 use encoding_rs::SHIFT_JIS;
@@ -7,10 +10,13 @@ use object::Endian as _;
 
 use crate::{
     diff::{
-        display::{ContextItem, HoverItem, InstructionPart}, DiffObjConfig
+        DiffObjConfig,
+        display::{ContextItem, HoverItem, InstructionPart},
     },
     obj::{
-        FlowAnalysisResult, InstructionArg, InstructionRef, Object, ParsedInstruction, Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedSymbol, Section, Symbol, SymbolFlagSet, SymbolKind
+        FlowAnalysisResult, InstructionArg, InstructionRef, Object, ParsedInstruction, Relocation,
+        RelocationFlags, ResolvedInstructionRef, ResolvedSymbol, Section, Symbol, SymbolFlagSet,
+        SymbolKind,
     },
     util::ReallySigned,
 };

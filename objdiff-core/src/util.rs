@@ -65,20 +65,14 @@ pub fn align_data_slice_to(data: &mut Vec<u8>, align: u64) {
 #[derive(Copy, Clone, Debug)]
 pub struct RawFloat(pub f32);
 impl PartialEq for RawFloat {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.to_bits() == other.0.to_bits()
-    }
+    fn eq(&self, other: &Self) -> bool { self.0.to_bits() == other.0.to_bits() }
 }
 impl Eq for RawFloat {}
 impl Ord for RawFloat {
-    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        self.0.to_bits().cmp(&other.0.to_bits())
-    }
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering { self.0.to_bits().cmp(&other.0.to_bits()) }
 }
 impl PartialOrd for RawFloat {
-    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> { Some(self.cmp(other)) }
 }
 
 // Double where we specifically care about comparing the raw bits rather than
@@ -86,18 +80,12 @@ impl PartialOrd for RawFloat {
 #[derive(Copy, Clone, Debug)]
 pub struct RawDouble(pub f64);
 impl PartialEq for RawDouble {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.to_bits() == other.0.to_bits()
-    }
+    fn eq(&self, other: &Self) -> bool { self.0.to_bits() == other.0.to_bits() }
 }
 impl Eq for RawDouble {}
 impl Ord for RawDouble {
-    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
-        self.0.to_bits().cmp(&other.0.to_bits())
-    }
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering { self.0.to_bits().cmp(&other.0.to_bits()) }
 }
 impl PartialOrd for RawDouble {
-    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> { Some(self.cmp(other)) }
 }

@@ -467,20 +467,16 @@ fn perform_data_flow_analysis(obj: &mut Object, config: &DiffObjConfig) -> Resul
                     symbol.address,
                     code,
                     &section.relocations,
-                    &obj.symbols);
+                    &obj.symbols,
+                );
                 generated_relocations.push((section_index, relocations));
             }
 
             // Optional full data flow analysis
             if config.analyze_data_flow {
-                obj.arch.data_flow_analysis(
-                    &obj,
-                    symbol,
-                    code,
-                    &section.relocations,
-                ).and_then(|flow_result| {
-                    obj.flow_analysis_results.insert(symbol.address, flow_result)
-                });
+                obj.arch.data_flow_analysis(&obj, symbol, code, &section.relocations).and_then(
+                    |flow_result| obj.flow_analysis_results.insert(symbol.address, flow_result),
+                );
             }
         }
     }

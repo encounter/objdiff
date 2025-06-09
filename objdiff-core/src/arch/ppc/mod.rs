@@ -1,9 +1,9 @@
 use alloc::{
+    boxed::Box,
     collections::{BTreeMap, BTreeSet},
     string::{String, ToString},
     vec,
     vec::Vec,
-    boxed::Box,
 };
 
 use anyhow::{Result, bail, ensure};
@@ -20,7 +20,7 @@ use crate::{
     },
     obj::{
         FlowAnalysisResult, InstructionRef, Object, Relocation, RelocationFlags,
-        ResolvedInstructionRef, ResolvedRelocation, Symbol, SymbolFlag, SymbolFlagSet
+        ResolvedInstructionRef, ResolvedRelocation, Symbol, SymbolFlag, SymbolFlagSet,
     },
 };
 
@@ -170,7 +170,7 @@ impl Arch for ArchPpc {
     ) -> Vec<Relocation> {
         generate_fake_pool_relocations_for_function(address, code, relocations, symbols)
     }
-    
+
     fn data_flow_analysis(
         &self,
         obj: &Object,

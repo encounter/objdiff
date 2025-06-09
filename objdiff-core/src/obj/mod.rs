@@ -238,8 +238,12 @@ pub enum FlowAnalysisValue {
     Text(String),
 }
 
-pub trait FlowAnalysisResult : core::fmt::Debug + Send {
-    fn get_argument_value_at_address(&self, address: u64, argument: u8) -> Option<&FlowAnalysisValue>;
+pub trait FlowAnalysisResult: core::fmt::Debug + Send {
+    fn get_argument_value_at_address(
+        &self,
+        address: u64,
+        argument: u8,
+    ) -> Option<&FlowAnalysisValue>;
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
@@ -323,10 +327,8 @@ impl Object {
     pub fn symbol_by_name(&self, name: &str) -> Option<usize> {
         self.symbols.iter().position(|symbol| symbol.section.is_some() && symbol.name == name)
     }
-    
-    pub fn has_flow_analysis_result(&self) -> bool {
-        !self.flow_analysis_results.is_empty()
-    }
+
+    pub fn has_flow_analysis_result(&self) -> bool { !self.flow_analysis_results.is_empty() }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
