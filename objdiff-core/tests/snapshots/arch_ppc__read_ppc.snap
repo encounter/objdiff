@@ -581,4 +581,5 @@ Object {
     ),
     path: None,
     timestamp: None,
+    flow_analysis_results: {},
 }

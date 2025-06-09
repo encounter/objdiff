@@ -1574,4 +1574,5 @@ Object {
     split_meta: None,
     path: None,
     timestamp: None,
+    flow_analysis_results: {},
 }

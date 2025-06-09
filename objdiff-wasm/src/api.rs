@@ -401,6 +401,7 @@ impl From<diff::display::DiffTextColor> for DiffTextColor {
             diff::display::DiffTextColor::Replace => DiffTextColor::Replace,
             diff::display::DiffTextColor::Delete => DiffTextColor::Delete,
             diff::display::DiffTextColor::Insert => DiffTextColor::Insert,
+            diff::display::DiffTextColor::DataFlow => DiffTextColor::DataFlow,
             diff::display::DiffTextColor::Rotating(v) => DiffTextColor::Rotating(v),
         }
     }
