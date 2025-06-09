@@ -5,9 +5,9 @@ use crate::{
 };
 use itertools::Itertools;
 use ppc750cl::Simm;
-use std::collections::BTreeMap;
-use std::ffi::CStr;
-use std::ops::{Index, IndexMut};
+use alloc::collections::{BTreeMap, BTreeSet};
+use core::ffi::CStr;
+use core::ops::{Index, IndexMut};
 
 fn is_store_instruction(op: ppc750cl::Opcode) -> bool {
     use ppc750cl::Opcode;
@@ -59,7 +59,7 @@ pub fn guess_data_type_from_load_store_inst_op(inst_op: ppc750cl::Opcode) -> Opt
     }
 }
 
-#[derive(Default, PartialEq, Eq, Copy, Hash, Clone, Debug)]
+#[derive(Default, PartialEq, Eq, Copy, Clone, Debug, PartialOrd, Ord)]
 enum RegisterContent {
     #[default]
     Unknown,
@@ -71,8 +71,8 @@ enum RegisterContent {
     Symbol(usize),
 }
 
-impl std::fmt::Display for RegisterContent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for RegisterContent {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             RegisterContent::Unknown => write!(f, "unknown"),
             RegisterContent::Variable => write!(f, "variable"),
@@ -93,7 +93,7 @@ impl std::fmt::Display for RegisterContent {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Ord, PartialOrd)]
 struct RegisterState {
     gpr: [RegisterContent; 32],
     fpr: [RegisterContent; 32],
@@ -380,8 +380,7 @@ pub fn ppc_data_flow_analysis(
     relocations: &[Relocation],
 ) -> Box<dyn FlowAnalysisResult> {
     use ppc750cl::InsIter;
-    use std::collections::HashSet;
-    use std::collections::VecDeque;
+    use alloc::collections::VecDeque;
     let instructions = InsIter::new(code, func_symbol.address as u32)
         .map(|(_addr, ins)| (ins.op, ins.basic().args))
         .collect_vec();
@@ -397,7 +396,7 @@ pub fn ppc_data_flow_analysis(
 
     // Execute the instructions against abstract data
     let mut failsafe_counter = 0;
-    let mut taken_branches = HashSet::<(usize, RegisterState)>::new();
+    let mut taken_branches = BTreeSet::<(usize, RegisterState)>::new();
     let mut register_state_at = Vec::<RegisterState>::new();
     let mut completed_first_pass = false;
     register_state_at.resize_with(instructions.len(), RegisterState::new);

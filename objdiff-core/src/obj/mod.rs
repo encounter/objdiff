@@ -13,7 +13,6 @@ use core::{
     fmt,
     num::{NonZeroU32, NonZeroU64},
 };
-use std::collections::HashMap;
 
 use flagset::{FlagSet, flags};
 
@@ -270,7 +269,7 @@ pub struct Object {
     pub path: Option<std::path::PathBuf>,
     #[cfg(feature = "std")]
     pub timestamp: Option<filetime::FileTime>,
-    pub flow_analysis_results: HashMap<u64, Box<dyn FlowAnalysisResult>>,
+    pub flow_analysis_results: BTreeMap<u64, Box<dyn FlowAnalysisResult>>,
 }
 
 impl Default for Object {
@@ -285,7 +284,7 @@ impl Default for Object {
             path: None,
             #[cfg(feature = "std")]
             timestamp: None,
-            flow_analysis_results: HashMap::<u64, Box<dyn FlowAnalysisResult>>::new(),
+            flow_analysis_results: BTreeMap::<u64, Box<dyn FlowAnalysisResult>>::new(),
         }
     }
 }

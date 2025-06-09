@@ -662,7 +662,7 @@ fn make_fake_pool_reloc(
 // and returns a Vec of "fake pool relocations" that simulate what a relocation for that instruction
 // would look like if data hadn't been pooled.
 // This method tries to follow the function's proper control flow. It keeps track of a queue of
-// states it hasn't traversed yet, where each state holds an instruction address and a HashMap of
+// states it hasn't traversed yet, where each state holds an instruction address and a map of
 // which registers hold which pool relocations at that point.
 // When a conditional or unconditional branch is encountered, the destination of the branch is added
 // to the queue. Conditional branches will traverse both the path where the branch is taken and the

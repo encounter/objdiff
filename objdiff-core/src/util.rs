@@ -5,8 +5,6 @@ use anyhow::{Result, ensure};
 use num_traits::PrimInt;
 use object::{Endian, Object};
 
-use std::hash::{Hash, Hasher};
-
 // https://stackoverflow.com/questions/44711012/how-do-i-format-a-signed-integer-to-a-sign-aware-hexadecimal-representation
 pub struct ReallySigned<N: PrimInt>(pub N);
 
@@ -72,9 +70,14 @@ impl PartialEq for RawFloat {
     }
 }
 impl Eq for RawFloat {}
-impl Hash for RawFloat {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.to_bits().hash(state)
+impl Ord for RawFloat {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.0.to_bits().cmp(&other.0.to_bits())
+    }
+}
+impl PartialOrd for RawFloat {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -88,8 +91,13 @@ impl PartialEq for RawDouble {
     }
 }
 impl Eq for RawDouble {}
-impl Hash for RawDouble {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.0.to_bits().hash(state)
+impl Ord for RawDouble {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.0.to_bits().cmp(&other.0.to_bits())
+    }
+}
+impl PartialOrd for RawDouble {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
