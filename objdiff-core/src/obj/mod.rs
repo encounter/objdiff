@@ -238,7 +238,7 @@ pub enum FlowAnalysisValue {
     Text(String),
 }
 
-pub trait FlowAnalysisResult : std::fmt::Debug + Send {
+pub trait FlowAnalysisResult : core::fmt::Debug + Send {
     fn get_argument_value_at_address(&self, address: u64, argument: u8) -> Option<&FlowAnalysisValue>;
 }
 
