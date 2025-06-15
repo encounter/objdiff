@@ -320,17 +320,12 @@ fn clamp_text_length(s: String, max: usize) -> String {
     if s.len() <= max { s } else { format!("{}…", s.chars().take(max - 3).collect::<String>()) }
 }
 
-// Executing op with args at cur_address, update current_state with symbols that
-// come from relocations. That is, references to globals, floating point
-// constants, string constants, etc.
-fn fill_registers_from_relocation(
+fn get_register_content_from_reloc(
     reloc: &Relocation,
-    current_state: &mut RegisterState,
     obj: &Object,
     op: ppc750cl::Opcode,
-    args: &[ppc750cl::Argument; 5],
-) {
-    let content = if let Some(bytes) = obj.symbol_data(reloc.target_symbol) {
+) -> RegisterContent {
+    if let Some(bytes) = obj.symbol_data(reloc.target_symbol) {
         match guess_data_type_from_load_store_inst_op(op) {
             Some(DataType::Float) => {
                 RegisterContent::FloatConstant(RawFloat(match obj.endianness {
@@ -356,17 +351,29 @@ fn fill_registers_from_relocation(
         }
     } else {
         RegisterContent::Symbol(reloc.target_symbol)
-    };
+    }
+}
+
+// Executing op with args at cur_address, update current_state with symbols that
+// come from relocations. That is, references to globals, floating point
+// constants, string constants, etc.
+fn fill_registers_from_relocation(
+    reloc: &Relocation,
+    current_state: &mut RegisterState,
+    obj: &Object,
+    op: ppc750cl::Opcode,
+    args: &[ppc750cl::Argument; 5],
+) {
     // Only update the register state for loads. We may store to a reloc
     // address but that doesn't update register contents.
     if !is_store_instruction(op) {
         match (op, args[0]) {
             // Everything else is a load of some sort
             (_, ppc750cl::Argument::GPR(gpr)) => {
-                current_state[gpr] = content;
+                current_state[gpr] = get_register_content_from_reloc(reloc, obj, op);
             }
             (_, ppc750cl::Argument::FPR(fpr)) => {
-                current_state[fpr] = content;
+                current_state[fpr] = get_register_content_from_reloc(reloc, obj, op);
             }
             _ => {}
         }
@@ -531,7 +538,7 @@ fn generate_flow_analysis_result(
     register_state_at: Vec<RegisterState>,
     relocations: &[Relocation],
 ) -> Box<PPCFlowAnalysisResult> {
-    use ppc750cl::{Argument, GPR, InsIter, Offset};
+    use ppc750cl::{Argument, InsIter};
     let mut analysis_result = PPCFlowAnalysisResult::new();
     let default_register_state = RegisterState::new();
     for (addr, ins) in InsIter::new(code, 0) {
@@ -544,23 +551,17 @@ fn generate_flow_analysis_result(
         // We need to do this before we break out on showing relocations in the
         // subsequent if statement.
         if ins.op == ppc750cl::Opcode::Lfs || ins.op == ppc750cl::Opcode::Lfd {
-            // The value is set on the line AFTER the load, get it from there
-            if let Some(next_state) = register_state_at.get(index as usize + 1) {
-                // When loading from SDA it will be a relocation so Reg+Offset will both be zero
-                if let (Argument::FPR(fpr), Argument::Offset(Offset(0)), Argument::GPR(GPR(0))) =
-                    (args[0], args[1], args[2])
-                {
-                    if let RegisterContent::Symbol(_index) = next_state[fpr] {
-                        // We loaded a global variable, not a constant,
-                        // don't do anything for this case.
-                    } else {
-                        analysis_result.set_argument_value_at_address(
-                            ins_address,
-                            1,
-                            FlowAnalysisValue::Text(format!("{}", next_state[fpr])),
-                        );
-                        continue;
-                    }
+            if let Some(reloc) = relocations.iter().find(|r| (r.address as u32 & !3) == ins_address as u32) {
+                let content = get_register_content_from_reloc(reloc, obj, ins.op);
+                if matches!(content, RegisterContent::FloatConstant(_) | RegisterContent::DoubleConstant(_)) {
+                    analysis_result.set_argument_value_at_address(
+                        ins_address,
+                        1,
+                        FlowAnalysisValue::Text(format!("{}", content)),
+                    );
+
+                    // Don't need to show any other data flow if we're showing that
+                    continue;
                 }
             }
         }
