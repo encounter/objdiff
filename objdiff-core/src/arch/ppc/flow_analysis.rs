@@ -546,7 +546,10 @@ fn generate_flow_analysis_result(
         // subsequent if statement.
         if let (ppc750cl::Opcode::Lfs | ppc750cl::Opcode::Lfd, Some(reloc)) = (ins.op, reloc) {
             let content = get_register_content_from_reloc(reloc, obj, ins.op);
-            if matches!(content, RegisterContent::FloatConstant(_) | RegisterContent::DoubleConstant(_)) {
+            if matches!(
+                content,
+                RegisterContent::FloatConstant(_) | RegisterContent::DoubleConstant(_)
+            ) {
                 analysis_result.set_argument_value_at_address(
                     ins_address,
                     1,
@@ -594,21 +597,23 @@ fn generate_flow_analysis_result(
                 _ => None,
             };
             let analysis_value = match content {
-                Some(RegisterContent::Symbol(s)) => if reloc.is_none() {
-                    // Only symbols if there isn't already a relocation, because
-                    // code other than the data flow analysis will be showing
-                    // the symbol for a relocation on the line it is for. If we
-                    // also showed it as data flow analysis value we would be
-                    // showing redundant information.
-                    obj.symbols.get(s).map(|sym| {
-                        FlowAnalysisValue::Text(clamp_text_length(
-                            sym.demangled_name.as_ref().unwrap_or(&sym.name).clone(),
-                            20,
-                        ))
-                    })
-                } else {
-                    None
-                },
+                Some(RegisterContent::Symbol(s)) => {
+                    if reloc.is_none() {
+                        // Only symbols if there isn't already a relocation, because
+                        // code other than the data flow analysis will be showing
+                        // the symbol for a relocation on the line it is for. If we
+                        // also showed it as data flow analysis value we would be
+                        // showing redundant information.
+                        obj.symbols.get(s).map(|sym| {
+                            FlowAnalysisValue::Text(clamp_text_length(
+                                sym.demangled_name.as_ref().unwrap_or(&sym.name).clone(),
+                                20,
+                            ))
+                        })
+                    } else {
+                        None
+                    }
+                }
                 Some(RegisterContent::InputRegister(reg)) => {
                     let reg_name = match arg {
                         Argument::GPR(_) => format!("input_r{reg}"),
