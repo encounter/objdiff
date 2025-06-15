@@ -246,21 +246,6 @@ fn execute_instruction(
             // Storing indexed with update, clear updated register (second arg)
             registers[rel] = RegisterContent::Unknown;
         }
-        (
-            Opcode::Stb
-            | Opcode::Sth
-            | Opcode::Stw
-            | Opcode::Stbx
-            | Opcode::Sthx
-            | Opcode::Stwx
-            | Opcode::Stfs
-            | Opcode::Stfd,
-            _,
-            _,
-            _,
-        ) => {
-            // Storing, does not change registers
-        }
         (Opcode::Lmw, Argument::GPR(target), _, _) => {
             // `lmw` overwrites all registers from rd to r31.
             for reg in target.0..31 {
@@ -268,12 +253,18 @@ fn execute_instruction(
             }
         }
         (_, Argument::GPR(a), _, _) => {
-            // Other operations which write to GPR a
-            registers[a] = RegisterContent::Unknown;
+            // Store instructions don't modify the GPR
+            if !is_store_instruction(*op) {
+                // Other operations which write to GPR a
+                registers[a] = RegisterContent::Unknown;
+            }
         }
         (_, Argument::FPR(a), _, _) => {
-            // Other operations which write to FPR a
-            registers[a] = RegisterContent::Unknown;
+            // Store instructions don't modify the FPR
+            if !is_store_instruction(*op) {
+                // Other operations which write to FPR a
+                registers[a] = RegisterContent::Unknown;
+            }
         }
         (_, _, _, _) => {}
     }
@@ -546,23 +537,24 @@ fn generate_flow_analysis_result(
         let index = addr / 4;
         let ppc750cl::ParsedIns { mnemonic: _, args } = ins.simplified();
 
+        // If we're already showing relocations on a line don't also show data flow
+        let reloc = relocations.iter().find(|r| (r.address & !3) == ins_address);
+
         // Special case to show float and double constants on the line where
         // they are being loaded.
         // We need to do this before we break out on showing relocations in the
         // subsequent if statement.
-        if ins.op == ppc750cl::Opcode::Lfs || ins.op == ppc750cl::Opcode::Lfd {
-            if let Some(reloc) = relocations.iter().find(|r| (r.address as u32 & !3) == ins_address as u32) {
-                let content = get_register_content_from_reloc(reloc, obj, ins.op);
-                if matches!(content, RegisterContent::FloatConstant(_) | RegisterContent::DoubleConstant(_)) {
-                    analysis_result.set_argument_value_at_address(
-                        ins_address,
-                        1,
-                        FlowAnalysisValue::Text(format!("{}", content)),
-                    );
+        if let (ppc750cl::Opcode::Lfs | ppc750cl::Opcode::Lfd, Some(reloc)) = (ins.op, reloc) {
+            let content = get_register_content_from_reloc(reloc, obj, ins.op);
+            if matches!(content, RegisterContent::FloatConstant(_) | RegisterContent::DoubleConstant(_)) {
+                analysis_result.set_argument_value_at_address(
+                    ins_address,
+                    1,
+                    FlowAnalysisValue::Text(format!("{}", content)),
+                );
 
-                    // Don't need to show any other data flow if we're showing that
-                    continue;
-                }
+                // Don't need to show any other data flow if we're showing that
+                continue;
             }
         }
 
@@ -586,11 +578,6 @@ fn generate_flow_analysis_result(
             }
         }
 
-        // If we're already showing relocations on a line don't also show data flow
-        if relocations.iter().any(|r| (r.address & !3) == ins_address) {
-            continue;
-        }
-
         let is_store = is_store_instruction(ins.op);
         for (arg_index, arg) in args.into_iter().enumerate() {
             // Hacky shorthand for determining which arguments are sources,
@@ -607,12 +594,21 @@ fn generate_flow_analysis_result(
                 _ => None,
             };
             let analysis_value = match content {
-                Some(RegisterContent::Symbol(s)) => obj.symbols.get(s).map(|sym| {
-                    FlowAnalysisValue::Text(clamp_text_length(
-                        sym.demangled_name.as_ref().unwrap_or(&sym.name).clone(),
-                        20,
-                    ))
-                }),
+                Some(RegisterContent::Symbol(s)) => if reloc.is_none() {
+                    // Only symbols if there isn't already a relocation, because
+                    // code other than the data flow analysis will be showing
+                    // the symbol for a relocation on the line it is for. If we
+                    // also showed it as data flow analysis value we would be
+                    // showing redundant information.
+                    obj.symbols.get(s).map(|sym| {
+                        FlowAnalysisValue::Text(clamp_text_length(
+                            sym.demangled_name.as_ref().unwrap_or(&sym.name).clone(),
+                            20,
+                        ))
+                    })
+                } else {
+                    None
+                },
                 Some(RegisterContent::InputRegister(reg)) => {
                     let reg_name = match arg {
                         Argument::GPR(_) => format!("input_r{reg}"),
