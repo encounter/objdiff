@@ -79,8 +79,8 @@ pub enum DiffViewAction {
     SetMapping(usize, usize),
     /// Set the show_mapped_symbols flag
     SetShowMappedSymbols(bool),
-    /// Toggle the show_data_flow flag
-    ToggleShowDataFlow,
+    /// Set the show_data_flow flag
+    SetShowDataFlow(bool),
 }
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -352,12 +352,11 @@ impl DiffViewState {
             DiffViewAction::SetShowMappedSymbols(value) => {
                 self.symbol_state.show_mapped_symbols = value;
             }
-            DiffViewAction::ToggleShowDataFlow => {
+            DiffViewAction::SetShowDataFlow(value) => {
                 let Ok(mut state) = state.write() else {
                     return;
                 };
-                state.config.diff_obj_config.show_data_flow =
-                    !state.config.diff_obj_config.show_data_flow;
+                state.config.diff_obj_config.show_data_flow = value;
             }
         }
     }
