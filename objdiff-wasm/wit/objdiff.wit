@@ -201,6 +201,7 @@ interface display {
     dim,
     bright,
     replace,
+    data-flow,
     delete,
     insert,
     rotating(u8),

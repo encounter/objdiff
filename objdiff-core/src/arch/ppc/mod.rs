@@ -1,4 +1,5 @@
 use alloc::{
+    boxed::Box,
     collections::{BTreeMap, BTreeSet},
     string::{String, ToString},
     vec,
@@ -18,10 +19,12 @@ use crate::{
         display::{ContextItem, HoverItem, HoverItemColor, InstructionPart, SymbolNavigationKind},
     },
     obj::{
-        InstructionRef, Object, Relocation, RelocationFlags, ResolvedInstructionRef,
-        ResolvedRelocation, Symbol, SymbolFlag, SymbolFlagSet,
+        FlowAnalysisResult, InstructionRef, Object, Relocation, RelocationFlags,
+        ResolvedInstructionRef, ResolvedRelocation, Symbol, SymbolFlag, SymbolFlagSet,
     },
 };
+
+mod flow_analysis;
 
 // Relative relocation, can be Simm, Offset or BranchDest
 fn is_relative_arg(arg: &ppc750cl::Argument) -> bool {
@@ -157,6 +160,7 @@ impl Arch for ArchPpc {
         Ok(())
     }
 
+    // Could be replaced by data_flow_analysis once that feature stabilizes
     fn generate_pooled_relocations(
         &self,
         address: u64,
@@ -165,6 +169,16 @@ impl Arch for ArchPpc {
         symbols: &[Symbol],
     ) -> Vec<Relocation> {
         generate_fake_pool_relocations_for_function(address, code, relocations, symbols)
+    }
+
+    fn data_flow_analysis(
+        &self,
+        obj: &Object,
+        symbol: &Symbol,
+        code: &[u8],
+        relocations: &[Relocation],
+    ) -> Option<Box<dyn FlowAnalysisResult>> {
+        Some(flow_analysis::ppc_data_flow_analysis(obj, symbol, code, relocations))
     }
 
     fn implcit_addend(
@@ -225,7 +239,7 @@ impl Arch for ArchPpc {
             return Some(DataType::String);
         }
         let opcode = ppc750cl::Opcode::from(resolved.ins_ref.opcode as u8);
-        if let Some(ty) = guess_data_type_from_load_store_inst_op(opcode) {
+        if let Some(ty) = flow_analysis::guess_data_type_from_load_store_inst_op(opcode) {
             // Numeric type.
             return Some(ty);
         }
@@ -501,25 +515,6 @@ fn make_symbol_ref(symbol: &object::Symbol) -> Result<ExtabSymbolRef> {
     Ok(ExtabSymbolRef { original_index: symbol.index().0 - 1, name, demangled_name })
 }
 
-fn guess_data_type_from_load_store_inst_op(inst_op: ppc750cl::Opcode) -> Option<DataType> {
-    use ppc750cl::Opcode;
-    match inst_op {
-        Opcode::Lbz | Opcode::Lbzu | Opcode::Lbzux | Opcode::Lbzx => Some(DataType::Int8),
-        Opcode::Lhz | Opcode::Lhzu | Opcode::Lhzux | Opcode::Lhzx => Some(DataType::Int16),
-        Opcode::Lha | Opcode::Lhau | Opcode::Lhaux | Opcode::Lhax => Some(DataType::Int16),
-        Opcode::Lwz | Opcode::Lwzu | Opcode::Lwzux | Opcode::Lwzx => Some(DataType::Int32),
-        Opcode::Lfs | Opcode::Lfsu | Opcode::Lfsux | Opcode::Lfsx => Some(DataType::Float),
-        Opcode::Lfd | Opcode::Lfdu | Opcode::Lfdux | Opcode::Lfdx => Some(DataType::Double),
-
-        Opcode::Stb | Opcode::Stbu | Opcode::Stbux | Opcode::Stbx => Some(DataType::Int8),
-        Opcode::Sth | Opcode::Sthu | Opcode::Sthux | Opcode::Sthx => Some(DataType::Int16),
-        Opcode::Stw | Opcode::Stwu | Opcode::Stwux | Opcode::Stwx => Some(DataType::Int32),
-        Opcode::Stfs | Opcode::Stfsu | Opcode::Stfsux | Opcode::Stfsx => Some(DataType::Float),
-        Opcode::Stfd | Opcode::Stfdu | Opcode::Stfdux | Opcode::Stfdx => Some(DataType::Double),
-        _ => None,
-    }
-}
-
 #[derive(Debug)]
 struct PoolReference {
     addr_src_gpr: ppc750cl::GPR,
@@ -536,7 +531,7 @@ fn get_pool_reference_for_inst(
 ) -> Option<PoolReference> {
     use ppc750cl::{Argument, Opcode};
     let args = &simplified.args;
-    if guess_data_type_from_load_store_inst_op(opcode).is_some() {
+    if flow_analysis::guess_data_type_from_load_store_inst_op(opcode).is_some() {
         match (args[1], args[2]) {
             (Argument::Offset(offset), Argument::GPR(addr_src_gpr)) => {
                 // e.g. lwz. Immediate offset.
@@ -668,7 +663,7 @@ fn make_fake_pool_reloc(
 // and returns a Vec of "fake pool relocations" that simulate what a relocation for that instruction
 // would look like if data hadn't been pooled.
 // This method tries to follow the function's proper control flow. It keeps track of a queue of
-// states it hasn't traversed yet, where each state holds an instruction address and a HashMap of
+// states it hasn't traversed yet, where each state holds an instruction address and a map of
 // which registers hold which pool relocations at that point.
 // When a conditional or unconditional branch is encountered, the destination of the branch is added
 // to the queue. Conditional branches will traverse both the path where the branch is taken and the

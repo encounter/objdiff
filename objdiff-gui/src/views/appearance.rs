@@ -23,6 +23,8 @@ pub struct Appearance {
     #[serde(skip)]
     pub highlight_color: Color32, // WHITE
     #[serde(skip)]
+    pub dataflow_color: Color32, //
+    #[serde(skip)]
     pub replace_color: Color32, // LIGHT_BLUE
     #[serde(skip)]
     pub insert_color: Color32, // GREEN
@@ -61,6 +63,7 @@ impl Default for Appearance {
             emphasized_text_color: Color32::LIGHT_GRAY,
             deemphasized_text_color: Color32::DARK_GRAY,
             highlight_color: Color32::WHITE,
+            dataflow_color: Color32::from_rgb(0, 128, 128),
             replace_color: Color32::LIGHT_BLUE,
             insert_color: Color32::GREEN,
             delete_color: Color32::from_rgb(200, 40, 41),
@@ -104,6 +107,7 @@ impl Appearance {
                 self.emphasized_text_color = Color32::LIGHT_GRAY;
                 self.deemphasized_text_color = Color32::DARK_GRAY;
                 self.highlight_color = Color32::WHITE;
+                self.dataflow_color = Color32::from_rgb(0, 128, 128);
                 self.replace_color = Color32::LIGHT_BLUE;
                 self.insert_color = Color32::GREEN;
                 self.delete_color = Color32::from_rgb(200, 40, 41);
@@ -114,6 +118,7 @@ impl Appearance {
                 self.emphasized_text_color = Color32::DARK_GRAY;
                 self.deemphasized_text_color = Color32::LIGHT_GRAY;
                 self.highlight_color = Color32::BLACK;
+                self.dataflow_color = Color32::from_rgb(0, 128, 128);
                 self.replace_color = Color32::DARK_BLUE;
                 self.insert_color = Color32::DARK_GREEN;
                 self.delete_color = Color32::from_rgb(200, 40, 41);
