@@ -197,7 +197,7 @@ impl IndexMut<ppc750cl::FPR> for RegisterState {
 fn execute_instruction(
     registers: &mut RegisterState,
     op: &ppc750cl::Opcode,
-    args: &[ppc750cl::Argument; 5],
+    args: &ppc750cl::Arguments,
 ) {
     use ppc750cl::{Argument, GPR, Opcode};
     match (op, args[0], args[1], args[2]) {
@@ -270,10 +270,12 @@ fn execute_instruction(
     }
 }
 
-fn get_branch_offset(args: &[ppc750cl::Argument; 5]) -> i32 {
+fn get_branch_offset(args: &ppc750cl::Arguments) -> i32 {
     for arg in args.iter() {
-        if let ppc750cl::Argument::BranchDest(dest) = arg {
-            return dest.0 / 4;
+        match arg {
+            ppc750cl::Argument::BranchDest(dest) => return dest.0 / 4,
+            ppc750cl::Argument::None => break,
+            _ => {}
         }
     }
     0
@@ -353,7 +355,7 @@ fn fill_registers_from_relocation(
     current_state: &mut RegisterState,
     obj: &Object,
     op: ppc750cl::Opcode,
-    args: &[ppc750cl::Argument; 5],
+    args: &ppc750cl::Arguments,
 ) {
     // Only update the register state for loads. We may store to a reloc
     // address but that doesn't update register contents.
@@ -553,7 +555,7 @@ fn generate_flow_analysis_result(
                 analysis_result.set_argument_value_at_address(
                     ins_address,
                     1,
-                    FlowAnalysisValue::Text(format!("{}", content)),
+                    FlowAnalysisValue::Text(content.to_string()),
                 );
 
                 // Don't need to show any other data flow if we're showing that
@@ -570,7 +572,7 @@ fn generate_flow_analysis_result(
             if let RegisterContent::Symbol(sym_index) = registers[rel] {
                 if let Some(str) = get_string_data(obj, sym_index, offset) {
                     // Show the string constant in the analysis result
-                    let formatted = format!("\"{}\"", str);
+                    let formatted = format!("\"{str}\"");
                     analysis_result.set_argument_value_at_address(
                         ins_address,
                         2,
@@ -616,8 +618,8 @@ fn generate_flow_analysis_result(
                 }
                 Some(RegisterContent::InputRegister(reg)) => {
                     let reg_name = match arg {
-                        Argument::GPR(_) => format!("input_r{reg}"),
-                        Argument::FPR(_) => format!("input_f{reg}"),
+                        Argument::GPR(_) => format!("in_r{reg}"),
+                        Argument::FPR(_) => format!("in_f{reg}"),
                         _ => panic!("Register content should only be in a register"),
                     };
                     Some(FlowAnalysisValue::Text(reg_name))
