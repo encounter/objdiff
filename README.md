@@ -21,7 +21,7 @@ Supports:
 - MIPS (N64, PS1, PS2, PSP)
 - PowerPC (GameCube, Wii)
 - SuperH (Saturn, Dreamcast)
-- x86 (COFF only)
+- x86, x86_64 (PC)
 
 See [Usage](#usage) for more information.
 
