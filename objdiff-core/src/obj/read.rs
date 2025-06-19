@@ -433,8 +433,8 @@ fn map_relocations(
 }
 
 fn perform_data_flow_analysis(obj: &mut Object, config: &DiffObjConfig) -> Result<()> {
-    // If neither of these settings are on, no flow analysis to perform
-    if !config.analyze_data_flow && !config.ppc_calculate_pool_relocations {
+    // If either of these settings are off, no flow analysis to perform
+    if !config.analyze_data_flow || !config.ppc_calculate_pool_relocations {
         return Ok(());
     }
 
