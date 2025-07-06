@@ -8,14 +8,13 @@ use core::{cmp::Ordering, num::NonZeroU64};
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
-use crate::obj::FlowAnalysisResult;
 
 use crate::{
     arch::{Arch, new_arch},
     diff::DiffObjConfig,
     obj::{
-        Object, Relocation, RelocationFlags, Section, SectionData, SectionFlag, SectionKind,
-        Symbol, SymbolFlag, SymbolKind,
+        FlowAnalysisResult, Object, Relocation, RelocationFlags, Section, SectionData, SectionFlag,
+        SectionKind, Symbol, SymbolFlag, SymbolKind,
         split_meta::{SPLITMETA_SECTION, SplitMeta},
     },
     util::{align_data_slice_to, align_u64_to, read_u16, read_u32},
@@ -476,7 +475,9 @@ fn perform_data_flow_analysis(obj: &mut Object, config: &DiffObjConfig) -> Resul
 
             // Optional full data flow analysis
             if config.analyze_data_flow {
-                if let Some(flow_result) = obj.arch.data_flow_analysis(obj, symbol, code, &section.relocations) {
+                if let Some(flow_result) =
+                    obj.arch.data_flow_analysis(obj, symbol, code, &section.relocations)
+                {
                     generated_flow_results.push((symbol.clone(), flow_result));
                 }
             }

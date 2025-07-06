@@ -328,12 +328,19 @@ impl Object {
         self.symbols.iter().position(|symbol| symbol.section.is_some() && symbol.name == name)
     }
 
-    pub fn get_flow_analysis_result(&self, symbol: &Symbol) -> Option<&Box<dyn FlowAnalysisResult>> {
+    pub fn get_flow_analysis_result(
+        &self,
+        symbol: &Symbol,
+    ) -> Option<&Box<dyn FlowAnalysisResult>> {
         let key = symbol.section.unwrap_or_default() as u64 + symbol.address;
         self.flow_analysis_results.get(&key)
     }
 
-    pub fn add_flow_analysis_result(&mut self, symbol: &Symbol, result: Box<dyn FlowAnalysisResult>) {
+    pub fn add_flow_analysis_result(
+        &mut self,
+        symbol: &Symbol,
+        result: Box<dyn FlowAnalysisResult>,
+    ) {
         let key = symbol.section.unwrap_or_default() as u64 + symbol.address;
         self.flow_analysis_results.insert(key, result);
     }
