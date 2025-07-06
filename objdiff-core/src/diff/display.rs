@@ -189,7 +189,7 @@ pub fn display_row(
     let mut arg_idx = 0;
     let mut displayed_relocation = false;
     let analysis_result = if diff_config.show_data_flow {
-        obj.flow_analysis_results.get(&resolved.symbol.address)
+        obj.get_flow_analysis_result(&resolved.symbol)
     } else {
         None
     };
