@@ -331,9 +331,9 @@ impl Object {
     pub fn get_flow_analysis_result(
         &self,
         symbol: &Symbol,
-    ) -> Option<&Box<dyn FlowAnalysisResult>> {
+    ) -> Option<&dyn FlowAnalysisResult> {
         let key = symbol.section.unwrap_or_default() as u64 + symbol.address;
-        self.flow_analysis_results.get(&key)
+        self.flow_analysis_results.get(&key).map(|result| result.as_ref())
     }
 
     pub fn add_flow_analysis_result(
