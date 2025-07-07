@@ -92,7 +92,7 @@ impl core::fmt::Display for RegisterContent {
             // -i is safe because it's at most a 16 bit constant in the i32
             {
                 if *i >= 0 {
-                    write!(f, "0x{:x}", i)
+                    write!(f, "0x{i:x}")
                 } else {
                     write!(f, "-0x{:x}", -i)
                 }

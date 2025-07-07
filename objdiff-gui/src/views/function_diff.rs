@@ -146,17 +146,17 @@ fn diff_text_ui(
     let label_text = match segment.text {
         DiffText::Basic(text) => text.to_string(),
         DiffText::Line(num) => format!("{num} "),
-        DiffText::Address(addr) => format!("{:x}:", addr),
+        DiffText::Address(addr) => format!("{addr:x}:"),
         DiffText::Opcode(mnemonic, _op) => format!("{mnemonic} "),
         DiffText::Argument(arg) => match arg {
             InstructionArgValue::Signed(v) => format!("{:#x}", ReallySigned(v)),
-            InstructionArgValue::Unsigned(v) => format!("{:#x}", v),
+            InstructionArgValue::Unsigned(v) => format!("{v:#x}"),
             InstructionArgValue::Opaque(v) => v.into_owned(),
         },
         DiffText::BranchDest(addr) => format!("{addr:x}"),
         DiffText::Symbol(sym) => sym.demangled_name.as_ref().unwrap_or(&sym.name).clone(),
         DiffText::Addend(addend) => match addend.cmp(&0i64) {
-            Ordering::Greater => format!("+{:#x}", addend),
+            Ordering::Greater => format!("+{addend:#x}"),
             Ordering::Less => format!("-{:#x}", -addend),
             _ => String::new(),
         },
