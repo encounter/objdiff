@@ -625,7 +625,7 @@ fn generate_flow_analysis_result(
                     Some(FlowAnalysisValue::Text(reg_name))
                 }
                 Some(RegisterContent::Unknown) | Some(RegisterContent::Variable) => None,
-                Some(value) => Some(FlowAnalysisValue::Text(format!("{value}"))),
+                Some(value) => Some(FlowAnalysisValue::Text(value.to_string())),
                 None => None,
             };
             if let Some(analysis_value) = analysis_value {
