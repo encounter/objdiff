@@ -808,7 +808,7 @@ fn split_obj_config_ui(
     for (idx, glob) in state.config.watch_patterns.iter().enumerate() {
         ui.horizontal(|ui| {
             ui.label(
-                RichText::new(format!("{glob}"))
+                RichText::new(glob.to_string())
                     .color(appearance.text_color)
                     .family(FontFamily::Monospace),
             );

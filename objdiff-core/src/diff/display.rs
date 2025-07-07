@@ -609,7 +609,7 @@ pub fn instruction_hover(
                 out.push(HoverItem::Separator);
                 for (literal, label_override) in literals {
                     out.push(HoverItem::Text {
-                        label: label_override.unwrap_or_else(|| format!("{ty}")),
+                        label: label_override.unwrap_or_else(|| ty.to_string()),
                         value: literal,
                         color: HoverItemColor::Normal,
                     });
