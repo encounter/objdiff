@@ -197,7 +197,7 @@ fn match_ni_f(
         }
         _ => {
             parts.push(InstructionPart::basic(".word 0x"));
-            parts.push(InstructionPart::basic(format!("{:04X}", op)));
+            parts.push(InstructionPart::basic(format!("{op:04X}")));
             parts.push(InstructionPart::basic(" /* unknown instruction */"));
         }
     }

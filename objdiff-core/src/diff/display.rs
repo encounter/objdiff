@@ -388,7 +388,7 @@ pub fn symbol_context(obj: &Object, symbol_index: usize) -> Vec<ContextItem> {
     if symbol.section.is_some() {
         if let Some(address) = symbol.virtual_address {
             out.push(ContextItem::Copy {
-                value: format!("{:x}", address),
+                value: format!("{address:x}"),
                 label: Some("virtual address".to_string()),
             });
         }
@@ -405,7 +405,7 @@ pub fn symbol_hover(
 ) -> Vec<HoverItem> {
     let symbol = &obj.symbols[symbol_index];
     let addend_str = match addend.cmp(&0i64) {
-        Ordering::Greater => format!("+{:x}", addend),
+        Ordering::Greater => format!("+{addend:x}"),
         Ordering::Less => format!("-{:x}", -addend),
         _ => String::new(),
     };
@@ -456,7 +456,7 @@ pub fn symbol_hover(
         if let Some(address) = symbol.virtual_address {
             out.push(HoverItem::Text {
                 label: "Virtual address".into(),
-                value: format!("{:x}", address),
+                value: format!("{address:x}"),
                 color: override_color.clone().unwrap_or(HoverItemColor::Special),
             });
         }
@@ -526,7 +526,7 @@ pub fn instruction_context(
     let mut out = Vec::new();
     let mut hex_string = String::new();
     for byte in resolved.code {
-        hex_string.push_str(&format!("{:02x}", byte));
+        hex_string.push_str(&format!("{byte:02x}"));
     }
     out.push(ContextItem::Copy { value: hex_string, label: Some("instruction bytes".to_string()) });
     out.append(&mut obj.arch.instruction_context(obj, resolved));
@@ -609,7 +609,7 @@ pub fn instruction_hover(
                 out.push(HoverItem::Separator);
                 for (literal, label_override) in literals {
                     out.push(HoverItem::Text {
-                        label: label_override.unwrap_or_else(|| format!("{}", ty)),
+                        label: label_override.unwrap_or_else(|| format!("{ty}")),
                         value: literal,
                         color: HoverItemColor::Normal,
                     });

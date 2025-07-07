@@ -60,10 +60,10 @@ pub struct ConfigGroup {
 }
 
 fn build_doc(name: &str, description: Option<&str>) -> TokenStream {
-    let mut doc = format!(" {}", name);
+    let mut doc = format!(" {name}");
     let mut out = quote! { #[doc = #doc] };
     if let Some(description) = description {
-        doc = format!(" {}", description);
+        doc = format!(" {description}");
         out.extend(quote! { #[doc = ""] });
         out.extend(quote! { #[doc = #doc] });
     }
@@ -443,9 +443,9 @@ pub fn generate_diff_config() {
         }
         impl core::fmt::Display for ConfigPropertyValue {
             fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-                match self {
-                    ConfigPropertyValue::Boolean(value) => write!(f, "{}", value),
-                    ConfigPropertyValue::Choice(value) => write!(f, "{}", value),
+                match *self {
+                    ConfigPropertyValue::Boolean(value) => write!(f, "{value}"),
+                    ConfigPropertyValue::Choice(value) => f.write_str(value),
                 }
             }
         }
