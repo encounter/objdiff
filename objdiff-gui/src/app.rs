@@ -542,7 +542,7 @@ impl App {
                 Ok(()) => state.config_error = None,
                 Err(e) => {
                     log::error!("Failed to load project config: {e}");
-                    state.config_error = Some(format!("{e}"));
+                    state.config_error = Some(e.to_string());
                 }
             }
         }

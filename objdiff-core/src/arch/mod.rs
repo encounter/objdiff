@@ -1,4 +1,10 @@
-use alloc::{borrow::Cow, boxed::Box, format, string::String, vec::Vec};
+use alloc::{
+    borrow::Cow,
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::{
     ffi::CStr,
     fmt::{self, Debug},
@@ -50,14 +56,14 @@ pub enum DataType {
 impl fmt::Display for DataType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DataType::Int8 => write!(f, "Int8"),
-            DataType::Int16 => write!(f, "Int16"),
-            DataType::Int32 => write!(f, "Int32"),
-            DataType::Int64 => write!(f, "Int64"),
-            DataType::Float => write!(f, "Float"),
-            DataType::Double => write!(f, "Double"),
-            DataType::Bytes => write!(f, "Bytes"),
-            DataType::String => write!(f, "String"),
+            DataType::Int8 => f.write_str("Int8"),
+            DataType::Int16 => f.write_str("Int16"),
+            DataType::Int32 => f.write_str("Int32"),
+            DataType::Int64 => f.write_str("Int64"),
+            DataType::Float => f.write_str("Float"),
+            DataType::Double => f.write_str("Double"),
+            DataType::Bytes => f.write_str("Bytes"),
+            DataType::String => f.write_str("String"),
         }
     }
 }
@@ -66,7 +72,7 @@ impl DataType {
     pub fn display_labels(&self, endian: object::Endianness, bytes: &[u8]) -> Vec<String> {
         let mut strs = Vec::new();
         for (literal, label_override) in self.display_literals(endian, bytes) {
-            let label = label_override.unwrap_or_else(|| format!("{self}"));
+            let label = label_override.unwrap_or_else(|| self.to_string());
             strs.push(format!("{label}: {literal}"))
         }
         strs
