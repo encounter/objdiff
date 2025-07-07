@@ -87,7 +87,7 @@ impl UiView for FunctionDiffUi {
             .and_then(|(_, _, d)| d.match_percent)
         {
             line_r.spans.push(Span::styled(
-                format!("{:.2}% ", percent),
+                format!("{percent:.2}% "),
                 Style::new().fg(match_percent_color(percent)),
             ));
         }
@@ -97,7 +97,7 @@ impl UiView for FunctionDiffUi {
             .and_then(|t| t.format(&state.time_format).ok())
             .unwrap_or_else(|| "N/A".to_string());
         line_r.spans.push(Span::styled(
-            format!("Last reload: {}", reload_time),
+            format!("Last reload: {reload_time}"),
             Style::new().fg(Color::White),
         ));
         line_r.spans.push(Span::styled(
@@ -538,7 +538,7 @@ impl FunctionDiffUi {
                 let label_text = match segment.text {
                     DiffText::Basic(text) => text.to_string(),
                     DiffText::Line(num) => format!("{num} "),
-                    DiffText::Address(addr) => format!("{:x}:", addr),
+                    DiffText::Address(addr) => format!("{addr:x}:"),
                     DiffText::Opcode(mnemonic, _op) => format!("{mnemonic} "),
                     DiffText::Argument(arg) => arg.to_string(),
                     DiffText::BranchDest(addr) => format!("{addr:x}"),
@@ -546,7 +546,7 @@ impl FunctionDiffUi {
                         sym.demangled_name.as_ref().unwrap_or(&sym.name).clone()
                     }
                     DiffText::Addend(addend) => match addend.cmp(&0i64) {
-                        Ordering::Greater => format!("+{:#x}", addend),
+                        Ordering::Greater => format!("+{addend:#x}"),
                         Ordering::Less => format!("-{:#x}", -addend),
                         _ => String::new(),
                     },

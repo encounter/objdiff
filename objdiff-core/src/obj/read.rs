@@ -42,7 +42,7 @@ fn map_symbol(
         (symbol.kind(), symbol.section_index().and_then(|i| file.section_by_index(i).ok()))
     {
         let section_name = section.name().context("Failed to process section name")?;
-        name = format!("[{}]", section_name);
+        name = format!("[{section_name}]");
         // For section symbols, set the size to zero. If the size is non-zero, it will be included
         // in the diff. Most of the time, this is duplicative, given that we'll have function or
         // object symbols that cover the same range. In the case of an empty section, the size
@@ -252,7 +252,7 @@ fn map_sections(
         });
 
         let unique_id = section_names.entry(name.to_string()).or_insert(0);
-        let id = format!("{}-{}", name, unique_id);
+        let id = format!("{name}-{unique_id}");
         *unique_id += 1;
 
         if section_indices.len() <= section.index().0 {
@@ -378,7 +378,7 @@ fn map_section_relocations(
             }
             object::RelocationTarget::Absolute => {
                 let section_name = obj_section.name()?;
-                log::warn!("Ignoring absolute relocation @ {}:{:#x}", section_name, address);
+                log::warn!("Ignoring absolute relocation @ {section_name}:{address:#x}");
                 continue;
             }
             _ => bail!("Unhandled relocation target: {:?}", reloc.target()),
@@ -516,7 +516,7 @@ fn parse_line_info(
                 let line_number = read_u32(obj_file, &mut section_data)?;
                 let statement_pos = read_u16(obj_file, &mut section_data)?;
                 if statement_pos != 0xFFFF {
-                    log::warn!("Unhandled statement pos {}", statement_pos);
+                    log::warn!("Unhandled statement pos {statement_pos}");
                 }
                 let address_delta = read_u32(obj_file, &mut section_data)? as u64;
                 out_section.line_info.insert(base_address + address_delta, line_number);

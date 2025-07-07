@@ -506,11 +506,7 @@ fn apply_symbol_mappings(
             .map_or(SectionKind::Unknown, |s| s.kind);
         if left_section_kind != right_section_kind {
             log::warn!(
-                "Symbol section kind mismatch: {} ({:?}) vs {} ({:?})",
-                left_name,
-                left_section_kind,
-                right_name,
-                right_section_kind
+                "Symbol section kind mismatch: {left_name} ({left_section_kind:?}) vs {right_name} ({right_section_kind:?})"
             );
             continue;
         }

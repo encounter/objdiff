@@ -109,7 +109,7 @@ impl Arch for ArchSuperH {
                     );
                     parts.push(InstructionPart::basic(" /* "));
                     parts.push(InstructionPart::basic("0x"));
-                    parts.push(InstructionPart::basic(format!("{:04X}", data)));
+                    parts.push(InstructionPart::basic(format!("{data:04X}")));
                     parts.push(InstructionPart::basic(" */"));
                 } else if value.size == 4 && value.address as usize + 3 < symbol_data.len() {
                     let data = u32::from_be_bytes(
@@ -119,7 +119,7 @@ impl Arch for ArchSuperH {
                     );
                     parts.push(InstructionPart::basic(" /* "));
                     parts.push(InstructionPart::basic("0x"));
-                    parts.push(InstructionPart::basic(format!("{:08X}", data)));
+                    parts.push(InstructionPart::basic(format!("{data:08X}")));
                     parts.push(InstructionPart::basic(" */"));
                 }
             }

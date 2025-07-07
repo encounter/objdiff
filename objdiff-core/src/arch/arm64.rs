@@ -2268,7 +2268,7 @@ where Cb: FnMut(InstructionPart<'static>) {
             push_plain(args, "]");
             push_separator(args);
             // TODO does 31 have to be handled separate?
-            args(InstructionPart::opaque(format!("x{}", offset_reg)));
+            args(InstructionPart::opaque(format!("x{offset_reg}")));
         }
         // Fall back to original logic
         Operand::SIMDRegister(_, _)

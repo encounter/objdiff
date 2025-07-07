@@ -461,16 +461,14 @@ fn decode_exception_info(
 
         // Decode the extab data
         let Some(extab_data) = extab_section.data_range(extab_start_addr, extab.size())? else {
-            log::warn!("Failed to get extab data for function {}", extab_func_name);
+            log::warn!("Failed to get extab data for function {extab_func_name}");
             continue;
         };
         let data = match decode_extab(extab_data) {
             Ok(decoded_data) => decoded_data,
             Err(e) => {
                 log::warn!(
-                    "Exception table decoding failed for function {}, reason: {}",
-                    extab_func_name,
-                    e
+                    "Exception table decoding failed for function {extab_func_name}, reason: {e}"
                 );
                 return Ok(None);
             }

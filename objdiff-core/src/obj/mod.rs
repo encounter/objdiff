@@ -169,8 +169,8 @@ impl fmt::Display for InstructionArgValue<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             InstructionArgValue::Signed(v) => write!(f, "{:#x}", ReallySigned(*v)),
-            InstructionArgValue::Unsigned(v) => write!(f, "{:#x}", v),
-            InstructionArgValue::Opaque(v) => write!(f, "{}", v),
+            InstructionArgValue::Unsigned(v) => write!(f, "{v:#x}"),
+            InstructionArgValue::Opaque(v) => write!(f, "{v}"),
         }
     }
 }
@@ -298,7 +298,7 @@ impl Object {
         &self,
         symbol_index: usize,
         ins_ref: InstructionRef,
-    ) -> Option<ResolvedInstructionRef> {
+    ) -> Option<ResolvedInstructionRef<'_>> {
         let symbol = self.symbols.get(symbol_index)?;
         let section_index = symbol.section?;
         let section = self.sections.get(section_index)?;

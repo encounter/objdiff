@@ -390,14 +390,14 @@ pub fn diff_view_ui(
                     let mut needs_separator = false;
                     if let Some(match_percent) = symbol_diff.match_percent {
                         let response = ui.label(
-                            RichText::new(format!("{:.2}%", match_percent))
+                            RichText::new(format!("{match_percent:.2}%"))
                                 .font(appearance.code_font.clone())
                                 .color(match_color_for_symbol(match_percent, appearance)),
                         );
                         if let Some((diff_score, max_score)) = symbol_diff.diff_score {
                             response.on_hover_ui_at_pointer(|ui| {
                                 ui.label(
-                                    RichText::new(format!("Score: {}/{}", diff_score, max_score))
+                                    RichText::new(format!("Score: {diff_score}/{max_score}"))
                                         .font(appearance.code_font.clone())
                                         .color(appearance.text_color),
                                 );
