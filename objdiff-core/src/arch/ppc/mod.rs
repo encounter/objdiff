@@ -634,6 +634,7 @@ fn make_fake_pool_reloc(
             s.section == Some(section_index)
                 && s.size > 0
                 && !s.flags.contains(SymbolFlag::Hidden)
+                && !s.flags.contains(SymbolFlag::Ignored)
                 && (s.address..s.address + s.size).contains(&target_address)
         })?;
         addend = target_address.checked_sub(symbols[target_symbol].address)? as i64;
