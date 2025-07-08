@@ -189,7 +189,7 @@ pub fn display_row(
     let mut arg_idx = 0;
     let mut displayed_relocation = false;
     let analysis_result = if diff_config.show_data_flow {
-        obj.flow_analysis_results.get(&resolved.symbol.address)
+        obj.get_flow_analysis_result(resolved.symbol)
     } else {
         None
     };
@@ -217,7 +217,7 @@ pub fn display_row(
             }
             let data_flow_value =
             analysis_result.and_then(|result|
-                result.as_ref().get_argument_value_at_address(
+                result.get_argument_value_at_address(
                     ins_ref.address, (arg_idx - 1) as u8));
             match (arg, data_flow_value, resolved.ins_ref.branch_dest) {
                 // If we have a flow analysis result, always use that over anything else.

@@ -1,4 +1,5 @@
 use alloc::{
+    boxed::Box,
     collections::BTreeMap,
     format,
     string::{String, ToString},
@@ -13,8 +14,8 @@ use crate::{
     arch::{Arch, new_arch},
     diff::DiffObjConfig,
     obj::{
-        Object, Relocation, RelocationFlags, Section, SectionData, SectionFlag, SectionKind,
-        Symbol, SymbolFlag, SymbolKind,
+        FlowAnalysisResult, Object, Relocation, RelocationFlags, Section, SectionData, SectionFlag,
+        SectionKind, Symbol, SymbolFlag, SymbolKind,
         split_meta::{SPLITMETA_SECTION, SplitMeta},
     },
     util::{align_data_slice_to, align_u64_to, read_u16, read_u32},
@@ -439,6 +440,7 @@ fn perform_data_flow_analysis(obj: &mut Object, config: &DiffObjConfig) -> Resul
     }
 
     let mut generated_relocations = Vec::<(usize, Vec<Relocation>)>::new();
+    let mut generated_flow_results = Vec::<(Symbol, Box<dyn FlowAnalysisResult>)>::new();
     for (section_index, section) in obj.sections.iter().enumerate() {
         if section.kind != SectionKind::Code {
             continue;
@@ -474,11 +476,16 @@ fn perform_data_flow_analysis(obj: &mut Object, config: &DiffObjConfig) -> Resul
 
             // Optional full data flow analysis
             if config.analyze_data_flow {
-                obj.arch.data_flow_analysis(obj, symbol, code, &section.relocations).and_then(
-                    |flow_result| obj.flow_analysis_results.insert(symbol.address, flow_result),
-                );
+                if let Some(flow_result) =
+                    obj.arch.data_flow_analysis(obj, symbol, code, &section.relocations)
+                {
+                    generated_flow_results.push((symbol.clone(), flow_result));
+                }
             }
         }
+    }
+    for (symbol, flow_result) in generated_flow_results {
+        obj.add_flow_analysis_result(&symbol, flow_result);
     }
     for (section_index, mut relocations) in generated_relocations {
         obj.sections[section_index].relocations.append(&mut relocations);
