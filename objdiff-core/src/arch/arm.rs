@@ -575,7 +575,7 @@ fn push_args(
                     arg_cb(InstructionPart::basic("}"))?;
                 }
                 args::Argument::CoprocNum(value) => {
-                    arg_cb(InstructionPart::opaque(format!("p{}", value)))?;
+                    arg_cb(InstructionPart::opaque(format!("p{value}")))?;
                 }
                 args::Argument::ShiftImm(shift) => {
                     arg_cb(InstructionPart::opaque(shift.op.to_string()))?;

@@ -92,7 +92,7 @@ impl core::fmt::Display for RegisterContent {
             // -i is safe because it's at most a 16 bit constant in the i32
             {
                 if *i >= 0 {
-                    write!(f, "0x{:x}", i)
+                    write!(f, "0x{i:x}")
                 } else {
                     write!(f, "-0x{:x}", -i)
                 }
@@ -625,7 +625,7 @@ fn generate_flow_analysis_result(
                     Some(FlowAnalysisValue::Text(reg_name))
                 }
                 Some(RegisterContent::Unknown) | Some(RegisterContent::Variable) => None,
-                Some(value) => Some(FlowAnalysisValue::Text(format!("{value}"))),
+                Some(value) => Some(FlowAnalysisValue::Text(value.to_string())),
                 None => None,
             };
             if let Some(analysis_value) = analysis_value {

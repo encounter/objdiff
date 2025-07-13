@@ -380,7 +380,7 @@ fn object_context_ui(ui: &mut egui::Ui, object: &ObjectConfig) {
             .on_hover_text("Open the source file in the default editor")
             .clicked()
         {
-            log::info!("Opening file {}", source_path);
+            log::info!("Opening file {source_path}");
             if let Err(e) = open::that_detached(source_path.as_str()) {
                 log::error!("Failed to open source file: {e}");
             }
@@ -509,7 +509,7 @@ fn format_path(path: &Option<Utf8PlatformPathBuf>, appearance: &Appearance) -> R
             .and_then(|home| check_path_buf(home).ok())
             .and_then(|home| dir.strip_prefix(&home).ok())
         {
-            format!("~{}{}", MAIN_SEPARATOR, rel)
+            format!("~{MAIN_SEPARATOR}{rel}")
         } else {
             dir.to_string()
         }
@@ -808,7 +808,7 @@ fn split_obj_config_ui(
     for (idx, glob) in state.config.watch_patterns.iter().enumerate() {
         ui.horizontal(|ui| {
             ui.label(
-                RichText::new(format!("{}", glob))
+                RichText::new(glob.to_string())
                     .color(appearance.text_color)
                     .family(FontFamily::Monospace),
             );

@@ -1,4 +1,10 @@
-use alloc::{borrow::Cow, boxed::Box, format, string::String, vec::Vec};
+use alloc::{
+    borrow::Cow,
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::{
     ffi::CStr,
     fmt::{self, Debug},
@@ -50,14 +56,14 @@ pub enum DataType {
 impl fmt::Display for DataType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DataType::Int8 => write!(f, "Int8"),
-            DataType::Int16 => write!(f, "Int16"),
-            DataType::Int32 => write!(f, "Int32"),
-            DataType::Int64 => write!(f, "Int64"),
-            DataType::Float => write!(f, "Float"),
-            DataType::Double => write!(f, "Double"),
-            DataType::Bytes => write!(f, "Bytes"),
-            DataType::String => write!(f, "String"),
+            DataType::Int8 => f.write_str("Int8"),
+            DataType::Int16 => f.write_str("Int16"),
+            DataType::Int32 => f.write_str("Int32"),
+            DataType::Int64 => f.write_str("Int64"),
+            DataType::Float => f.write_str("Float"),
+            DataType::Double => f.write_str("Double"),
+            DataType::Bytes => f.write_str("Bytes"),
+            DataType::String => f.write_str("String"),
         }
     }
 }
@@ -66,8 +72,8 @@ impl DataType {
     pub fn display_labels(&self, endian: object::Endianness, bytes: &[u8]) -> Vec<String> {
         let mut strs = Vec::new();
         for (literal, label_override) in self.display_literals(endian, bytes) {
-            let label = label_override.unwrap_or_else(|| format!("{}", self));
-            strs.push(format!("{}: {}", label, literal))
+            let label = label_override.unwrap_or_else(|| self.to_string());
+            strs.push(format!("{label}: {literal}"))
         }
         strs
     }
@@ -100,7 +106,7 @@ impl DataType {
         match self {
             DataType::Int8 => {
                 let i = i8::from_ne_bytes(bytes.try_into().unwrap());
-                strs.push((format!("{:#x}", i), None));
+                strs.push((format!("{i:#x}"), None));
 
                 if i < 0 {
                     strs.push((format!("{:#x}", ReallySigned(i)), None));
@@ -108,7 +114,7 @@ impl DataType {
             }
             DataType::Int16 => {
                 let i = endian.read_i16_bytes(bytes.try_into().unwrap());
-                strs.push((format!("{:#x}", i), None));
+                strs.push((format!("{i:#x}"), None));
 
                 if i < 0 {
                     strs.push((format!("{:#x}", ReallySigned(i)), None));
@@ -116,7 +122,7 @@ impl DataType {
             }
             DataType::Int32 => {
                 let i = endian.read_i32_bytes(bytes.try_into().unwrap());
-                strs.push((format!("{:#x}", i), None));
+                strs.push((format!("{i:#x}"), None));
 
                 if i < 0 {
                     strs.push((format!("{:#x}", ReallySigned(i)), None));
@@ -124,7 +130,7 @@ impl DataType {
             }
             DataType::Int64 => {
                 let i = endian.read_i64_bytes(bytes.try_into().unwrap());
-                strs.push((format!("{:#x}", i), None));
+                strs.push((format!("{i:#x}"), None));
 
                 if i < 0 {
                     strs.push((format!("{:#x}", ReallySigned(i)), None));
@@ -151,16 +157,16 @@ impl DataType {
                 ));
             }
             DataType::Bytes => {
-                strs.push((format!("{:#?}", bytes), None));
+                strs.push((format!("{bytes:#?}"), None));
             }
             DataType::String => {
                 if let Ok(cstr) = CStr::from_bytes_until_nul(bytes) {
-                    strs.push((format!("{:?}", cstr), None));
+                    strs.push((format!("{cstr:?}"), None));
                 }
                 if let Some(nul_idx) = bytes.iter().position(|&c| c == b'\0') {
                     let (cow, _, had_errors) = SHIFT_JIS.decode(&bytes[..nul_idx]);
                     if !had_errors {
-                        let str = format!("{:?}", cow);
+                        let str = format!("{cow:?}");
                         // Only add the Shift JIS string if it's different from the ASCII string.
                         if !strs.iter().any(|x| x.0 == str) {
                             strs.push((str, Some("Shift JIS".into())));

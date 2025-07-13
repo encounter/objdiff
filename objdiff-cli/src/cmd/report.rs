@@ -177,16 +177,14 @@ fn report_object(
         .target_path
         .as_ref()
         .map(|p| {
-            obj::read::read(p.as_ref(), diff_config)
-                .with_context(|| format!("Failed to open {}", p))
+            obj::read::read(p.as_ref(), diff_config).with_context(|| format!("Failed to open {p}"))
         })
         .transpose()?;
     let base = object
         .base_path
         .as_ref()
         .map(|p| {
-            obj::read::read(p.as_ref(), diff_config)
-                .with_context(|| format!("Failed to open {}", p))
+            obj::read::read(p.as_ref(), diff_config).with_context(|| format!("Failed to open {p}"))
         })
         .transpose()?;
     let result =
@@ -433,8 +431,8 @@ fn read_report(path: &Utf8PlatformPath) -> Result<Report> {
         std::io::stdin().read_to_end(&mut data)?;
         return Report::parse(&data).with_context(|| "Failed to load report from stdin");
     }
-    let file = File::open(path).with_context(|| format!("Failed to open {}", path))?;
+    let file = File::open(path).with_context(|| format!("Failed to open {path}"))?;
     let mmap =
-        unsafe { memmap2::Mmap::map(&file) }.with_context(|| format!("Failed to map {}", path))?;
-    Report::parse(mmap.as_ref()).with_context(|| format!("Failed to load report {}", path))
+        unsafe { memmap2::Mmap::map(&file) }.with_context(|| format!("Failed to map {path}"))?;
+    Report::parse(mmap.as_ref()).with_context(|| format!("Failed to load report {path}"))
 }

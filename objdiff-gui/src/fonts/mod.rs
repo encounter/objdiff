@@ -25,7 +25,7 @@ pub fn load_font_family(
 ) -> Option<LoadedFontFamily> {
     let family_handle = source.select_family_by_name(name).ok()?;
     if family_handle.fonts().is_empty() {
-        log::warn!("No fonts found for family '{}'", name);
+        log::warn!("No fonts found for family '{name}'");
         return None;
     }
     let handles = family_handle.fonts().to_vec();
@@ -34,7 +34,7 @@ pub fn load_font_family(
         match font_kit::loaders::default::Font::from_handle(handle) {
             Ok(font) => loaded.push(font),
             Err(err) => {
-                log::warn!("Failed to load font '{}': {}", name, err);
+                log::warn!("Failed to load font '{name}': {err}");
                 return None;
             }
         }
@@ -89,7 +89,7 @@ pub fn load_font_if_needed(
         egui::FontFamily::Name(v) => v,
     };
     let family = load_font_family(source, family_name)
-        .with_context(|| format!("Failed to load font family '{}'", family_name))?;
+        .with_context(|| format!("Failed to load font family '{family_name}'"))?;
     let default_fonts = fonts.families.get(&base_family).cloned().unwrap_or_default();
     // FIXME clean up
     let default_font_ref = family.fonts.get(family.default_index).unwrap();

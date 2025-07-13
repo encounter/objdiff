@@ -157,7 +157,7 @@ pub fn graphics_window(
                                 state.should_relaunch = true;
                             }
                             Err(e) => {
-                                log::error!("Failed to save graphics config: {:?}", e);
+                                log::error!("Failed to save graphics config: {e:?}");
                                 state.graphics_config.desired_backend = prev_backend;
                             }
                         }
