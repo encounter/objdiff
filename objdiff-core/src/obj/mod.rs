@@ -273,7 +273,7 @@ pub struct Object {
     pub path: Option<std::path::PathBuf>,
     #[cfg(feature = "std")]
     pub timestamp: Option<filetime::FileTime>,
-    flow_analysis_results: BTreeMap<u64, Box<dyn FlowAnalysisResult>>,
+    pub flow_analysis_results: BTreeMap<u64, Box<dyn FlowAnalysisResult>>,
 }
 
 impl Default for Object {
@@ -329,7 +329,7 @@ impl Object {
     }
 
     pub fn get_flow_analysis_result(&self, symbol: &Symbol) -> Option<&dyn FlowAnalysisResult> {
-        let key = symbol.section.unwrap_or_default() as u64 + symbol.address;
+        let key = symbol.section.unwrap_or_default() as u64 * 1024 * 1024 * 1024 + symbol.address;
         self.flow_analysis_results.get(&key).map(|result| result.as_ref())
     }
 
@@ -338,7 +338,7 @@ impl Object {
         symbol: &Symbol,
         result: Box<dyn FlowAnalysisResult>,
     ) {
-        let key = symbol.section.unwrap_or_default() as u64 + symbol.address;
+        let key = symbol.section.unwrap_or_default() as u64 * 1024 * 1024 * 1024 + symbol.address;
         self.flow_analysis_results.insert(key, result);
     }
 
