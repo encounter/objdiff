@@ -114,7 +114,17 @@ impl Section {
         ins_ref: InstructionRef,
     ) -> Option<ResolvedRelocation<'obj>> {
         match self.relocations.binary_search_by_key(&ins_ref.address, |r| r.address) {
-            Ok(i) => self.relocations.get(i),
+            Ok(mut i) => {
+                // Find the first relocation at the address
+                while i
+                    .checked_sub(1)
+                    .and_then(|n| self.relocations.get(n))
+                    .is_some_and(|r| r.address == ins_ref.address)
+                {
+                    i -= 1;
+                }
+                self.relocations.get(i)
+            }
             Err(i) => self
                 .relocations
                 .get(i)

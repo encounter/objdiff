@@ -4,6 +4,9 @@ expression: obj
 ---
 Object {
     arch: ArchPpc {
+        extensions: Extensions(
+            2,
+        ),
         extab: None,
     },
     endianness: Big,

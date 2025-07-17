@@ -55,16 +55,16 @@ pub enum DataType {
 
 impl fmt::Display for DataType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DataType::Int8 => f.write_str("Int8"),
-            DataType::Int16 => f.write_str("Int16"),
-            DataType::Int32 => f.write_str("Int32"),
-            DataType::Int64 => f.write_str("Int64"),
-            DataType::Float => f.write_str("Float"),
-            DataType::Double => f.write_str("Double"),
-            DataType::Bytes => f.write_str("Bytes"),
-            DataType::String => f.write_str("String"),
-        }
+        f.write_str(match self {
+            DataType::Int8 => "Int8",
+            DataType::Int16 => "Int16",
+            DataType::Int32 => "Int32",
+            DataType::Int64 => "Int64",
+            DataType::Float => "Float",
+            DataType::Double => "Double",
+            DataType::Bytes => "Bytes",
+            DataType::String => "String",
+        })
     }
 }
 

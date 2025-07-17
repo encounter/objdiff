@@ -11,6 +11,6 @@ objdiff-core contains the core functionality of [objdiff](https://github.com/enc
 - **`arm64`**: Enables the ARM64 backend powered by [yaxpeax-arm](https://github.com/iximeow/yaxpeax-arm).
 - **`arm`**: Enables the ARM backend powered by [unarm](https://github.com/AetiasHax/unarm).
 - **`mips`**: Enables the MIPS backend powered by [rabbitizer](https://github.com/Decompollaborate/rabbitizer).
-- **`ppc`**: Enables the PowerPC backend powered by [ppc750cl](https://github.com/encounter/ppc750cl).
+- **`ppc`**: Enables the PowerPC backend powered by [powerpc](https://github.com/encounter/powerpc-rs).
 - **`superh`**: Enables the SuperH backend powered by an included disassembler.
 - **`x86`**: Enables the x86 backend powered by [iced-x86](https://crates.io/crates/iced-x86).

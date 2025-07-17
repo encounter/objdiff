@@ -92,7 +92,7 @@ ppc = [
     "any-arch",
     "dep:cwdemangle",
     "dep:cwextab",
-    "dep:ppc750cl",
+    "dep:powerpc",
     "dep:rlwinmdec",
 ]
 x86 = [
@@ -128,7 +128,7 @@ itertools = { version = "0.14", default-features = false, features = ["use_alloc
 log = { version = "0.4", default-features = false, optional = true }
 memmap2 = { version = "0.9", optional = true }
 num-traits = { version = "0.2", default-features = false, optional = true }
-object = { git = "https://github.com/gimli-rs/object", rev = "a74579249e21ab8fcd3a86be588de336f18297cb", default-features = false, features = ["read_core", "elf", "pe"] }
+object = { git = "https://github.com/gimli-rs/object", rev = "16ff70aa6fbd97d6bb7b92375929f4d72414c32b", default-features = false, features = ["read_core", "elf", "pe"] }
 pbjson = { version = "0.7", default-features = false, optional = true }
 prost = { version = "0.13", default-features = false, features = ["prost-derive"], optional = true }
 regex = { version = "1.11", default-features = false, features = [], optional = true }
@@ -147,7 +147,7 @@ gimli = { version = "0.31", default-features = false, features = ["read"], optio
 # ppc
 cwdemangle = { version = "1.0", optional = true }
 cwextab = { version = "1.0", optional = true }
-ppc750cl = { version = "0.3", optional = true }
+powerpc = { version = "0.4", optional = true }
 rlwinmdec = { version = "1.1", optional = true }
 
 # mips
