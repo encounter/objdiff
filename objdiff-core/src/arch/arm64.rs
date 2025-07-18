@@ -115,7 +115,7 @@ impl Arch for ArchArm64 {
         address: u64,
         _relocation: &object::Relocation,
         flags: RelocationFlags,
-    ) -> Result<i64> {
+    ) -> Result<Option<i64>> {
         bail!("Unsupported ARM64 implicit relocation {:#x}:{:?}", address, flags)
     }
 

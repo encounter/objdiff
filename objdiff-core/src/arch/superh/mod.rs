@@ -139,7 +139,7 @@ impl Arch for ArchSuperH {
         address: u64,
         _relocation: &object::Relocation,
         flags: RelocationFlags,
-    ) -> Result<i64> {
+    ) -> Result<Option<i64>> {
         bail!("Unsupported SuperH implicit relocation {:#x}:{:?}", address, flags)
     }
 

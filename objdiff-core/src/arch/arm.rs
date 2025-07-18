@@ -363,10 +363,10 @@ impl Arch for ArchArm {
         address: u64,
         _relocation: &object::Relocation,
         flags: RelocationFlags,
-    ) -> Result<i64> {
+    ) -> Result<Option<i64>> {
         let section_data = section.data()?;
         let address = address as usize;
-        Ok(match flags {
+        Ok(Some(match flags {
             // ARM calls
             RelocationFlags::Elf(elf::R_ARM_PC24)
             | RelocationFlags::Elf(elf::R_ARM_XPC25)
@@ -396,7 +396,7 @@ impl Arch for ArchArm {
             }
 
             flags => bail!("Unsupported ARM implicit relocation {flags:?}"),
-        } as i64)
+        } as i64))
     }
 
     fn demangle(&self, name: &str) -> Option<String> {

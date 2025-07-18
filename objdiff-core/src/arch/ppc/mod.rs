@@ -6,10 +6,10 @@ use alloc::{
     vec::Vec,
 };
 
-use anyhow::{Result, bail, ensure};
+use anyhow::{Result, anyhow, bail, ensure};
 use cwextab::{ExceptionTableData, decode_extab};
 use flagset::Flags;
-use object::{Endian as _, Object as _, ObjectSection as _, ObjectSymbol as _, elf, pe};
+use object::{Object as _, ObjectSection as _, ObjectSymbol as _, elf, pe};
 
 use crate::{
     arch::{Arch, DataType},
@@ -210,32 +210,35 @@ impl Arch for ArchPpc {
 
     fn implcit_addend(
         &self,
-        file: &object::File<'_>,
+        _file: &object::File<'_>,
         section: &object::Section,
         address: u64,
         _relocation: &object::Relocation,
         flags: RelocationFlags,
-    ) -> Result<i64> {
-        let section_data = section.data()?;
-        let address = address as usize;
-        let data = section_data
-            .get(address..address + 4)
-            .ok_or_else(|| anyhow::anyhow!("Invalid address {address} for section data"))?
-            .try_into()?;
-        let code = file.endianness().read_u32_bytes(data);
-        Ok(match flags {
+    ) -> Result<Option<i64>> {
+        match flags {
+            // IMAGE_REL_PPC_PAIR contains the REF{HI,LO} displacement instead of a symbol index
             RelocationFlags::Coff(pe::IMAGE_REL_PPC_REFHI)
-            | RelocationFlags::Coff(pe::IMAGE_REL_PPC_REFLO) => (code & 0xffff) as i16 as i32,
-            RelocationFlags::Coff(pe::IMAGE_REL_PPC_REL24) => {
-                // let addend = (((code & 0x3fffffc) << 6) as i32) >> 6;
-                // println!("PPC_REL24 addend: {data:?} => {addend}");
-                // addend
-                0
-            }
-            RelocationFlags::Coff(pe::IMAGE_REL_PPC_ADDR32) => code as i32,
-            RelocationFlags::Coff(pe::IMAGE_REL_PPC_PAIR) => 0,
-            flags => bail!("Unsupported PPC implicit relocation {flags:?}"),
-        } as i64)
+            | RelocationFlags::Coff(pe::IMAGE_REL_PPC_REFLO) => section
+                .relocations()
+                .skip_while(|&(a, _)| a < address)
+                .take_while(|&(a, _)| a == address)
+                .find(|(_, reloc)| {
+                    matches!(reloc.flags(), object::RelocationFlags::Coff {
+                        typ: pe::IMAGE_REL_PPC_PAIR
+                    })
+                })
+                .map_or(Ok(Some(0)), |(_, reloc)| match reloc.target() {
+                    object::RelocationTarget::Symbol(index) => {
+                        Ok(Some(index.0 as u16 as i16 as i64))
+                    }
+                    target => Err(anyhow!("Unsupported IMAGE_REL_PPC_PAIR target {target:?}")),
+                }),
+            // Skip PAIR relocations as they are handled by the previous case
+            RelocationFlags::Coff(pe::IMAGE_REL_PPC_PAIR) => Ok(None),
+            RelocationFlags::Coff(_) => Ok(Some(0)),
+            flags => Err(anyhow!("Unsupported PPC implicit relocation {flags:?}")),
+        }
     }
 
     fn demangle(&self, name: &str) -> Option<String> {
@@ -263,7 +266,15 @@ impl Arch for ArchPpc {
                 elf::R_PPC_REL14 => Some("R_PPC_REL14"),
                 _ => None,
             },
-            _ => None,
+            RelocationFlags::Coff(r_type) => match r_type {
+                pe::IMAGE_REL_PPC_ADDR32 => Some("IMAGE_REL_PPC_ADDR32"),
+                pe::IMAGE_REL_PPC_REFHI => Some("IMAGE_REL_PPC_REFHI"),
+                pe::IMAGE_REL_PPC_REFLO => Some("IMAGE_REL_PPC_REFLO"),
+                pe::IMAGE_REL_PPC_REL24 => Some("IMAGE_REL_PPC_REL24"),
+                pe::IMAGE_REL_PPC_REL14 => Some("IMAGE_REL_PPC_REL14"),
+                pe::IMAGE_REL_PPC_PAIR => Some("IMAGE_REL_PPC_PAIR"),
+                _ => None,
+            },
         }
     }
 

@@ -232,7 +232,7 @@ impl Arch for ArchMips {
         address: u64,
         reloc: &object::Relocation,
         flags: RelocationFlags,
-    ) -> Result<i64> {
+    ) -> Result<Option<i64>> {
         // Check for paired R_MIPS_HI16 and R_MIPS_LO16 relocations.
         if let RelocationFlags::Elf(elf::R_MIPS_HI16 | elf::R_MIPS_LO16) = flags {
             if let Some(addend) = self
@@ -240,14 +240,14 @@ impl Arch for ArchMips {
                 .get(section.index().0)
                 .and_then(|m| m.get(&address).copied())
             {
-                return Ok(addend);
+                return Ok(Some(addend));
             }
         }
 
         let data = section.data()?;
         let code = data[address as usize..address as usize + 4].try_into()?;
         let addend = self.endianness.read_u32_bytes(code);
-        Ok(match flags {
+        Ok(Some(match flags {
             RelocationFlags::Elf(elf::R_MIPS_32) => addend as i64,
             RelocationFlags::Elf(elf::R_MIPS_26) => ((addend & 0x03FFFFFF) << 2) as i64,
             RelocationFlags::Elf(elf::R_MIPS_HI16) => ((addend & 0x0000FFFF) << 16) as i32 as i64,
@@ -271,7 +271,7 @@ impl Arch for ArchMips {
             RelocationFlags::Elf(elf::R_MIPS_PC16) => 0, // PC-relative relocation
             RelocationFlags::Elf(R_MIPS15_S3) => ((addend & 0x001FFFC0) >> 3) as i64,
             flags => bail!("Unsupported MIPS implicit relocation {flags:?}"),
-        })
+        }))
     }
 
     fn demangle(&self, name: &str) -> Option<String> {

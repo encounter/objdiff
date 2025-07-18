@@ -232,14 +232,14 @@ impl Arch for ArchX86 {
         address: u64,
         _relocation: &object::Relocation,
         flags: RelocationFlags,
-    ) -> Result<i64> {
+    ) -> Result<Option<i64>> {
         match self.arch {
             Architecture::X86 => match flags {
                 RelocationFlags::Coff(pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32)
                 | RelocationFlags::Elf(elf::R_386_32 | elf::R_386_PC32) => {
                     let data =
                         section.data()?[address as usize..address as usize + 4].try_into()?;
-                    Ok(self.endianness.read_i32_bytes(data) as i64)
+                    Ok(Some(self.endianness.read_i32_bytes(data) as i64))
                 }
                 flags => bail!("Unsupported x86 implicit relocation {flags:?}"),
             },
@@ -248,13 +248,13 @@ impl Arch for ArchX86 {
                 | RelocationFlags::Elf(elf::R_X86_64_32 | elf::R_X86_64_PC32) => {
                     let data =
                         section.data()?[address as usize..address as usize + 4].try_into()?;
-                    Ok(self.endianness.read_i32_bytes(data) as i64)
+                    Ok(Some(self.endianness.read_i32_bytes(data) as i64))
                 }
                 RelocationFlags::Coff(pe::IMAGE_REL_AMD64_ADDR64)
                 | RelocationFlags::Elf(elf::R_X86_64_64) => {
                     let data =
                         section.data()?[address as usize..address as usize + 8].try_into()?;
-                    Ok(self.endianness.read_i64_bytes(data))
+                    Ok(Some(self.endianness.read_i64_bytes(data)))
                 }
                 flags => bail!("Unsupported x86-64 implicit relocation {flags:?}"),
             },

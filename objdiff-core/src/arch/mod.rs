@@ -364,7 +364,7 @@ pub trait Arch: Send + Sync + Debug {
         address: u64,
         relocation: &object::Relocation,
         flags: RelocationFlags,
-    ) -> Result<i64>;
+    ) -> Result<Option<i64>>;
 
     fn demangle(&self, _name: &str) -> Option<String> { None }
 
@@ -463,8 +463,8 @@ impl Arch for ArchDummy {
         _address: u64,
         _relocation: &object::Relocation,
         _flags: RelocationFlags,
-    ) -> Result<i64> {
-        Ok(0)
+    ) -> Result<Option<i64>> {
+        Ok(Some(0))
     }
 
     fn data_reloc_size(&self, _flags: RelocationFlags) -> usize { 0 }

@@ -338,7 +338,10 @@ fn map_section_relocations(
         };
         // TODO validate reloc here?
         let mut addend = if reloc.has_implicit_addend() {
-            arch.implcit_addend(obj_file, obj_section, address, &reloc, flags)?
+            match arch.implcit_addend(obj_file, obj_section, address, &reloc, flags)? {
+                Some(addend) => addend,
+                None => continue, // Skip relocation (e.g. COFF PAIR relocations)
+            }
         } else {
             reloc.addend()
         };
