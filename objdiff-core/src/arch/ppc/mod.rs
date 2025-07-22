@@ -12,7 +12,7 @@ use flagset::Flags;
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _, elf, pe};
 
 use crate::{
-    arch::{Arch, DataType},
+    arch::{Arch, DataType, RelocationOverride, RelocationOverrideTarget},
     diff::{
         DiffObjConfig,
         data::resolve_relocation,
@@ -100,6 +100,7 @@ impl ArchPpc {
             | RelocationFlags::Coff(pe::IMAGE_REL_PPC_REFHI | pe::IMAGE_REL_PPC_REFLO) => {
                 ins.args.iter().rposition(is_rel_abs_arg)
             }
+            RelocationFlags::Elf(elf::R_PPC64_TOC16) => ins.args.iter().rposition(is_offset_arg),
             _ => None,
         }
     }
@@ -208,18 +209,18 @@ impl Arch for ArchPpc {
         Some(flow_analysis::ppc_data_flow_analysis(obj, symbol, code, relocations, self.extensions))
     }
 
-    fn implcit_addend(
+    fn relocation_override(
         &self,
-        _file: &object::File<'_>,
+        file: &object::File<'_>,
         section: &object::Section,
         address: u64,
-        _relocation: &object::Relocation,
-        flags: RelocationFlags,
-    ) -> Result<Option<i64>> {
-        match flags {
+        relocation: &object::Relocation,
+    ) -> Result<Option<RelocationOverride>> {
+        match relocation.flags() {
             // IMAGE_REL_PPC_PAIR contains the REF{HI,LO} displacement instead of a symbol index
-            RelocationFlags::Coff(pe::IMAGE_REL_PPC_REFHI)
-            | RelocationFlags::Coff(pe::IMAGE_REL_PPC_REFLO) => section
+            object::RelocationFlags::Coff {
+                typ: pe::IMAGE_REL_PPC_REFHI | pe::IMAGE_REL_PPC_REFLO,
+            } => section
                 .relocations()
                 .skip_while(|&(a, _)| a < address)
                 .take_while(|&(a, _)| a == address)
@@ -228,23 +229,81 @@ impl Arch for ArchPpc {
                         typ: pe::IMAGE_REL_PPC_PAIR
                     })
                 })
-                .map_or(Ok(Some(0)), |(_, reloc)| match reloc.target() {
-                    object::RelocationTarget::Symbol(index) => {
-                        Ok(Some(index.0 as u16 as i16 as i64))
-                    }
+                .map_or(Ok(None), |(_, reloc)| match reloc.target() {
+                    object::RelocationTarget::Symbol(index) => Ok(Some(RelocationOverride {
+                        target: RelocationOverrideTarget::Keep,
+                        addend: index.0 as u16 as i16 as i64,
+                    })),
                     target => Err(anyhow!("Unsupported IMAGE_REL_PPC_PAIR target {target:?}")),
                 }),
             // Skip PAIR relocations as they are handled by the previous case
-            RelocationFlags::Coff(pe::IMAGE_REL_PPC_PAIR) => Ok(None),
-            RelocationFlags::Coff(_) => Ok(Some(0)),
-            flags => Err(anyhow!("Unsupported PPC implicit relocation {flags:?}")),
+            object::RelocationFlags::Coff { typ: pe::IMAGE_REL_PPC_PAIR } => {
+                Ok(Some(RelocationOverride { target: RelocationOverrideTarget::Skip, addend: 0 }))
+            }
+            // Any other COFF relocation has an addend of 0
+            object::RelocationFlags::Coff { .. } => {
+                Ok(Some(RelocationOverride { target: RelocationOverrideTarget::Keep, addend: 0 }))
+            }
+            // Handle ELF implicit relocations
+            flags @ object::RelocationFlags::Elf { r_type } => {
+                ensure!(
+                    !relocation.has_implicit_addend(),
+                    "Unsupported implicit relocation {:?}",
+                    flags
+                );
+                match r_type {
+                    elf::R_PPC64_TOC16 => {
+                        let offset = u64::try_from(relocation.addend())
+                            .map_err(|_| anyhow!("Negative addend for R_PPC64_TOC16 relocation"))?;
+                        let Some(toc_section) = file.section_by_name(".toc") else {
+                            bail!("Missing .toc section for R_PPC64_TOC16 relocation");
+                        };
+                        // If TOC target is a relocation, replace it with the target symbol
+                        let Some((_, toc_relocation)) =
+                            toc_section.relocations().find(|&(a, _)| a == offset)
+                        else {
+                            return Ok(None);
+                        };
+                        if toc_relocation.has_implicit_addend() {
+                            log::warn!(
+                                "Unsupported implicit addend for R_PPC64_TOC16 relocation: {toc_relocation:?}"
+                            );
+                            return Ok(None);
+                        }
+                        let addend = toc_relocation.addend();
+                        match toc_relocation.target() {
+                            object::RelocationTarget::Symbol(symbol_index) => {
+                                Ok(Some(RelocationOverride {
+                                    target: RelocationOverrideTarget::Symbol(symbol_index),
+                                    addend,
+                                }))
+                            }
+                            object::RelocationTarget::Section(section_index) => {
+                                Ok(Some(RelocationOverride {
+                                    target: RelocationOverrideTarget::Section(section_index),
+                                    addend,
+                                }))
+                            }
+                            target => {
+                                log::warn!(
+                                    "Unsupported R_PPC64_TOC16 relocation target {target:?}"
+                                );
+                                Ok(None)
+                            }
+                        }
+                    }
+                    _ => Ok(None),
+                }
+            }
+            _ => Ok(None),
         }
     }
 
-    fn demangle(&self, name: &str) -> Option<String> {
+    fn demangle(&self, mut name: &str) -> Option<String> {
         if name.starts_with('?') {
             msvc_demangler::demangle(name, msvc_demangler::DemangleFlags::llvm()).ok()
         } else {
+            name = name.trim_start_matches('.');
             cpp_demangle::Symbol::new(name)
                 .ok()
                 .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
@@ -264,6 +323,7 @@ impl Arch for ArchPpc {
                 elf::R_PPC_UADDR32 => Some("R_PPC_UADDR32"),
                 elf::R_PPC_REL24 => Some("R_PPC_REL24"),
                 elf::R_PPC_REL14 => Some("R_PPC_REL14"),
+                elf::R_PPC64_TOC16 => Some("R_PPC64_TOC16"),
                 _ => None,
             },
             RelocationFlags::Coff(r_type) => match r_type {

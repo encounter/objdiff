@@ -357,14 +357,15 @@ pub trait Arch: Send + Sync + Debug {
         None
     }
 
-    fn implcit_addend(
+    fn relocation_override(
         &self,
-        file: &object::File<'_>,
-        section: &object::Section,
-        address: u64,
-        relocation: &object::Relocation,
-        flags: RelocationFlags,
-    ) -> Result<Option<i64>>;
+        _file: &object::File<'_>,
+        _section: &object::Section,
+        _address: u64,
+        _relocation: &object::Relocation,
+    ) -> Result<Option<RelocationOverride>> {
+        Ok(None)
+    }
 
     fn demangle(&self, _name: &str) -> Option<String> { None }
 
@@ -411,7 +412,9 @@ pub fn new_arch(object: &object::File) -> Result<Box<dyn Arch>> {
     use object::Object as _;
     Ok(match object.architecture() {
         #[cfg(feature = "ppc")]
-        object::Architecture::PowerPc => Box::new(ppc::ArchPpc::new(object)?),
+        object::Architecture::PowerPc | object::Architecture::PowerPc64 => {
+            Box::new(ppc::ArchPpc::new(object)?)
+        }
         #[cfg(feature = "mips")]
         object::Architecture::Mips => Box::new(mips::ArchMips::new(object)?),
         #[cfg(feature = "x86")]
@@ -456,16 +459,17 @@ impl Arch for ArchDummy {
         Ok(())
     }
 
-    fn implcit_addend(
-        &self,
-        _file: &object::File<'_>,
-        _section: &object::Section,
-        _address: u64,
-        _relocation: &object::Relocation,
-        _flags: RelocationFlags,
-    ) -> Result<Option<i64>> {
-        Ok(Some(0))
-    }
-
     fn data_reloc_size(&self, _flags: RelocationFlags) -> usize { 0 }
+}
+
+pub enum RelocationOverrideTarget {
+    Keep,
+    Skip,
+    Symbol(object::SymbolIndex),
+    Section(object::SectionIndex),
+}
+
+pub struct RelocationOverride {
+    pub target: RelocationOverrideTarget,
+    pub addend: i64,
 }

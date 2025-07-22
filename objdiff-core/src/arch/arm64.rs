@@ -5,7 +5,7 @@ use alloc::{
 };
 use core::cmp::Ordering;
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use object::elf;
 use yaxpeax_arch::{Arch as YaxpeaxArch, Decoder, Reader, U8Reader};
 use yaxpeax_arm::armv8::a64::{
@@ -106,17 +106,6 @@ impl Arch for ArchArm64 {
             cb(arg)?;
         }
         Ok(())
-    }
-
-    fn implcit_addend(
-        &self,
-        _file: &object::File<'_>,
-        _section: &object::Section,
-        address: u64,
-        _relocation: &object::Relocation,
-        flags: RelocationFlags,
-    ) -> Result<Option<i64>> {
-        bail!("Unsupported ARM64 implicit relocation {:#x}:{:?}", address, flags)
     }
 
     fn demangle(&self, name: &str) -> Option<String> {

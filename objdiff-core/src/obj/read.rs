@@ -11,7 +11,7 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
 
 use crate::{
-    arch::{Arch, new_arch},
+    arch::{Arch, RelocationOverride, RelocationOverrideTarget, new_arch},
     diff::DiffObjConfig,
     obj::{
         FlowAnalysisResult, Object, Relocation, RelocationFlags, Section, SectionData, SectionFlag,
@@ -24,8 +24,13 @@ use crate::{
 fn map_section_kind(section: &object::Section) -> SectionKind {
     match section.kind() {
         object::SectionKind::Text => SectionKind::Code,
-        object::SectionKind::Data | object::SectionKind::ReadOnlyData => SectionKind::Data,
-        object::SectionKind::UninitializedData => SectionKind::Bss,
+        object::SectionKind::Data
+        | object::SectionKind::ReadOnlyData
+        | object::SectionKind::ReadOnlyString
+        | object::SectionKind::Tls => SectionKind::Data,
+        object::SectionKind::UninitializedData
+        | object::SectionKind::UninitializedTls
+        | object::SectionKind::Common => SectionKind::Bss,
         _ => SectionKind::Unknown,
     }
 }
@@ -329,63 +334,125 @@ fn map_section_relocations(
 ) -> Result<Vec<Relocation>> {
     let mut relocations = Vec::<Relocation>::with_capacity(obj_section.relocations().count());
     for (address, reloc) in obj_section.relocations() {
-        let flags = match reloc.flags() {
-            object::RelocationFlags::Elf { r_type } => RelocationFlags::Elf(r_type),
-            object::RelocationFlags::Coff { typ } => RelocationFlags::Coff(typ),
-            flags => {
-                bail!("Unhandled relocation flags: {:?}", flags);
-            }
+        let mut target_reloc = RelocationOverride {
+            target: match reloc.target() {
+                object::RelocationTarget::Symbol(symbol) => {
+                    RelocationOverrideTarget::Symbol(symbol)
+                }
+                object::RelocationTarget::Section(section) => {
+                    RelocationOverrideTarget::Section(section)
+                }
+                _ => RelocationOverrideTarget::Skip,
+            },
+            addend: reloc.addend(),
         };
-        // TODO validate reloc here?
-        let mut addend = if reloc.has_implicit_addend() {
-            match arch.implcit_addend(obj_file, obj_section, address, &reloc, flags)? {
-                Some(addend) => addend,
-                None => continue, // Skip relocation (e.g. COFF PAIR relocations)
+
+        // Allow the architecture to override the relocation target and addend
+        match arch.relocation_override(obj_file, obj_section, address, &reloc)? {
+            Some(reloc_override) => {
+                match reloc_override.target {
+                    RelocationOverrideTarget::Keep => {}
+                    target => {
+                        target_reloc.target = target;
+                    }
+                }
+                target_reloc.addend = reloc_override.addend;
             }
-        } else {
-            reloc.addend()
-        };
-        let target_symbol = match reloc.target() {
-            object::RelocationTarget::Symbol(idx) => {
-                if idx.0 == u32::MAX as usize {
-                    // ???
+            None => {
+                ensure!(
+                    !reloc.has_implicit_addend(),
+                    "Unsupported implicit relocation {:?}",
+                    reloc.flags()
+                );
+            }
+        }
+
+        // Resolve the relocation target symbol
+        let (symbol_index, addend) = match target_reloc.target {
+            RelocationOverrideTarget::Keep => unreachable!(),
+            RelocationOverrideTarget::Skip => continue,
+            RelocationOverrideTarget::Symbol(symbol_index) => {
+                // Sometimes used to indicate "absolute"
+                if symbol_index.0 == u32::MAX as usize {
                     continue;
                 }
+
                 // If the target is a section symbol, try to resolve a better symbol as the target
-                let idx = if let Some(section_symbol) = obj_file
-                    .symbol_by_index(idx)
+                if let Some(section_symbol) = obj_file
+                    .symbol_by_index(symbol_index)
                     .ok()
                     .filter(|s| s.kind() == object::SymbolKind::Section)
                 {
                     let section_index =
                         section_symbol.section_index().context("Section symbol without section")?;
-                    let target_address = section_symbol.address().wrapping_add_signed(addend);
+                    let target_address =
+                        section_symbol.address().wrapping_add_signed(target_reloc.addend);
                     if let Some((new_idx, addr)) = ordered_symbols
                         .get(section_index.0)
                         .and_then(|symbols| best_symbol(symbols, target_address))
                     {
-                        addend = target_address.wrapping_sub(addr) as i64;
-                        new_idx
+                        (new_idx, target_address.wrapping_sub(addr) as i64)
                     } else {
-                        idx
+                        (symbol_index, target_reloc.addend)
                     }
                 } else {
-                    idx
-                };
-                match symbol_indices.get(idx.0).copied() {
-                    Some(i) => i,
-                    None => {
-                        log::warn!("Invalid symbol index {}", idx.0);
-                        continue;
-                    }
+                    (symbol_index, target_reloc.addend)
                 }
             }
-            object::RelocationTarget::Absolute => {
-                let section_name = obj_section.name()?;
-                log::warn!("Ignoring absolute relocation @ {section_name}:{address:#x}");
+            RelocationOverrideTarget::Section(section_index) => {
+                let section = match obj_file.section_by_index(section_index) {
+                    Ok(section) => section,
+                    Err(e) => {
+                        log::warn!("Invalid relocation section: {e}");
+                        continue;
+                    }
+                };
+                let Ok(target_address) = u64::try_from(target_reloc.addend) else {
+                    log::warn!(
+                        "Negative section relocation addend: {}{}",
+                        section.name()?,
+                        target_reloc.addend
+                    );
+                    continue;
+                };
+                let Some(symbols) = ordered_symbols.get(section_index.0) else {
+                    log::warn!(
+                        "Couldn't resolve relocation target symbol for section {} (no symbols)",
+                        section.name()?
+                    );
+                    continue;
+                };
+                // Attempt to resolve a target symbol for the relocation
+                if let Some((new_idx, addr)) = best_symbol(symbols, target_address) {
+                    (new_idx, target_address.wrapping_sub(addr) as i64)
+                } else if let Some(section_symbol) =
+                    symbols.iter().find(|s| s.kind() == object::SymbolKind::Section)
+                {
+                    (
+                        section_symbol.index(),
+                        target_address.wrapping_sub(section_symbol.address()) as i64,
+                    )
+                } else {
+                    log::warn!(
+                        "Couldn't resolve relocation target symbol for section {}",
+                        section.name()?
+                    );
+                    continue;
+                }
+            }
+        };
+
+        let flags = match reloc.flags() {
+            object::RelocationFlags::Elf { r_type } => RelocationFlags::Elf(r_type),
+            object::RelocationFlags::Coff { typ } => RelocationFlags::Coff(typ),
+            flags => bail!("Unhandled relocation flags: {:?}", flags),
+        };
+        let target_symbol = match symbol_indices.get(symbol_index.0).copied() {
+            Some(i) => i,
+            None => {
+                log::warn!("Invalid symbol index {}", symbol_index.0);
                 continue;
             }
-            _ => bail!("Unhandled relocation target: {:?}", reloc.target()),
         };
         relocations.push(Relocation { address, flags, target_symbol, addend });
     }

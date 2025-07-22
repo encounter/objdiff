@@ -1,6 +1,6 @@
 use alloc::{collections::BTreeMap, format, string::String, vec, vec::Vec};
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use object::elf;
 
 use crate::{
@@ -130,17 +130,6 @@ impl Arch for ArchSuperH {
         }
 
         Ok(())
-    }
-
-    fn implcit_addend(
-        &self,
-        _file: &object::File<'_>,
-        _section: &object::Section,
-        address: u64,
-        _relocation: &object::Relocation,
-        flags: RelocationFlags,
-    ) -> Result<Option<i64>> {
-        bail!("Unsupported SuperH implicit relocation {:#x}:{:?}", address, flags)
     }
 
     fn demangle(&self, name: &str) -> Option<String> {
