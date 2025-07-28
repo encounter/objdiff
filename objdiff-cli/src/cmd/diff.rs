@@ -203,14 +203,10 @@ fn run_oneshot(
     let output_format = OutputFormat::from_option(args.format.as_deref())?;
     let (diff_config, mapping_config) = build_config_from_args(args)?;
     let target = target_path
-        .map(|p| {
-            obj::read::read(p.as_ref(), &diff_config).with_context(|| format!("Loading {}", p))
-        })
+        .map(|p| obj::read::read(p.as_ref(), &diff_config).with_context(|| format!("Loading {p}")))
         .transpose()?;
     let base = base_path
-        .map(|p| {
-            obj::read::read(p.as_ref(), &diff_config).with_context(|| format!("Loading {}", p))
-        })
+        .map(|p| obj::read::read(p.as_ref(), &diff_config).with_context(|| format!("Loading {p}")))
         .transpose()?;
     let result =
         diff::diff_objs(target.as_ref(), base.as_ref(), None, &diff_config, &mapping_config)?;
@@ -399,7 +395,7 @@ fn run_interactive(
         stdout(),
         EnterAlternateScreen,
         EnableMouseCapture,
-        SetTitle(format!("{} - objdiff", symbol_name)),
+        SetTitle(format!("{symbol_name} - objdiff")),
     )?;
     let backend = CrosstermBackend::new(stdout());
     let mut terminal = Terminal::new(backend)?;

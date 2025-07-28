@@ -37,7 +37,7 @@ pub fn jobs_ui(ui: &mut egui::Ui, jobs: &mut JobQueue, appearance: &Appearance) 
         bar.ui(ui);
         const STATUS_LENGTH: usize = 80;
         if let Some(err) = &status.error {
-            let err_string = format!("{:#}", err);
+            let err_string = format!("{err:#}");
             ui.colored_label(
                 appearance.delete_color,
                 if err_string.len() > STATUS_LENGTH - 10 {
@@ -119,7 +119,7 @@ pub fn jobs_menu_ui(ui: &mut egui::Ui, jobs: &mut JobQueue, appearance: &Appeara
         }
         Ordering::Greater => {
             spinner.ui(ui);
-            clicked |= ui.link(format!("{} running", running_jobs)).clicked();
+            clicked |= ui.link(format!("{running_jobs} running")).clicked();
         }
         _ => (),
     }
@@ -135,9 +135,7 @@ pub fn jobs_menu_ui(ui: &mut egui::Ui, jobs: &mut JobQueue, appearance: &Appeara
         }
         Ordering::Greater => {
             clicked |= ui
-                .link(
-                    RichText::new(format!("{} errors", error_jobs)).color(appearance.delete_color),
-                )
+                .link(RichText::new(format!("{error_jobs} errors")).color(appearance.delete_color))
                 .clicked();
         }
         _ => (),

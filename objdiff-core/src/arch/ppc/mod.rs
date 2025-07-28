@@ -6,13 +6,13 @@ use alloc::{
     vec::Vec,
 };
 
-use anyhow::{Result, bail, ensure};
+use anyhow::{Result, anyhow, bail, ensure};
 use cwextab::{ExceptionTableData, decode_extab};
 use flagset::Flags;
-use object::{Object as _, ObjectSection as _, ObjectSymbol as _, elf};
+use object::{Object as _, ObjectSection as _, ObjectSymbol as _, elf, pe};
 
 use crate::{
-    arch::{Arch, DataType},
+    arch::{Arch, DataType, RelocationOverride, RelocationOverrideTarget},
     diff::{
         DiffObjConfig,
         data::resolve_relocation,
@@ -27,58 +27,80 @@ use crate::{
 mod flow_analysis;
 
 // Relative relocation, can be Simm, Offset or BranchDest
-fn is_relative_arg(arg: &ppc750cl::Argument) -> bool {
+fn is_relative_arg(arg: &powerpc::Argument) -> bool {
     matches!(
         arg,
-        ppc750cl::Argument::Simm(_)
-            | ppc750cl::Argument::Offset(_)
-            | ppc750cl::Argument::BranchDest(_)
+        powerpc::Argument::Simm(_)
+            | powerpc::Argument::Offset(_)
+            | powerpc::Argument::BranchDest(_)
     )
 }
 
 // Relative or absolute relocation, can be Uimm, Simm or Offset
-fn is_rel_abs_arg(arg: &ppc750cl::Argument) -> bool {
+fn is_rel_abs_arg(arg: &powerpc::Argument) -> bool {
     matches!(
         arg,
-        ppc750cl::Argument::Uimm(_) | ppc750cl::Argument::Simm(_) | ppc750cl::Argument::Offset(_)
+        powerpc::Argument::Uimm(_) | powerpc::Argument::Simm(_) | powerpc::Argument::Offset(_)
     )
 }
 
-fn is_offset_arg(arg: &ppc750cl::Argument) -> bool { matches!(arg, ppc750cl::Argument::Offset(_)) }
+fn is_offset_arg(arg: &powerpc::Argument) -> bool { matches!(arg, powerpc::Argument::Offset(_)) }
 
 #[derive(Debug)]
 pub struct ArchPpc {
+    pub extensions: powerpc::Extensions,
     /// Exception info
     pub extab: Option<BTreeMap<usize, ExceptionInfo>>,
 }
 
 impl ArchPpc {
     pub fn new(file: &object::File) -> Result<Self> {
-        Ok(Self { extab: decode_exception_info(file)? })
+        let extensions = match file.flags() {
+            object::FileFlags::Coff { .. } => powerpc::Extensions::xenon(),
+            object::FileFlags::Elf { e_flags, .. }
+                if (e_flags & elf::EF_PPC_EMB) == elf::EF_PPC_EMB =>
+            {
+                powerpc::Extensions::gekko_broadway()
+            }
+            _ => {
+                if file.is_64() {
+                    powerpc::Extension::Ppc64 | powerpc::Extension::AltiVec
+                } else {
+                    powerpc::Extension::AltiVec.into()
+                }
+            }
+        };
+        let extab = decode_exception_info(file)?;
+        Ok(Self { extensions, extab })
     }
 
-    fn parse_ins_ref(&self, resolved: ResolvedInstructionRef) -> Result<ppc750cl::Ins> {
+    fn parse_ins_ref(&self, resolved: ResolvedInstructionRef) -> Result<powerpc::Ins> {
         let mut code = u32::from_be_bytes(resolved.code.try_into()?);
         if let Some(reloc) = resolved.relocation {
             code = zero_reloc(code, reloc.relocation);
         }
-        let op = ppc750cl::Opcode::from(resolved.ins_ref.opcode as u8);
-        Ok(ppc750cl::Ins { code, op })
+        let op = powerpc::Opcode::from(resolved.ins_ref.opcode);
+        Ok(powerpc::Ins { code, op })
     }
 
     fn find_reloc_arg(
         &self,
-        ins: &ppc750cl::ParsedIns,
+        ins: &powerpc::ParsedIns,
         resolved: Option<ResolvedRelocation>,
     ) -> Option<usize> {
         match resolved?.relocation.flags {
             RelocationFlags::Elf(elf::R_PPC_EMB_SDA21) => Some(1),
-            RelocationFlags::Elf(elf::R_PPC_REL24 | elf::R_PPC_REL14) => {
+            RelocationFlags::Elf(elf::R_PPC_REL24 | elf::R_PPC_REL14)
+            | RelocationFlags::Coff(pe::IMAGE_REL_PPC_REL24 | pe::IMAGE_REL_PPC_REL14) => {
                 ins.args.iter().rposition(is_relative_arg)
             }
             RelocationFlags::Elf(
                 elf::R_PPC_ADDR16_HI | elf::R_PPC_ADDR16_HA | elf::R_PPC_ADDR16_LO,
-            ) => ins.args.iter().rposition(is_rel_abs_arg),
+            )
+            | RelocationFlags::Coff(pe::IMAGE_REL_PPC_REFHI | pe::IMAGE_REL_PPC_REFLO) => {
+                ins.args.iter().rposition(is_rel_abs_arg)
+            }
+            RelocationFlags::Elf(elf::R_PPC64_TOC16) => ins.args.iter().rposition(is_offset_arg),
             _ => None,
         }
     }
@@ -96,11 +118,11 @@ impl Arch for ArchPpc {
         ensure!(code.len() & 3 == 0, "Code length must be a multiple of 4");
         let ins_count = code.len() / 4;
         let mut insts = Vec::<InstructionRef>::with_capacity(ins_count);
-        for (cur_addr, ins) in ppc750cl::InsIter::new(code, address as u32) {
+        for (cur_addr, ins) in powerpc::InsIter::new(code, address as u32, self.extensions) {
             insts.push(InstructionRef {
                 address: cur_addr as u64,
                 size: 4,
-                opcode: u8::from(ins.op) as u16,
+                opcode: u16::from(ins.op),
                 branch_dest: ins.branch_dest(cur_addr).map(u64::from),
             });
         }
@@ -131,16 +153,16 @@ impl Arch for ArchPpc {
                 // For @sda21, we can omit the register argument
                 if matches!(reloc.relocation.flags, RelocationFlags::Elf(elf::R_PPC_EMB_SDA21))
                     // Sanity check: the next argument should be r0
-                    && matches!(ins.args.get(idx + 1), Some(ppc750cl::Argument::GPR(ppc750cl::GPR(0))))
+                    && matches!(ins.args.get(idx + 1), Some(powerpc::Argument::GPR(powerpc::GPR(0))))
                 {
                     break;
                 }
             } else {
                 match arg {
-                    ppc750cl::Argument::Simm(simm) => cb(InstructionPart::signed(simm.0)),
-                    ppc750cl::Argument::Uimm(uimm) => cb(InstructionPart::unsigned(uimm.0)),
-                    ppc750cl::Argument::Offset(offset) => cb(InstructionPart::signed(offset.0)),
-                    ppc750cl::Argument::BranchDest(dest) => cb(InstructionPart::branch_dest(
+                    powerpc::Argument::Simm(simm) => cb(InstructionPart::signed(simm.0)),
+                    powerpc::Argument::Uimm(uimm) => cb(InstructionPart::unsigned(uimm.0)),
+                    powerpc::Argument::Offset(offset) => cb(InstructionPart::signed(offset.0)),
+                    powerpc::Argument::BranchDest(dest) => cb(InstructionPart::branch_dest(
                         (resolved.ins_ref.address as u32).wrapping_add_signed(dest.0),
                     )),
                     _ => cb(InstructionPart::opaque(arg.to_string())),
@@ -168,7 +190,13 @@ impl Arch for ArchPpc {
         relocations: &[Relocation],
         symbols: &[Symbol],
     ) -> Vec<Relocation> {
-        generate_fake_pool_relocations_for_function(address, code, relocations, symbols)
+        generate_fake_pool_relocations_for_function(
+            address,
+            code,
+            relocations,
+            symbols,
+            self.extensions,
+        )
     }
 
     fn data_flow_analysis(
@@ -178,22 +206,109 @@ impl Arch for ArchPpc {
         code: &[u8],
         relocations: &[Relocation],
     ) -> Option<Box<dyn FlowAnalysisResult>> {
-        Some(flow_analysis::ppc_data_flow_analysis(obj, symbol, code, relocations))
+        Some(flow_analysis::ppc_data_flow_analysis(obj, symbol, code, relocations, self.extensions))
     }
 
-    fn implcit_addend(
+    fn relocation_override(
         &self,
-        _file: &object::File<'_>,
-        _section: &object::Section,
+        file: &object::File<'_>,
+        section: &object::Section,
         address: u64,
-        _relocation: &object::Relocation,
-        flags: RelocationFlags,
-    ) -> Result<i64> {
-        bail!("Unsupported PPC implicit relocation {:#x}:{:?}", address, flags)
+        relocation: &object::Relocation,
+    ) -> Result<Option<RelocationOverride>> {
+        match relocation.flags() {
+            // IMAGE_REL_PPC_PAIR contains the REF{HI,LO} displacement instead of a symbol index
+            object::RelocationFlags::Coff {
+                typ: pe::IMAGE_REL_PPC_REFHI | pe::IMAGE_REL_PPC_REFLO,
+            } => section
+                .relocations()
+                .skip_while(|&(a, _)| a < address)
+                .take_while(|&(a, _)| a == address)
+                .find(|(_, reloc)| {
+                    matches!(reloc.flags(), object::RelocationFlags::Coff {
+                        typ: pe::IMAGE_REL_PPC_PAIR
+                    })
+                })
+                .map_or(Ok(None), |(_, reloc)| match reloc.target() {
+                    object::RelocationTarget::Symbol(index) => Ok(Some(RelocationOverride {
+                        target: RelocationOverrideTarget::Keep,
+                        addend: index.0 as u16 as i16 as i64,
+                    })),
+                    target => Err(anyhow!("Unsupported IMAGE_REL_PPC_PAIR target {target:?}")),
+                }),
+            // Skip PAIR relocations as they are handled by the previous case
+            object::RelocationFlags::Coff { typ: pe::IMAGE_REL_PPC_PAIR } => {
+                Ok(Some(RelocationOverride { target: RelocationOverrideTarget::Skip, addend: 0 }))
+            }
+            // Any other COFF relocation has an addend of 0
+            object::RelocationFlags::Coff { .. } => {
+                Ok(Some(RelocationOverride { target: RelocationOverrideTarget::Keep, addend: 0 }))
+            }
+            // Handle ELF implicit relocations
+            flags @ object::RelocationFlags::Elf { r_type } => {
+                ensure!(
+                    !relocation.has_implicit_addend(),
+                    "Unsupported implicit relocation {:?}",
+                    flags
+                );
+                match r_type {
+                    elf::R_PPC64_TOC16 => {
+                        let offset = u64::try_from(relocation.addend())
+                            .map_err(|_| anyhow!("Negative addend for R_PPC64_TOC16 relocation"))?;
+                        let Some(toc_section) = file.section_by_name(".toc") else {
+                            bail!("Missing .toc section for R_PPC64_TOC16 relocation");
+                        };
+                        // If TOC target is a relocation, replace it with the target symbol
+                        let Some((_, toc_relocation)) =
+                            toc_section.relocations().find(|&(a, _)| a == offset)
+                        else {
+                            return Ok(None);
+                        };
+                        if toc_relocation.has_implicit_addend() {
+                            log::warn!(
+                                "Unsupported implicit addend for R_PPC64_TOC16 relocation: {toc_relocation:?}"
+                            );
+                            return Ok(None);
+                        }
+                        let addend = toc_relocation.addend();
+                        match toc_relocation.target() {
+                            object::RelocationTarget::Symbol(symbol_index) => {
+                                Ok(Some(RelocationOverride {
+                                    target: RelocationOverrideTarget::Symbol(symbol_index),
+                                    addend,
+                                }))
+                            }
+                            object::RelocationTarget::Section(section_index) => {
+                                Ok(Some(RelocationOverride {
+                                    target: RelocationOverrideTarget::Section(section_index),
+                                    addend,
+                                }))
+                            }
+                            target => {
+                                log::warn!(
+                                    "Unsupported R_PPC64_TOC16 relocation target {target:?}"
+                                );
+                                Ok(None)
+                            }
+                        }
+                    }
+                    _ => Ok(None),
+                }
+            }
+            _ => Ok(None),
+        }
     }
 
-    fn demangle(&self, name: &str) -> Option<String> {
-        cwdemangle::demangle(name, &cwdemangle::DemangleOptions::default())
+    fn demangle(&self, mut name: &str) -> Option<String> {
+        if name.starts_with('?') {
+            msvc_demangler::demangle(name, msvc_demangler::DemangleFlags::llvm()).ok()
+        } else {
+            name = name.trim_start_matches('.');
+            cpp_demangle::Symbol::new(name)
+                .ok()
+                .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
+                .or_else(|| cwdemangle::demangle(name, &cwdemangle::DemangleOptions::default()))
+        }
     }
 
     fn reloc_name(&self, flags: RelocationFlags) -> Option<&'static str> {
@@ -208,9 +323,18 @@ impl Arch for ArchPpc {
                 elf::R_PPC_UADDR32 => Some("R_PPC_UADDR32"),
                 elf::R_PPC_REL24 => Some("R_PPC_REL24"),
                 elf::R_PPC_REL14 => Some("R_PPC_REL14"),
+                elf::R_PPC64_TOC16 => Some("R_PPC64_TOC16"),
                 _ => None,
             },
-            _ => None,
+            RelocationFlags::Coff(r_type) => match r_type {
+                pe::IMAGE_REL_PPC_ADDR32 => Some("IMAGE_REL_PPC_ADDR32"),
+                pe::IMAGE_REL_PPC_REFHI => Some("IMAGE_REL_PPC_REFHI"),
+                pe::IMAGE_REL_PPC_REFLO => Some("IMAGE_REL_PPC_REFLO"),
+                pe::IMAGE_REL_PPC_REL24 => Some("IMAGE_REL_PPC_REL24"),
+                pe::IMAGE_REL_PPC_REL14 => Some("IMAGE_REL_PPC_REL14"),
+                pe::IMAGE_REL_PPC_PAIR => Some("IMAGE_REL_PPC_PAIR"),
+                _ => None,
+            },
         }
     }
 
@@ -238,7 +362,7 @@ impl Arch for ArchPpc {
             // Pooled string.
             return Some(DataType::String);
         }
-        let opcode = ppc750cl::Opcode::from(resolved.ins_ref.opcode as u8);
+        let opcode = powerpc::Opcode::from(resolved.ins_ref.opcode);
         if let Some(ty) = flow_analysis::guess_data_type_from_load_store_inst_op(opcode) {
             // Numeric type.
             return Some(ty);
@@ -336,11 +460,18 @@ impl ArchPpc {
 fn zero_reloc(code: u32, reloc: &Relocation) -> u32 {
     match reloc.flags {
         RelocationFlags::Elf(elf::R_PPC_EMB_SDA21) => code & !0x1FFFFF,
-        RelocationFlags::Elf(elf::R_PPC_REL24) => code & !0x3FFFFFC,
-        RelocationFlags::Elf(elf::R_PPC_REL14) => code & !0xFFFC,
+        RelocationFlags::Elf(elf::R_PPC_REL24) | RelocationFlags::Coff(pe::IMAGE_REL_PPC_REL24) => {
+            code & !0x3FFFFFC
+        }
+        RelocationFlags::Elf(elf::R_PPC_REL14) | RelocationFlags::Coff(pe::IMAGE_REL_PPC_REL14) => {
+            code & !0xFFFC
+        }
         RelocationFlags::Elf(
             elf::R_PPC_ADDR16_HI | elf::R_PPC_ADDR16_HA | elf::R_PPC_ADDR16_LO,
-        ) => code & !0xFFFF,
+        )
+        | RelocationFlags::Coff(pe::IMAGE_REL_PPC_REFHI | pe::IMAGE_REL_PPC_REFLO) => {
+            code & !0xFFFF
+        }
         _ => code,
     }
 }
@@ -350,34 +481,38 @@ fn display_reloc(
     cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
 ) -> Result<()> {
     match resolved.relocation.flags {
-        RelocationFlags::Elf(r_type) => match r_type {
-            elf::R_PPC_ADDR16_LO => {
-                cb(InstructionPart::reloc())?;
-                cb(InstructionPart::basic("@l"))?;
-            }
-            elf::R_PPC_ADDR16_HI => {
-                cb(InstructionPart::reloc())?;
-                cb(InstructionPart::basic("@h"))?;
-            }
-            elf::R_PPC_ADDR16_HA => {
-                cb(InstructionPart::reloc())?;
-                cb(InstructionPart::basic("@ha"))?;
-            }
-            elf::R_PPC_EMB_SDA21 => {
-                cb(InstructionPart::reloc())?;
-                cb(InstructionPart::basic("@sda21"))?;
-            }
-            elf::R_PPC_ADDR32 | elf::R_PPC_UADDR32 | elf::R_PPC_REL24 | elf::R_PPC_REL14 => {
-                cb(InstructionPart::reloc())?;
-            }
-            elf::R_PPC_NONE => {
-                // Fake pool relocation.
-                cb(InstructionPart::basic("<"))?;
-                cb(InstructionPart::reloc())?;
-                cb(InstructionPart::basic(">"))?;
-            }
-            _ => cb(InstructionPart::reloc())?,
-        },
+        RelocationFlags::Elf(elf::R_PPC_ADDR16_LO)
+        | RelocationFlags::Coff(pe::IMAGE_REL_PPC_REFLO) => {
+            cb(InstructionPart::reloc())?;
+            cb(InstructionPart::basic("@l"))?;
+        }
+        RelocationFlags::Elf(elf::R_PPC_ADDR16_HI)
+        | RelocationFlags::Coff(pe::IMAGE_REL_PPC_REFHI) => {
+            cb(InstructionPart::reloc())?;
+            cb(InstructionPart::basic("@h"))?;
+        }
+        RelocationFlags::Elf(elf::R_PPC_ADDR16_HA) => {
+            cb(InstructionPart::reloc())?;
+            cb(InstructionPart::basic("@ha"))?;
+        }
+        RelocationFlags::Elf(elf::R_PPC_EMB_SDA21) => {
+            cb(InstructionPart::reloc())?;
+            cb(InstructionPart::basic("@sda21"))?;
+        }
+        RelocationFlags::Elf(
+            elf::R_PPC_ADDR32 | elf::R_PPC_UADDR32 | elf::R_PPC_REL24 | elf::R_PPC_REL14,
+        )
+        | RelocationFlags::Coff(
+            pe::IMAGE_REL_PPC_ADDR32 | pe::IMAGE_REL_PPC_REL24 | pe::IMAGE_REL_PPC_REL14,
+        ) => {
+            cb(InstructionPart::reloc())?;
+        }
+        RelocationFlags::Elf(elf::R_PPC_NONE) => {
+            // Fake pool relocation.
+            cb(InstructionPart::basic("<"))?;
+            cb(InstructionPart::reloc())?;
+            cb(InstructionPart::basic(">"))?;
+        }
         _ => cb(InstructionPart::reloc())?,
     };
     Ok(())
@@ -461,16 +596,14 @@ fn decode_exception_info(
 
         // Decode the extab data
         let Some(extab_data) = extab_section.data_range(extab_start_addr, extab.size())? else {
-            log::warn!("Failed to get extab data for function {}", extab_func_name);
+            log::warn!("Failed to get extab data for function {extab_func_name}");
             continue;
         };
         let data = match decode_extab(extab_data) {
             Ok(decoded_data) => decoded_data,
             Err(e) => {
                 log::warn!(
-                    "Exception table decoding failed for function {}, reason: {}",
-                    extab_func_name,
-                    e
+                    "Exception table decoding failed for function {extab_func_name}, reason: {e}"
                 );
                 return Ok(None);
             }
@@ -517,19 +650,19 @@ fn make_symbol_ref(symbol: &object::Symbol) -> Result<ExtabSymbolRef> {
 
 #[derive(Debug)]
 struct PoolReference {
-    addr_src_gpr: ppc750cl::GPR,
+    addr_src_gpr: powerpc::GPR,
     addr_offset: i16,
-    addr_dst_gpr: Option<ppc750cl::GPR>,
+    addr_dst_gpr: Option<powerpc::GPR>,
 }
 
 // Given an instruction, check if it could be accessing pooled data at the address in a register.
 // If so, return information pertaining to where the instruction is getting that address from and
 // what it's doing with the address (e.g. copying it into another register, adding an offset, etc).
 fn get_pool_reference_for_inst(
-    opcode: ppc750cl::Opcode,
-    simplified: &ppc750cl::ParsedIns,
+    opcode: powerpc::Opcode,
+    simplified: &powerpc::ParsedIns,
 ) -> Option<PoolReference> {
-    use ppc750cl::{Argument, Opcode};
+    use powerpc::{Argument, Opcode};
     let args = &simplified.args;
     if flow_analysis::guess_data_type_from_load_store_inst_op(opcode).is_some() {
         match (args[1], args[2]) {
@@ -594,15 +727,15 @@ fn get_pool_reference_for_inst(
 
 // Remove the relocation we're keeping track of in a particular register when an instruction reuses
 // that register to hold some other value, unrelated to pool relocation addresses.
-fn clear_overwritten_gprs(ins: ppc750cl::Ins, gpr_pool_relocs: &mut BTreeMap<u8, Relocation>) {
-    use ppc750cl::{Argument, Arguments, Opcode};
+fn clear_overwritten_gprs(ins: powerpc::Ins, gpr_pool_relocs: &mut BTreeMap<u8, Relocation>) {
+    use powerpc::{Argument, Arguments, Opcode};
     let mut def_args = Arguments::default();
     ins.parse_defs(&mut def_args);
     for arg in def_args {
         if let Argument::GPR(gpr) = arg {
             if ins.op == Opcode::Lmw {
                 // `lmw` overwrites all registers from rd to r31.
-                // ppc750cl only returns rd itself, so we manually clear the rest of them.
+                // powerpc only returns rd itself, so we manually clear the rest of them.
                 for reg in gpr.0..31 {
                     gpr_pool_relocs.remove(&reg);
                 }
@@ -635,6 +768,8 @@ fn make_fake_pool_reloc(
         target_symbol = symbols.iter().position(|s| {
             s.section == Some(section_index)
                 && s.size > 0
+                && !s.flags.contains(SymbolFlag::Hidden)
+                && !s.flags.contains(SymbolFlag::Ignored)
                 && (s.address..s.address + s.size).contains(&target_address)
         })?;
         addend = target_address.checked_sub(symbols[target_symbol].address)? as i64;
@@ -682,12 +817,13 @@ fn generate_fake_pool_relocations_for_function(
     code: &[u8],
     relocations: &[Relocation],
     symbols: &[Symbol],
+    extensions: powerpc::Extensions,
 ) -> Vec<Relocation> {
-    use ppc750cl::{Argument, InsIter, Opcode};
+    use powerpc::{Argument, InsIter, Opcode};
     let mut visited_ins_addrs = BTreeSet::new();
     let mut pool_reloc_for_addr = BTreeMap::new();
     let mut ins_iters_with_gpr_state =
-        vec![(InsIter::new(code, func_address as u32), BTreeMap::new())];
+        vec![(InsIter::new(code, func_address as u32, extensions), BTreeMap::new())];
     let mut gpr_state_at_bctr = BTreeMap::new();
     while let Some((ins_iter, mut gpr_pool_relocs)) = ins_iters_with_gpr_state.pop() {
         for (cur_addr, ins) in ins_iter {
@@ -719,7 +855,7 @@ fn generate_fake_pool_relocations_for_function(
                             // Conditional branch.
                             // Add the branch destination to the queue to do later.
                             ins_iters_with_gpr_state.push((
-                                InsIter::new(dest_code_slice, branch_dest),
+                                InsIter::new(dest_code_slice, branch_dest, extensions),
                                 gpr_pool_relocs.clone(),
                             ));
                             // Then continue on with the current iterator.
@@ -729,7 +865,7 @@ fn generate_fake_pool_relocations_for_function(
                                 // Unconditional branch.
                                 // Add the branch destination to the queue.
                                 ins_iters_with_gpr_state.push((
-                                    InsIter::new(dest_code_slice, branch_dest),
+                                    InsIter::new(dest_code_slice, branch_dest, extensions),
                                     gpr_pool_relocs.clone(),
                                 ));
                                 // Break out of the current iterator so we can do the newly added one.
@@ -837,7 +973,7 @@ fn generate_fake_pool_relocations_for_function(
                     let dest_offset_into_func = unseen_addr - func_address as u32;
                     let dest_code_slice = &code[dest_offset_into_func as usize..];
                     ins_iters_with_gpr_state.push((
-                        InsIter::new(dest_code_slice, unseen_addr),
+                        InsIter::new(dest_code_slice, unseen_addr, extensions),
                         gpr_pool_relocs.clone(),
                     ));
                     break;

@@ -22,7 +22,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 632,
                         size: 4,
-                        opcode: 160,
+                        opcode: 439,
                         branch_dest: None,
                     },
                 ),
@@ -36,7 +36,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 636,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -50,7 +50,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 640,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             652,
                         ),
@@ -71,7 +71,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 644,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -85,7 +85,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 648,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             660,
                         ),
@@ -106,7 +106,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 652,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -127,7 +127,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 656,
                         size: 4,
-                        opcode: 47,
+                        opcode: 269,
                         branch_dest: None,
                     },
                 ),
@@ -141,7 +141,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 660,
                         size: 4,
-                        opcode: 162,
+                        opcode: 441,
                         branch_dest: None,
                     },
                 ),
@@ -162,7 +162,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 664,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -176,7 +176,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 668,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             680,
                         ),
@@ -197,7 +197,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 672,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -211,7 +211,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 676,
                         size: 4,
-                        opcode: 47,
+                        opcode: 269,
                         branch_dest: None,
                     },
                 ),
@@ -225,7 +225,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 680,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -246,7 +246,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 684,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -260,7 +260,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 688,
                         size: 4,
-                        opcode: 109,
+                        opcode: 338,
                         branch_dest: None,
                     },
                 ),
@@ -274,7 +274,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 692,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             780,
                         ),
@@ -295,7 +295,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 696,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -309,7 +309,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 700,
                         size: 4,
-                        opcode: 36,
+                        opcode: 258,
                         branch_dest: None,
                     },
                 ),
@@ -323,7 +323,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 704,
                         size: 4,
-                        opcode: 129,
+                        opcode: 358,
                         branch_dest: None,
                     },
                 ),
@@ -337,7 +337,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 708,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -351,7 +351,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 712,
                         size: 4,
-                        opcode: 128,
+                        opcode: 357,
                         branch_dest: None,
                     },
                 ),
@@ -365,7 +365,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 716,
                         size: 4,
-                        opcode: 150,
+                        opcode: 379,
                         branch_dest: None,
                     },
                 ),
@@ -379,7 +379,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 720,
                         size: 4,
-                        opcode: 128,
+                        opcode: 357,
                         branch_dest: None,
                     },
                 ),
@@ -393,7 +393,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 724,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -407,7 +407,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 728,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             736,
                         ),
@@ -428,7 +428,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 732,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -442,7 +442,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 736,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -463,7 +463,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 740,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             756,
                         ),
@@ -484,7 +484,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 744,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -498,7 +498,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 748,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             756,
                         ),
@@ -519,7 +519,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 752,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -533,7 +533,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 756,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -555,7 +555,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 760,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             812,
                         ),
@@ -576,7 +576,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 764,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -590,7 +590,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 768,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             812,
                         ),
@@ -611,7 +611,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 772,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -625,7 +625,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 776,
                         size: 4,
-                        opcode: 45,
+                        opcode: 267,
                         branch_dest: Some(
                             812,
                         ),
@@ -646,7 +646,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 780,
                         size: 4,
-                        opcode: 36,
+                        opcode: 258,
                         branch_dest: None,
                     },
                 ),
@@ -667,7 +667,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 784,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -681,7 +681,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 788,
                         size: 4,
-                        opcode: 129,
+                        opcode: 358,
                         branch_dest: None,
                     },
                 ),
@@ -695,7 +695,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 792,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -709,7 +709,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 796,
                         size: 4,
-                        opcode: 150,
+                        opcode: 379,
                         branch_dest: None,
                     },
                 ),
@@ -723,7 +723,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 800,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -737,7 +737,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 804,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             812,
                         ),
@@ -758,7 +758,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 808,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -772,7 +772,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 812,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -796,7 +796,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 816,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             956,
                         ),
@@ -817,7 +817,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 820,
                         size: 4,
-                        opcode: 68,
+                        opcode: 297,
                         branch_dest: None,
                     },
                 ),
@@ -831,7 +831,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 824,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -845,7 +845,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 828,
                         size: 4,
-                        opcode: 160,
+                        opcode: 439,
                         branch_dest: None,
                     },
                 ),
@@ -859,7 +859,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 832,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             920,
                         ),
@@ -880,7 +880,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 836,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -894,7 +894,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 840,
                         size: 4,
-                        opcode: 36,
+                        opcode: 258,
                         branch_dest: None,
                     },
                 ),
@@ -908,7 +908,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 844,
                         size: 4,
-                        opcode: 129,
+                        opcode: 358,
                         branch_dest: None,
                     },
                 ),
@@ -922,7 +922,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 848,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -936,7 +936,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 852,
                         size: 4,
-                        opcode: 128,
+                        opcode: 357,
                         branch_dest: None,
                     },
                 ),
@@ -950,7 +950,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 856,
                         size: 4,
-                        opcode: 150,
+                        opcode: 379,
                         branch_dest: None,
                     },
                 ),
@@ -964,7 +964,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 860,
                         size: 4,
-                        opcode: 128,
+                        opcode: 357,
                         branch_dest: None,
                     },
                 ),
@@ -978,7 +978,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 864,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -992,7 +992,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 868,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             876,
                         ),
@@ -1013,7 +1013,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 872,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -1027,7 +1027,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 876,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -1048,7 +1048,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 880,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             896,
                         ),
@@ -1069,7 +1069,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 884,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -1083,7 +1083,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 888,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             896,
                         ),
@@ -1104,7 +1104,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 892,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -1118,7 +1118,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 896,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -1140,7 +1140,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 900,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             960,
                         ),
@@ -1161,7 +1161,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 904,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -1175,7 +1175,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 908,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             960,
                         ),
@@ -1196,7 +1196,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 912,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -1210,7 +1210,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 916,
                         size: 4,
-                        opcode: 45,
+                        opcode: 267,
                         branch_dest: Some(
                             960,
                         ),
@@ -1231,7 +1231,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 920,
                         size: 4,
-                        opcode: 36,
+                        opcode: 258,
                         branch_dest: None,
                     },
                 ),
@@ -1252,7 +1252,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 924,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -1266,7 +1266,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 928,
                         size: 4,
-                        opcode: 129,
+                        opcode: 358,
                         branch_dest: None,
                     },
                 ),
@@ -1280,7 +1280,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 932,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -1294,7 +1294,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 936,
                         size: 4,
-                        opcode: 150,
+                        opcode: 379,
                         branch_dest: None,
                     },
                 ),
@@ -1308,7 +1308,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 940,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -1322,7 +1322,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 944,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             960,
                         ),
@@ -1343,7 +1343,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 948,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -1357,7 +1357,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 952,
                         size: 4,
-                        opcode: 45,
+                        opcode: 267,
                         branch_dest: Some(
                             960,
                         ),
@@ -1378,7 +1378,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 956,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -1399,7 +1399,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 960,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -1424,7 +1424,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 964,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1104,
                         ),
@@ -1445,7 +1445,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 968,
                         size: 4,
-                        opcode: 68,
+                        opcode: 297,
                         branch_dest: None,
                     },
                 ),
@@ -1459,7 +1459,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 972,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -1473,7 +1473,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 976,
                         size: 4,
-                        opcode: 160,
+                        opcode: 439,
                         branch_dest: None,
                     },
                 ),
@@ -1499,7 +1499,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 980,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1068,
                         ),
@@ -1520,7 +1520,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 984,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -1543,7 +1543,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 988,
                         size: 4,
-                        opcode: 36,
+                        opcode: 258,
                         branch_dest: None,
                     },
                 ),
@@ -1569,7 +1569,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 992,
                         size: 4,
-                        opcode: 129,
+                        opcode: 358,
                         branch_dest: None,
                     },
                 ),
@@ -1599,7 +1599,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 996,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -1613,7 +1613,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1000,
                         size: 4,
-                        opcode: 128,
+                        opcode: 357,
                         branch_dest: None,
                     },
                 ),
@@ -1638,7 +1638,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1004,
                         size: 4,
-                        opcode: 150,
+                        opcode: 379,
                         branch_dest: None,
                     },
                 ),
@@ -1664,7 +1664,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1008,
                         size: 4,
-                        opcode: 128,
+                        opcode: 357,
                         branch_dest: None,
                     },
                 ),
@@ -1689,7 +1689,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1012,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -1703,7 +1703,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1016,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1024,
                         ),
@@ -1724,7 +1724,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1020,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -1747,7 +1747,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1024,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -1780,7 +1780,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1028,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1044,
                         ),
@@ -1801,7 +1801,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1032,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -1824,7 +1824,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1036,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1044,
                         ),
@@ -1845,7 +1845,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1040,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -1868,7 +1868,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1044,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -1902,7 +1902,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1048,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1108,
                         ),
@@ -1923,7 +1923,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1052,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -1946,7 +1946,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1056,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1108,
                         ),
@@ -1967,7 +1967,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1060,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -1990,7 +1990,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1064,
                         size: 4,
-                        opcode: 45,
+                        opcode: 267,
                         branch_dest: Some(
                             1108,
                         ),
@@ -2011,7 +2011,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1068,
                         size: 4,
-                        opcode: 36,
+                        opcode: 258,
                         branch_dest: None,
                     },
                 ),
@@ -2044,7 +2044,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1072,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -2067,7 +2067,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1076,
                         size: 4,
-                        opcode: 129,
+                        opcode: 358,
                         branch_dest: None,
                     },
                 ),
@@ -2097,7 +2097,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1080,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -2111,7 +2111,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1084,
                         size: 4,
-                        opcode: 150,
+                        opcode: 379,
                         branch_dest: None,
                     },
                 ),
@@ -2137,7 +2137,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1088,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -2151,7 +2151,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1092,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1108,
                         ),
@@ -2172,7 +2172,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1096,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -2195,7 +2195,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1100,
                         size: 4,
-                        opcode: 45,
+                        opcode: 267,
                         branch_dest: Some(
                             1108,
                         ),
@@ -2216,7 +2216,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1104,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -2246,7 +2246,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1108,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -2271,7 +2271,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1112,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -2285,7 +2285,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1116,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1140,
                         ),
@@ -2306,7 +2306,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1120,
                         size: 4,
-                        opcode: 162,
+                        opcode: 441,
                         branch_dest: None,
                     },
                 ),
@@ -2332,7 +2332,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1124,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -2361,7 +2361,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1128,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1140,
                         ),
@@ -2382,7 +2382,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1132,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -2411,7 +2411,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1136,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1180,
                         ),
@@ -2432,7 +2432,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1140,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -2454,7 +2454,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1144,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1160,
                         ),
@@ -2475,7 +2475,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1148,
                         size: 4,
-                        opcode: 162,
+                        opcode: 441,
                         branch_dest: None,
                     },
                 ),
@@ -2489,7 +2489,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1152,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -2503,7 +2503,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1156,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1180,
                         ),
@@ -2524,7 +2524,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1160,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -2557,7 +2557,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1164,
                         size: 4,
-                        opcode: 47,
+                        opcode: 269,
                         branch_dest: None,
                     },
                 ),
@@ -2571,7 +2571,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1168,
                         size: 4,
-                        opcode: 162,
+                        opcode: 441,
                         branch_dest: None,
                     },
                 ),
@@ -2585,7 +2585,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1172,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -2599,7 +2599,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1176,
                         size: 4,
-                        opcode: 47,
+                        opcode: 269,
                         branch_dest: None,
                     },
                 ),
@@ -2613,7 +2613,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1180,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -2635,7 +2635,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1184,
                         size: 4,
-                        opcode: 47,
+                        opcode: 269,
                         branch_dest: None,
                     },
                 ),
@@ -2665,7 +2665,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 632,
                         size: 4,
-                        opcode: 160,
+                        opcode: 439,
                         branch_dest: None,
                     },
                 ),
@@ -2679,7 +2679,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 636,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -2693,7 +2693,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 640,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             652,
                         ),
@@ -2714,7 +2714,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 644,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -2728,7 +2728,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 648,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             660,
                         ),
@@ -2749,7 +2749,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 652,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -2770,7 +2770,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 656,
                         size: 4,
-                        opcode: 47,
+                        opcode: 269,
                         branch_dest: None,
                     },
                 ),
@@ -2784,7 +2784,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 660,
                         size: 4,
-                        opcode: 162,
+                        opcode: 441,
                         branch_dest: None,
                     },
                 ),
@@ -2805,7 +2805,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 664,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -2819,7 +2819,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 668,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             680,
                         ),
@@ -2840,7 +2840,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 672,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -2854,7 +2854,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 676,
                         size: 4,
-                        opcode: 47,
+                        opcode: 269,
                         branch_dest: None,
                     },
                 ),
@@ -2868,7 +2868,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 680,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -2889,7 +2889,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 684,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -2903,7 +2903,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 688,
                         size: 4,
-                        opcode: 109,
+                        opcode: 338,
                         branch_dest: None,
                     },
                 ),
@@ -2917,7 +2917,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 692,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             780,
                         ),
@@ -2938,7 +2938,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 696,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -2952,7 +2952,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 700,
                         size: 4,
-                        opcode: 36,
+                        opcode: 258,
                         branch_dest: None,
                     },
                 ),
@@ -2966,7 +2966,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 704,
                         size: 4,
-                        opcode: 129,
+                        opcode: 358,
                         branch_dest: None,
                     },
                 ),
@@ -2980,7 +2980,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 708,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -2994,7 +2994,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 712,
                         size: 4,
-                        opcode: 128,
+                        opcode: 357,
                         branch_dest: None,
                     },
                 ),
@@ -3008,7 +3008,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 716,
                         size: 4,
-                        opcode: 150,
+                        opcode: 379,
                         branch_dest: None,
                     },
                 ),
@@ -3022,7 +3022,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 720,
                         size: 4,
-                        opcode: 128,
+                        opcode: 357,
                         branch_dest: None,
                     },
                 ),
@@ -3036,7 +3036,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 724,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -3050,7 +3050,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 728,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             736,
                         ),
@@ -3071,7 +3071,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 732,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -3085,7 +3085,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 736,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -3106,7 +3106,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 740,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             756,
                         ),
@@ -3127,7 +3127,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 744,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -3141,7 +3141,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 748,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             756,
                         ),
@@ -3162,7 +3162,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 752,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -3176,7 +3176,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 756,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -3198,7 +3198,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 760,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             812,
                         ),
@@ -3219,7 +3219,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 764,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -3233,7 +3233,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 768,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             812,
                         ),
@@ -3254,7 +3254,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 772,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -3268,7 +3268,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 776,
                         size: 4,
-                        opcode: 45,
+                        opcode: 267,
                         branch_dest: Some(
                             812,
                         ),
@@ -3289,7 +3289,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 780,
                         size: 4,
-                        opcode: 36,
+                        opcode: 258,
                         branch_dest: None,
                     },
                 ),
@@ -3310,7 +3310,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 784,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -3324,7 +3324,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 788,
                         size: 4,
-                        opcode: 129,
+                        opcode: 358,
                         branch_dest: None,
                     },
                 ),
@@ -3338,7 +3338,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 792,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -3352,7 +3352,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 796,
                         size: 4,
-                        opcode: 150,
+                        opcode: 379,
                         branch_dest: None,
                     },
                 ),
@@ -3366,7 +3366,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 800,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -3380,7 +3380,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 804,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             812,
                         ),
@@ -3401,7 +3401,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 808,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -3415,7 +3415,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 812,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -3439,7 +3439,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 816,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             956,
                         ),
@@ -3460,7 +3460,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 820,
                         size: 4,
-                        opcode: 68,
+                        opcode: 297,
                         branch_dest: None,
                     },
                 ),
@@ -3474,7 +3474,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 824,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -3488,7 +3488,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 828,
                         size: 4,
-                        opcode: 160,
+                        opcode: 439,
                         branch_dest: None,
                     },
                 ),
@@ -3502,7 +3502,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 832,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             920,
                         ),
@@ -3523,7 +3523,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 836,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -3537,7 +3537,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 840,
                         size: 4,
-                        opcode: 36,
+                        opcode: 258,
                         branch_dest: None,
                     },
                 ),
@@ -3551,7 +3551,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 844,
                         size: 4,
-                        opcode: 129,
+                        opcode: 358,
                         branch_dest: None,
                     },
                 ),
@@ -3565,7 +3565,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 848,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -3579,7 +3579,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 852,
                         size: 4,
-                        opcode: 128,
+                        opcode: 357,
                         branch_dest: None,
                     },
                 ),
@@ -3593,7 +3593,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 856,
                         size: 4,
-                        opcode: 150,
+                        opcode: 379,
                         branch_dest: None,
                     },
                 ),
@@ -3607,7 +3607,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 860,
                         size: 4,
-                        opcode: 128,
+                        opcode: 357,
                         branch_dest: None,
                     },
                 ),
@@ -3621,7 +3621,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 864,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -3635,7 +3635,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 868,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             876,
                         ),
@@ -3656,7 +3656,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 872,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -3670,7 +3670,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 876,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -3691,7 +3691,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 880,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             896,
                         ),
@@ -3712,7 +3712,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 884,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -3726,7 +3726,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 888,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             896,
                         ),
@@ -3747,7 +3747,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 892,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -3761,7 +3761,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 896,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -3783,7 +3783,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 900,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             960,
                         ),
@@ -3804,7 +3804,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 904,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -3818,7 +3818,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 908,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             960,
                         ),
@@ -3839,7 +3839,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 912,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -3853,7 +3853,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 916,
                         size: 4,
-                        opcode: 45,
+                        opcode: 267,
                         branch_dest: Some(
                             960,
                         ),
@@ -3874,7 +3874,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 920,
                         size: 4,
-                        opcode: 36,
+                        opcode: 258,
                         branch_dest: None,
                     },
                 ),
@@ -3895,7 +3895,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 924,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -3909,7 +3909,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 928,
                         size: 4,
-                        opcode: 129,
+                        opcode: 358,
                         branch_dest: None,
                     },
                 ),
@@ -3923,7 +3923,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 932,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -3937,7 +3937,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 936,
                         size: 4,
-                        opcode: 150,
+                        opcode: 379,
                         branch_dest: None,
                     },
                 ),
@@ -3951,7 +3951,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 940,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -3965,7 +3965,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 944,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             960,
                         ),
@@ -3986,7 +3986,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 948,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -4000,7 +4000,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 952,
                         size: 4,
-                        opcode: 45,
+                        opcode: 267,
                         branch_dest: Some(
                             960,
                         ),
@@ -4021,7 +4021,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 956,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -4042,7 +4042,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 960,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -4067,7 +4067,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 964,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1104,
                         ),
@@ -4088,7 +4088,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 968,
                         size: 4,
-                        opcode: 68,
+                        opcode: 297,
                         branch_dest: None,
                     },
                 ),
@@ -4102,7 +4102,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 972,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -4116,7 +4116,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 976,
                         size: 4,
-                        opcode: 160,
+                        opcode: 439,
                         branch_dest: None,
                     },
                 ),
@@ -4142,7 +4142,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 980,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1068,
                         ),
@@ -4163,7 +4163,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 984,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -4186,7 +4186,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 988,
                         size: 4,
-                        opcode: 36,
+                        opcode: 258,
                         branch_dest: None,
                     },
                 ),
@@ -4212,7 +4212,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 992,
                         size: 4,
-                        opcode: 129,
+                        opcode: 358,
                         branch_dest: None,
                     },
                 ),
@@ -4242,7 +4242,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 996,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -4256,7 +4256,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1000,
                         size: 4,
-                        opcode: 128,
+                        opcode: 357,
                         branch_dest: None,
                     },
                 ),
@@ -4281,7 +4281,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1004,
                         size: 4,
-                        opcode: 150,
+                        opcode: 379,
                         branch_dest: None,
                     },
                 ),
@@ -4307,7 +4307,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1008,
                         size: 4,
-                        opcode: 128,
+                        opcode: 357,
                         branch_dest: None,
                     },
                 ),
@@ -4332,7 +4332,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1012,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -4346,7 +4346,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1016,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1024,
                         ),
@@ -4367,7 +4367,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1020,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -4390,7 +4390,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1024,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -4423,7 +4423,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1028,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1044,
                         ),
@@ -4444,7 +4444,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1032,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -4467,7 +4467,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1036,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1044,
                         ),
@@ -4488,7 +4488,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1040,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -4511,7 +4511,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1044,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -4545,7 +4545,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1048,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1108,
                         ),
@@ -4566,7 +4566,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1052,
                         size: 4,
-                        opcode: 38,
+                        opcode: 260,
                         branch_dest: None,
                     },
                 ),
@@ -4589,7 +4589,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1056,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1108,
                         ),
@@ -4610,7 +4610,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1060,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -4633,7 +4633,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1064,
                         size: 4,
-                        opcode: 45,
+                        opcode: 267,
                         branch_dest: Some(
                             1108,
                         ),
@@ -4654,7 +4654,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1068,
                         size: 4,
-                        opcode: 36,
+                        opcode: 258,
                         branch_dest: None,
                     },
                 ),
@@ -4687,7 +4687,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1072,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -4710,7 +4710,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1076,
                         size: 4,
-                        opcode: 129,
+                        opcode: 358,
                         branch_dest: None,
                     },
                 ),
@@ -4740,7 +4740,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1080,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -4754,7 +4754,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1084,
                         size: 4,
-                        opcode: 150,
+                        opcode: 379,
                         branch_dest: None,
                     },
                 ),
@@ -4780,7 +4780,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1088,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -4794,7 +4794,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1092,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1108,
                         ),
@@ -4815,7 +4815,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1096,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -4838,7 +4838,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1100,
                         size: 4,
-                        opcode: 45,
+                        opcode: 267,
                         branch_dest: Some(
                             1108,
                         ),
@@ -4859,7 +4859,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1104,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -4889,7 +4889,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1108,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -4914,7 +4914,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1112,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -4928,7 +4928,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1116,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1140,
                         ),
@@ -4949,7 +4949,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1120,
                         size: 4,
-                        opcode: 162,
+                        opcode: 441,
                         branch_dest: None,
                     },
                 ),
@@ -4975,7 +4975,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1124,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -5004,7 +5004,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1128,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1140,
                         ),
@@ -5025,7 +5025,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1132,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -5054,7 +5054,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1136,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1180,
                         ),
@@ -5075,7 +5075,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1140,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -5097,7 +5097,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1144,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1160,
                         ),
@@ -5118,7 +5118,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1148,
                         size: 4,
-                        opcode: 162,
+                        opcode: 441,
                         branch_dest: None,
                     },
                 ),
@@ -5132,7 +5132,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1152,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -5146,7 +5146,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1156,
                         size: 4,
-                        opcode: 43,
+                        opcode: 265,
                         branch_dest: Some(
                             1180,
                         ),
@@ -5167,7 +5167,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1160,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -5200,7 +5200,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1164,
                         size: 4,
-                        opcode: 47,
+                        opcode: 269,
                         branch_dest: None,
                     },
                 ),
@@ -5214,7 +5214,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1168,
                         size: 4,
-                        opcode: 162,
+                        opcode: 441,
                         branch_dest: None,
                     },
                 ),
@@ -5228,7 +5228,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1172,
                         size: 4,
-                        opcode: 60,
+                        opcode: 283,
                         branch_dest: None,
                     },
                 ),
@@ -5242,7 +5242,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1176,
                         size: 4,
-                        opcode: 47,
+                        opcode: 269,
                         branch_dest: None,
                     },
                 ),
@@ -5256,7 +5256,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1180,
                         size: 4,
-                        opcode: 41,
+                        opcode: 263,
                         branch_dest: None,
                     },
                 ),
@@ -5278,7 +5278,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
                     InstructionRef {
                         address: 1184,
                         size: 4,
-                        opcode: 47,
+                        opcode: 269,
                         branch_dest: None,
                     },
                 ),

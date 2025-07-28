@@ -114,7 +114,17 @@ impl Section {
         ins_ref: InstructionRef,
     ) -> Option<ResolvedRelocation<'obj>> {
         match self.relocations.binary_search_by_key(&ins_ref.address, |r| r.address) {
-            Ok(i) => self.relocations.get(i),
+            Ok(mut i) => {
+                // Find the first relocation at the address
+                while i
+                    .checked_sub(1)
+                    .and_then(|n| self.relocations.get(n))
+                    .is_some_and(|r| r.address == ins_ref.address)
+                {
+                    i -= 1;
+                }
+                self.relocations.get(i)
+            }
             Err(i) => self
                 .relocations
                 .get(i)
@@ -169,8 +179,8 @@ impl fmt::Display for InstructionArgValue<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             InstructionArgValue::Signed(v) => write!(f, "{:#x}", ReallySigned(*v)),
-            InstructionArgValue::Unsigned(v) => write!(f, "{:#x}", v),
-            InstructionArgValue::Opaque(v) => write!(f, "{}", v),
+            InstructionArgValue::Unsigned(v) => write!(f, "{v:#x}"),
+            InstructionArgValue::Opaque(v) => write!(f, "{v}"),
         }
     }
 }
@@ -298,7 +308,7 @@ impl Object {
         &self,
         symbol_index: usize,
         ins_ref: InstructionRef,
-    ) -> Option<ResolvedInstructionRef> {
+    ) -> Option<ResolvedInstructionRef<'_>> {
         let symbol = self.symbols.get(symbol_index)?;
         let section_index = symbol.section?;
         let section = self.sections.get(section_index)?;
@@ -326,6 +336,20 @@ impl Object {
 
     pub fn symbol_by_name(&self, name: &str) -> Option<usize> {
         self.symbols.iter().position(|symbol| symbol.section.is_some() && symbol.name == name)
+    }
+
+    pub fn get_flow_analysis_result(&self, symbol: &Symbol) -> Option<&dyn FlowAnalysisResult> {
+        let key = symbol.section.unwrap_or_default() as u64 * 1024 * 1024 * 1024 + symbol.address;
+        self.flow_analysis_results.get(&key).map(|result| result.as_ref())
+    }
+
+    pub fn add_flow_analysis_result(
+        &mut self,
+        symbol: &Symbol,
+        result: Box<dyn FlowAnalysisResult>,
+    ) {
+        let key = symbol.section.unwrap_or_default() as u64 * 1024 * 1024 * 1024 + symbol.address;
+        self.flow_analysis_results.insert(key, result);
     }
 
     pub fn has_flow_analysis_result(&self) -> bool { !self.flow_analysis_results.is_empty() }

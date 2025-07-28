@@ -141,7 +141,7 @@ impl Appearance {
             ) {
                 Ok(()) => self.ui_font = next_ui_font,
                 Err(e) => {
-                    log::error!("Failed to load font: {}", e)
+                    log::error!("Failed to load font: {e}")
                 }
             }
         }
@@ -155,7 +155,7 @@ impl Appearance {
             ) {
                 Ok(()) => self.code_font = next_code_font,
                 Err(e) => {
-                    log::error!("Failed to load font: {}", e)
+                    log::error!("Failed to load font: {e}")
                 }
             }
         }
@@ -172,7 +172,7 @@ impl Appearance {
         ) {
             Ok(_) => {}
             Err(e) => {
-                log::error!("Failed to load font: {}", e);
+                log::error!("Failed to load font: {e}");
                 // Revert to default
                 self.ui_font = DEFAULT_UI_FONT;
             }
@@ -186,7 +186,7 @@ impl Appearance {
         ) {
             Ok(_) => {}
             Err(e) => {
-                log::error!("Failed to load font: {}", e);
+                log::error!("Failed to load font: {e}");
                 // Revert to default
                 self.code_font = DEFAULT_CODE_FONT;
             }

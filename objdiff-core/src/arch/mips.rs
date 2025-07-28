@@ -11,7 +11,7 @@ use rabbitizer::{
 };
 
 use crate::{
-    arch::Arch,
+    arch::{Arch, RelocationOverride, RelocationOverrideTarget},
     diff::{DiffObjConfig, MipsAbi, MipsInstrCategory, display::InstructionPart},
     obj::{
         InstructionArg, InstructionArgValue, InstructionRef, Relocation, RelocationFlags,
@@ -222,53 +222,67 @@ impl Arch for ArchMips {
         Ok(())
     }
 
-    fn implcit_addend(
+    fn relocation_override(
         &self,
         file: &object::File<'_>,
         section: &object::Section,
         address: u64,
-        reloc: &object::Relocation,
-        flags: RelocationFlags,
-    ) -> Result<i64> {
-        // Check for paired R_MIPS_HI16 and R_MIPS_LO16 relocations.
-        if let RelocationFlags::Elf(elf::R_MIPS_HI16 | elf::R_MIPS_LO16) = flags {
-            if let Some(addend) = self
-                .paired_relocations
-                .get(section.index().0)
-                .and_then(|m| m.get(&address).copied())
-            {
-                return Ok(addend);
-            }
-        }
+        relocation: &object::Relocation,
+    ) -> Result<Option<RelocationOverride>> {
+        match relocation.flags() {
+            // Handle ELF implicit relocations
+            object::RelocationFlags::Elf { r_type } => {
+                if relocation.has_implicit_addend() {
+                    // Check for paired R_MIPS_HI16 and R_MIPS_LO16 relocations.
+                    if let elf::R_MIPS_HI16 | elf::R_MIPS_LO16 = r_type {
+                        if let Some(addend) = self
+                            .paired_relocations
+                            .get(section.index().0)
+                            .and_then(|m| m.get(&address).copied())
+                        {
+                            return Ok(Some(RelocationOverride {
+                                target: RelocationOverrideTarget::Keep,
+                                addend,
+                            }));
+                        }
+                    }
 
-        let data = section.data()?;
-        let code = data[address as usize..address as usize + 4].try_into()?;
-        let addend = self.endianness.read_u32_bytes(code);
-        Ok(match flags {
-            RelocationFlags::Elf(elf::R_MIPS_32) => addend as i64,
-            RelocationFlags::Elf(elf::R_MIPS_26) => ((addend & 0x03FFFFFF) << 2) as i64,
-            RelocationFlags::Elf(elf::R_MIPS_HI16) => ((addend & 0x0000FFFF) << 16) as i32 as i64,
-            RelocationFlags::Elf(elf::R_MIPS_LO16 | elf::R_MIPS_GOT16 | elf::R_MIPS_CALL16) => {
-                (addend & 0x0000FFFF) as i16 as i64
-            }
-            RelocationFlags::Elf(elf::R_MIPS_GPREL16 | elf::R_MIPS_LITERAL) => {
-                let object::RelocationTarget::Symbol(idx) = reloc.target() else {
-                    bail!("Unsupported R_MIPS_GPREL16 relocation against a non-symbol");
-                };
-                let sym = file.symbol_by_index(idx)?;
+                    let data = section.data()?;
+                    let code = self
+                        .endianness
+                        .read_u32_bytes(data[address as usize..address as usize + 4].try_into()?);
+                    let addend = match r_type {
+                        elf::R_MIPS_32 => code as i64,
+                        elf::R_MIPS_26 => ((code & 0x03FFFFFF) << 2) as i64,
+                        elf::R_MIPS_HI16 => ((code & 0x0000FFFF) << 16) as i32 as i64,
+                        elf::R_MIPS_LO16 | elf::R_MIPS_GOT16 | elf::R_MIPS_CALL16 => {
+                            (code & 0x0000FFFF) as i16 as i64
+                        }
+                        elf::R_MIPS_GPREL16 | elf::R_MIPS_LITERAL => {
+                            let object::RelocationTarget::Symbol(idx) = relocation.target() else {
+                                bail!("Unsupported R_MIPS_GPREL16 relocation against a non-symbol");
+                            };
+                            let sym = file.symbol_by_index(idx)?;
 
-                // if the symbol we are relocating against is in a local section we need to add
-                // the ri_gp_value from .reginfo to the addend.
-                if sym.section().index().is_some() {
-                    ((addend & 0x0000FFFF) as i16 as i64) + self.ri_gp_value as i64
+                            // if the symbol we are relocating against is in a local section we need to add
+                            // the ri_gp_value from .reginfo to the addend.
+                            if sym.section().index().is_some() {
+                                ((code & 0x0000FFFF) as i16 as i64) + self.ri_gp_value as i64
+                            } else {
+                                (code & 0x0000FFFF) as i16 as i64
+                            }
+                        }
+                        elf::R_MIPS_PC16 => 0, // PC-relative relocation
+                        R_MIPS15_S3 => ((code & 0x001FFFC0) >> 3) as i64,
+                        flags => bail!("Unsupported MIPS implicit relocation {flags:?}"),
+                    };
+                    Ok(Some(RelocationOverride { target: RelocationOverrideTarget::Keep, addend }))
                 } else {
-                    (addend & 0x0000FFFF) as i16 as i64
+                    Ok(None)
                 }
             }
-            RelocationFlags::Elf(elf::R_MIPS_PC16) => 0, // PC-relative relocation
-            RelocationFlags::Elf(R_MIPS15_S3) => ((addend & 0x001FFFC0) >> 3) as i64,
-            flags => bail!("Unsupported MIPS implicit relocation {flags:?}"),
-        })
+            _ => Ok(None),
+        }
     }
 
     fn demangle(&self, name: &str) -> Option<String> {

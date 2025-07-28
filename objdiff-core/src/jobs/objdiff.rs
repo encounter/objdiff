@@ -79,7 +79,7 @@ fn run_build(
         Some(target_path_rel) if config.build_target => {
             update_status(
                 context,
-                format!("Building target {}", target_path_rel),
+                format!("Building target {target_path_rel}"),
                 step_idx,
                 total,
                 &cancel,
@@ -94,7 +94,7 @@ fn run_build(
         Some(base_path_rel) if config.build_base => {
             update_status(
                 context,
-                format!("Building base {}", base_path_rel),
+                format!("Building base {base_path_rel}"),
                 step_idx,
                 total,
                 &cancel,
@@ -111,7 +111,7 @@ fn run_build(
         Some(target_path) if first_status.success => {
             update_status(
                 context,
-                format!("Loading target {}", target_path),
+                format!("Loading target {target_path}"),
                 step_idx,
                 total,
                 &cancel,
@@ -122,8 +122,8 @@ fn run_build(
                 Err(e) => {
                     first_status = BuildStatus {
                         success: false,
-                        stdout: format!("Loading object '{}'", target_path),
-                        stderr: format!("{:#}", e),
+                        stdout: format!("Loading object '{target_path}'"),
+                        stderr: format!("{e:#}"),
                         ..Default::default()
                     };
                     None
@@ -139,21 +139,15 @@ fn run_build(
 
     let second_obj = match &config.base_path {
         Some(base_path) if second_status.success => {
-            update_status(
-                context,
-                format!("Loading base {}", base_path),
-                step_idx,
-                total,
-                &cancel,
-            )?;
+            update_status(context, format!("Loading base {base_path}"), step_idx, total, &cancel)?;
             step_idx += 1;
             match read::read(base_path.as_ref(), &config.diff_obj_config) {
                 Ok(obj) => Some(obj),
                 Err(e) => {
                     second_status = BuildStatus {
                         success: false,
-                        stdout: format!("Loading object '{}'", base_path),
-                        stderr: format!("{:#}", e),
+                        stdout: format!("Loading object '{base_path}'"),
+                        stderr: format!("{e:#}"),
                         ..Default::default()
                     };
                     None

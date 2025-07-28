@@ -9,7 +9,7 @@ use iced_x86::{
 use object::{Endian as _, Object as _, ObjectSection as _, elf, pe};
 
 use crate::{
-    arch::Arch,
+    arch::{Arch, RelocationOverride, RelocationOverrideTarget},
     diff::{DiffObjConfig, X86Formatter, display::InstructionPart},
     obj::{InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef},
 };
@@ -225,40 +225,47 @@ impl Arch for ArchX86 {
         Ok(())
     }
 
-    fn implcit_addend(
+    fn relocation_override(
         &self,
         _file: &object::File<'_>,
         section: &object::Section,
         address: u64,
-        _relocation: &object::Relocation,
-        flags: RelocationFlags,
-    ) -> Result<i64> {
-        match self.arch {
-            Architecture::X86 => match flags {
-                RelocationFlags::Coff(pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32)
-                | RelocationFlags::Elf(elf::R_386_32 | elf::R_386_PC32) => {
+        relocation: &object::Relocation,
+    ) -> Result<Option<RelocationOverride>> {
+        if !relocation.has_implicit_addend() {
+            return Ok(None);
+        }
+        let addend = match self.arch {
+            Architecture::X86 => match relocation.flags() {
+                object::RelocationFlags::Coff {
+                    typ: pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32,
+                }
+                | object::RelocationFlags::Elf { r_type: elf::R_386_32 | elf::R_386_PC32 } => {
                     let data =
                         section.data()?[address as usize..address as usize + 4].try_into()?;
-                    Ok(self.endianness.read_i32_bytes(data) as i64)
+                    self.endianness.read_i32_bytes(data) as i64
                 }
                 flags => bail!("Unsupported x86 implicit relocation {flags:?}"),
             },
-            Architecture::X86_64 => match flags {
-                RelocationFlags::Coff(pe::IMAGE_REL_AMD64_ADDR32NB | pe::IMAGE_REL_AMD64_REL32)
-                | RelocationFlags::Elf(elf::R_X86_64_32 | elf::R_X86_64_PC32) => {
+            Architecture::X86_64 => match relocation.flags() {
+                object::RelocationFlags::Coff {
+                    typ: pe::IMAGE_REL_AMD64_ADDR32NB | pe::IMAGE_REL_AMD64_REL32,
+                }
+                | object::RelocationFlags::Elf { r_type: elf::R_X86_64_32 | elf::R_X86_64_PC32 } => {
                     let data =
                         section.data()?[address as usize..address as usize + 4].try_into()?;
-                    Ok(self.endianness.read_i32_bytes(data) as i64)
+                    self.endianness.read_i32_bytes(data) as i64
                 }
-                RelocationFlags::Coff(pe::IMAGE_REL_AMD64_ADDR64)
-                | RelocationFlags::Elf(elf::R_X86_64_64) => {
+                object::RelocationFlags::Coff { typ: pe::IMAGE_REL_AMD64_ADDR64 }
+                | object::RelocationFlags::Elf { r_type: elf::R_X86_64_64 } => {
                     let data =
                         section.data()?[address as usize..address as usize + 8].try_into()?;
-                    Ok(self.endianness.read_i64_bytes(data))
+                    self.endianness.read_i64_bytes(data)
                 }
                 flags => bail!("Unsupported x86-64 implicit relocation {flags:?}"),
             },
-        }
+        };
+        Ok(Some(RelocationOverride { target: RelocationOverrideTarget::Keep, addend }))
     }
 
     fn demangle(&self, name: &str) -> Option<String> {

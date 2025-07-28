@@ -11,7 +11,7 @@ use core::{
 };
 
 use itertools::Itertools;
-use ppc750cl::Simm;
+use powerpc::{Extensions, Simm};
 
 use crate::{
     arch::DataType,
@@ -19,8 +19,8 @@ use crate::{
     util::{RawDouble, RawFloat},
 };
 
-fn is_store_instruction(op: ppc750cl::Opcode) -> bool {
-    use ppc750cl::Opcode;
+fn is_store_instruction(op: powerpc::Opcode) -> bool {
+    use powerpc::Opcode;
     matches!(
         op,
         Opcode::Stbux
@@ -52,8 +52,8 @@ fn is_store_instruction(op: ppc750cl::Opcode) -> bool {
     )
 }
 
-pub fn guess_data_type_from_load_store_inst_op(inst_op: ppc750cl::Opcode) -> Option<DataType> {
-    use ppc750cl::Opcode;
+pub fn guess_data_type_from_load_store_inst_op(inst_op: powerpc::Opcode) -> Option<DataType> {
+    use powerpc::Opcode;
     match inst_op {
         Opcode::Lbz | Opcode::Lbzu | Opcode::Lbzux | Opcode::Lbzx => Some(DataType::Int8),
         Opcode::Lhz | Opcode::Lhzu | Opcode::Lhzux | Opcode::Lhzx => Some(DataType::Int16),
@@ -92,7 +92,7 @@ impl core::fmt::Display for RegisterContent {
             // -i is safe because it's at most a 16 bit constant in the i32
             {
                 if *i >= 0 {
-                    write!(f, "0x{:x}", i)
+                    write!(f, "0x{i:x}")
                 } else {
                     write!(f, "-0x{:x}", -i)
                 }
@@ -118,12 +118,12 @@ impl RegisterState {
 
     // During a function call, these registers must be assumed trashed.
     fn clear_volatile(&mut self) {
-        self[ppc750cl::GPR(0)] = RegisterContent::Unknown;
+        self[powerpc::GPR(0)] = RegisterContent::Unknown;
         for i in 0..=13 {
-            self[ppc750cl::GPR(i)] = RegisterContent::Unknown;
+            self[powerpc::GPR(i)] = RegisterContent::Unknown;
         }
         for i in 0..=13 {
-            self[ppc750cl::FPR(i)] = RegisterContent::Unknown;
+            self[powerpc::FPR(i)] = RegisterContent::Unknown;
         }
     }
 
@@ -132,10 +132,10 @@ impl RegisterState {
     // they get overwritten with another value before getting read.
     fn set_potential_inputs(&mut self) {
         for g_reg in 3..=13 {
-            self[ppc750cl::GPR(g_reg)] = RegisterContent::InputRegister(g_reg);
+            self[powerpc::GPR(g_reg)] = RegisterContent::InputRegister(g_reg);
         }
         for f_reg in 1..=13 {
-            self[ppc750cl::FPR(f_reg)] = RegisterContent::InputRegister(f_reg);
+            self[powerpc::FPR(f_reg)] = RegisterContent::InputRegister(f_reg);
         }
     }
 
@@ -172,34 +172,34 @@ impl RegisterState {
     }
 }
 
-impl Index<ppc750cl::GPR> for RegisterState {
+impl Index<powerpc::GPR> for RegisterState {
     type Output = RegisterContent;
 
-    fn index(&self, gpr: ppc750cl::GPR) -> &Self::Output { &self.gpr[gpr.0 as usize] }
+    fn index(&self, gpr: powerpc::GPR) -> &Self::Output { &self.gpr[gpr.0 as usize] }
 }
-impl IndexMut<ppc750cl::GPR> for RegisterState {
-    fn index_mut(&mut self, gpr: ppc750cl::GPR) -> &mut Self::Output {
+impl IndexMut<powerpc::GPR> for RegisterState {
+    fn index_mut(&mut self, gpr: powerpc::GPR) -> &mut Self::Output {
         &mut self.gpr[gpr.0 as usize]
     }
 }
 
-impl Index<ppc750cl::FPR> for RegisterState {
+impl Index<powerpc::FPR> for RegisterState {
     type Output = RegisterContent;
 
-    fn index(&self, fpr: ppc750cl::FPR) -> &Self::Output { &self.fpr[fpr.0 as usize] }
+    fn index(&self, fpr: powerpc::FPR) -> &Self::Output { &self.fpr[fpr.0 as usize] }
 }
-impl IndexMut<ppc750cl::FPR> for RegisterState {
-    fn index_mut(&mut self, fpr: ppc750cl::FPR) -> &mut Self::Output {
+impl IndexMut<powerpc::FPR> for RegisterState {
+    fn index_mut(&mut self, fpr: powerpc::FPR) -> &mut Self::Output {
         &mut self.fpr[fpr.0 as usize]
     }
 }
 
 fn execute_instruction(
     registers: &mut RegisterState,
-    op: &ppc750cl::Opcode,
-    args: &ppc750cl::Arguments,
+    op: &powerpc::Opcode,
+    args: &powerpc::Arguments,
 ) {
-    use ppc750cl::{Argument, GPR, Opcode};
+    use powerpc::{Argument, GPR, Opcode};
     match (op, args[0], args[1], args[2]) {
         (Opcode::Or, Argument::GPR(a), Argument::GPR(b), Argument::GPR(c)) => {
             // Move is implemented as or with self for ints
@@ -270,11 +270,11 @@ fn execute_instruction(
     }
 }
 
-fn get_branch_offset(args: &ppc750cl::Arguments) -> i32 {
+fn get_branch_offset(args: &powerpc::Arguments) -> i32 {
     for arg in args.iter() {
         match arg {
-            ppc750cl::Argument::BranchDest(dest) => return dest.0 / 4,
-            ppc750cl::Argument::None => break,
+            powerpc::Argument::BranchDest(dest) => return dest.0 / 4,
+            powerpc::Argument::None => break,
             _ => {}
         }
     }
@@ -316,7 +316,7 @@ fn clamp_text_length(s: String, max: usize) -> String {
 fn get_register_content_from_reloc(
     reloc: &Relocation,
     obj: &Object,
-    op: ppc750cl::Opcode,
+    op: powerpc::Opcode,
 ) -> RegisterContent {
     if let Some(bytes) = obj.symbol_data(reloc.target_symbol) {
         match guess_data_type_from_load_store_inst_op(op) {
@@ -354,18 +354,18 @@ fn fill_registers_from_relocation(
     reloc: &Relocation,
     current_state: &mut RegisterState,
     obj: &Object,
-    op: ppc750cl::Opcode,
-    args: &ppc750cl::Arguments,
+    op: powerpc::Opcode,
+    args: &powerpc::Arguments,
 ) {
     // Only update the register state for loads. We may store to a reloc
     // address but that doesn't update register contents.
     if !is_store_instruction(op) {
         match (op, args[0]) {
             // Everything else is a load of some sort
-            (_, ppc750cl::Argument::GPR(gpr)) => {
+            (_, powerpc::Argument::GPR(gpr)) => {
                 current_state[gpr] = get_register_content_from_reloc(reloc, obj, op);
             }
-            (_, ppc750cl::Argument::FPR(fpr)) => {
+            (_, powerpc::Argument::FPR(fpr)) => {
                 current_state[fpr] = get_register_content_from_reloc(reloc, obj, op);
             }
             _ => {}
@@ -384,11 +384,12 @@ pub fn ppc_data_flow_analysis(
     func_symbol: &Symbol,
     code: &[u8],
     relocations: &[Relocation],
+    extensions: Extensions,
 ) -> Box<dyn FlowAnalysisResult> {
     use alloc::collections::VecDeque;
 
-    use ppc750cl::InsIter;
-    let instructions = InsIter::new(code, func_symbol.address as u32)
+    use powerpc::InsIter;
+    let instructions = InsIter::new(code, func_symbol.address as u32, extensions)
         .map(|(_addr, ins)| (ins.op, ins.basic().args))
         .collect_vec();
 
@@ -449,7 +450,7 @@ pub fn ppc_data_flow_analysis(
             // Only take a given (address, register state) combination once. If
             // the known register state is different we have to take the branch
             // again to stabilize the known values for backwards branches.
-            if op == &ppc750cl::Opcode::Bc {
+            if op == &powerpc::Opcode::Bc {
                 let branch_state = (index, current_state.clone());
                 if !taken_branches.contains(&branch_state) {
                     let offset = get_branch_offset(args);
@@ -468,7 +469,7 @@ pub fn ppc_data_flow_analysis(
             }
 
             // Update index
-            if op == &ppc750cl::Opcode::B {
+            if op == &powerpc::Opcode::B {
                 // Unconditional branch
                 let offset = get_branch_offset(args);
                 if offset > 0 {
@@ -502,7 +503,14 @@ pub fn ppc_data_flow_analysis(
     }
 
     // Store the relevant data flow values for simplified instructions
-    generate_flow_analysis_result(obj, func_address, code, register_state_at, relocations)
+    generate_flow_analysis_result(
+        obj,
+        func_address,
+        code,
+        register_state_at,
+        relocations,
+        extensions,
+    )
 }
 
 fn get_string_data(obj: &Object, symbol_index: usize, offset: Simm) -> Option<&str> {
@@ -530,14 +538,15 @@ fn generate_flow_analysis_result(
     code: &[u8],
     register_state_at: Vec<RegisterState>,
     relocations: &[Relocation],
+    extensions: Extensions,
 ) -> Box<PPCFlowAnalysisResult> {
-    use ppc750cl::{Argument, InsIter};
+    use powerpc::{Argument, InsIter};
     let mut analysis_result = PPCFlowAnalysisResult::new();
     let default_register_state = RegisterState::new();
-    for (addr, ins) in InsIter::new(code, 0) {
+    for (addr, ins) in InsIter::new(code, 0, extensions) {
         let ins_address = base_address + (addr as u64);
         let index = addr / 4;
-        let ppc750cl::ParsedIns { mnemonic: _, args } = ins.simplified();
+        let powerpc::ParsedIns { mnemonic: _, args } = ins.simplified();
 
         // If we're already showing relocations on a line don't also show data flow
         let reloc = relocations.iter().find(|r| (r.address & !3) == ins_address);
@@ -546,7 +555,7 @@ fn generate_flow_analysis_result(
         // they are being loaded.
         // We need to do this before we break out on showing relocations in the
         // subsequent if statement.
-        if let (ppc750cl::Opcode::Lfs | ppc750cl::Opcode::Lfd, Some(reloc)) = (ins.op, reloc) {
+        if let (powerpc::Opcode::Lfs | powerpc::Opcode::Lfd, Some(reloc)) = (ins.op, reloc) {
             let content = get_register_content_from_reloc(reloc, obj, ins.op);
             if matches!(
                 content,
@@ -566,7 +575,7 @@ fn generate_flow_analysis_result(
         // Special case to show string constants on the line where they are
         // being indexed to. This will typically be "addi t, stringbase, offset"
         let registers = register_state_at.get(index as usize).unwrap_or(&default_register_state);
-        if let (ppc750cl::Opcode::Addi, Argument::GPR(rel), Argument::Simm(offset)) =
+        if let (powerpc::Opcode::Addi, Argument::GPR(rel), Argument::Simm(offset)) =
             (ins.op, args[1], args[2])
         {
             if let RegisterContent::Symbol(sym_index) = registers[rel] {
@@ -625,7 +634,7 @@ fn generate_flow_analysis_result(
                     Some(FlowAnalysisValue::Text(reg_name))
                 }
                 Some(RegisterContent::Unknown) | Some(RegisterContent::Variable) => None,
-                Some(value) => Some(FlowAnalysisValue::Text(format!("{value}"))),
+                Some(value) => Some(FlowAnalysisValue::Text(value.to_string())),
                 None => None,
             };
             if let Some(analysis_value) = analysis_value {

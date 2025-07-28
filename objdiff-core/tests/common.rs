@@ -20,7 +20,7 @@ pub fn display_diff(
                 separator = true;
             }
             let DiffTextSegment { text, color, pad_to } = segment;
-            output.push_str(&format!("({:?}, {:?}, {:?})", text, color, pad_to));
+            output.push_str(&format!("({text:?}, {color:?}, {pad_to:?})"));
             Ok(())
         })
         .unwrap();

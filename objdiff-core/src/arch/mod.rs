@@ -1,4 +1,10 @@
-use alloc::{borrow::Cow, boxed::Box, format, string::String, vec::Vec};
+use alloc::{
+    borrow::Cow,
+    boxed::Box,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::{
     ffi::CStr,
     fmt::{self, Debug},
@@ -49,16 +55,16 @@ pub enum DataType {
 
 impl fmt::Display for DataType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DataType::Int8 => write!(f, "Int8"),
-            DataType::Int16 => write!(f, "Int16"),
-            DataType::Int32 => write!(f, "Int32"),
-            DataType::Int64 => write!(f, "Int64"),
-            DataType::Float => write!(f, "Float"),
-            DataType::Double => write!(f, "Double"),
-            DataType::Bytes => write!(f, "Bytes"),
-            DataType::String => write!(f, "String"),
-        }
+        f.write_str(match self {
+            DataType::Int8 => "Int8",
+            DataType::Int16 => "Int16",
+            DataType::Int32 => "Int32",
+            DataType::Int64 => "Int64",
+            DataType::Float => "Float",
+            DataType::Double => "Double",
+            DataType::Bytes => "Bytes",
+            DataType::String => "String",
+        })
     }
 }
 
@@ -66,8 +72,8 @@ impl DataType {
     pub fn display_labels(&self, endian: object::Endianness, bytes: &[u8]) -> Vec<String> {
         let mut strs = Vec::new();
         for (literal, label_override) in self.display_literals(endian, bytes) {
-            let label = label_override.unwrap_or_else(|| format!("{}", self));
-            strs.push(format!("{}: {}", label, literal))
+            let label = label_override.unwrap_or_else(|| self.to_string());
+            strs.push(format!("{label}: {literal}"))
         }
         strs
     }
@@ -100,7 +106,7 @@ impl DataType {
         match self {
             DataType::Int8 => {
                 let i = i8::from_ne_bytes(bytes.try_into().unwrap());
-                strs.push((format!("{:#x}", i), None));
+                strs.push((format!("{i:#x}"), None));
 
                 if i < 0 {
                     strs.push((format!("{:#x}", ReallySigned(i)), None));
@@ -108,7 +114,7 @@ impl DataType {
             }
             DataType::Int16 => {
                 let i = endian.read_i16_bytes(bytes.try_into().unwrap());
-                strs.push((format!("{:#x}", i), None));
+                strs.push((format!("{i:#x}"), None));
 
                 if i < 0 {
                     strs.push((format!("{:#x}", ReallySigned(i)), None));
@@ -116,7 +122,7 @@ impl DataType {
             }
             DataType::Int32 => {
                 let i = endian.read_i32_bytes(bytes.try_into().unwrap());
-                strs.push((format!("{:#x}", i), None));
+                strs.push((format!("{i:#x}"), None));
 
                 if i < 0 {
                     strs.push((format!("{:#x}", ReallySigned(i)), None));
@@ -124,7 +130,7 @@ impl DataType {
             }
             DataType::Int64 => {
                 let i = endian.read_i64_bytes(bytes.try_into().unwrap());
-                strs.push((format!("{:#x}", i), None));
+                strs.push((format!("{i:#x}"), None));
 
                 if i < 0 {
                     strs.push((format!("{:#x}", ReallySigned(i)), None));
@@ -151,16 +157,16 @@ impl DataType {
                 ));
             }
             DataType::Bytes => {
-                strs.push((format!("{:#?}", bytes), None));
+                strs.push((format!("{bytes:#?}"), None));
             }
             DataType::String => {
                 if let Ok(cstr) = CStr::from_bytes_until_nul(bytes) {
-                    strs.push((format!("{:?}", cstr), None));
+                    strs.push((format!("{cstr:?}"), None));
                 }
                 if let Some(nul_idx) = bytes.iter().position(|&c| c == b'\0') {
                     let (cow, _, had_errors) = SHIFT_JIS.decode(&bytes[..nul_idx]);
                     if !had_errors {
-                        let str = format!("{:?}", cow);
+                        let str = format!("{cow:?}");
                         // Only add the Shift JIS string if it's different from the ASCII string.
                         if !strs.iter().any(|x| x.0 == str) {
                             strs.push((str, Some("Shift JIS".into())));
@@ -351,14 +357,15 @@ pub trait Arch: Send + Sync + Debug {
         None
     }
 
-    fn implcit_addend(
+    fn relocation_override(
         &self,
-        file: &object::File<'_>,
-        section: &object::Section,
-        address: u64,
-        relocation: &object::Relocation,
-        flags: RelocationFlags,
-    ) -> Result<i64>;
+        _file: &object::File<'_>,
+        _section: &object::Section,
+        _address: u64,
+        _relocation: &object::Relocation,
+    ) -> Result<Option<RelocationOverride>> {
+        Ok(None)
+    }
 
     fn demangle(&self, _name: &str) -> Option<String> { None }
 
@@ -405,7 +412,9 @@ pub fn new_arch(object: &object::File) -> Result<Box<dyn Arch>> {
     use object::Object as _;
     Ok(match object.architecture() {
         #[cfg(feature = "ppc")]
-        object::Architecture::PowerPc => Box::new(ppc::ArchPpc::new(object)?),
+        object::Architecture::PowerPc | object::Architecture::PowerPc64 => {
+            Box::new(ppc::ArchPpc::new(object)?)
+        }
         #[cfg(feature = "mips")]
         object::Architecture::Mips => Box::new(mips::ArchMips::new(object)?),
         #[cfg(feature = "x86")]
@@ -450,16 +459,17 @@ impl Arch for ArchDummy {
         Ok(())
     }
 
-    fn implcit_addend(
-        &self,
-        _file: &object::File<'_>,
-        _section: &object::Section,
-        _address: u64,
-        _relocation: &object::Relocation,
-        _flags: RelocationFlags,
-    ) -> Result<i64> {
-        Ok(0)
-    }
-
     fn data_reloc_size(&self, _flags: RelocationFlags) -> usize { 0 }
+}
+
+pub enum RelocationOverrideTarget {
+    Keep,
+    Skip,
+    Symbol(object::SymbolIndex),
+    Section(object::SectionIndex),
+}
+
+pub struct RelocationOverride {
+    pub target: RelocationOverrideTarget,
+    pub addend: i64,
 }

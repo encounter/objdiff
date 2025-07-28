@@ -11,7 +11,7 @@ use object::{Endian as _, Object as _, ObjectSection as _, ObjectSymbol as _, el
 use unarm::{args, arm, thumb};
 
 use crate::{
-    arch::Arch,
+    arch::{Arch, RelocationOverride, RelocationOverrideTarget},
     diff::{ArmArchVersion, ArmR9Usage, DiffObjConfig, display::InstructionPart},
     obj::{
         InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation,
@@ -356,47 +356,57 @@ impl Arch for ArchArm {
         Ok(())
     }
 
-    fn implcit_addend(
+    fn relocation_override(
         &self,
         _file: &object::File<'_>,
         section: &object::Section,
         address: u64,
-        _relocation: &object::Relocation,
-        flags: RelocationFlags,
-    ) -> Result<i64> {
-        let section_data = section.data()?;
-        let address = address as usize;
-        Ok(match flags {
-            // ARM calls
-            RelocationFlags::Elf(elf::R_ARM_PC24)
-            | RelocationFlags::Elf(elf::R_ARM_XPC25)
-            | RelocationFlags::Elf(elf::R_ARM_CALL) => {
-                let data = section_data[address..address + 4].try_into()?;
-                let addend = self.endianness.read_i32_bytes(data);
-                let imm24 = addend & 0xffffff;
-                (imm24 << 2) << 8 >> 8
+        relocation: &object::Relocation,
+    ) -> Result<Option<RelocationOverride>> {
+        match relocation.flags() {
+            // Handle ELF implicit relocations
+            object::RelocationFlags::Elf { r_type } => {
+                if relocation.has_implicit_addend() {
+                    let section_data = section.data()?;
+                    let address = address as usize;
+                    let addend = match r_type {
+                        // ARM calls
+                        elf::R_ARM_PC24 | elf::R_ARM_XPC25 | elf::R_ARM_CALL => {
+                            let data = section_data[address..address + 4].try_into()?;
+                            let addend = self.endianness.read_i32_bytes(data);
+                            let imm24 = addend & 0xffffff;
+                            (imm24 << 2) << 8 >> 8
+                        }
+
+                        // Thumb calls
+                        elf::R_ARM_THM_PC22 | elf::R_ARM_THM_XPC22 => {
+                            let data = section_data[address..address + 2].try_into()?;
+                            let high = self.endianness.read_i16_bytes(data) as i32;
+                            let data = section_data[address + 2..address + 4].try_into()?;
+                            let low = self.endianness.read_i16_bytes(data) as i32;
+
+                            let imm22 = ((high & 0x7ff) << 11) | (low & 0x7ff);
+                            (imm22 << 1) << 9 >> 9
+                        }
+
+                        // Data
+                        elf::R_ARM_ABS32 => {
+                            let data = section_data[address..address + 4].try_into()?;
+                            self.endianness.read_i32_bytes(data)
+                        }
+
+                        flags => bail!("Unsupported ARM implicit relocation {flags:?}"),
+                    };
+                    Ok(Some(RelocationOverride {
+                        target: RelocationOverrideTarget::Keep,
+                        addend: addend as i64,
+                    }))
+                } else {
+                    Ok(None)
+                }
             }
-
-            // Thumb calls
-            RelocationFlags::Elf(elf::R_ARM_THM_PC22)
-            | RelocationFlags::Elf(elf::R_ARM_THM_XPC22) => {
-                let data = section_data[address..address + 2].try_into()?;
-                let high = self.endianness.read_i16_bytes(data) as i32;
-                let data = section_data[address + 2..address + 4].try_into()?;
-                let low = self.endianness.read_i16_bytes(data) as i32;
-
-                let imm22 = ((high & 0x7ff) << 11) | (low & 0x7ff);
-                (imm22 << 1) << 9 >> 9
-            }
-
-            // Data
-            RelocationFlags::Elf(elf::R_ARM_ABS32) => {
-                let data = section_data[address..address + 4].try_into()?;
-                self.endianness.read_i32_bytes(data)
-            }
-
-            flags => bail!("Unsupported ARM implicit relocation {flags:?}"),
-        } as i64)
+            _ => Ok(None),
+        }
     }
 
     fn demangle(&self, name: &str) -> Option<String> {
@@ -575,7 +585,7 @@ fn push_args(
                     arg_cb(InstructionPart::basic("}"))?;
                 }
                 args::Argument::CoprocNum(value) => {
-                    arg_cb(InstructionPart::opaque(format!("p{}", value)))?;
+                    arg_cb(InstructionPart::opaque(format!("p{value}")))?;
                 }
                 args::Argument::ShiftImm(shift) => {
                     arg_cb(InstructionPart::opaque(shift.op.to_string()))?;

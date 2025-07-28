@@ -1,6 +1,6 @@
 use alloc::{collections::BTreeMap, format, string::String, vec, vec::Vec};
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use object::elf;
 
 use crate::{
@@ -109,7 +109,7 @@ impl Arch for ArchSuperH {
                     );
                     parts.push(InstructionPart::basic(" /* "));
                     parts.push(InstructionPart::basic("0x"));
-                    parts.push(InstructionPart::basic(format!("{:04X}", data)));
+                    parts.push(InstructionPart::basic(format!("{data:04X}")));
                     parts.push(InstructionPart::basic(" */"));
                 } else if value.size == 4 && value.address as usize + 3 < symbol_data.len() {
                     let data = u32::from_be_bytes(
@@ -119,7 +119,7 @@ impl Arch for ArchSuperH {
                     );
                     parts.push(InstructionPart::basic(" /* "));
                     parts.push(InstructionPart::basic("0x"));
-                    parts.push(InstructionPart::basic(format!("{:08X}", data)));
+                    parts.push(InstructionPart::basic(format!("{data:08X}")));
                     parts.push(InstructionPart::basic(" */"));
                 }
             }
@@ -130,17 +130,6 @@ impl Arch for ArchSuperH {
         }
 
         Ok(())
-    }
-
-    fn implcit_addend(
-        &self,
-        _file: &object::File<'_>,
-        _section: &object::Section,
-        address: u64,
-        _relocation: &object::Relocation,
-        flags: RelocationFlags,
-    ) -> Result<i64> {
-        bail!("Unsupported SuperH implicit relocation {:#x}:{:?}", address, flags)
     }
 
     fn demangle(&self, name: &str) -> Option<String> {
@@ -214,10 +203,10 @@ mod test {
     impl Display for InstructionPart<'_> {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             match self {
-                InstructionPart::Basic(s) => write!(f, "{}", s),
-                InstructionPart::Opcode(s, _o) => write!(f, "{} ", s),
-                InstructionPart::Arg(arg) => write!(f, "{}", arg),
-                InstructionPart::Separator => write!(f, ", "),
+                InstructionPart::Basic(s) => f.write_str(s),
+                InstructionPart::Opcode(s, _o) => write!(f, "{s} "),
+                InstructionPart::Arg(arg) => write!(f, "{arg}"),
+                InstructionPart::Separator => f.write_str(", "),
             }
         }
     }
@@ -225,9 +214,9 @@ mod test {
     impl Display for InstructionArg<'_> {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             match self {
-                InstructionArg::Value(v) => write!(f, "{}", v),
-                InstructionArg::BranchDest(v) => write!(f, "{}", v),
-                InstructionArg::Reloc => write!(f, "reloc"),
+                InstructionArg::Value(v) => write!(f, "{v}"),
+                InstructionArg::BranchDest(v) => write!(f, "{v}"),
+                InstructionArg::Reloc => f.write_str("reloc"),
             }
         }
     }
@@ -264,7 +253,7 @@ mod test {
             )
             .unwrap();
 
-            let joined_str: String = parts.iter().map(|part| format!("{}", part)).collect();
+            let joined_str: String = parts.iter().map(<_>::to_string).collect();
             assert_eq!(joined_str, expected_str.to_string());
         }
     }
@@ -342,7 +331,7 @@ mod test {
             )
             .unwrap();
 
-            let joined_str: String = parts.iter().map(|part| format!("{}", part)).collect();
+            let joined_str: String = parts.iter().map(<_>::to_string).collect();
             assert_eq!(joined_str, expected_str.to_string());
         }
     }
@@ -425,7 +414,7 @@ mod test {
             )
             .unwrap();
 
-            let joined_str: String = parts.iter().map(|part| format!("{}", part)).collect();
+            let joined_str: String = parts.iter().map(<_>::to_string).collect();
             assert_eq!(joined_str, expected_str.to_string());
         }
     }
@@ -462,7 +451,7 @@ mod test {
             )
             .unwrap();
 
-            let joined_str: String = parts.iter().map(|part| format!("{}", part)).collect();
+            let joined_str: String = parts.iter().map(<_>::to_string).collect();
             assert_eq!(joined_str, expected_str.to_string());
         }
     }
@@ -516,7 +505,7 @@ mod test {
             )
             .unwrap();
 
-            let joined_str: String = parts.iter().map(|part| format!("{}", part)).collect();
+            let joined_str: String = parts.iter().map(<_>::to_string).collect();
             assert_eq!(joined_str, expected_str.to_string());
         }
     }
@@ -557,7 +546,7 @@ mod test {
             )
             .unwrap();
 
-            let joined_str: String = parts.iter().map(|part| format!("{}", part)).collect();
+            let joined_str: String = parts.iter().map(<_>::to_string).collect();
             assert_eq!(joined_str, expected_str.to_string());
         }
     }
@@ -601,7 +590,7 @@ mod test {
             )
             .unwrap();
 
-            let joined_str: String = parts.iter().map(|part| format!("{}", part)).collect();
+            let joined_str: String = parts.iter().map(<_>::to_string).collect();
             assert_eq!(joined_str, expected_str.to_string());
         }
     }
@@ -645,7 +634,7 @@ mod test {
             )
             .unwrap();
 
-            let joined_str: String = parts.iter().map(|part| format!("{}", part)).collect();
+            let joined_str: String = parts.iter().map(<_>::to_string).collect();
             assert_eq!(joined_str, expected_str.to_string());
         }
     }
@@ -682,7 +671,7 @@ mod test {
             )
             .unwrap();
 
-            let joined_str: String = parts.iter().map(|part| format!("{}", part)).collect();
+            let joined_str: String = parts.iter().map(<_>::to_string).collect();
             assert_eq!(joined_str, expected_str.to_string());
         }
     }
@@ -716,7 +705,7 @@ mod test {
             )
             .unwrap();
 
-            let joined_str: String = parts.iter().map(|part| format!("{}", part)).collect();
+            let joined_str: String = parts.iter().map(<_>::to_string).collect();
             assert_eq!(joined_str, expected_str.to_string());
         }
     }
@@ -764,7 +753,7 @@ mod test {
             )
             .unwrap();
 
-            let joined_str: String = parts.iter().map(|part| format!("{}", part)).collect();
+            let joined_str: String = parts.iter().map(<_>::to_string).collect();
             assert_eq!(joined_str, expected_str.to_string());
         }
     }
@@ -814,7 +803,7 @@ mod test {
             )
             .unwrap();
 
-            let joined_str: String = parts.iter().map(|part| format!("{}", part)).collect();
+            let joined_str: String = parts.iter().map(<_>::to_string).collect();
             assert_eq!(joined_str, expected_str.to_string());
         }
     }

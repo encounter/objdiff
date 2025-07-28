@@ -281,7 +281,7 @@ impl DiffViewState {
                 if let Some(source_path) =
                     state.config.selected_obj.as_ref().and_then(|obj| obj.source_path.as_ref())
                 {
-                    log::info!("Opening file {}", source_path);
+                    log::info!("Opening file {source_path}");
                     open::that_detached(source_path.as_str()).unwrap_or_else(|err| {
                         log::error!("Failed to open source file: {err}");
                     });
@@ -361,7 +361,11 @@ impl DiffViewState {
         }
     }
 
-    fn resolve_symbol(&self, symbol_idx: Option<usize>, column: usize) -> Option<ResolvedSymbol> {
+    fn resolve_symbol(
+        &self,
+        symbol_idx: Option<usize>,
+        column: usize,
+    ) -> Option<ResolvedSymbol<'_>> {
         let symbol_idx = symbol_idx?;
         let result = self.build.as_deref()?;
         let (obj, diff) = match column {

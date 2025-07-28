@@ -467,7 +467,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "miniz_oxide",
- "object 0.36.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "object 0.36.7",
  "rustc-demangle",
  "windows-targets 0.52.6",
 ]
@@ -3353,7 +3353,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-cli"
-version = "3.0.0-beta.10"
+version = "3.0.0-beta.11"
 dependencies = [
  "anyhow",
  "argp",
@@ -3376,7 +3376,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-core"
-version = "3.0.0-beta.10"
+version = "3.0.0-beta.11"
 dependencies = [
  "anyhow",
  "arm-attr",
@@ -3399,10 +3399,10 @@ dependencies = [
  "notify-debouncer-full",
  "num-traits",
  "objdiff-core",
- "object 0.36.7 (git+https://github.com/gimli-rs/object?rev=a74579249e21ab8fcd3a86be588de336f18297cb)",
+ "object 0.37.1",
  "pbjson",
  "pbjson-build",
- "ppc750cl",
+ "powerpc",
  "prettyplease",
  "proc-macro2",
  "prost",
@@ -3430,7 +3430,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-gui"
-version = "3.0.0-beta.10"
+version = "3.0.0-beta.11"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -3466,7 +3466,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-wasm"
-version = "3.0.0-beta.10"
+version = "3.0.0-beta.11"
 dependencies = [
  "log",
  "objdiff-core",
@@ -3488,8 +3488,8 @@ dependencies = [
 
 [[package]]
 name = "object"
-version = "0.36.7"
-source = "git+https://github.com/gimli-rs/object?rev=a74579249e21ab8fcd3a86be588de336f18297cb#a74579249e21ab8fcd3a86be588de336f18297cb"
+version = "0.37.1"
+source = "git+https://github.com/gimli-rs/object?rev=16ff70aa6fbd97d6bb7b92375929f4d72414c32b#16ff70aa6fbd97d6bb7b92375929f4d72414c32b"
 dependencies = [
  "memchr",
 ]
@@ -3859,10 +3859,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "439ee305def115ba05938db6eb1644ff94165c5ab5e9420d1c1bcedbba909391"
 
 [[package]]
-name = "ppc750cl"
-version = "0.3.3"
+name = "powerpc"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "405ab38d4b7a4168632c9208bcb11914730fdf847f12ff1442423b38693fabfa"
+checksum = "f9cac36a8d92f3c9d38ebfa606e3bbbbec229a8d757f03de0999898522856e33"
 
 [[package]]
 name = "ppv-lite86"
