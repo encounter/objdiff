@@ -5,8 +5,8 @@ use std::{mem::take, path::MAIN_SEPARATOR};
 #[cfg(all(windows, feature = "wsl"))]
 use anyhow::{Context, Result};
 use egui::{
-    CollapsingHeader, FontFamily, FontId, RichText, SelectableLabel, TextFormat, Widget,
-    output::OpenUrl, text::LayoutJob,
+    CollapsingHeader, FontFamily, FontId, RichText, TextFormat, Widget, output::OpenUrl,
+    text::LayoutJob,
 };
 use globset::Glob;
 use objdiff_core::{
@@ -278,7 +278,7 @@ pub fn config_ui(
             {
                 filters_text = filters_text.color(appearance.replace_color);
             }
-            egui::menu::menu_button(ui, filters_text, |ui| {
+            egui::containers::menu::MenuButton::new(filters_text).ui(ui, |ui| {
                 ui.checkbox(&mut config_state.filter_diffable, "Diffable")
                     .on_hover_text_at_pointer("Only show objects with a source file");
                 ui.checkbox(&mut config_state.filter_incomplete, "Incomplete")
@@ -355,7 +355,7 @@ fn display_unit(
     } else {
         appearance.text_color
     };
-    let response = SelectableLabel::new(
+    let response = egui::Button::selectable(
         selected,
         RichText::new(name)
             .font(FontId {
@@ -384,7 +384,7 @@ fn object_context_ui(ui: &mut egui::Ui, object: &ObjectConfig) {
             if let Err(e) = open::that_detached(source_path.as_str()) {
                 log::error!("Failed to open source file: {e}");
             }
-            ui.close_menu();
+            ui.close();
         }
     }
 }

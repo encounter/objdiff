@@ -873,7 +873,7 @@ pub fn context_menu_items_ui(
                 }
                 if ui.button(job).clicked() {
                     ui.ctx().copy_text(value);
-                    ui.close_menu();
+                    ui.close();
                 }
             }
             ContextItem::Navigate { label, symbol_index, kind } => {
@@ -883,7 +883,7 @@ pub fn context_menu_items_ui(
                         symbol_index,
                         column,
                     )));
-                    ui.close_menu();
+                    ui.close();
                 }
             }
             ContextItem::Separator => {

@@ -123,14 +123,14 @@ features = ["all"]
 [dependencies]
 anyhow = { version = "1.0", default-features = false }
 filetime = { version = "0.2", optional = true }
-flagset = { version = "0.4", default-features = false, optional = true, git = "https://github.com/enarx/flagset.git", rev = "a1fe9369b3741e43fec45da1998e83b9d78966a2" }
+flagset = { version = "0.4", default-features = false, optional = true }
 itertools = { version = "0.14", default-features = false, features = ["use_alloc"] }
 log = { version = "0.4", default-features = false, optional = true }
 memmap2 = { version = "0.9", optional = true }
 num-traits = { version = "0.2", default-features = false, optional = true }
 object = { git = "https://github.com/gimli-rs/object", rev = "16ff70aa6fbd97d6bb7b92375929f4d72414c32b", default-features = false, features = ["read_core", "elf", "coff"] }
-pbjson = { version = "0.7", default-features = false, optional = true }
-prost = { version = "0.13", default-features = false, features = ["prost-derive"], optional = true }
+pbjson = { version = "0.8", default-features = false, optional = true }
+prost = { version = "0.14", default-features = false, features = ["derive"], optional = true }
 regex = { version = "1.11", default-features = false, features = [], optional = true }
 serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
 similar = { version = "2.7", default-features = false, features = ["hashbrown"], optional = true, git = "https://github.com/encounter/similar.git", branch = "no_std" }
@@ -142,16 +142,16 @@ semver = { version = "1.0", default-features = false, optional = true }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"], optional = true }
 
 # dwarf
-gimli = { version = "0.31", default-features = false, features = ["read"], optional = true }
+gimli = { version = "0.32", default-features = false, features = ["read"], optional = true }
 
 # ppc
 cwdemangle = { version = "1.0", optional = true }
-cwextab = { version = "1.0", optional = true }
+cwextab = { version = "1.1", optional = true }
 powerpc = { version = "0.4", optional = true }
 rlwinmdec = { version = "1.1", optional = true }
 
 # mips
-rabbitizer = { version = "2.0.0-alpha.1", default-features = false, features = ["all_extensions"], optional = true }
+rabbitizer = { version = "2.0.0-alpha.4", default-features = false, features = ["all_extensions"], optional = true }
 
 # x86
 cpp_demangle = { version = "0.4", default-features = false, features = ["alloc"], optional = true }
@@ -159,7 +159,7 @@ iced-x86 = { version = "1.21", default-features = false, features = ["decoder", 
 msvc-demangler = { version = "0.11", optional = true }
 
 # arm
-unarm = { version = "1.8", optional = true }
+unarm = { version = "1.9", optional = true }
 arm-attr = { version = "0.2", optional = true }
 
 # arm64
@@ -167,10 +167,10 @@ yaxpeax-arch = { version = "0.3", default-features = false, optional = true }
 yaxpeax-arm = { version = "0.3", default-features = false, optional = true }
 
 # build
-notify = { version = "8.0.0", optional = true }
+notify = { version = "8.1.0", optional = true }
 notify-debouncer-full = { version = "0.5.0", optional = true }
 shell-escape = { version = "0.1", optional = true }
-tempfile = { version = "3.19", optional = true }
+tempfile = { version = "3.20", optional = true }
 time = { version = "0.3", optional = true }
 encoding_rs = { version = "0.8.35", optional = true }
 
@@ -189,10 +189,10 @@ self_update = { version = "0.42", optional = true }
 
 [build-dependencies]
 heck = { version = "0.5", optional = true }
-pbjson-build = { version = "0.7", optional = true }
+pbjson-build = { version = "0.8", optional = true }
 prettyplease = { version = "0.2", optional = true }
 proc-macro2 = { version = "1.0", optional = true }
-prost-build = { version = "0.13", optional = true }
+prost-build = { version = "0.14", optional = true }
 quote = { version = "1.0", optional = true }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0" }

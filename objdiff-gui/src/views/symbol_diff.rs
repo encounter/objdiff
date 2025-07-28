@@ -1,8 +1,8 @@
 use std::mem::take;
 
 use egui::{
-    CollapsingHeader, Color32, Id, OpenUrl, ScrollArea, SelectableLabel, Ui, Widget,
-    style::ScrollAnimation, text::LayoutJob,
+    CollapsingHeader, Color32, Id, OpenUrl, ScrollArea, Ui, Widget, style::ScrollAnimation,
+    text::LayoutJob,
 };
 use objdiff_core::{
     diff::{
@@ -508,7 +508,7 @@ pub fn symbol_context_menu_ui(
                 } else {
                     ret = Some(DiffViewAction::SelectingLeft(symbol_ref));
                 }
-                ui.close_menu();
+                ui.close();
             }
         }
     });
@@ -586,7 +586,7 @@ fn symbol_ui(
         write_text(") ", appearance.text_color, &mut job, appearance.code_font.clone());
     }
     write_text(name, appearance.highlight_color, &mut job, appearance.code_font.clone());
-    let response = SelectableLabel::new(selected, job)
+    let response = egui::Button::selectable(selected, job)
         .ui(ui)
         .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, ctx, symbol_idx, appearance));
     response.context_menu(|ui| {

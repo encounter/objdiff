@@ -15,11 +15,11 @@ publish = false
 [dependencies]
 anyhow = "1.0"
 argp = "0.4"
-crossterm = "0.28"
+crossterm = "0.29"
 enable-ansi-support = "0.2"
 memmap2 = "0.9"
 objdiff-core = { path = "../objdiff-core", features = ["all"] }
-prost = "0.13"
+prost = "0.14"
 ratatui = "0.29"
 rayon = "1.10"
 serde = { version = "1.0", features = ["derive"] }

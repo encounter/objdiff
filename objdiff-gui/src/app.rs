@@ -461,7 +461,7 @@ impl App {
             use eframe::egui_wgpu::wgpu::Backend;
             let info = wgpu_render_state.adapter.get_info();
             app.view_state.graphics_state.active_backend = match info.backend {
-                Backend::Empty => "Unknown",
+                Backend::Noop => "None",
                 Backend::Vulkan => "Vulkan",
                 Backend::Metal => "Metal",
                 Backend::Dx12 => "DirectX 12",
@@ -665,7 +665,7 @@ impl eframe::App for App {
         let side_panel_available = diff_state.current_view == View::SymbolDiff;
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            egui::menu::bar(ui, |ui| {
+            egui::MenuBar::new().ui(ui, |ui| {
                 if ui
                     .add_enabled(
                         side_panel_available,
@@ -681,11 +681,11 @@ impl eframe::App for App {
                     #[cfg(debug_assertions)]
                     if ui.button("Debug…").clicked() {
                         *show_debug = !*show_debug;
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Project…").clicked() {
                         *show_project_config = !*show_project_config;
-                        ui.close_menu();
+                        ui.close();
                     }
                     let recent_projects = if let Ok(guard) = state.read() {
                         guard.config.recent_projects.clone()
@@ -706,18 +706,18 @@ impl eframe::App for App {
                                         .write()
                                         .unwrap()
                                         .set_project_dir(Utf8PlatformPathBuf::from(path));
-                                    ui.close_menu();
+                                    ui.close();
                                 }
                             }
                         });
                     }
                     if ui.button("Appearance…").clicked() {
                         *show_appearance_config = !*show_appearance_config;
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Graphics…").clicked() {
                         *show_graphics = !*show_graphics;
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Quit").clicked() {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -726,17 +726,17 @@ impl eframe::App for App {
                 ui.menu_button("Tools", |ui| {
                     if ui.button("Demangle…").clicked() {
                         *show_demangle = !*show_demangle;
-                        ui.close_menu();
+                        ui.close();
                     }
                     if ui.button("Rlwinm Decoder…").clicked() {
                         *show_rlwinm_decode = !*show_rlwinm_decode;
-                        ui.close_menu();
+                        ui.close();
                     }
                 });
                 ui.menu_button("Diff Options", |ui| {
                     if ui.button("Arch Settings…").clicked() {
                         *show_arch_config = !*show_arch_config;
-                        ui.close_menu();
+                        ui.close();
                     }
                     let mut state = state.write().unwrap();
                     let response = ui

@@ -34,7 +34,7 @@ features = ["arm", "arm64", "mips", "ppc", "superh", "x86", "dwarf"]
 talc = { version = "4.4", default-features = false, features = ["lock_api"] }
 
 [target.'cfg(target_os = "wasi")'.dependencies]
-wit-bindgen = { version = "0.42", default-features = false, features = ["macros"] }
+wit-bindgen = { version = "0.43", default-features = false, features = ["macros"] }
 
 [build-dependencies]
 wit-deps = "0.5"

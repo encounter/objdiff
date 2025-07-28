@@ -54,7 +54,7 @@ pub fn load_graphics_config(path: &Path) -> Result<Option<GraphicsConfig>> {
 
 pub fn save_graphics_config(path: &Path, config: &GraphicsConfig) -> Result<()> {
     let file = BufWriter::new(File::create(path)?);
-    ron::ser::to_writer(file, config)?;
+    ron::Options::default().to_io_writer(file, config)?;
     Ok(())
 }
 
