@@ -7,10 +7,7 @@ use alloc::{
 use anyhow::{Result, bail};
 use object::{Endian as _, Object as _, ObjectSection as _, ObjectSymbol as _, elf};
 use rabbitizer::{
-    IsaExtension, IsaVersion, Vram,
-    abi::Abi,
-    operands::{IU16, ValuedOperand},
-    registers_meta::Register,
+    IsaExtension, IsaVersion, Vram, abi::Abi, operands::ValuedOperand, registers_meta::Register,
 };
 
 use crate::{
@@ -335,14 +332,18 @@ fn push_args(
         }
 
         match op {
-            ValuedOperand::core_immediate(imm) => {
+            ValuedOperand::core_imm_i16(imm) => {
                 if let Some(resolved) = relocation {
                     push_reloc(resolved.relocation, &mut arg_cb)?;
                 } else {
-                    arg_cb(match imm {
-                        IU16::Integer(s) => InstructionPart::signed(s),
-                        IU16::Unsigned(u) => InstructionPart::unsigned(u),
-                    })?;
+                    arg_cb(InstructionPart::signed(imm))?;
+                }
+            }
+            ValuedOperand::core_imm_u16(imm) => {
+                if let Some(resolved) = relocation {
+                    push_reloc(resolved.relocation, &mut arg_cb)?;
+                } else {
+                    arg_cb(InstructionPart::unsigned(imm))?;
                 }
             }
             ValuedOperand::core_label(..) | ValuedOperand::core_branch_target_label(..) => {
@@ -359,14 +360,13 @@ fn push_args(
                     ))?;
                 }
             }
-            ValuedOperand::core_immediate_base(imm, base) => {
+            ValuedOperand::core_imm_rs(imm, base) => {
                 if let Some(resolved) = relocation {
                     push_reloc(resolved.relocation, &mut arg_cb)?;
                 } else {
-                    arg_cb(InstructionPart::Arg(InstructionArg::Value(match imm {
-                        IU16::Integer(s) => InstructionArgValue::Signed(s as i64),
-                        IU16::Unsigned(u) => InstructionArgValue::Unsigned(u as u64),
-                    })))?;
+                    arg_cb(InstructionPart::Arg(InstructionArg::Value(
+                        InstructionArgValue::Signed(imm as i64),
+                    )))?;
                 }
                 arg_cb(InstructionPart::basic("("))?;
                 arg_cb(InstructionPart::opaque(base.either_name(

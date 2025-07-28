@@ -3600,6 +3600,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ordered-float"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e2c1f9f56e534ac6a9b8a4600bdf0f530fb393b5f393e7b4d03489c3cf0c3f01"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "ordered-stream"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4060,11 +4069,12 @@ checksum = "74765f6d916ee2faa39bc8e68e4f3ed8949b48cccdac59983d287a7cb71ce9c5"
 
 [[package]]
 name = "rabbitizer"
-version = "2.0.0-alpha.1"
+version = "2.0.0-alpha.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "64080591f74ce1fc31da186bbc915cb240dc6097b8df4bbd450c8a3fa493777d"
+checksum = "5f76fd83d4e4f4fd283e9c4ffe348f24eabd7b2001ee34308928574370d39a0b"
 dependencies = [
  "bitflags 2.9.0",
+ "ordered-float 5.0.0",
 ]
 
 [[package]]
@@ -6040,7 +6050,7 @@ dependencies = [
  "ndk-sys 0.5.0+25.2.9519653",
  "objc",
  "once_cell",
- "ordered-float",
+ "ordered-float 4.6.0",
  "parking_lot",
  "profiling",
  "range-alloc",
