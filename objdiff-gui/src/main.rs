@@ -95,7 +95,8 @@ fn main() -> ExitCode {
                         GraphicsBackend::Dx12 => wgpu::Backends::DX12,
                         GraphicsBackend::Metal => wgpu::Backends::METAL,
                         GraphicsBackend::Vulkan => wgpu::Backends::VULKAN,
-                        GraphicsBackend::OpenGL => wgpu::Backends::GL,
+                        GraphicsBackend::OpenGLES => wgpu::Backends::GL,
+                        GraphicsBackend::OpenGL => wgpu::Backends::empty(),
                     };
                     WgpuSetup::CreateNew(setup)
                 }

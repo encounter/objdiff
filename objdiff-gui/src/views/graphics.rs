@@ -26,7 +26,8 @@ pub enum GraphicsBackend {
     Vulkan,
     Metal,
     Dx12,
-    OpenGL,
+    OpenGL,   // glow
+    OpenGLES, // wgpu
 }
 
 static ALL_BACKENDS: &[GraphicsBackend] = &[
@@ -35,6 +36,7 @@ static ALL_BACKENDS: &[GraphicsBackend] = &[
     GraphicsBackend::Metal,
     GraphicsBackend::Dx12,
     GraphicsBackend::OpenGL,
+    GraphicsBackend::OpenGLES,
 ];
 
 #[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
@@ -67,7 +69,8 @@ impl GraphicsBackend {
             }
             GraphicsBackend::Metal => cfg!(all(feature = "wgpu", target_os = "macos")),
             GraphicsBackend::Dx12 => cfg!(all(feature = "wgpu", target_os = "windows")),
-            GraphicsBackend::OpenGL => true,
+            GraphicsBackend::OpenGL => cfg!(feature = "glow"),
+            GraphicsBackend::OpenGLES => cfg!(all(feature = "wgpu", target_os = "windows")),
         }
     }
 
@@ -78,6 +81,7 @@ impl GraphicsBackend {
             GraphicsBackend::Metal => "Metal",
             GraphicsBackend::Dx12 => "DirectX 12",
             GraphicsBackend::OpenGL => "OpenGL",
+            GraphicsBackend::OpenGLES => "OpenGL ES",
         }
     }
 }
