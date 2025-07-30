@@ -462,6 +462,7 @@ impl Arch for ArchDummy {
     fn data_reloc_size(&self, _flags: RelocationFlags) -> usize { 0 }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RelocationOverrideTarget {
     Keep,
     Skip,
@@ -469,6 +470,7 @@ pub enum RelocationOverrideTarget {
     Section(object::SectionIndex),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RelocationOverride {
     pub target: RelocationOverrideTarget,
     pub addend: i64,

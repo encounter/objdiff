@@ -229,13 +229,19 @@ impl Arch for ArchPpc {
                         typ: pe::IMAGE_REL_PPC_PAIR
                     })
                 })
-                .map_or(Ok(None), |(_, reloc)| match reloc.target() {
-                    object::RelocationTarget::Symbol(index) => Ok(Some(RelocationOverride {
+                .map_or(
+                    Ok(Some(RelocationOverride {
                         target: RelocationOverrideTarget::Keep,
-                        addend: index.0 as u16 as i16 as i64,
+                        addend: 0,
                     })),
-                    target => Err(anyhow!("Unsupported IMAGE_REL_PPC_PAIR target {target:?}")),
-                }),
+                    |(_, reloc)| match reloc.target() {
+                        object::RelocationTarget::Symbol(index) => Ok(Some(RelocationOverride {
+                            target: RelocationOverrideTarget::Keep,
+                            addend: index.0 as u16 as i16 as i64,
+                        })),
+                        target => Err(anyhow!("Unsupported IMAGE_REL_PPC_PAIR target {target:?}")),
+                    },
+                ),
             // Skip PAIR relocations as they are handled by the previous case
             object::RelocationFlags::Coff { typ: pe::IMAGE_REL_PPC_PAIR } => {
                 Ok(Some(RelocationOverride { target: RelocationOverrideTarget::Skip, addend: 0 }))

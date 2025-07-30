@@ -361,7 +361,8 @@ fn map_section_relocations(
             None => {
                 ensure!(
                     !reloc.has_implicit_addend(),
-                    "Unsupported implicit relocation {:?}",
+                    "Unsupported {:?} implicit relocation {:?}",
+                    obj_file.architecture(),
                     reloc.flags()
                 );
             }
