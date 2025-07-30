@@ -205,10 +205,18 @@ fn infer_symbol_sizes(symbols: &mut [Symbol], sections: &[Section]) {
             }
             iter_idx += 1;
         };
-        let next_address = next_symbol.map(|s| s.address).unwrap_or_else(|| {
-            let section = &sections[section_idx];
-            section.address + section.size
-        });
+        let section = &sections[section_idx];
+        let mut next_address =
+            next_symbol.map(|s| s.address).unwrap_or_else(|| section.address + section.size);
+        if section.kind == SectionKind::Code {
+            // For functions, trim any trailing 4-byte zeroes from the end (padding, nops)
+            while next_address > symbol.address + 4
+                && let Some(data) = section.data_range(next_address - 4, 4)
+                && data == [0u8; 4]
+            {
+                next_address -= 4;
+            }
+        }
         let new_size = next_address.saturating_sub(symbol.address);
         if new_size > 0 {
             let symbol = &mut symbols[symbol_idx];
@@ -218,7 +226,7 @@ fn infer_symbol_sizes(symbols: &mut [Symbol], sections: &[Section]) {
             }
             // Set symbol kind if unknown and size is non-zero
             if symbol.kind == SymbolKind::Unknown {
-                symbol.kind = match sections[section_idx].kind {
+                symbol.kind = match section.kind {
                     SectionKind::Code => SymbolKind::Function,
                     SectionKind::Data | SectionKind::Bss => SymbolKind::Object,
                     _ => SymbolKind::Unknown,
