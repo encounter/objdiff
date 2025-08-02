@@ -66,7 +66,9 @@ impl ArchPpc {
                 if file.is_64() {
                     powerpc::Extension::Ppc64 | powerpc::Extension::AltiVec
                 } else {
-                    powerpc::Extension::AltiVec.into()
+                    // Gekko/Broadway objects often use the EF_PPC_EMB flag,
+                    // but ProDG in particular does not emit it.
+                    powerpc::Extensions::gekko_broadway()
                 }
             }
         };
