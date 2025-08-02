@@ -1,5 +1,7 @@
+use alloc::{borrow::Cow, vec::Vec};
+
 use anyhow::{Context, Result};
-use object::{Object, ObjectSection};
+use object::{Object as _, ObjectSection as _};
 use typed_arena::Arena;
 
 use crate::obj::{Section, SectionKind};
@@ -83,7 +85,7 @@ fn load_file_section<'input, 'arena, Endian: gimli::Endianity>(
     id: gimli::SectionId,
     file: &object::File<'input>,
     endian: Endian,
-    arena_data: &'arena Arena<alloc::borrow::Cow<'input, [u8]>>,
+    arena_data: &'arena Arena<Cow<'input, [u8]>>,
     arena_relocations: &'arena Arena<RelocationMap>,
 ) -> Result<Relocate<'arena, gimli::EndianSlice<'arena, Endian>>> {
     let mut relocations = RelocationMap::default();
@@ -93,7 +95,7 @@ fn load_file_section<'input, 'arena, Endian: gimli::Endianity>(
             section.uncompressed_data()?
         }
         // Use a non-zero capacity so that `ReaderOffsetId`s are unique.
-        None => alloc::borrow::Cow::Owned(Vec::with_capacity(1)),
+        None => Cow::Owned(Vec::with_capacity(1)),
     };
     let data_ref = arena_data.alloc(data);
     let section = gimli::EndianSlice::new(data_ref, endian);
@@ -101,6 +103,7 @@ fn load_file_section<'input, 'arena, Endian: gimli::Endianity>(
     Ok(Relocate::new(section, relocations))
 }
 
+#[inline]
 fn gimli_error(e: gimli::Error, context: &str) -> anyhow::Error {
     anyhow::anyhow!("gimli error {context}: {e:?}")
 }
