@@ -1,3 +1,5 @@
+#[cfg(feature = "dwarf")]
+mod dwarf2;
 pub mod read;
 pub mod split_meta;
 

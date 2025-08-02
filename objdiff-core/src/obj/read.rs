@@ -578,6 +578,28 @@ fn parse_line_info(
     obj_data: &[u8],
 ) -> Result<()> {
     // DWARF 1.1
+    if let Err(e) = parse_line_info_dwarf1(obj_file, sections) {
+        log::warn!("Failed to parse DWARF 1.1 line info: {e}");
+    }
+
+    // DWARF 2+
+    #[cfg(feature = "dwarf")]
+    if let Err(e) = super::dwarf2::parse_line_info_dwarf2(obj_file, sections) {
+        log::warn!("Failed to parse DWARF 2+ line info: {e}");
+    }
+
+    // COFF
+    if let object::File::Coff(coff) = obj_file
+        && let Err(e) = parse_line_info_coff(coff, sections, section_indices, obj_data)
+    {
+        log::warn!("Failed to parse COFF line info: {e}");
+    }
+
+    Ok(())
+}
+
+/// Parse .line section from DWARF 1.1 format.
+fn parse_line_info_dwarf1(obj_file: &object::File, sections: &mut [Section]) -> Result<()> {
     if let Some(section) = obj_file.section_by_name(".line") {
         let data = section.uncompressed_data()?;
         let mut reader: &[u8] = data.as_ref();
@@ -605,55 +627,6 @@ fn parse_line_info(
             }
         }
     }
-
-    // DWARF 2+
-    #[cfg(feature = "dwarf")]
-    {
-        fn gimli_error(e: gimli::Error) -> anyhow::Error { anyhow::anyhow!("DWARF error: {e:?}") }
-        let dwarf_cow = gimli::DwarfSections::load(|id| {
-            Ok::<_, gimli::Error>(
-                obj_file
-                    .section_by_name(id.name())
-                    .and_then(|section| section.uncompressed_data().ok())
-                    .unwrap_or(alloc::borrow::Cow::Borrowed(&[][..])),
-            )
-        })
-        .map_err(gimli_error)?;
-        let endian = match obj_file.endianness() {
-            object::Endianness::Little => gimli::RunTimeEndian::Little,
-            object::Endianness::Big => gimli::RunTimeEndian::Big,
-        };
-        let dwarf = dwarf_cow.borrow(|section| gimli::EndianSlice::new(section, endian));
-        let mut iter = dwarf.units();
-        if let Some(header) = iter.next().map_err(gimli_error)? {
-            let unit = dwarf.unit(header).map_err(gimli_error)?;
-            if let Some(program) = unit.line_program.clone() {
-                let mut text_sections = sections.iter_mut().filter(|s| s.kind == SectionKind::Code);
-                let mut lines = text_sections.next().map(|section| &mut section.line_info);
-
-                let mut rows = program.rows();
-                while let Some((_header, row)) = rows.next_row().map_err(gimli_error)? {
-                    if let (Some(line), Some(lines)) = (row.line(), &mut lines) {
-                        lines.insert(row.address(), line.get() as u32);
-                    }
-                    if row.end_sequence() {
-                        // The next row is the start of a new sequence, which means we must
-                        // advance to the next .text section.
-                        lines = text_sections.next().map(|section| &mut section.line_info);
-                    }
-                }
-            }
-        }
-        if iter.next().map_err(gimli_error)?.is_some() {
-            log::warn!("Multiple units found in DWARF data, only processing the first");
-        }
-    }
-
-    // COFF
-    if let object::File::Coff(coff) = obj_file {
-        parse_line_info_coff(coff, sections, section_indices, obj_data)?;
-    }
-
     Ok(())
 }
 
