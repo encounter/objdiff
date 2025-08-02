@@ -242,17 +242,16 @@ impl Arch for ArchMips {
             object::RelocationFlags::Elf { r_type } => {
                 if relocation.has_implicit_addend() {
                     // Check for paired R_MIPS_HI16 and R_MIPS_LO16 relocations.
-                    if let elf::R_MIPS_HI16 | elf::R_MIPS_LO16 = r_type {
-                        if let Some(addend) = self
+                    if let elf::R_MIPS_HI16 | elf::R_MIPS_LO16 = r_type
+                        && let Some(addend) = self
                             .paired_relocations
                             .get(section.index().0)
                             .and_then(|m| m.get(&address).copied())
-                        {
-                            return Ok(Some(RelocationOverride {
-                                target: RelocationOverrideTarget::Keep,
-                                addend,
-                            }));
-                        }
+                    {
+                        return Ok(Some(RelocationOverride {
+                            target: RelocationOverrideTarget::Keep,
+                            addend,
+                        }));
                     }
 
                     let data = section.data()?;

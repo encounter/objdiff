@@ -173,23 +173,23 @@ fn main() -> ExitCode {
     }
 
     // Attempt to relaunch application from the updated path
-    if let Ok(mut guard) = exec_path.lock() {
-        if let Some(path) = guard.take() {
-            cfg_if! {
-                if #[cfg(unix)] {
-                    let e = exec::Command::new(path)
-                        .args(&std::env::args().collect::<Vec<String>>())
-                        .exec();
+    if let Ok(mut guard) = exec_path.lock()
+        && let Some(path) = guard.take()
+    {
+        cfg_if! {
+            if #[cfg(unix)] {
+                let e = exec::Command::new(path)
+                    .args(&std::env::args().collect::<Vec<String>>())
+                    .exec();
+                log::error!("Failed to relaunch: {e:?}");
+                return ExitCode::FAILURE;
+            } else {
+                let result = std::process::Command::new(path)
+                    .args(std::env::args())
+                    .spawn();
+                if let Err(e) = result {
                     log::error!("Failed to relaunch: {e:?}");
                     return ExitCode::FAILURE;
-                } else {
-                    let result = std::process::Command::new(path)
-                        .args(std::env::args())
-                        .spawn();
-                    if let Err(e) = result {
-                        log::error!("Failed to relaunch: {e:?}");
-                        return ExitCode::FAILURE;
-                    }
                 }
             }
         }

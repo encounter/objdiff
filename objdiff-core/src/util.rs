@@ -48,7 +48,7 @@ pub fn align_data_to_4<W: std::io::Write + ?Sized>(
     len: usize,
 ) -> std::io::Result<()> {
     const ALIGN_BYTES: &[u8] = &[0; 4];
-    if len % 4 != 0 {
+    if !len.is_multiple_of(4) {
         writer.write_all(&ALIGN_BYTES[..4 - len % 4])?;
     }
     Ok(())

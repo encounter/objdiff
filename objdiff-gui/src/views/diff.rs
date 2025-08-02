@@ -128,10 +128,10 @@ pub fn diff_view_ui(
     let mut navigation = current_navigation.clone();
     if let Some((_symbol, symbol_diff, _symbol_idx)) = left_ctx.symbol {
         // If a matching symbol appears, select it
-        if !right_ctx.has_symbol() {
-            if let Some(target_symbol_ref) = symbol_diff.target_symbol {
-                navigation.right_symbol = Some(target_symbol_ref);
-            }
+        if !right_ctx.has_symbol()
+            && let Some(target_symbol_ref) = symbol_diff.target_symbol
+        {
+            navigation.right_symbol = Some(target_symbol_ref);
         }
     } else if navigation.left_symbol.is_some()
         && left_ctx.obj.is_some()
@@ -142,10 +142,10 @@ pub fn diff_view_ui(
     }
     if let Some((_symbol, symbol_diff, _symbol_idx)) = right_ctx.symbol {
         // If a matching symbol appears, select it
-        if !left_ctx.has_symbol() {
-            if let Some(target_symbol_ref) = symbol_diff.target_symbol {
-                navigation.left_symbol = Some(target_symbol_ref);
-            }
+        if !left_ctx.has_symbol()
+            && let Some(target_symbol_ref) = symbol_diff.target_symbol
+        {
+            navigation.left_symbol = Some(target_symbol_ref);
         }
     } else if navigation.right_symbol.is_some()
         && right_ctx.obj.is_some()
@@ -247,16 +247,15 @@ pub fn diff_view_ui(
 
             // Third row
             if left_ctx.has_symbol() && right_ctx.has_symbol() {
-                if state.current_view == View::FunctionDiff
+                if (state.current_view == View::FunctionDiff
                     && ui
                         .button("Change target")
                         .on_hover_text_at_pointer("Choose a different symbol to use as the target")
                         .clicked()
-                    || hotkeys::consume_change_target_shortcut(ui.ctx())
+                    || hotkeys::consume_change_target_shortcut(ui.ctx()))
+                    && let Some(symbol_ref) = state.symbol_state.right_symbol.as_ref()
                 {
-                    if let Some(symbol_ref) = state.symbol_state.right_symbol.as_ref() {
-                        ret = Some(DiffViewAction::SelectingLeft(symbol_ref.clone()));
-                    }
+                    ret = Some(DiffViewAction::SelectingLeft(symbol_ref.clone()));
                 }
             } else if left_ctx.status.success && !left_ctx.has_symbol() {
                 ui.horizontal(|ui| {
@@ -409,17 +408,16 @@ pub fn diff_view_ui(
                         if needs_separator {
                             ui.separator();
                         }
-                        if ui
+                        if (ui
                             .button("Change base")
                             .on_hover_text_at_pointer(
                                 "Choose a different symbol to use as the base",
                             )
                             .clicked()
-                            || hotkeys::consume_change_base_shortcut(ui.ctx())
+                            || hotkeys::consume_change_base_shortcut(ui.ctx()))
+                            && let Some(symbol_ref) = state.symbol_state.left_symbol.as_ref()
                         {
-                            if let Some(symbol_ref) = state.symbol_state.left_symbol.as_ref() {
-                                ret = Some(DiffViewAction::SelectingRight(symbol_ref.clone()));
-                            }
+                            ret = Some(DiffViewAction::SelectingRight(symbol_ref.clone()));
                         }
                     }
                 } else if right_ctx.status.success && !right_ctx.has_symbol() {
@@ -583,8 +581,8 @@ pub fn diff_view_ui(
                     ) {
                         ret = Some(action);
                     }
-                } else if column == 1 {
-                    if let Some(action) = diff_col_ui(
+                } else if column == 1
+                    && let Some(action) = diff_col_ui(
                         ui,
                         state,
                         appearance,
@@ -594,9 +592,9 @@ pub fn diff_view_ui(
                         available_width,
                         open_sections.1,
                         diff_config,
-                    ) {
-                        ret = Some(action);
-                    }
+                    )
+                {
+                    ret = Some(action);
                 }
             });
         }

@@ -215,10 +215,10 @@ impl dyn Arch {
 
         // Remove any branch destinations that are outside the function range
         for ins in result.iter_mut() {
-            if let Some(branch_dest) = ins.branch_dest {
-                if branch_dest < function_start || branch_dest >= function_end {
-                    ins.branch_dest = None;
-                }
+            if let Some(branch_dest) = ins.branch_dest
+                && (branch_dest < function_start || branch_dest >= function_end)
+            {
+                ins.branch_dest = None;
             }
         }
 

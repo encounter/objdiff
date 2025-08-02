@@ -164,7 +164,7 @@ pub(crate) fn data_row_ui(
                 write_text(byte_text.as_str(), byte_color, &mut job, appearance.code_font.clone());
                 cur_addr += 1;
                 cur_addr_actual += 1;
-                if cur_addr % 8 == 0 {
+                if cur_addr.is_multiple_of(8) {
                     write_text(" ", base_color, &mut job, appearance.code_font.clone());
                 }
             }

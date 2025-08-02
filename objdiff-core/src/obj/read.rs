@@ -550,12 +550,11 @@ fn perform_data_flow_analysis(obj: &mut Object, config: &DiffObjConfig) -> Resul
             }
 
             // Optional full data flow analysis
-            if config.analyze_data_flow {
-                if let Some(flow_result) =
+            if config.analyze_data_flow
+                && let Some(flow_result) =
                     obj.arch.data_flow_analysis(obj, symbol, code, &section.relocations)
-                {
-                    generated_flow_results.push((symbol.clone(), flow_result));
-                }
+            {
+                generated_flow_results.push((symbol.clone(), flow_result));
             }
         }
     }

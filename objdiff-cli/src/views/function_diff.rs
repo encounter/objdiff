@@ -170,32 +170,31 @@ impl UiView for FunctionDiffUi {
 
         let mut prev_text = None;
         let mut prev_margin_text = None;
-        if self.three_way {
-            if let Some((obj, symbol_idx, symbol_diff)) =
+        if self.three_way
+            && let Some((obj, symbol_idx, symbol_diff)) =
                 get_symbol(state.prev_obj.as_ref(), self.prev_sym)
-            {
-                let mut text = Text::default();
-                let rect = content_chunks[4].inner(Margin::new(0, 1));
-                self.print_sym(
-                    &mut text,
-                    obj,
-                    symbol_idx,
-                    symbol_diff,
-                    &state.diff_obj_config,
-                    rect,
-                    &self.right_highlight,
-                    result,
-                    true,
-                );
-                max_width = max_width.max(text.width());
-                prev_text = Some(text);
+        {
+            let mut text = Text::default();
+            let rect = content_chunks[4].inner(Margin::new(0, 1));
+            self.print_sym(
+                &mut text,
+                obj,
+                symbol_idx,
+                symbol_diff,
+                &state.diff_obj_config,
+                rect,
+                &self.right_highlight,
+                result,
+                true,
+            );
+            max_width = max_width.max(text.width());
+            prev_text = Some(text);
 
-                // Render margin
-                let mut text = Text::default();
-                let rect = content_chunks[3].inner(Margin::new(1, 1));
-                self.print_margin(&mut text, symbol_diff, rect);
-                prev_margin_text = Some(text);
-            }
+            // Render margin
+            let mut text = Text::default();
+            let rect = content_chunks[3].inner(Margin::new(1, 1));
+            self.print_margin(&mut text, symbol_diff, rect);
+            prev_margin_text = Some(text);
         }
 
         let max_scroll_x =
@@ -561,10 +560,12 @@ impl FunctionDiffUi {
                 let len = label_text.len();
                 let highlighted =
                     highlight_kind != HighlightKind::None && *highlight == highlight_kind;
-                if let Some((cx, cy)) = result.click_xy {
-                    if cx >= sx && cx < sx + len as u16 && cy == sy {
-                        new_highlight = Some(highlight_kind);
-                    }
+                if let Some((cx, cy)) = result.click_xy
+                    && cx >= sx
+                    && cx < sx + len as u16
+                    && cy == sy
+                {
+                    new_highlight = Some(highlight_kind);
                 }
                 let mut style = Style::new().fg(match segment.color {
                     DiffTextColor::Normal => Color::Gray,

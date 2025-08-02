@@ -514,14 +514,14 @@ pub fn ppc_data_flow_analysis(
 }
 
 fn get_string_data(obj: &Object, symbol_index: usize, offset: Simm) -> Option<&str> {
-    if let Some(sym) = obj.symbols.get(symbol_index) {
-        if sym.name.starts_with("@stringBase") && offset.0 != 0 {
-            if let Some(data) = obj.symbol_data(symbol_index) {
-                let bytes = &data[offset.0 as usize..];
-                if let Ok(Ok(str)) = CStr::from_bytes_until_nul(bytes).map(|x| x.to_str()) {
-                    return Some(str);
-                }
-            }
+    if let Some(sym) = obj.symbols.get(symbol_index)
+        && sym.name.starts_with("@stringBase")
+        && offset.0 != 0
+        && let Some(data) = obj.symbol_data(symbol_index)
+    {
+        let bytes = &data[offset.0 as usize..];
+        if let Ok(Ok(str)) = CStr::from_bytes_until_nul(bytes).map(|x| x.to_str()) {
+            return Some(str);
         }
     }
     None
@@ -577,19 +577,17 @@ fn generate_flow_analysis_result(
         let registers = register_state_at.get(index as usize).unwrap_or(&default_register_state);
         if let (powerpc::Opcode::Addi, Argument::GPR(rel), Argument::Simm(offset)) =
             (ins.op, args[1], args[2])
+            && let RegisterContent::Symbol(sym_index) = registers[rel]
+            && let Some(str) = get_string_data(obj, sym_index, offset)
         {
-            if let RegisterContent::Symbol(sym_index) = registers[rel] {
-                if let Some(str) = get_string_data(obj, sym_index, offset) {
-                    // Show the string constant in the analysis result
-                    let formatted = format!("\"{str}\"");
-                    analysis_result.set_argument_value_at_address(
-                        ins_address,
-                        2,
-                        FlowAnalysisValue::Text(clamp_text_length(formatted, 20)),
-                    );
-                    // Don't continue, we want to show the stringbase value as well
-                }
-            }
+            // Show the string constant in the analysis result
+            let formatted = format!("\"{str}\"");
+            analysis_result.set_argument_value_at_address(
+                ins_address,
+                2,
+                FlowAnalysisValue::Text(clamp_text_length(formatted, 20)),
+            );
+            // Don't continue, we want to show the stringbase value as well
         }
 
         let is_store = is_store_instruction(ins.op);

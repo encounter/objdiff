@@ -526,14 +526,12 @@ impl App {
             mod_check = true;
         }
 
-        if mod_check {
-            if let Some(info) = &state.project_config_info {
-                if let Some(last_ts) = info.timestamp {
-                    if file_modified(&info.path, last_ts) {
-                        state.config_change = true;
-                    }
-                }
-            }
+        if mod_check
+            && let Some(info) = &state.project_config_info
+            && let Some(last_ts) = info.timestamp
+            && file_modified(&info.path, last_ts)
+        {
+            state.config_change = true;
         }
 
         if state.config_change {
@@ -581,22 +579,20 @@ impl App {
             state.queue_build = true;
         }
 
-        if let Some(result) = &diff_state.build {
-            if mod_check {
-                if let Some((obj, _)) = &result.first_obj {
-                    if let (Some(path), Some(timestamp)) = (&obj.path, obj.timestamp) {
-                        if file_modified(path, timestamp) {
-                            state.queue_reload = true;
-                        }
-                    }
-                }
-                if let Some((obj, _)) = &result.second_obj {
-                    if let (Some(path), Some(timestamp)) = (&obj.path, obj.timestamp) {
-                        if file_modified(path, timestamp) {
-                            state.queue_reload = true;
-                        }
-                    }
-                }
+        if let Some(result) = &diff_state.build
+            && mod_check
+        {
+            if let Some((obj, _)) = &result.first_obj
+                && let (Some(path), Some(timestamp)) = (&obj.path, obj.timestamp)
+                && file_modified(path, timestamp)
+            {
+                state.queue_reload = true;
+            }
+            if let Some((obj, _)) = &result.second_obj
+                && let (Some(path), Some(timestamp)) = (&obj.path, obj.timestamp)
+                && file_modified(path, timestamp)
+            {
+                state.queue_reload = true;
             }
         }
 
@@ -618,13 +614,12 @@ impl App {
             state.queue_reload = false;
         }
 
-        if graphics_state.should_relaunch {
-            if let Some(app_path) = &self.app_path {
-                if let Ok(mut guard) = self.relaunch_path.lock() {
-                    *guard = Some(app_path.clone());
-                    self.should_relaunch = true;
-                }
-            }
+        if graphics_state.should_relaunch
+            && let Some(app_path) = &self.app_path
+            && let Ok(mut guard) = self.relaunch_path.lock()
+        {
+            *guard = Some(app_path.clone());
+            self.should_relaunch = true;
         }
     }
 }

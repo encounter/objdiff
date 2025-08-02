@@ -509,25 +509,25 @@ where Cb: FnMut(InstructionPart<'static>) {
             return "ubfx";
         }
         Opcode::SBFM => {
-            if let Operand::Immediate(63) = ins.operands[3] {
-                if let Operand::Register(SizeCode::X, _) = ins.operands[0] {
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[1], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return "asr";
-                }
+            if let Operand::Immediate(63) = ins.operands[3]
+                && let Operand::Register(SizeCode::X, _) = ins.operands[0]
+            {
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[1], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return "asr";
             }
-            if let Operand::Immediate(31) = ins.operands[3] {
-                if let Operand::Register(SizeCode::W, _) = ins.operands[0] {
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[1], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return "asr";
-                }
+            if let Operand::Immediate(31) = ins.operands[3]
+                && let Operand::Register(SizeCode::W, _) = ins.operands[0]
+            {
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[1], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return "asr";
             }
             if let Operand::Immediate(0) = ins.operands[2] {
                 let newsrc = if let Operand::Register(_size, srcnum) = ins.operands[1] {
@@ -554,22 +554,21 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
             if let (Operand::Immediate(imms), Operand::Immediate(immr)) =
                 (ins.operands[2], ins.operands[3])
+                && immr < imms
             {
-                if immr < imms {
-                    let size = if let Operand::Register(size, _) = ins.operands[0] {
-                        if size == SizeCode::W { 32 } else { 64 }
-                    } else {
-                        unreachable!("operand 0 is always a register");
-                    };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[1], ctx);
-                    push_separator(args);
-                    push_unsigned(args, (size - imms) as u64);
-                    push_separator(args);
-                    push_unsigned(args, (immr + 1) as u64);
-                    return "sbfiz";
-                }
+                let size = if let Operand::Register(size, _) = ins.operands[0] {
+                    if size == SizeCode::W { 32 } else { 64 }
+                } else {
+                    unreachable!("operand 0 is always a register");
+                };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[1], ctx);
+                push_separator(args);
+                push_unsigned(args, (size - imms) as u64);
+                push_separator(args);
+                push_unsigned(args, (immr + 1) as u64);
+                return "sbfiz";
             }
             // `sbfm` is never actually displayed: in the remaining case, it is always aliased to `sbfx`
             let width = if let (Operand::Immediate(lsb), Operand::Immediate(width)) =
@@ -593,15 +592,14 @@ where Cb: FnMut(InstructionPart<'static>) {
         Opcode::EXTR => {
             if let (Operand::Register(_, rn), Operand::Register(_, rm)) =
                 (ins.operands[1], ins.operands[2])
+                && rn == rm
             {
-                if rn == rm {
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[3], ctx);
-                    return "ror";
-                }
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[3], ctx);
+                return "ror";
             }
             "extr"
         }
@@ -804,27 +802,24 @@ where Cb: FnMut(InstructionPart<'static>) {
             "csneg"
         }
         Opcode::CSINC => {
-            if let (
-                Operand::Register(_, n),
-                Operand::Register(_, m),
-                Operand::ConditionCode(cond),
-            ) = (ins.operands[1], ins.operands[2], ins.operands[3])
+            if let (Operand::Register(_, n), Operand::Register(_, m), Operand::ConditionCode(cond)) =
+                (ins.operands[1], ins.operands[2], ins.operands[3])
+                && n == m
+                && cond < 0b1110
             {
-                if n == m && cond < 0b1110 {
-                    return if n == 31 {
-                        push_operand(args, &ins.operands[0], ctx);
-                        push_separator(args);
-                        push_condition_code(args, cond ^ 0x01);
-                        "cset"
-                    } else {
-                        push_operand(args, &ins.operands[0], ctx);
-                        push_separator(args);
-                        push_operand(args, &ins.operands[1], ctx);
-                        push_separator(args);
-                        push_condition_code(args, cond ^ 0x01);
-                        "cinc"
-                    };
-                }
+                return if n == 31 {
+                    push_operand(args, &ins.operands[0], ctx);
+                    push_separator(args);
+                    push_condition_code(args, cond ^ 0x01);
+                    "cset"
+                } else {
+                    push_operand(args, &ins.operands[0], ctx);
+                    push_separator(args);
+                    push_operand(args, &ins.operands[1], ctx);
+                    push_separator(args);
+                    push_condition_code(args, cond ^ 0x01);
+                    "cinc"
+                };
             }
             "csinc"
         }
@@ -1200,15 +1195,13 @@ where Cb: FnMut(InstructionPart<'static>) {
                 Operand::Register(reg_sz, _),
                 Operand::SIMDRegisterElementsLane(_, _, elem_sz, _),
             ) = (ins.operands[0], ins.operands[1])
+                && ((reg_sz == SizeCode::W && elem_sz == SIMDSizeCode::S)
+                    || (reg_sz == SizeCode::X && elem_sz == SIMDSizeCode::D))
             {
-                if (reg_sz == SizeCode::W && elem_sz == SIMDSizeCode::S)
-                    || (reg_sz == SizeCode::X && elem_sz == SIMDSizeCode::D)
-                {
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[1], ctx);
-                    return "mov";
-                }
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[1], ctx);
+                return "mov";
             }
             "umov"
         }
@@ -1308,14 +1301,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDADDB(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "staddb" } else { "staddlb" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "staddb" } else { "staddlb" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldaddb"
@@ -1328,14 +1322,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDCLRB(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stclrb" } else { "stclrlb" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stclrb" } else { "stclrlb" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldclrb"
@@ -1348,14 +1343,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDEORB(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "steorb" } else { "steorlb" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "steorb" } else { "steorlb" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldeorb"
@@ -1368,14 +1364,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDSETB(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stsetb" } else { "stsetlb" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stsetb" } else { "stsetlb" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldsetb"
@@ -1388,14 +1385,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDSMAXB(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stsmaxb" } else { "stsmaxlb" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stsmaxb" } else { "stsmaxlb" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldsmaxb"
@@ -1408,14 +1406,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDSMINB(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stsminb" } else { "stsminlb" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stsminb" } else { "stsminlb" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldsminb"
@@ -1428,14 +1427,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDUMAXB(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stumaxb" } else { "stumaxlb" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stumaxb" } else { "stumaxlb" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldumaxb"
@@ -1448,14 +1448,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDUMINB(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stuminb" } else { "stuminlb" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stuminb" } else { "stuminlb" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             // write!(fmt, "{}", self.opcode)?;
             if ar == 0 {
@@ -1469,14 +1470,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDADDH(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "staddh" } else { "staddlh" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "staddh" } else { "staddlh" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldaddh"
@@ -1489,14 +1491,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDCLRH(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stclrh" } else { "stclrlh" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stclrh" } else { "stclrlh" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldclrh"
@@ -1509,14 +1512,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDEORH(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "steorh" } else { "steorlh" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "steorh" } else { "steorlh" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldeorh"
@@ -1529,14 +1533,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDSETH(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stseth" } else { "stsetlh" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stseth" } else { "stsetlh" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldseth"
@@ -1549,14 +1554,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDSMAXH(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stsmaxh" } else { "stsmaxlh" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stsmaxh" } else { "stsmaxlh" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldsmaxh"
@@ -1569,14 +1575,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDSMINH(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stsminh" } else { "stsminlh" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stsminh" } else { "stsminlh" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldsminh"
@@ -1589,14 +1596,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDUMAXH(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stumaxh" } else { "stumaxlh" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stumaxh" } else { "stumaxlh" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldumaxh"
@@ -1609,14 +1617,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDUMINH(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stuminh" } else { "stuminlh" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stuminh" } else { "stuminlh" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "lduminh"
@@ -1629,14 +1638,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDADD(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stadd" } else { "staddl" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stadd" } else { "staddl" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldadd"
@@ -1649,14 +1659,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDCLR(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stclr" } else { "stclrl" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stclr" } else { "stclrl" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldclr"
@@ -1669,14 +1680,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDEOR(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "steor" } else { "steorl" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "steor" } else { "steorl" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldeor"
@@ -1689,14 +1701,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDSET(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stset" } else { "stsetl" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stset" } else { "stsetl" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldset"
@@ -1709,14 +1722,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDSMAX(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stsmax" } else { "stsmaxl" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stsmax" } else { "stsmaxl" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldsmax"
@@ -1729,14 +1743,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDSMIN(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stsmin" } else { "stsminl" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stsmin" } else { "stsminl" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldsmin"
@@ -1749,14 +1764,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDUMAX(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stumax" } else { "stumaxl" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stumax" } else { "stumaxl" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldumax"
@@ -1769,14 +1785,15 @@ where Cb: FnMut(InstructionPart<'static>) {
             }
         }
         Opcode::LDUMIN(ar) => {
-            if let Operand::Register(_, rt) = ins.operands[1] {
-                if rt == 31 && ar & 0b10 == 0b00 {
-                    let inst = if ar & 0b01 == 0b00 { "stumin" } else { "stuminl" };
-                    push_operand(args, &ins.operands[0], ctx);
-                    push_separator(args);
-                    push_operand(args, &ins.operands[2], ctx);
-                    return inst;
-                }
+            if let Operand::Register(_, rt) = ins.operands[1]
+                && rt == 31
+                && ar & 0b10 == 0b00
+            {
+                let inst = if ar & 0b01 == 0b00 { "stumin" } else { "stuminl" };
+                push_operand(args, &ins.operands[0], ctx);
+                push_separator(args);
+                push_operand(args, &ins.operands[2], ctx);
+                return inst;
             }
             if ar == 0 {
                 "ldumin"
@@ -2067,16 +2084,15 @@ where Cb: FnMut(InstructionPart<'static>) {
 
 /// Relocations that appear in Operand::PCOffset.
 fn is_pc_offset_reloc(reloc: Option<ResolvedRelocation>) -> Option<ResolvedRelocation> {
-    if let Some(resolved) = reloc {
-        if let RelocationFlags::Elf(
+    if let Some(resolved) = reloc
+        && let RelocationFlags::Elf(
             elf::R_AARCH64_ADR_PREL_PG_HI21
             | elf::R_AARCH64_JUMP26
             | elf::R_AARCH64_CALL26
             | elf::R_AARCH64_ADR_GOT_PAGE,
         ) = resolved.relocation.flags
-        {
-            return Some(resolved);
-        }
+    {
+        return Some(resolved);
     }
     None
 }

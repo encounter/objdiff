@@ -866,44 +866,43 @@ fn generate_fake_pool_relocations_for_function(
                     break;
                 }
             }
-            if let Some(branch_dest) = branch_dest {
-                if branch_dest >= func_address as u32
-                    && (branch_dest - func_address as u32) < code.len() as u32
-                {
-                    let dest_offset_into_func = branch_dest - func_address as u32;
-                    let dest_code_slice = &code[dest_offset_into_func as usize..];
-                    match ins.op {
-                        Opcode::Bc => {
-                            // Conditional branch.
-                            // Add the branch destination to the queue to do later.
+            if let Some(branch_dest) = branch_dest
+                && branch_dest >= func_address as u32
+                && (branch_dest - func_address as u32) < code.len() as u32
+            {
+                let dest_offset_into_func = branch_dest - func_address as u32;
+                let dest_code_slice = &code[dest_offset_into_func as usize..];
+                match ins.op {
+                    Opcode::Bc => {
+                        // Conditional branch.
+                        // Add the branch destination to the queue to do later.
+                        ins_iters_with_gpr_state.push((
+                            InsIter::new(dest_code_slice, branch_dest, extensions),
+                            gpr_pool_relocs.clone(),
+                        ));
+                        // Then continue on with the current iterator.
+                    }
+                    Opcode::B => {
+                        if simplified.mnemonic != "bl" {
+                            // Unconditional branch.
+                            // Add the branch destination to the queue.
                             ins_iters_with_gpr_state.push((
                                 InsIter::new(dest_code_slice, branch_dest, extensions),
                                 gpr_pool_relocs.clone(),
                             ));
-                            // Then continue on with the current iterator.
+                            // Break out of the current iterator so we can do the newly added one.
+                            break;
                         }
-                        Opcode::B => {
-                            if simplified.mnemonic != "bl" {
-                                // Unconditional branch.
-                                // Add the branch destination to the queue.
-                                ins_iters_with_gpr_state.push((
-                                    InsIter::new(dest_code_slice, branch_dest, extensions),
-                                    gpr_pool_relocs.clone(),
-                                ));
-                                // Break out of the current iterator so we can do the newly added one.
-                                break;
-                            }
-                        }
-                        _ => unreachable!(),
                     }
+                    _ => unreachable!(),
                 }
             }
-            if let Opcode::Bcctr = ins.op {
-                if simplified.mnemonic == "bctr" {
-                    // Unconditional branch to count register.
-                    // Likely a jump table.
-                    gpr_state_at_bctr.insert(cur_addr, gpr_pool_relocs.clone());
-                }
+            if let Opcode::Bcctr = ins.op
+                && simplified.mnemonic == "bctr"
+            {
+                // Unconditional branch to count register.
+                // Likely a jump table.
+                gpr_state_at_bctr.insert(cur_addr, gpr_pool_relocs.clone());
             }
 
             // Then handle keeping track of which GPR contains which pool relocation.

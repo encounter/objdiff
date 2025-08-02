@@ -211,19 +211,19 @@ impl DiffViewState {
 
                 let mut resolved_left = self.resolve_symbol(nav.left_symbol, 0);
                 let mut resolved_right = self.resolve_symbol(nav.right_symbol, 1);
-                if let Some(resolved_right) = &resolved_right {
-                    if resolved_left.is_none() {
-                        resolved_left = resolved_right
-                            .target_symbol
-                            .and_then(|idx| self.resolve_symbol(Some(idx), 0));
-                    }
+                if let Some(resolved_right) = &resolved_right
+                    && resolved_left.is_none()
+                {
+                    resolved_left = resolved_right
+                        .target_symbol
+                        .and_then(|idx| self.resolve_symbol(Some(idx), 0));
                 }
-                if let Some(resolved_left) = &resolved_left {
-                    if resolved_right.is_none() {
-                        resolved_right = resolved_left
-                            .target_symbol
-                            .and_then(|idx| self.resolve_symbol(Some(idx), 1));
-                    }
+                if let Some(resolved_left) = &resolved_left
+                    && resolved_right.is_none()
+                {
+                    resolved_right = resolved_left
+                        .target_symbol
+                        .and_then(|idx| self.resolve_symbol(Some(idx), 1));
                 }
                 let resolved_nav = resolve_navigation(nav.kind, resolved_left, resolved_right);
                 if (resolved_nav.left_symbol.is_some() && resolved_nav.right_symbol.is_some())
@@ -500,16 +500,16 @@ pub fn symbol_context_menu_ui(
             ret = Some(action);
         }
 
-        if let Some(section) = section {
-            if ui.button("Map symbol").clicked() {
-                let symbol_ref = SymbolRefByName::new(symbol, Some(section));
-                if column == 0 {
-                    ret = Some(DiffViewAction::SelectingRight(symbol_ref));
-                } else {
-                    ret = Some(DiffViewAction::SelectingLeft(symbol_ref));
-                }
-                ui.close();
+        if let Some(section) = section
+            && ui.button("Map symbol").clicked()
+        {
+            let symbol_ref = SymbolRefByName::new(symbol, Some(section));
+            if column == 0 {
+                ret = Some(DiffViewAction::SelectingRight(symbol_ref));
+            } else {
+                ret = Some(DiffViewAction::SelectingLeft(symbol_ref));
             }
+            ui.close();
         }
     });
     ret
@@ -664,10 +664,10 @@ pub fn symbol_list_ui(
     let mut ret = None;
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         let mut show_mapped_symbols = state.show_mapped_symbols;
-        if let SymbolFilter::Mapping(_, _) = filter {
-            if ui.checkbox(&mut show_mapped_symbols, "Show mapped symbols").changed() {
-                ret = Some(DiffViewAction::SetShowMappedSymbols(show_mapped_symbols));
-            }
+        if let SymbolFilter::Mapping(_, _) = filter
+            && ui.checkbox(&mut show_mapped_symbols, "Show mapped symbols").changed()
+        {
+            ret = Some(DiffViewAction::SetShowMappedSymbols(show_mapped_symbols));
         }
         let section_display = display_sections(
             ctx.obj,

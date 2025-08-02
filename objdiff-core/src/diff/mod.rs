@@ -467,15 +467,15 @@ fn apply_symbol_mappings(
 ) -> Result<()> {
     // If we're selecting a symbol to use as a comparison, mark it as used
     // This ensures that we don't match it to another symbol at any point
-    if let Some(left_name) = &mapping_config.selecting_left {
-        if let Some(left_symbol) = left.symbol_by_name(left_name) {
-            left_used.insert(left_symbol);
-        }
+    if let Some(left_name) = &mapping_config.selecting_left
+        && let Some(left_symbol) = left.symbol_by_name(left_name)
+    {
+        left_used.insert(left_symbol);
     }
-    if let Some(right_name) = &mapping_config.selecting_right {
-        if let Some(right_symbol) = right.symbol_by_name(right_name) {
-            right_used.insert(right_symbol);
-        }
+    if let Some(right_name) = &mapping_config.selecting_right
+        && let Some(right_symbol) = right.symbol_by_name(right_name)
+    {
+        right_used.insert(right_symbol);
     }
 
     // Apply manual symbol mappings
@@ -639,17 +639,16 @@ fn find_symbol(
     // If they are at the same address in the same section
     if in_symbol.name.starts_with('@')
         && matches!(section_kind, SectionKind::Data | SectionKind::Bss)
-    {
-        if let Some((symbol_idx, _)) = unmatched_symbols(obj, used).find(|(_, symbol)| {
+        && let Some((symbol_idx, _)) = unmatched_symbols(obj, used).find(|(_, symbol)| {
             let Some(section_index) = symbol.section else {
                 return false;
             };
             symbol.name.starts_with('@')
                 && symbol.address == in_symbol.address
                 && obj.sections[section_index].name == section_name
-        }) {
-            return Some(symbol_idx);
-        }
+        })
+    {
+        return Some(symbol_idx);
     }
     // Match Metrowerks symbol$1234 against symbol$2345
     if let Some((prefix, suffix)) = in_symbol.name.split_once('$') {

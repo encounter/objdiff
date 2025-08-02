@@ -248,13 +248,12 @@ fn report_object(
             {
                 continue;
             }
-            if let Some(existing_functions) = &mut existing_functions {
-                if (symbol.flags.contains(SymbolFlag::Global)
+            if let Some(existing_functions) = &mut existing_functions
+                && (symbol.flags.contains(SymbolFlag::Global)
                     || symbol.flags.contains(SymbolFlag::Weak))
-                    && !existing_functions.insert(symbol.name.clone())
-                {
-                    continue;
-                }
+                && !existing_functions.insert(symbol.name.clone())
+            {
+                continue;
             }
             let match_percent = symbol_diff.match_percent.unwrap_or_else(|| {
                 // Support cases where we don't have a target object,

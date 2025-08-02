@@ -385,13 +385,13 @@ pub fn symbol_context(obj: &Object, symbol_index: usize) -> Vec<ContextItem> {
     if let Some(name) = &symbol.demangled_name {
         out.push(ContextItem::Copy { value: name.clone(), label: None });
     }
-    if symbol.section.is_some() {
-        if let Some(address) = symbol.virtual_address {
-            out.push(ContextItem::Copy {
-                value: format!("{address:x}"),
-                label: Some("virtual address".to_string()),
-            });
-        }
+    if symbol.section.is_some()
+        && let Some(address) = symbol.virtual_address
+    {
+        out.push(ContextItem::Copy {
+            value: format!("{address:x}"),
+            label: Some("virtual address".to_string()),
+        });
     }
     out.append(&mut obj.arch.symbol_context(obj, symbol_index));
     out

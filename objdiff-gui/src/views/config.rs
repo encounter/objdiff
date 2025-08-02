@@ -185,16 +185,15 @@ pub fn config_ui(
         if result.update_available {
             ui.colored_label(appearance.insert_color, "Update available");
             ui.horizontal(|ui| {
-                if let Some(bin_name) = &result.found_binary {
-                    if ui
+                if let Some(bin_name) = &result.found_binary
+                    && ui
                         .add_enabled(!config_state.update_running, egui::Button::new("Automatic"))
                         .on_hover_text_at_pointer(
                             "Automatically download and replace the current build",
                         )
                         .clicked()
-                    {
-                        config_state.queue_update = Some(bin_name.clone());
-                    }
+                {
+                    config_state.queue_update = Some(bin_name.clone());
                 }
                 if ui
                     .button("Manual")
@@ -329,12 +328,12 @@ pub fn config_ui(
             });
         });
     }
-    if new_selected_index != selected_index {
-        if let Some(idx) = new_selected_index {
-            // Will set obj_changed, which will trigger a rebuild
-            let config = objects[idx].clone();
-            state_guard.set_selected_obj(config);
-        }
+    if new_selected_index != selected_index
+        && let Some(idx) = new_selected_index
+    {
+        // Will set obj_changed, which will trigger a rebuild
+        let config = objects[idx].clone();
+        state_guard.set_selected_obj(config);
     }
 }
 
@@ -374,18 +373,17 @@ fn display_unit(
 }
 
 fn object_context_ui(ui: &mut egui::Ui, object: &ObjectConfig) {
-    if let Some(source_path) = &object.source_path {
-        if ui
+    if let Some(source_path) = &object.source_path
+        && ui
             .button("Open source file")
             .on_hover_text("Open the source file in the default editor")
             .clicked()
-        {
-            log::info!("Opening file {source_path}");
-            if let Err(e) = open::that_detached(source_path.as_str()) {
-                log::error!("Failed to open source file: {e}");
-            }
-            ui.close();
+    {
+        log::info!("Opening file {source_path}");
+        if let Err(e) = open::that_detached(source_path.as_str()) {
+            log::error!("Failed to open source file: {e}");
         }
+        ui.close();
     }
 }
 
@@ -835,12 +833,11 @@ fn split_obj_config_ui(
             .add_enabled(state.project_config_info.is_none(), egui::Button::new("+").small())
             .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
             .clicked()
+            && let Ok(glob) = Glob::new(&config_state.watch_pattern_text)
         {
-            if let Ok(glob) = Glob::new(&config_state.watch_pattern_text) {
-                state.config.watch_patterns.push(glob);
-                state.watcher_change = true;
-                config_state.watch_pattern_text.clear();
-            }
+            state.config.watch_patterns.push(glob);
+            state.watcher_change = true;
+            config_state.watch_pattern_text.clear();
         }
     });
 }
