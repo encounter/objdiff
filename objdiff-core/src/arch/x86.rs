@@ -11,7 +11,7 @@ use object::{Endian as _, Object as _, ObjectSection as _, elf, pe};
 use crate::{
     arch::{Arch, RelocationOverride, RelocationOverrideTarget},
     diff::{DiffObjConfig, X86Formatter, display::InstructionPart},
-    obj::{InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef},
+    obj::{InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, Section, Symbol},
 };
 
 #[derive(Debug)]
@@ -302,6 +302,52 @@ impl Arch for ArchX86 {
 
     fn data_reloc_size(&self, flags: RelocationFlags) -> usize {
         self.reloc_size(flags).unwrap_or(1)
+    }
+
+    fn infer_function_size(
+        &self,
+        symbol: &Symbol,
+        section: &Section,
+        next_address: u64,
+    ) -> Result<u64> {
+        let Ok(size) = (next_address - symbol.address).try_into() else {
+            return Ok(next_address.saturating_sub(symbol.address));
+        };
+        let Some(code) = section.data_range(symbol.address, size) else {
+            return Ok(0);
+        };
+        // Decode instructions to find the last non-NOP instruction
+        let mut decoder = self.decoder(code, symbol.address);
+        let mut instruction = Instruction::default();
+        let mut new_address = 0;
+        let mut reloc_iter = section.relocations.iter().peekable();
+        'outer: while decoder.can_decode() {
+            let address = decoder.ip();
+            while let Some(reloc) = reloc_iter.peek() {
+                match reloc.address.cmp(&address) {
+                    Ordering::Less => {
+                        reloc_iter.next();
+                    }
+                    Ordering::Equal => {
+                        // If the instruction starts at a relocation, it's inline data
+                        let reloc_size = self.reloc_size(reloc.flags).with_context(|| {
+                            format!("Unsupported inline x86 relocation {:?}", reloc.flags)
+                        })?;
+                        if decoder.set_position(decoder.position() + reloc_size).is_ok() {
+                            new_address = address + reloc_size as u64;
+                            decoder.set_ip(new_address);
+                            continue 'outer;
+                        }
+                    }
+                    Ordering::Greater => break,
+                }
+            }
+            decoder.decode_out(&mut instruction);
+            if instruction.mnemonic() != iced_x86::Mnemonic::Nop {
+                new_address = instruction.next_ip();
+            }
+        }
+        Ok(new_address.saturating_sub(symbol.address))
     }
 }
 

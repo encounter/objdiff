@@ -406,6 +406,15 @@ pub trait Arch: Send + Sync + Debug {
     ) -> Vec<ContextItem> {
         Vec::new()
     }
+
+    fn infer_function_size(
+        &self,
+        symbol: &Symbol,
+        _section: &Section,
+        next_address: u64,
+    ) -> Result<u64> {
+        Ok(next_address.saturating_sub(symbol.address))
+    }
 }
 
 pub fn new_arch(object: &object::File) -> Result<Box<dyn Arch>> {

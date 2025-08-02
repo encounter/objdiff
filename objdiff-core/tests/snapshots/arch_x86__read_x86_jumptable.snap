@@ -63,7 +63,7 @@ Object {
                 "int __cdecl test(int)",
             ),
             address: 0,
-            size: 96,
+            size: 88,
             kind: Function,
             section: Some(
                 1,

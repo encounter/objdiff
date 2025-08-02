@@ -15,7 +15,7 @@ use crate::{
     diff::{DiffObjConfig, MipsAbi, MipsInstrCategory, display::InstructionPart},
     obj::{
         InstructionArg, InstructionArgValue, InstructionRef, Relocation, RelocationFlags,
-        ResolvedInstructionRef, ResolvedRelocation, SymbolFlag, SymbolFlagSet,
+        ResolvedInstructionRef, ResolvedRelocation, Section, Symbol, SymbolFlag, SymbolFlagSet,
     },
 };
 
@@ -140,6 +140,14 @@ impl ArchMips {
         })
     }
 
+    fn default_instruction_flags(&self) -> rabbitizer::InstructionFlags {
+        match self.isa_extension {
+            Some(extension) => rabbitizer::InstructionFlags::new_extension(extension),
+            None => rabbitizer::InstructionFlags::new(IsaVersion::MIPS_III),
+        }
+        .with_abi(self.abi)
+    }
+
     fn instruction_flags(&self, diff_config: &DiffObjConfig) -> rabbitizer::InstructionFlags {
         let isa_extension = match diff_config.mips_instr_category {
             MipsInstrCategory::Auto => self.isa_extension,
@@ -151,7 +159,7 @@ impl ArchMips {
         };
         match isa_extension {
             Some(extension) => rabbitizer::InstructionFlags::new_extension(extension),
-            None => rabbitizer::InstructionFlags::new_isa(IsaVersion::MIPS_III, None),
+            None => rabbitizer::InstructionFlags::new(IsaVersion::MIPS_III),
         }
         .with_abi(match diff_config.mips_abi {
             MipsAbi::Auto => self.abi,
@@ -330,6 +338,36 @@ impl Arch for ArchMips {
             flags |= SymbolFlag::Ignored;
         }
         flags
+    }
+
+    fn infer_function_size(
+        &self,
+        symbol: &Symbol,
+        section: &Section,
+        next_address: u64,
+    ) -> Result<u64> {
+        // Trim any trailing 4-byte zeroes from the end (nops)
+        let mut new_address = next_address;
+        while new_address >= symbol.address + 4
+            && let Some(data) = section.data_range(new_address - 4, 4)
+            && data == [0u8; 4]
+        {
+            new_address -= 4;
+        }
+        // Check if the last instruction has a delay slot, if so, include the delay slot nop
+        if new_address + 4 <= next_address
+            && new_address >= symbol.address + 4
+            && let Some(data) = section.data_range(new_address - 4, 4)
+            && let instruction = rabbitizer::Instruction::new(
+                self.endianness.read_u32_bytes(data.try_into().unwrap()),
+                Vram::new((new_address - 4) as u32),
+                self.default_instruction_flags(),
+            )
+            && instruction.opcode().has_delay_slot()
+        {
+            new_address += 4;
+        }
+        Ok(new_address.saturating_sub(symbol.address))
     }
 }
 

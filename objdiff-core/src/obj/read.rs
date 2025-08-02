@@ -122,7 +122,7 @@ fn map_symbols(
     }
 
     // Infer symbol sizes for 0-size symbols
-    infer_symbol_sizes(&mut symbols, sections);
+    infer_symbol_sizes(arch, &mut symbols, sections)?;
 
     Ok((symbols, symbol_indices))
 }
@@ -136,7 +136,7 @@ fn is_local_label(symbol: &Symbol) -> bool {
         && LABEL_PREFIXES.iter().any(|p| symbol.name.starts_with(p))
 }
 
-fn infer_symbol_sizes(symbols: &mut [Symbol], sections: &[Section]) {
+fn infer_symbol_sizes(arch: &dyn Arch, symbols: &mut [Symbol], sections: &[Section]) -> Result<()> {
     // Create a sorted list of symbol indices by section
     let mut symbols_with_section = Vec::<usize>::with_capacity(symbols.len());
     for (i, symbol) in symbols.iter().enumerate() {
@@ -206,18 +206,13 @@ fn infer_symbol_sizes(symbols: &mut [Symbol], sections: &[Section]) {
             iter_idx += 1;
         };
         let section = &sections[section_idx];
-        let mut next_address =
+        let next_address =
             next_symbol.map(|s| s.address).unwrap_or_else(|| section.address + section.size);
-        if section.kind == SectionKind::Code {
-            // For functions, trim any trailing 4-byte zeroes from the end (padding, nops)
-            while next_address > symbol.address + 4
-                && let Some(data) = section.data_range(next_address - 4, 4)
-                && data == [0u8; 4]
-            {
-                next_address -= 4;
-            }
-        }
-        let new_size = next_address.saturating_sub(symbol.address);
+        let new_size = if section.kind == SectionKind::Code {
+            arch.infer_function_size(symbol, section, next_address)?
+        } else {
+            next_address.saturating_sub(symbol.address)
+        };
         if new_size > 0 {
             let symbol = &mut symbols[symbol_idx];
             symbol.size = new_size;
@@ -234,6 +229,7 @@ fn infer_symbol_sizes(symbols: &mut [Symbol], sections: &[Section]) {
             }
         }
     }
+    Ok(())
 }
 
 fn map_sections(
