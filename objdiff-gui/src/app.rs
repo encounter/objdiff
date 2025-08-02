@@ -660,7 +660,10 @@ impl eframe::App for App {
         let side_panel_available = diff_state.current_view == View::SymbolDiff;
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            egui::MenuBar::new().ui(ui, |ui| {
+            // Temporarily use pre-egui 0.32 menu. ComboBox within menu
+            // is currently broken. Issue TBD
+            #[allow(deprecated)]
+            egui::menu::bar(ui, |ui| {
                 if ui
                     .add_enabled(
                         side_panel_available,
@@ -672,7 +675,8 @@ impl eframe::App for App {
                     *show_side_panel = !*show_side_panel;
                 }
                 ui.separator();
-                ui.menu_button("File", |ui| {
+                let bar_state = egui::menu::BarState::load(ui.ctx(), ui.id());
+                egui::menu::menu_button(ui, "File", |ui| {
                     #[cfg(debug_assertions)]
                     if ui.button("Debug…").clicked() {
                         *show_debug = !*show_debug;
@@ -689,22 +693,29 @@ impl eframe::App for App {
                     };
                     if recent_projects.is_empty() {
                         ui.add_enabled(false, egui::Button::new("Recent projects…"));
-                    } else {
-                        ui.menu_button("Recent Projects…", |ui| {
-                            if ui.button("Clear").clicked() {
-                                state.write().unwrap().config.recent_projects.clear();
-                            };
-                            ui.separator();
-                            for path in recent_projects {
-                                if ui.button(&path).clicked() {
-                                    state
-                                        .write()
-                                        .unwrap()
-                                        .set_project_dir(Utf8PlatformPathBuf::from(path));
-                                    ui.close();
+                    } else if let Some(menu_root) = bar_state.as_ref() {
+                        egui::menu::submenu_button(
+                            ui,
+                            menu_root.menu_state.clone(),
+                            "Recent Projects…",
+                            |ui| {
+                                if ui.button("Clear").clicked() {
+                                    state.write().unwrap().config.recent_projects.clear();
+                                };
+                                ui.separator();
+                                for path in recent_projects {
+                                    if ui.button(&path).clicked() {
+                                        state
+                                            .write()
+                                            .unwrap()
+                                            .set_project_dir(Utf8PlatformPathBuf::from(path));
+                                        ui.close();
+                                    }
                                 }
-                            }
-                        });
+                            },
+                        );
+                    } else {
+                        ui.add_enabled(false, egui::Button::new("Recent projects…"));
                     }
                     if ui.button("Appearance…").clicked() {
                         *show_appearance_config = !*show_appearance_config;
@@ -718,7 +729,7 @@ impl eframe::App for App {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
-                ui.menu_button("Tools", |ui| {
+                egui::menu::menu_button(ui, "Tools", |ui| {
                     if ui.button("Demangle…").clicked() {
                         *show_demangle = !*show_demangle;
                         ui.close();
@@ -728,7 +739,7 @@ impl eframe::App for App {
                         ui.close();
                     }
                 });
-                ui.menu_button("Diff Options", |ui| {
+                egui::menu::menu_button(ui, "Diff Options", |ui| {
                     if ui.button("Arch Settings…").clicked() {
                         *show_arch_config = !*show_arch_config;
                         ui.close();
