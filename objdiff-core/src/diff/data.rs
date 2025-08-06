@@ -127,6 +127,28 @@ fn diff_data_relocs_for_range<'left, 'right>(
     diffs
 }
 
+pub fn no_diff_data_section(obj: &Object, section_idx: usize) -> Result<SectionDiff> {
+    let section = &obj.sections[section_idx];
+    let len = section.data.len();
+    let data = &section.data[0..len];
+
+    let data_diff =
+        vec![DataDiff { data: data.to_vec(), kind: DataDiffKind::None, len, ..Default::default() }];
+
+    let mut reloc_diffs = Vec::new();
+    for reloc in section.relocations.iter() {
+        let reloc_len = obj.arch.data_reloc_size(reloc.flags);
+        let range = reloc.address as usize..reloc.address as usize + reloc_len;
+        reloc_diffs.push(DataRelocationDiff {
+            reloc: reloc.clone(),
+            kind: DataDiffKind::None,
+            range,
+        });
+    }
+
+    Ok(SectionDiff { match_percent: Some(0.0), data_diff, reloc_diff: reloc_diffs })
+}
+
 /// Compare the data sections of two object files.
 pub fn diff_data_section(
     left_obj: &Object,
@@ -413,6 +435,10 @@ pub fn diff_generic_section(
         SectionDiff { match_percent: Some(match_percent), data_diff: vec![], reloc_diff: vec![] },
         SectionDiff { match_percent: None, data_diff: vec![], reloc_diff: vec![] },
     ))
+}
+
+pub fn no_diff_bss_section() -> Result<SectionDiff> {
+    Ok(SectionDiff { match_percent: Some(0.0), data_diff: vec![], reloc_diff: vec![] })
 }
 
 /// Compare the addresses and sizes of each symbol in the BSS sections.

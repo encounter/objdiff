@@ -13,7 +13,7 @@ use crate::{
         code::{diff_code, no_diff_code},
         data::{
             diff_bss_section, diff_bss_symbol, diff_data_section, diff_data_symbol,
-            diff_generic_section,
+            diff_generic_section, no_diff_bss_section, no_diff_data_section,
         },
     },
     obj::{InstructionRef, Object, Relocation, SectionKind, Symbol, SymbolFlag},
@@ -288,52 +288,84 @@ pub fn diff_objs(
     }
 
     for section_match in section_matches {
-        if let SectionMatch {
-            left: Some(left_section_idx),
-            right: Some(right_section_idx),
-            section_kind,
-        } = section_match
-        {
-            let (left_obj, left_out) = left.as_mut().unwrap();
-            let (right_obj, right_out) = right.as_mut().unwrap();
-            match section_kind {
-                SectionKind::Code => {
-                    let (left_diff, right_diff) = diff_generic_section(
-                        left_obj,
-                        right_obj,
-                        left_out,
-                        right_out,
-                        left_section_idx,
-                        right_section_idx,
-                    )?;
-                    left_out.sections[left_section_idx] = left_diff;
-                    right_out.sections[right_section_idx] = right_diff;
+        match section_match {
+            SectionMatch {
+                left: Some(left_section_idx),
+                right: Some(right_section_idx),
+                section_kind,
+            } => {
+                let (left_obj, left_out) = left.as_mut().unwrap();
+                let (right_obj, right_out) = right.as_mut().unwrap();
+                match section_kind {
+                    SectionKind::Code => {
+                        let (left_diff, right_diff) = diff_generic_section(
+                            left_obj,
+                            right_obj,
+                            left_out,
+                            right_out,
+                            left_section_idx,
+                            right_section_idx,
+                        )?;
+                        left_out.sections[left_section_idx] = left_diff;
+                        right_out.sections[right_section_idx] = right_diff;
+                    }
+                    SectionKind::Data => {
+                        let (left_diff, right_diff) = diff_data_section(
+                            left_obj,
+                            right_obj,
+                            left_out,
+                            right_out,
+                            left_section_idx,
+                            right_section_idx,
+                        )?;
+                        left_out.sections[left_section_idx] = left_diff;
+                        right_out.sections[right_section_idx] = right_diff;
+                    }
+                    SectionKind::Bss | SectionKind::Common => {
+                        let (left_diff, right_diff) = diff_bss_section(
+                            left_obj,
+                            right_obj,
+                            left_out,
+                            right_out,
+                            left_section_idx,
+                            right_section_idx,
+                        )?;
+                        left_out.sections[left_section_idx] = left_diff;
+                        right_out.sections[right_section_idx] = right_diff;
+                    }
+                    SectionKind::Unknown => unreachable!(),
                 }
-                SectionKind::Data => {
-                    let (left_diff, right_diff) = diff_data_section(
-                        left_obj,
-                        right_obj,
-                        left_out,
-                        right_out,
-                        left_section_idx,
-                        right_section_idx,
-                    )?;
-                    left_out.sections[left_section_idx] = left_diff;
-                    right_out.sections[right_section_idx] = right_diff;
+            }
+            SectionMatch { left: Some(left_section_idx), right: None, section_kind } => {
+                let (left_obj, left_out) = left.as_mut().unwrap();
+                match section_kind {
+                    SectionKind::Code => {}
+                    SectionKind::Data => {
+                        left_out.sections[left_section_idx] =
+                            no_diff_data_section(left_obj, left_section_idx)?;
+                    }
+                    SectionKind::Bss | SectionKind::Common => {
+                        left_out.sections[left_section_idx] = no_diff_bss_section()?;
+                    }
+                    SectionKind::Unknown => unreachable!(),
                 }
-                SectionKind::Bss | SectionKind::Common => {
-                    let (left_diff, right_diff) = diff_bss_section(
-                        left_obj,
-                        right_obj,
-                        left_out,
-                        right_out,
-                        left_section_idx,
-                        right_section_idx,
-                    )?;
-                    left_out.sections[left_section_idx] = left_diff;
-                    right_out.sections[right_section_idx] = right_diff;
+            }
+            SectionMatch { left: None, right: Some(right_section_idx), section_kind } => {
+                let (right_obj, right_out) = right.as_mut().unwrap();
+                match section_kind {
+                    SectionKind::Code => {}
+                    SectionKind::Data => {
+                        right_out.sections[right_section_idx] =
+                            no_diff_data_section(right_obj, right_section_idx)?;
+                    }
+                    SectionKind::Bss | SectionKind::Common => {
+                        right_out.sections[right_section_idx] = no_diff_bss_section()?;
+                    }
+                    SectionKind::Unknown => unreachable!(),
                 }
-                SectionKind::Unknown => unreachable!(),
+            }
+            SectionMatch { left: None, right: None, .. } => {
+                // Should not happen
             }
         }
     }
