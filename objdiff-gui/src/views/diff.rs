@@ -619,7 +619,6 @@ fn symbol_label_ui(
             .font(appearance.code_font.clone())
             .color(appearance.highlight_color),
     )
-    .selectable(false)
     // TODO .show_tooltip_when_elided(false)
     // https://github.com/emilk/egui/commit/071e090e2b2601e5ed4726a63a753188503dfaf2
     .ui(ui)
