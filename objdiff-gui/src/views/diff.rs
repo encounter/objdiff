@@ -619,8 +619,7 @@ fn symbol_label_ui(
             .font(appearance.code_font.clone())
             .color(appearance.highlight_color),
     )
-    // TODO .show_tooltip_when_elided(false)
-    // https://github.com/emilk/egui/commit/071e090e2b2601e5ed4726a63a753188503dfaf2
+    .show_tooltip_when_elided(false)
     .ui(ui)
     .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, ctx, symbol_idx, appearance))
     .context_menu(|ui| {
