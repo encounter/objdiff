@@ -49,6 +49,7 @@ pub fn run_make(config: &BuildConfig, arg: &Utf8UnixPath) -> BuildStatus {
     };
     #[cfg(windows)]
     let mut command = {
+        use alloc::borrow::Cow;
         use std::os::windows::process::CommandExt;
 
         let mut command = if config.selected_wsl_distro.is_some() {
@@ -60,13 +61,17 @@ pub fn run_make(config: &BuildConfig, arg: &Utf8UnixPath) -> BuildStatus {
             // Strip distro root prefix \\wsl.localhost\{distro}
             let wsl_path_prefix = format!("\\\\wsl.localhost\\{}", distro);
             let cwd = match cwd.strip_prefix(wsl_path_prefix) {
-                Ok(new_cwd) => Utf8UnixPath::new("/").join(new_cwd.with_unix_encoding()),
-                Err(_) => cwd.with_unix_encoding(),
+                // Convert to absolute Unix path
+                Ok(new_cwd) => Cow::Owned(
+                    Utf8UnixPath::new("/").join(new_cwd.with_unix_encoding()).into_string(),
+                ),
+                // Otherwise, use the Windows path as is
+                Err(_) => Cow::Borrowed(cwd.as_str()),
             };
 
             command
                 .arg("--cd")
-                .arg(cwd.as_str())
+                .arg(cwd.as_ref())
                 .arg("-d")
                 .arg(distro)
                 .arg("--")
