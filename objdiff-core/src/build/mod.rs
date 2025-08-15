@@ -71,7 +71,7 @@ pub fn run_make(config: &BuildConfig, arg: &Utf8UnixPath) -> BuildStatus {
 
             command
                 .arg("--cd")
-                .arg(cwd.as_ref())
+                .arg::<&str>(cwd.as_ref())
                 .arg("-d")
                 .arg(distro)
                 .arg("--")
