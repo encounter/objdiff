@@ -11,6 +11,7 @@ pub struct Appearance {
     pub ui_font: FontId,
     pub code_font: FontId,
     pub diff_colors: Vec<Color32>,
+    pub diff_bg_color: Option<Color32>,
     pub theme: egui::Theme,
 
     // Applied by theme
@@ -67,6 +68,7 @@ impl Default for Appearance {
             replace_color: Color32::LIGHT_BLUE,
             insert_color: Color32::GREEN,
             delete_color: Color32::from_rgb(200, 40, 41),
+            diff_bg_color: None,
             utc_offset: UtcOffset::UTC,
             fonts: FontState::default(),
             next_ui_font: None,
@@ -103,6 +105,9 @@ impl Appearance {
         match self.theme {
             egui::Theme::Dark => {
                 style.visuals = egui::Visuals::dark();
+                if let Some(diff_bg_color) = self.diff_bg_color {
+                    style.visuals.faint_bg_color = diff_bg_color;
+                }
                 self.text_color = Color32::GRAY;
                 self.emphasized_text_color = Color32::LIGHT_GRAY;
                 self.deemphasized_text_color = Color32::DARK_GRAY;
@@ -114,6 +119,9 @@ impl Appearance {
             }
             egui::Theme::Light => {
                 style.visuals = egui::Visuals::light();
+                if let Some(diff_bg_color) = self.diff_bg_color {
+                    style.visuals.faint_bg_color = diff_bg_color;
+                }
                 self.text_color = Color32::GRAY;
                 self.emphasized_text_color = Color32::DARK_GRAY;
                 self.deemphasized_text_color = Color32::LIGHT_GRAY;
@@ -293,6 +301,21 @@ pub fn appearance_window(ctx: &egui::Context, show: &mut bool, appearance: &mut 
             DEFAULT_CODE_FONT,
             appearance,
         );
+        ui.separator();
+        ui.horizontal(|ui| {
+            ui.label("Diff fill color:");
+            let mut diff_bg_color =
+                appearance.diff_bg_color.unwrap_or_else(|| match appearance.theme {
+                    egui::Theme::Dark => egui::Visuals::dark().faint_bg_color,
+                    egui::Theme::Light => egui::Visuals::light().faint_bg_color,
+                });
+            if ui.color_edit_button_srgba(&mut diff_bg_color).changed() {
+                appearance.diff_bg_color = Some(diff_bg_color);
+            }
+            if ui.button("Reset").clicked() {
+                appearance.diff_bg_color = None;
+            }
+        });
         ui.separator();
         ui.label("Diff colors:");
         if ui.button("Reset").clicked() {
