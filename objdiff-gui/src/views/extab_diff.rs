@@ -1,8 +1,7 @@
+use core::any::Any;
+
 use egui::ScrollArea;
-use objdiff_core::{
-    arch::ppc::ExceptionInfo,
-    obj::{Object, Symbol},
-};
+use objdiff_core::{arch::ppc::ExceptionInfo, obj::Object};
 
 use crate::views::{appearance::Appearance, function_diff::FunctionDiffContext};
 
@@ -26,19 +25,19 @@ fn decode_extab(extab: &ExceptionInfo) -> String {
     text
 }
 
-fn find_extab_entry<'a>(_obj: &'a Object, _symbol: &Symbol) -> Option<&'a ExceptionInfo> {
-    // TODO
-    // obj.arch.ppc().and_then(|ppc| ppc.extab_for_symbol(symbol))
-    None
+fn find_extab_entry(obj: &Object, symbol_index: usize) -> Option<&ExceptionInfo> {
+    (obj.arch.as_ref() as &dyn Any)
+        .downcast_ref::<objdiff_core::arch::ppc::ArchPpc>()
+        .and_then(|ppc| ppc.extab_for_symbol(symbol_index))
 }
 
 fn extab_text_ui(
     ui: &mut egui::Ui,
     ctx: FunctionDiffContext<'_>,
-    symbol: &Symbol,
+    symbol_index: usize,
     appearance: &Appearance,
 ) -> Option<()> {
-    if let Some(extab_entry) = find_extab_entry(ctx.obj, symbol) {
+    if let Some(extab_entry) = find_extab_entry(ctx.obj, symbol_index) {
         let text = decode_extab(extab_entry);
         ui.colored_label(appearance.replace_color, &text);
         return Some(());
@@ -58,10 +57,8 @@ pub(crate) fn extab_ui(
             ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
             ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 
-            if let Some(symbol) =
-                ctx.symbol_ref.and_then(|symbol_ref| ctx.obj.symbols.get(symbol_ref))
-            {
-                extab_text_ui(ui, ctx, symbol, appearance);
+            if let Some(symbol_index) = ctx.symbol_ref {
+                extab_text_ui(ui, ctx, symbol_index, appearance);
             }
         });
     });

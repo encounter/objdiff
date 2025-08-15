@@ -6,6 +6,7 @@ use alloc::{
     vec::Vec,
 };
 use core::{
+    any::Any,
     ffi::CStr,
     fmt::{self, Debug},
 };
@@ -305,7 +306,7 @@ impl dyn Arch {
     }
 }
 
-pub trait Arch: Send + Sync + Debug {
+pub trait Arch: Any + Debug + Send + Sync {
     /// Finishes arch-specific initialization that must be done after sections have been combined.
     fn post_init(&mut self, _sections: &[Section], _symbols: &[Symbol]) {}
 
