@@ -464,6 +464,22 @@ impl Arch for ArchArm {
         }
         flags
     }
+
+    fn infer_function_size(
+        &self,
+        symbol: &Symbol,
+        section: &Section,
+        mut next_address: u64,
+    ) -> Result<u64> {
+        // Trim any trailing 4-byte zeroes from the end (padding)
+        while next_address >= symbol.address + 4
+            && let Some(data) = section.data_range(next_address - 4, 4)
+            && data == [0u8; 4]
+        {
+            next_address -= 4;
+        }
+        Ok(next_address.saturating_sub(symbol.address))
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
