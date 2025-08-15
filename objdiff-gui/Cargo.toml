@@ -25,6 +25,7 @@ wsl = []
 
 [dependencies]
 anyhow = "1.0"
+argp = "0.4"
 cfg-if = "1.0"
 const_format = "0.2"
 cwdemangle = "1.0"

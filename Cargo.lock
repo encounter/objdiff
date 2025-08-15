@@ -3517,6 +3517,7 @@ name = "objdiff-gui"
 version = "3.0.0-beta.14"
 dependencies = [
  "anyhow",
+ "argp",
  "cfg-if",
  "const_format",
  "cwdemangle",

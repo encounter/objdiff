@@ -431,6 +431,7 @@ impl App {
         app_path: Option<PathBuf>,
         graphics_config: GraphicsConfig,
         graphics_config_path: Option<PathBuf>,
+        project_dir: Option<Utf8PlatformPathBuf>,
     ) -> Self {
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
@@ -440,17 +441,25 @@ impl App {
                 app.appearance = appearance;
             }
             if let Some(config) = deserialize_config(storage) {
-                let mut state = AppState { config, ..Default::default() };
-                if state.config.project_dir.is_some() {
-                    state.config_change = true;
-                    state.watcher_change = true;
-                }
-                if state.config.selected_obj.is_some() {
-                    state.queue_build = true;
-                }
-                app.view_state.config_state.queue_check_update = state.config.auto_update_check;
+                let state = AppState { config, ..Default::default() };
                 app.state = Arc::new(RwLock::new(state));
             }
+        }
+        {
+            let mut state = app.state.write().unwrap();
+            if let Some(project_dir) = project_dir
+                && state.config.project_dir.as_ref().is_none_or(|p| *p != project_dir)
+            {
+                state.set_project_dir(project_dir);
+            }
+            if state.config.project_dir.is_some() {
+                state.config_change = true;
+                state.watcher_change = true;
+            }
+            if state.config.selected_obj.is_some() {
+                state.queue_build = true;
+            }
+            app.view_state.config_state.queue_check_update = state.config.auto_update_check;
         }
         app.appearance.init_fonts(&cc.egui_ctx);
         app.appearance.utc_offset = utc_offset;

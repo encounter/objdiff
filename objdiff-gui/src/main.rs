@@ -3,6 +3,7 @@
 
 mod app;
 mod app_config;
+mod argp_version;
 mod config;
 mod fonts;
 mod hotkeys;
@@ -11,18 +12,82 @@ mod update;
 mod views;
 
 use std::{
+    ffi::OsStr,
+    fmt::Display,
     path::PathBuf,
     process::ExitCode,
     rc::Rc,
+    str::FromStr,
     sync::{Arc, Mutex},
 };
 
 use anyhow::{Result, ensure};
+use argp::{FromArgValue, FromArgs};
 use cfg_if::cfg_if;
+use objdiff_core::config::path::check_path_buf;
 use time::UtcOffset;
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{EnvFilter, filter::LevelFilter};
+use typed_path::Utf8PlatformPathBuf;
 
 use crate::views::graphics::{GraphicsBackend, GraphicsConfig, load_graphics_config};
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+enum LogLevel {
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+impl FromStr for LogLevel {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
+            "error" => Self::Error,
+            "warn" => Self::Warn,
+            "info" => Self::Info,
+            "debug" => Self::Debug,
+            "trace" => Self::Trace,
+            _ => return Err(()),
+        })
+    }
+}
+
+impl Display for LogLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            LogLevel::Error => "error",
+            LogLevel::Warn => "warn",
+            LogLevel::Info => "info",
+            LogLevel::Debug => "debug",
+            LogLevel::Trace => "trace",
+        })
+    }
+}
+
+impl FromArgValue for LogLevel {
+    fn from_arg_value(value: &OsStr) -> Result<Self, String> {
+        String::from_arg_value(value)
+            .and_then(|s| Self::from_str(&s).map_err(|_| "Invalid log level".to_string()))
+    }
+}
+
+#[derive(FromArgs, PartialEq, Debug)]
+/// A local diffing tool for decompilation projects.
+struct TopLevel {
+    #[argp(option, short = 'L')]
+    /// Minimum logging level. (Default: info)
+    /// Possible values: error, warn, info, debug, trace
+    log_level: Option<LogLevel>,
+    #[argp(option, short = 'p')]
+    /// Path to the project directory.
+    project_dir: Option<PathBuf>,
+    /// Print version information and exit.
+    #[argp(switch, short = 'V')]
+    version: bool,
+}
 
 fn load_icon() -> Result<egui::IconData> {
     let decoder = png::Decoder::new(include_bytes!("../assets/icon_64.png").as_ref());
@@ -38,22 +103,62 @@ fn load_icon() -> Result<egui::IconData> {
 const APP_NAME: &str = "objdiff";
 
 fn main() -> ExitCode {
-    // Log to stdout (if you run with `RUST_LOG=debug`).
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::builder()
-                // Default to info level
-                .with_default_directive(tracing_subscriber::filter::LevelFilter::INFO.into())
-                .from_env_lossy()
-                // This module is noisy at info level
-                .add_directive("wgpu_core::device::resource=warn".parse().unwrap()),
-        )
-        .init();
+    let args: TopLevel = argp_version::from_env();
+    let builder = tracing_subscriber::fmt();
+    if let Some(level) = args.log_level {
+        builder
+            .with_max_level(match level {
+                LogLevel::Error => LevelFilter::ERROR,
+                LogLevel::Warn => LevelFilter::WARN,
+                LogLevel::Info => LevelFilter::INFO,
+                LogLevel::Debug => LevelFilter::DEBUG,
+                LogLevel::Trace => LevelFilter::TRACE,
+            })
+            .init();
+    } else {
+        builder
+            .with_env_filter(
+                EnvFilter::builder()
+                    // Default to info level
+                    .with_default_directive(LevelFilter::INFO.into())
+                    .from_env_lossy()
+                    // This module is noisy at info level
+                    .add_directive("wgpu_core::device::resource=warn".parse().unwrap()),
+            )
+            .init();
+    }
 
     // Because localtime_r is unsound in multithreaded apps,
     // we must call this before initializing eframe.
     // https://github.com/time-rs/time/issues/293
     let utc_offset = UtcOffset::current_local_offset().unwrap_or(UtcOffset::UTC);
+
+    // Resolve project directory if provided
+    let project_dir = if let Some(path) = args.project_dir {
+        match path.canonicalize() {
+            Ok(path) => {
+                // Ensure the path is a directory
+                if path.is_dir() {
+                    match check_path_buf(path) {
+                        Ok(path) => Some(path),
+                        Err(e) => {
+                            log::error!("Failed to convert project directory to UTF-8 path: {}", e);
+                            None
+                        }
+                    }
+                } else {
+                    log::error!("Project directory is not a directory: {}", path.display());
+                    None
+                }
+            }
+            Err(e) => {
+                log::error!("Failed to canonicalize project directory: {}", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     let app_path = std::env::current_exe().ok();
     let exec_path: Rc<Mutex<Option<PathBuf>>> = Rc::new(Mutex::new(None));
@@ -113,6 +218,7 @@ fn main() -> ExitCode {
         app_path.clone(),
         graphics_config.clone(),
         graphics_config_path.clone(),
+        project_dir.clone(),
     ) {
         eframe_error = Some(e);
     }
@@ -139,6 +245,7 @@ fn main() -> ExitCode {
                 app_path.clone(),
                 graphics_config.clone(),
                 graphics_config_path.clone(),
+                project_dir.clone(),
             ) {
                 eframe_error = Some(e);
             } else {
@@ -161,6 +268,7 @@ fn main() -> ExitCode {
             app_path,
             graphics_config,
             graphics_config_path,
+            project_dir,
         ) {
             eframe_error = Some(e);
         } else {
@@ -204,6 +312,7 @@ fn run_eframe(
     app_path: Option<PathBuf>,
     graphics_config: GraphicsConfig,
     graphics_config_path: Option<PathBuf>,
+    project_dir: Option<Utf8PlatformPathBuf>,
 ) -> Result<(), eframe::Error> {
     eframe::run_native(
         APP_NAME,
@@ -216,6 +325,7 @@ fn run_eframe(
                 app_path,
                 graphics_config,
                 graphics_config_path,
+                project_dir,
             )))
         }),
     )
