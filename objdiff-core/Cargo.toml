@@ -132,12 +132,12 @@ itertools = { version = "0.14", default-features = false, features = ["use_alloc
 log = { version = "0.4", default-features = false, optional = true }
 memmap2 = { version = "0.9", optional = true }
 num-traits = { version = "0.2", default-features = false, optional = true }
-object = { git = "https://github.com/gimli-rs/object", rev = "16ff70aa6fbd97d6bb7b92375929f4d72414c32b", default-features = false, features = ["read_core", "elf", "coff"] }
+object = { version = "0.37", default-features = false, features = ["read_core", "elf", "coff"] }
 pbjson = { version = "0.8", default-features = false, optional = true }
 prost = { version = "0.14", default-features = false, features = ["derive"], optional = true }
 regex = { version = "1.11", default-features = false, features = [], optional = true }
 serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
-similar = { version = "2.7", default-features = false, features = ["hashbrown"], optional = true, git = "https://github.com/encounter/similar.git", branch = "no_std" }
+similar = { git = "https://github.com/encounter/similar.git", branch = "no_std", default-features = false, features = ["hashbrown"], optional = true }
 typed-path = { version = "0.11", default-features = false, optional = true }
 
 # config
@@ -146,7 +146,7 @@ semver = { version = "1.0", default-features = false, optional = true }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"], optional = true }
 
 # dwarf
-gimli = { version = "0.32", default-features = false, features = ["read"], optional = true }
+gimli = { git = "https://github.com/gimli-rs/gimli", rev = "7335f00e7c39fd501511584fefb0ba974117c950", default-features = false, features = ["read"], optional = true }
 typed-arena = { version = "2.0", default-features = false, optional = true }
 
 # ppc
