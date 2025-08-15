@@ -1,6 +1,6 @@
 {
   "name": "objdiff-wasm",
-  "version": "3.0.0-beta.14",
+  "version": "3.0.0",
   "description": "A local diffing tool for decompilation projects.",
   "author": {
     "name": "Luke Street",
