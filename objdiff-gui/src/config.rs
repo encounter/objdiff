@@ -1,6 +1,6 @@
 use anyhow::Result;
 use globset::Glob;
-use objdiff_core::config::{DEFAULT_WATCH_PATTERNS, try_project_config};
+use objdiff_core::config::{default_ignore_patterns, default_watch_patterns, try_project_config};
 use typed_path::{Utf8UnixComponent, Utf8UnixPath};
 
 use crate::app::{AppState, ObjectConfig};
@@ -96,8 +96,15 @@ pub fn load_project_config(state: &mut AppState) -> Result<()> {
                 .map(|s| Glob::new(s))
                 .collect::<Result<Vec<Glob>, globset::Error>>()?;
         } else {
-            state.config.watch_patterns =
-                DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect();
+            state.config.watch_patterns = default_watch_patterns();
+        }
+        if let Some(ignore_patterns) = &project_config.ignore_patterns {
+            state.config.ignore_patterns = ignore_patterns
+                .iter()
+                .map(|s| Glob::new(s))
+                .collect::<Result<Vec<Glob>, globset::Error>>()?;
+        } else {
+            state.config.ignore_patterns = default_ignore_patterns();
         }
         state.watcher_change = true;
         state.objects = project_config

@@ -142,6 +142,11 @@ impl DiffViewState {
             JobResult::ObjDiff(result) => {
                 self.build = take(result);
 
+                // Clear reload flag so that we don't reload the view immediately
+                if let Ok(mut state) = state.write() {
+                    state.queue_reload = false;
+                }
+
                 // TODO: where should this go?
                 if let Some(result) = self.post_build_nav.take() {
                     self.current_view = result.view;

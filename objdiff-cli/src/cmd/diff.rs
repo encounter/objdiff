@@ -342,10 +342,12 @@ fn run_interactive(
     };
     if let (Some(project_dir), Some(project_config)) = (&state.project_dir, &state.project_config) {
         let watch_patterns = project_config.build_watch_patterns()?;
+        let ignore_patterns = project_config.build_ignore_patterns()?;
         state.watcher = Some(create_watcher(
             state.modified.clone(),
             project_dir.as_ref(),
             build_globset(&watch_patterns)?,
+            build_globset(&ignore_patterns)?,
             Waker::from(state.waker.clone()),
         )?);
     }

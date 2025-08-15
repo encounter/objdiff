@@ -106,6 +106,9 @@ file as well. You can then add `objdiff.json` to your `.gitignore` to prevent it
     "*.txt",
     "*.json"
   ],
+  "ignore_patterns": [
+    "build/**/*"
+  ],
   "units": [
     {
       "name": "main/MetroTRK/mslsupp",
@@ -139,6 +142,10 @@ It's unlikely you'll want to disable this, unless you're using an external tool 
 `watch_patterns` _(optional)_: A list of glob patterns to watch for changes.
 ([Supported syntax](https://docs.rs/globset/latest/globset/#syntax))  
 If any of these files change, objdiff will automatically rebuild the objects and re-compare them.  
+If not specified, objdiff will use the default patterns listed above.
+
+`ignore_patterns` _(optional)_: A list of glob patterns to explicitly ignore when watching for changes.  
+([Supported syntax](https://docs.rs/globset/latest/globset/#syntax))  
 If not specified, objdiff will use the default patterns listed above.
 
 `units` _(optional)_: If specified, objdiff will display a list of objects in the sidebar for easy navigation.

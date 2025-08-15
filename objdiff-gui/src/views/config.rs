@@ -10,7 +10,7 @@ use egui::{
 };
 use globset::Glob;
 use objdiff_core::{
-    config::{DEFAULT_WATCH_PATTERNS, path::check_path_buf},
+    config::{default_ignore_patterns, default_watch_patterns, path::check_path_buf},
     diff::{
         CONFIG_GROUPS, ConfigEnum, ConfigEnumVariantInfo, ConfigPropertyId, ConfigPropertyKind,
         ConfigPropertyValue,
@@ -41,6 +41,7 @@ pub struct ConfigViewState {
     pub build_running: bool,
     pub queue_build: bool,
     pub watch_pattern_text: String,
+    pub ignore_pattern_text: String,
     pub object_search: String,
     pub filter_diffable: bool,
     pub filter_incomplete: bool,
@@ -790,20 +791,49 @@ fn split_obj_config_ui(
         state.watcher_change = true;
     };
 
+    state.watcher_change |= patterns_ui(
+        ui,
+        "File patterns",
+        &mut state.config.watch_patterns,
+        &mut config_state.watch_pattern_text,
+        appearance,
+        state.project_config_info.is_some(),
+        default_watch_patterns,
+    );
+    state.watcher_change |= patterns_ui(
+        ui,
+        "Ignore patterns",
+        &mut state.config.ignore_patterns,
+        &mut config_state.ignore_pattern_text,
+        appearance,
+        state.project_config_info.is_some(),
+        default_ignore_patterns,
+    );
+}
+
+fn patterns_ui(
+    ui: &mut egui::Ui,
+    text: &str,
+    patterns: &mut Vec<Glob>,
+    pattern_text: &mut String,
+    appearance: &Appearance,
+    has_project_config: bool,
+    on_reset: impl FnOnce() -> Vec<Glob>,
+) -> bool {
+    let mut change = false;
     ui.horizontal(|ui| {
-        ui.label(RichText::new("File patterns").color(appearance.text_color));
+        ui.label(RichText::new(text).color(appearance.text_color));
         if ui
-            .add_enabled(state.project_config_info.is_none(), egui::Button::new("Reset"))
+            .add_enabled(!has_project_config, egui::Button::new("Reset"))
             .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
             .clicked()
         {
-            state.config.watch_patterns =
-                DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect();
-            state.watcher_change = true;
+            *patterns = on_reset();
+            change = true;
         }
     });
     let mut remove_at: Option<usize> = None;
-    for (idx, glob) in state.config.watch_patterns.iter().enumerate() {
+    for (idx, glob) in patterns.iter().enumerate() {
         ui.horizontal(|ui| {
             ui.label(
                 RichText::new(glob.to_string())
@@ -811,7 +841,7 @@ fn split_obj_config_ui(
                     .family(FontFamily::Monospace),
             );
             if ui
-                .add_enabled(state.project_config_info.is_none(), egui::Button::new("-").small())
+                .add_enabled(!has_project_config, egui::Button::new("-").small())
                 .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
                 .clicked()
             {
@@ -820,26 +850,27 @@ fn split_obj_config_ui(
         });
     }
     if let Some(idx) = remove_at {
-        state.config.watch_patterns.remove(idx);
-        state.watcher_change = true;
+        patterns.remove(idx);
+        change = true;
     }
     ui.horizontal(|ui| {
         ui.add_enabled(
-            state.project_config_info.is_none(),
-            egui::TextEdit::singleline(&mut config_state.watch_pattern_text).desired_width(100.0),
+            !has_project_config,
+            egui::TextEdit::singleline(pattern_text).desired_width(100.0),
         )
         .on_disabled_hover_text(CONFIG_DISABLED_TEXT);
         if ui
-            .add_enabled(state.project_config_info.is_none(), egui::Button::new("+").small())
+            .add_enabled(!has_project_config, egui::Button::new("+").small())
             .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
             .clicked()
-            && let Ok(glob) = Glob::new(&config_state.watch_pattern_text)
+            && let Ok(glob) = Glob::new(pattern_text)
         {
-            state.config.watch_patterns.push(glob);
-            state.watcher_change = true;
-            config_state.watch_pattern_text.clear();
+            patterns.push(glob);
+            change = true;
+            pattern_text.clear();
         }
     });
+    change
 }
 
 pub fn arch_config_window(

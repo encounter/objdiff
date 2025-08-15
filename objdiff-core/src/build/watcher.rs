@@ -29,6 +29,7 @@ pub fn create_watcher(
     modified: Arc<AtomicBool>,
     project_dir: &Path,
     patterns: GlobSet,
+    ignore_patterns: GlobSet,
     waker: Waker,
 ) -> notify::Result<Watcher> {
     let base_dir = fs::canonicalize(project_dir)?;
@@ -54,8 +55,8 @@ pub fn create_watcher(
                         let Ok(path) = path.strip_prefix(&base_dir_clone) else {
                             continue;
                         };
-                        if patterns.is_match(path) {
-                            // log::info!("File modified: {}", path.display());
+                        if patterns.is_match(path) && !ignore_patterns.is_match(path) {
+                            log::info!("File modified: {}", path.display());
                             any_match = true;
                         }
                     }

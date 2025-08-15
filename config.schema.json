@@ -74,6 +74,16 @@
         "*.json"
       ]
     },
+    "ignore_patterns": {
+      "type": "array",
+      "description": "List of glob patterns to explicitly ignore when watching for changes.\nFiles matching these patterns will not trigger a rebuild.\nSupported syntax: https://docs.rs/globset/latest/globset/#syntax",
+      "items": {
+        "type": "string"
+      },
+      "default": [
+        "build/**/*"
+      ]
+    },
     "objects": {
       "type": "array",
       "description": "Use units instead.",

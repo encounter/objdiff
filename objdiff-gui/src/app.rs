@@ -16,8 +16,8 @@ use globset::Glob;
 use objdiff_core::{
     build::watcher::{Watcher, create_watcher},
     config::{
-        DEFAULT_WATCH_PATTERNS, ProjectConfig, ProjectConfigInfo, ProjectObject, ScratchConfig,
-        build_globset, default_watch_patterns, path::platform_path_serde_option,
+        ProjectConfig, ProjectConfigInfo, ProjectObject, ScratchConfig, build_globset,
+        default_ignore_patterns, default_watch_patterns, path::platform_path_serde_option,
         save_project_config,
     },
     diff::DiffObjConfig,
@@ -219,6 +219,8 @@ pub struct AppConfig {
     #[serde(default = "default_watch_patterns")]
     pub watch_patterns: Vec<Glob>,
     #[serde(default)]
+    pub ignore_patterns: Vec<Glob>,
+    #[serde(default)]
     pub recent_projects: Vec<String>,
     #[serde(default)]
     pub diff_obj_config: DiffObjConfig,
@@ -239,7 +241,8 @@ impl Default for AppConfig {
             build_target: false,
             rebuild_on_changes: true,
             auto_update_check: true,
-            watch_patterns: DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect(),
+            watch_patterns: default_watch_patterns(),
+            ignore_patterns: default_ignore_patterns(),
             recent_projects: vec![],
             diff_obj_config: Default::default(),
         }
@@ -560,11 +563,17 @@ impl App {
             if let Some(project_dir) = &state.config.project_dir {
                 match build_globset(&state.config.watch_patterns)
                     .map_err(anyhow::Error::new)
-                    .and_then(|globset| {
+                    .and_then(|patterns| {
+                        build_globset(&state.config.ignore_patterns)
+                            .map(|ignore_patterns| (patterns, ignore_patterns))
+                            .map_err(anyhow::Error::new)
+                    })
+                    .and_then(|(patterns, ignore_patterns)| {
                         create_watcher(
                             self.modified.clone(),
                             project_dir.as_ref(),
-                            globset,
+                            patterns,
+                            ignore_patterns,
                             egui_waker(ctx),
                         )
                         .map_err(anyhow::Error::new)

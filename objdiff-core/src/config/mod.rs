@@ -36,6 +36,8 @@ pub struct ProjectConfig {
     pub build_target: Option<bool>,
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub watch_patterns: Option<Vec<String>>,
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub ignore_patterns: Option<Vec<String>>,
     #[cfg_attr(
         feature = "serde",
         serde(alias = "objects", skip_serializing_if = "Option::is_none")
@@ -66,7 +68,18 @@ impl ProjectConfig {
                 .map(|s| Glob::new(s))
                 .collect::<Result<Vec<Glob>, globset::Error>>()?
         } else {
-            DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect()
+            default_watch_patterns()
+        })
+    }
+
+    pub fn build_ignore_patterns(&self) -> Result<Vec<Glob>, globset::Error> {
+        Ok(if let Some(ignore_patterns) = &self.ignore_patterns {
+            ignore_patterns
+                .iter()
+                .map(|s| Glob::new(s))
+                .collect::<Result<Vec<Glob>, globset::Error>>()?
+        } else {
+            default_ignore_patterns()
         })
     }
 }
@@ -195,8 +208,14 @@ pub const DEFAULT_WATCH_PATTERNS: &[&str] = &[
     "*.inc", "*.py", "*.yml", "*.txt", "*.json",
 ];
 
+pub const DEFAULT_IGNORE_PATTERNS: &[&str] = &["build/**/*"];
+
 pub fn default_watch_patterns() -> Vec<Glob> {
     DEFAULT_WATCH_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect()
+}
+
+pub fn default_ignore_patterns() -> Vec<Glob> {
+    DEFAULT_IGNORE_PATTERNS.iter().map(|s| Glob::new(s).unwrap()).collect()
 }
 
 #[cfg(feature = "std")]
