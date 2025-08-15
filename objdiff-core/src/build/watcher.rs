@@ -56,7 +56,7 @@ pub fn create_watcher(
                             continue;
                         };
                         if patterns.is_match(path) && !ignore_patterns.is_match(path) {
-                            log::info!("File modified: {}", path.display());
+                            log::debug!("File modified: {}", path.display());
                             any_match = true;
                         }
                     }
