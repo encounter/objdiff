@@ -2,10 +2,10 @@ use egui::{Id, Layout, RichText, ScrollArea, TextEdit, Ui, Widget, text::LayoutJ
 use objdiff_core::{
     build::BuildStatus,
     diff::{
-        DiffObjConfig, ObjectDiff, SectionDiff, SymbolDiff,
+        DiffObjConfig, ObjectDiff, SymbolDiff,
         display::{ContextItem, HoverItem, HoverItemColor, SymbolFilter, SymbolNavigationKind},
     },
-    obj::{Object, Section, Symbol},
+    obj::{Object, Symbol},
 };
 use time::format_description;
 
@@ -34,7 +34,6 @@ enum SelectedSymbol {
 struct DiffColumnContext<'a> {
     status: &'a BuildStatus,
     obj: Option<&'a (Object, ObjectDiff)>,
-    section: Option<(&'a Section, &'a SectionDiff, usize)>,
     symbol: Option<(&'a Symbol, &'a SymbolDiff, usize)>,
 }
 
@@ -54,30 +53,21 @@ impl<'a> DiffColumnContext<'a> {
                 _ => None,
             },
         };
-        let (section, symbol) = match (obj, selected_symbol) {
+        let symbol = match (obj, selected_symbol) {
             (Some((obj, obj_diff)), Some(SelectedSymbol::Symbol(symbol_ref))) => {
                 let symbol = &obj.symbols[symbol_ref];
-                (
-                    symbol.section.map(|section_idx| {
-                        (&obj.sections[section_idx], &obj_diff.sections[section_idx], section_idx)
-                    }),
-                    Some((symbol, &obj_diff.symbols[symbol_ref], symbol_ref)),
-                )
+                Some((symbol, &obj_diff.symbols[symbol_ref], symbol_ref))
             }
-            _ => (None, None),
+            _ => None,
         };
-        Self { status, obj, section, symbol }
+        Self { status, obj, symbol }
     }
 
     #[inline]
-    pub fn has_symbol(&self) -> bool { self.section.is_some() || self.symbol.is_some() }
+    pub fn has_symbol(&self) -> bool { self.symbol.is_some() }
 
     #[inline]
-    pub fn id(&self) -> Option<&str> {
-        self.symbol
-            .map(|(symbol, _, _)| symbol.name.as_str())
-            .or_else(|| self.section.map(|(section, _, _)| section.name.as_str()))
-    }
+    pub fn id(&self) -> Option<&str> { self.symbol.map(|(symbol, _, _)| symbol.name.as_str()) }
 }
 
 #[must_use]
@@ -122,10 +112,7 @@ pub fn diff_view_ui(
         {
             navigation.right_symbol = Some(target_symbol_ref);
         }
-    } else if navigation.left_symbol.is_some()
-        && left_ctx.obj.is_some()
-        && left_ctx.section.is_none()
-    {
+    } else if navigation.left_symbol.is_some() && left_ctx.obj.is_some() {
         // Clear selection if symbol goes missing
         navigation.left_symbol = None;
     }
@@ -136,10 +123,7 @@ pub fn diff_view_ui(
         {
             navigation.left_symbol = Some(target_symbol_ref);
         }
-    } else if navigation.right_symbol.is_some()
-        && right_ctx.obj.is_some()
-        && right_ctx.section.is_none()
-    {
+    } else if navigation.right_symbol.is_some() && right_ctx.obj.is_some() {
         // Clear selection if symbol goes missing
         navigation.right_symbol = None;
     }
@@ -214,12 +198,6 @@ pub fn diff_view_ui(
                 {
                     ret = Some(action);
                 }
-            } else if let Some((section, _, _)) = left_ctx.section {
-                ui.label(
-                    RichText::new(section.name.clone())
-                        .font(appearance.code_font.clone())
-                        .color(appearance.highlight_color),
-                );
             } else if right_ctx.has_symbol() {
                 ui.label(
                     RichText::new("Choose target symbol")
@@ -352,12 +330,6 @@ pub fn diff_view_ui(
                 {
                     ret = Some(action);
                 }
-            } else if let Some((section, _, _)) = right_ctx.section {
-                ui.label(
-                    RichText::new(section.name.clone())
-                        .font(appearance.code_font.clone())
-                        .color(appearance.highlight_color),
-                );
             } else if left_ctx.has_symbol() {
                 ui.label(
                     RichText::new("Choose base symbol")
@@ -707,31 +679,6 @@ fn diff_col_ui(
                     },
                 );
             }
-        } else if let Some((_section, section_diff, _section_idx)) = ctx.section {
-            // Unused code for diffing an entire data section.
-            hotkeys::check_scroll_hotkeys(ui, false);
-            let total_bytes =
-                section_diff.data_diff.iter().fold(0usize, |accum, item| accum + item.len);
-            if total_bytes == 0 {
-                return ret;
-            }
-            let total_rows = (total_bytes - 1) / BYTES_PER_ROW + 1;
-            let address = 0;
-            let diffs = split_diffs(&section_diff.data_diff, &section_diff.reloc_diff, address);
-            render_table(
-                ui,
-                available_width / 2.0,
-                1,
-                appearance.code_font.size,
-                total_rows,
-                |row, _column| {
-                    let i = row.index();
-                    let address = i * BYTES_PER_ROW;
-                    row.col(|ui| {
-                        data_row_ui(ui, Some(obj), address, &diffs[i], appearance, column);
-                    });
-                },
-            );
         } else if let Some((_other_symbol, _other_symbol_diff, other_symbol_idx)) = other_ctx.symbol
         {
             if let Some(action) = symbol_list_ui(
