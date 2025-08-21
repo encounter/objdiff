@@ -273,6 +273,7 @@ fn map_sections(
             id,
             name: name.to_string(),
             address: section.address(),
+            offset: section.file_range().map(|(start, _)| start),
             size: section.size(),
             kind,
             data: SectionData(data),
