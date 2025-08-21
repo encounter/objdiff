@@ -211,13 +211,14 @@ pub(crate) fn data_row_ui(
 pub(crate) fn split_diffs(
     diffs: &[DataDiff],
     reloc_diffs: &[DataRelocationDiff],
+    symbol_offset_in_section: usize,
 ) -> Vec<Vec<(DataDiff, Vec<DataRelocationDiff>)>> {
     let mut split_diffs = Vec::<Vec<(DataDiff, Vec<DataRelocationDiff>)>>::new();
     let mut row_diffs = Vec::<(DataDiff, Vec<DataRelocationDiff>)>::new();
     // The offset shown on the side of the GUI, shifted by insertions/deletions.
     let mut cur_addr = 0usize;
     // The offset into the actual bytes of the section on this side, ignoring differences.
-    let mut cur_addr_actual = 0usize;
+    let mut cur_addr_actual = symbol_offset_in_section;
     for diff in diffs {
         let mut cur_len = 0usize;
         while cur_len < diff.len {

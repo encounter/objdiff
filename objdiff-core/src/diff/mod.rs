@@ -13,7 +13,7 @@ use crate::{
         code::{diff_code, no_diff_code},
         data::{
             diff_bss_section, diff_bss_symbol, diff_data_section, diff_data_symbol,
-            diff_generic_section, no_diff_bss_section, no_diff_data_section,
+            diff_generic_section, no_diff_bss_section, no_diff_data_section, no_diff_data_symbol,
         },
     },
     obj::{InstructionRef, Object, Relocation, SectionKind, Symbol, SymbolFlag},
@@ -44,6 +44,8 @@ pub struct SymbolDiff {
     pub match_percent: Option<f32>,
     pub diff_score: Option<(u64, u64)>,
     pub instruction_rows: Vec<InstructionDiffRow>,
+    pub data_diff: Vec<DataDiff>,
+    pub data_reloc_diff: Vec<DataRelocationDiff>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -163,7 +165,7 @@ impl ObjectDiff {
                 target_symbol: None,
                 match_percent: None,
                 diff_score: None,
-                instruction_rows: vec![],
+                ..Default::default()
             });
         }
         for _ in obj.sections.iter() {
@@ -262,7 +264,11 @@ pub fn diff_objs(
                         left_out.symbols[left_symbol_ref] =
                             no_diff_code(left_obj, left_symbol_ref, diff_config)?;
                     }
-                    SectionKind::Data | SectionKind::Bss | SectionKind::Common => {
+                    SectionKind::Data => {
+                        left_out.symbols[left_symbol_ref] =
+                            no_diff_data_symbol(left_obj, left_symbol_ref)?;
+                    }
+                    SectionKind::Bss | SectionKind::Common => {
                         // Nothing needs to be done
                     }
                     SectionKind::Unknown => unreachable!(),
@@ -275,7 +281,11 @@ pub fn diff_objs(
                         right_out.symbols[right_symbol_ref] =
                             no_diff_code(right_obj, right_symbol_ref, diff_config)?;
                     }
-                    SectionKind::Data | SectionKind::Bss | SectionKind::Common => {
+                    SectionKind::Data => {
+                        right_out.symbols[right_symbol_ref] =
+                            no_diff_data_symbol(right_obj, right_symbol_ref)?;
+                    }
+                    SectionKind::Bss | SectionKind::Common => {
                         // Nothing needs to be done
                     }
                     SectionKind::Unknown => unreachable!(),

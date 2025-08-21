@@ -416,14 +416,8 @@ fn resolve_navigation(
             },
             (SectionKind::Data, SectionKind::Data) => ResolvedNavigation {
                 view: View::DataDiff,
-                left_symbol: Some(SymbolRefByName {
-                    symbol_name: "".to_string(),
-                    section_name: Some(left.section.name.clone()),
-                }),
-                right_symbol: Some(SymbolRefByName {
-                    symbol_name: "".to_string(),
-                    section_name: Some(right.section.name.clone()),
-                }),
+                left_symbol: Some(left.symbol_ref),
+                right_symbol: Some(right.symbol_ref),
             },
             _ => ResolvedNavigation::default(),
         },
@@ -438,14 +432,8 @@ fn resolve_navigation(
             },
             SectionKind::Data => ResolvedNavigation {
                 view: View::DataDiff,
-                left_symbol: Some(SymbolRefByName {
-                    symbol_name: "".to_string(),
-                    section_name: Some(left.section.name.clone()),
-                }),
-                right_symbol: Some(SymbolRefByName {
-                    symbol_name: "".to_string(),
-                    section_name: Some(left.section.name.clone()),
-                }),
+                left_symbol: Some(left.symbol_ref),
+                right_symbol: None,
             },
             _ => ResolvedNavigation::default(),
         },
@@ -460,14 +448,8 @@ fn resolve_navigation(
             },
             SectionKind::Data => ResolvedNavigation {
                 view: View::DataDiff,
-                left_symbol: Some(SymbolRefByName {
-                    symbol_name: "".to_string(),
-                    section_name: Some(right.section.name.clone()),
-                }),
-                right_symbol: Some(SymbolRefByName {
-                    symbol_name: "".to_string(),
-                    section_name: Some(right.section.name.clone()),
-                }),
+                left_symbol: None,
+                right_symbol: Some(right.symbol_ref),
             },
             _ => ResolvedNavigation::default(),
         },
