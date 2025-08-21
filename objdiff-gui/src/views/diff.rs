@@ -507,13 +507,14 @@ pub fn diff_view_ui(
                 total_rows,
                 |row, column| {
                     let i = row.index();
-                    let address = i * BYTES_PER_ROW;
+                    let row_offset = i * BYTES_PER_ROW;
                     row.col(|ui| {
                         if column == 0 {
                             data_row_ui(
                                 ui,
                                 Some(left_obj),
-                                address + left_symbol.address as usize,
+                                left_symbol.address as usize,
+                                row_offset,
                                 &left_diffs[i],
                                 appearance,
                                 column,
@@ -522,7 +523,8 @@ pub fn diff_view_ui(
                             data_row_ui(
                                 ui,
                                 Some(right_obj),
-                                address + right_symbol.address as usize,
+                                right_symbol.address as usize,
+                                row_offset,
                                 &right_diffs[i],
                                 appearance,
                                 column,
@@ -642,12 +644,13 @@ fn diff_col_ui(
                     total_rows,
                     |row, _column| {
                         let i = row.index();
-                        let address = i * BYTES_PER_ROW;
+                        let row_offset = i * BYTES_PER_ROW;
                         row.col(|ui| {
                             data_row_ui(
                                 ui,
                                 Some(obj),
-                                address + symbol.address as usize,
+                                symbol.address as usize,
+                                row_offset,
                                 &diffs[i],
                                 appearance,
                                 column,

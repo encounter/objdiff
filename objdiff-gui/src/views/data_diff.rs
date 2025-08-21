@@ -115,7 +115,8 @@ fn get_hover_item_color_for_diff_kind(diff_kind: DataDiffKind) -> HoverItemColor
 pub(crate) fn data_row_ui(
     ui: &mut egui::Ui,
     obj: Option<&Object>,
-    address: usize,
+    base_address: usize,
+    row_address: usize,
     diffs: &[(DataDiff, Vec<DataRelocationDiff>)],
     appearance: &Appearance,
     column: usize,
@@ -127,7 +128,7 @@ pub(crate) fn data_row_ui(
     }
     let mut job = LayoutJob::default();
     write_text(
-        format!("{address:08x}: ").as_str(),
+        format!("{row_address:08x}: ").as_str(),
         appearance.text_color,
         &mut job,
         appearance.code_font.clone(),
@@ -135,7 +136,7 @@ pub(crate) fn data_row_ui(
     // The offset shown on the side of the GUI, shifted by insertions/deletions.
     let mut cur_addr = 0usize;
     // The offset into the actual bytes of the section on this side, ignoring differences.
-    let mut cur_addr_actual = address;
+    let mut cur_addr_actual = base_address + row_address;
     for (diff, reloc_diffs) in diffs {
         let base_color = get_color_for_diff_kind(diff.kind, appearance);
         if diff.data.is_empty() {
