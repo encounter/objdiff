@@ -314,6 +314,9 @@ Object {
             id: ".text-0",
             name: ".text",
             address: 0,
+            offset: Some(
+                52,
+            ),
             size: 552,
             kind: Code,
             data: SectionData(
@@ -340,6 +343,9 @@ Object {
             id: "extab-0",
             name: "extab",
             address: 0,
+            offset: Some(
+                604,
+            ),
             size: 40,
             kind: Data,
             data: SectionData(
@@ -366,6 +372,9 @@ Object {
             id: "extabindex-0",
             name: "extabindex",
             address: 0,
+            offset: Some(
+                644,
+            ),
             size: 36,
             kind: Data,
             data: SectionData(
@@ -432,6 +441,9 @@ Object {
             id: ".rela.text-0",
             name: ".rela.text",
             address: 0,
+            offset: Some(
+                680,
+            ),
             size: 12,
             kind: Unknown,
             data: SectionData(
@@ -449,6 +461,9 @@ Object {
             id: ".relaextab-0",
             name: ".relaextab",
             address: 0,
+            offset: Some(
+                692,
+            ),
             size: 12,
             kind: Unknown,
             data: SectionData(
@@ -466,6 +481,9 @@ Object {
             id: ".relaextabindex-0",
             name: ".relaextabindex",
             address: 0,
+            offset: Some(
+                704,
+            ),
             size: 72,
             kind: Unknown,
             data: SectionData(
@@ -483,6 +501,9 @@ Object {
             id: ".symtab-0",
             name: ".symtab",
             address: 0,
+            offset: Some(
+                776,
+            ),
             size: 240,
             kind: Unknown,
             data: SectionData(
@@ -500,6 +521,9 @@ Object {
             id: ".strtab-0",
             name: ".strtab",
             address: 0,
+            offset: Some(
+                1016,
+            ),
             size: 121,
             kind: Unknown,
             data: SectionData(
@@ -517,6 +541,9 @@ Object {
             id: ".shstrtab-0",
             name: ".shstrtab",
             address: 0,
+            offset: Some(
+                1137,
+            ),
             size: 97,
             kind: Unknown,
             data: SectionData(
@@ -534,6 +561,9 @@ Object {
             id: ".comment-0",
             name: ".comment",
             address: 0,
+            offset: Some(
+                1234,
+            ),
             size: 164,
             kind: Unknown,
             data: SectionData(

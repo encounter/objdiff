@@ -143,6 +143,9 @@ Object {
             id: ".text-0",
             name: ".text",
             address: 0,
+            offset: Some(
+                60,
+            ),
             size: 92,
             kind: Code,
             data: SectionData(

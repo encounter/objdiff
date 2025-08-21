@@ -8,6 +8,7 @@ expression: "(sections, symbols)"
             id: ".text-0",
             name: ".text",
             address: 0,
+            offset: None,
             size: 8,
             kind: Code,
             data: SectionData(
@@ -48,6 +49,7 @@ expression: "(sections, symbols)"
             id: ".data-combined",
             name: ".data",
             address: 0,
+            offset: None,
             size: 12,
             kind: Data,
             data: SectionData(
@@ -83,6 +85,7 @@ expression: "(sections, symbols)"
             id: ".data-1",
             name: ".data",
             address: 0,
+            offset: None,
             size: 0,
             kind: Unknown,
             data: SectionData(
@@ -98,6 +101,7 @@ expression: "(sections, symbols)"
             id: ".data-2",
             name: ".data",
             address: 0,
+            offset: None,
             size: 0,
             kind: Unknown,
             data: SectionData(

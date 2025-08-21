@@ -1513,6 +1513,9 @@ Object {
             id: ".text-0",
             name: ".text",
             address: 0,
+            offset: Some(
+                52,
+            ),
             size: 556,
             kind: Code,
             data: SectionData(
@@ -1715,6 +1718,9 @@ Object {
             id: ".rela.text-0",
             name: ".rela.text",
             address: 0,
+            offset: Some(
+                3980,
+            ),
             size: 276,
             kind: Unknown,
             data: SectionData(
@@ -1732,6 +1738,9 @@ Object {
             id: ".data-0",
             name: ".data",
             address: 0,
+            offset: Some(
+                608,
+            ),
             size: 76,
             kind: Data,
             data: SectionData(
@@ -1886,6 +1895,9 @@ Object {
             id: ".rela.data-0",
             name: ".rela.data",
             address: 0,
+            offset: Some(
+                4256,
+            ),
             size: 204,
             kind: Unknown,
             data: SectionData(
@@ -1903,6 +1915,9 @@ Object {
             id: ".symtab-0",
             name: ".symtab",
             address: 0,
+            offset: Some(
+                684,
+            ),
             size: 1680,
             kind: Unknown,
             data: SectionData(
@@ -1920,6 +1935,9 @@ Object {
             id: ".strtab-0",
             name: ".strtab",
             address: 0,
+            offset: Some(
+                2364,
+            ),
             size: 1615,
             kind: Unknown,
             data: SectionData(
@@ -1937,6 +1955,9 @@ Object {
             id: ".shstrtab-0",
             name: ".shstrtab",
             address: 0,
+            offset: Some(
+                4460,
+            ),
             size: 49,
             kind: Unknown,
             data: SectionData(

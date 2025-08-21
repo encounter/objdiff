@@ -7,6 +7,9 @@ expression: obj.sections
         id: ".drectve-0",
         name: ".drectve",
         address: 0,
+        offset: Some(
+            1420,
+        ),
         size: 47,
         kind: Unknown,
         data: SectionData(
@@ -24,6 +27,9 @@ expression: obj.sections
         id: ".debug$S-0",
         name: ".debug$S",
         address: 0,
+        offset: Some(
+            1467,
+        ),
         size: 100,
         kind: Unknown,
         data: SectionData(
@@ -41,6 +47,9 @@ expression: obj.sections
         id: ".rdata-0",
         name: ".rdata",
         address: 0,
+        offset: Some(
+            1567,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -58,6 +67,9 @@ expression: obj.sections
         id: ".rdata-1",
         name: ".rdata",
         address: 0,
+        offset: Some(
+            1595,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -75,6 +87,9 @@ expression: obj.sections
         id: ".text$mn-0",
         name: ".text$mn",
         address: 0,
+        offset: Some(
+            1623,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -92,6 +107,9 @@ expression: obj.sections
         id: ".data-combined",
         name: ".data",
         address: 0,
+        offset: Some(
+            1689,
+        ),
         size: 56,
         kind: Data,
         data: SectionData(
@@ -150,6 +168,9 @@ expression: obj.sections
         id: ".rdata-combined",
         name: ".rdata",
         address: 0,
+        offset: Some(
+            1715,
+        ),
         size: 304,
         kind: Data,
         data: SectionData(
@@ -424,6 +445,9 @@ expression: obj.sections
         id: ".rdata$r-1",
         name: ".rdata$r",
         address: 0,
+        offset: Some(
+            1741,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -441,6 +465,9 @@ expression: obj.sections
         id: ".rdata$r-2",
         name: ".rdata$r",
         address: 0,
+        offset: Some(
+            1756,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -458,6 +485,9 @@ expression: obj.sections
         id: ".data$rs-1",
         name: ".data$rs",
         address: 0,
+        offset: Some(
+            1804,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -475,6 +505,9 @@ expression: obj.sections
         id: ".rdata$r-3",
         name: ".rdata$r",
         address: 0,
+        offset: Some(
+            1830,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -492,6 +525,9 @@ expression: obj.sections
         id: ".rdata$r-4",
         name: ".rdata$r",
         address: 0,
+        offset: Some(
+            1856,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -509,6 +545,9 @@ expression: obj.sections
         id: ".rdata$r-5",
         name: ".rdata$r",
         address: 0,
+        offset: Some(
+            1871,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -526,6 +565,9 @@ expression: obj.sections
         id: ".rdata$r-6",
         name: ".rdata$r",
         address: 0,
+        offset: Some(
+            1919,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -543,6 +585,9 @@ expression: obj.sections
         id: ".data$rs-2",
         name: ".data$rs",
         address: 0,
+        offset: Some(
+            1959,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -560,6 +605,9 @@ expression: obj.sections
         id: ".rdata$r-7",
         name: ".rdata$r",
         address: 0,
+        offset: Some(
+            1985,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -577,6 +625,9 @@ expression: obj.sections
         id: ".rdata$r-8",
         name: ".rdata$r",
         address: 0,
+        offset: Some(
+            2011,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -594,6 +645,9 @@ expression: obj.sections
         id: ".rdata$r-9",
         name: ".rdata$r",
         address: 0,
+        offset: Some(
+            2054,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -611,6 +665,9 @@ expression: obj.sections
         id: ".rdata$r-10",
         name: ".rdata$r",
         address: 0,
+        offset: Some(
+            2102,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -628,6 +685,9 @@ expression: obj.sections
         id: ".text$mn-1",
         name: ".text$mn",
         address: 0,
+        offset: Some(
+            2150,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -645,6 +705,9 @@ expression: obj.sections
         id: ".rdata$r-11",
         name: ".rdata$r",
         address: 0,
+        offset: Some(
+            2168,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -662,6 +725,9 @@ expression: obj.sections
         id: ".text$mn-2",
         name: ".text$mn",
         address: 0,
+        offset: Some(
+            2208,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -679,6 +745,9 @@ expression: obj.sections
         id: ".text$mn-3",
         name: ".text$mn",
         address: 0,
+        offset: Some(
+            2238,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -696,6 +765,9 @@ expression: obj.sections
         id: ".text$mn-4",
         name: ".text$mn",
         address: 0,
+        offset: Some(
+            2268,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -713,6 +785,9 @@ expression: obj.sections
         id: ".text$mn-5",
         name: ".text$mn",
         address: 0,
+        offset: Some(
+            2357,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -730,6 +805,9 @@ expression: obj.sections
         id: ".text$mn-6",
         name: ".text$mn",
         address: 0,
+        offset: Some(
+            2423,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -747,6 +825,9 @@ expression: obj.sections
         id: ".text-combined",
         name: ".text",
         address: 0,
+        offset: Some(
+            2489,
+        ),
         size: 320,
         kind: Code,
         data: SectionData(
@@ -901,6 +982,9 @@ expression: obj.sections
         id: ".text$yd-0",
         name: ".text$yd",
         address: 0,
+        offset: Some(
+            2527,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -918,6 +1002,9 @@ expression: obj.sections
         id: ".rdata-2",
         name: ".rdata",
         address: 0,
+        offset: Some(
+            2562,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -935,6 +1022,9 @@ expression: obj.sections
         id: ".rdata-3",
         name: ".rdata",
         address: 0,
+        offset: Some(
+            2590,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -952,6 +1042,9 @@ expression: obj.sections
         id: ".data-0",
         name: ".data",
         address: 0,
+        offset: Some(
+            2618,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -969,6 +1062,9 @@ expression: obj.sections
         id: ".rdata$r-12",
         name: ".rdata$r",
         address: 0,
+        offset: Some(
+            2646,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -986,6 +1082,9 @@ expression: obj.sections
         id: ".rdata$r-13",
         name: ".rdata$r",
         address: 0,
+        offset: Some(
+            2686,
+        ),
         size: 0,
         kind: Unknown,
         data: SectionData(
@@ -1003,6 +1102,9 @@ expression: obj.sections
         id: ".CRT$XCU-0",
         name: ".CRT$XCU",
         address: 0,
+        offset: Some(
+            2726,
+        ),
         size: 4,
         kind: Data,
         data: SectionData(
@@ -1029,6 +1131,9 @@ expression: obj.sections
         id: ".chks64-0",
         name: ".chks64",
         address: 0,
+        offset: Some(
+            2740,
+        ),
         size: 280,
         kind: Unknown,
         data: SectionData(

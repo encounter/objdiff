@@ -130,6 +130,9 @@ Object {
             id: ".drectve-0",
             name: ".drectve",
             address: 0,
+            offset: Some(
+                140,
+            ),
             size: 38,
             kind: Unknown,
             data: SectionData(
@@ -147,6 +150,9 @@ Object {
             id: ".data-0",
             name: ".data",
             address: 0,
+            offset: Some(
+                178,
+            ),
             size: 10,
             kind: Data,
             data: SectionData(
@@ -173,6 +179,9 @@ Object {
             id: ".text-0",
             name: ".text",
             address: 0,
+            offset: Some(
+                198,
+            ),
             size: 18,
             kind: Code,
             data: SectionData(

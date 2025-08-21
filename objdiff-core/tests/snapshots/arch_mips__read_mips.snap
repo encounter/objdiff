@@ -677,6 +677,9 @@ Object {
             id: ".text-0",
             name: ".text",
             address: 0,
+            offset: Some(
+                56,
+            ),
             size: 632,
             kind: Code,
             data: SectionData(
@@ -1303,6 +1306,9 @@ Object {
             id: ".rel.text-0",
             name: ".rel.text",
             address: 0,
+            offset: Some(
+                4292,
+            ),
             size: 608,
             kind: Unknown,
             data: SectionData(
@@ -1320,6 +1326,9 @@ Object {
             id: ".data-0",
             name: ".data",
             address: 0,
+            offset: Some(
+                688,
+            ),
             size: 0,
             kind: Data,
             data: SectionData(
@@ -1337,6 +1346,7 @@ Object {
             id: ".bss-0",
             name: ".bss",
             address: 0,
+            offset: None,
             size: 0,
             kind: Bss,
             data: SectionData(
@@ -1354,6 +1364,9 @@ Object {
             id: ".reginfo-0",
             name: ".reginfo",
             address: 0,
+            offset: Some(
+                688,
+            ),
             size: 24,
             kind: Unknown,
             data: SectionData(
@@ -1371,6 +1384,9 @@ Object {
             id: ".mdebug-0",
             name: ".mdebug",
             address: 0,
+            offset: Some(
+                712,
+            ),
             size: 1932,
             kind: Unknown,
             data: SectionData(
@@ -1388,6 +1404,9 @@ Object {
             id: ".mdebug.eabi64-0",
             name: ".mdebug.eabi64",
             address: 0,
+            offset: Some(
+                2644,
+            ),
             size: 0,
             kind: Unknown,
             data: SectionData(
@@ -1405,6 +1424,9 @@ Object {
             id: ".rodata-0",
             name: ".rodata",
             address: 0,
+            offset: Some(
+                2648,
+            ),
             size: 43,
             kind: Data,
             data: SectionData(
@@ -1422,6 +1444,9 @@ Object {
             id: ".sdata-0",
             name: ".sdata",
             address: 0,
+            offset: Some(
+                2696,
+            ),
             size: 76,
             kind: Data,
             data: SectionData(
@@ -1439,6 +1464,9 @@ Object {
             id: ".symtab-0",
             name: ".symtab",
             address: 0,
+            offset: Some(
+                2772,
+            ),
             size: 864,
             kind: Unknown,
             data: SectionData(
@@ -1456,6 +1484,9 @@ Object {
             id: ".strtab-0",
             name: ".strtab",
             address: 0,
+            offset: Some(
+                3636,
+            ),
             size: 653,
             kind: Unknown,
             data: SectionData(
@@ -1473,6 +1504,9 @@ Object {
             id: ".shstrtab-0",
             name: ".shstrtab",
             address: 0,
+            offset: Some(
+                4900,
+            ),
             size: 95,
             kind: Unknown,
             data: SectionData(

@@ -163,6 +163,9 @@ Object {
             id: ".text-0",
             name: ".text",
             address: 0,
+            offset: Some(
+                64,
+            ),
             size: 284,
             kind: Code,
             data: SectionData(
@@ -391,6 +394,9 @@ Object {
             id: ".ctors-0",
             name: ".ctors",
             address: 0,
+            offset: Some(
+                352,
+            ),
             size: 4,
             kind: Data,
             data: SectionData(
@@ -419,6 +425,7 @@ Object {
             id: ".sbss-0",
             name: ".sbss",
             address: 0,
+            offset: None,
             size: 16,
             kind: Bss,
             data: SectionData(
@@ -438,6 +445,9 @@ Object {
             id: ".rela.text-0",
             name: ".rela.text",
             address: 0,
+            offset: Some(
+                356,
+            ),
             size: 216,
             kind: Unknown,
             data: SectionData(
@@ -455,6 +465,9 @@ Object {
             id: ".rela.ctors-0",
             name: ".rela.ctors",
             address: 0,
+            offset: Some(
+                572,
+            ),
             size: 12,
             kind: Unknown,
             data: SectionData(
@@ -472,6 +485,9 @@ Object {
             id: ".symtab-0",
             name: ".symtab",
             address: 0,
+            offset: Some(
+                584,
+            ),
             size: 176,
             kind: Unknown,
             data: SectionData(
@@ -489,6 +505,9 @@ Object {
             id: ".strtab-0",
             name: ".strtab",
             address: 0,
+            offset: Some(
+                760,
+            ),
             size: 105,
             kind: Unknown,
             data: SectionData(
@@ -506,6 +525,9 @@ Object {
             id: ".shstrtab-0",
             name: ".shstrtab",
             address: 0,
+            offset: Some(
+                865,
+            ),
             size: 77,
             kind: Unknown,
             data: SectionData(
@@ -523,6 +545,9 @@ Object {
             id: ".comment-0",
             name: ".comment",
             address: 0,
+            offset: Some(
+                960,
+            ),
             size: 132,
             kind: Unknown,
             data: SectionData(
@@ -540,6 +565,9 @@ Object {
             id: ".note.split-0",
             name: ".note.split",
             address: 0,
+            offset: Some(
+                1120,
+            ),
             size: 152,
             kind: Unknown,
             data: SectionData(

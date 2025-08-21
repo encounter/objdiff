@@ -860,6 +860,9 @@ Object {
             id: ".drectve-0",
             name: ".drectve",
             address: 0,
+            offset: Some(
+                980,
+            ),
             size: 47,
             kind: Unknown,
             data: SectionData(
@@ -877,6 +880,9 @@ Object {
             id: ".debug$S-0",
             name: ".debug$S",
             address: 0,
+            offset: Some(
+                1027,
+            ),
             size: 156,
             kind: Unknown,
             data: SectionData(
@@ -894,6 +900,9 @@ Object {
             id: ".text$mn-0",
             name: ".text$mn",
             address: 0,
+            offset: Some(
+                1183,
+            ),
             size: 429,
             kind: Code,
             data: SectionData(
@@ -1032,6 +1041,9 @@ Object {
             id: ".text$mn-1",
             name: ".text$mn",
             address: 0,
+            offset: Some(
+                1762,
+            ),
             size: 141,
             kind: Code,
             data: SectionData(
@@ -1049,6 +1061,9 @@ Object {
             id: ".text$mn-2",
             name: ".text$mn",
             address: 0,
+            offset: Some(
+                1903,
+            ),
             size: 87,
             kind: Code,
             data: SectionData(
@@ -1066,6 +1081,9 @@ Object {
             id: ".text$mn-3",
             name: ".text$mn",
             address: 0,
+            offset: Some(
+                1990,
+            ),
             size: 105,
             kind: Code,
             data: SectionData(
@@ -1083,6 +1101,9 @@ Object {
             id: ".text$mn-4",
             name: ".text$mn",
             address: 0,
+            offset: Some(
+                2095,
+            ),
             size: 82,
             kind: Code,
             data: SectionData(
@@ -1100,6 +1121,9 @@ Object {
             id: ".xdata-0",
             name: ".xdata",
             address: 0,
+            offset: Some(
+                2177,
+            ),
             size: 8,
             kind: Data,
             data: SectionData(
@@ -1117,6 +1141,9 @@ Object {
             id: ".pdata-0",
             name: ".pdata",
             address: 0,
+            offset: Some(
+                2185,
+            ),
             size: 12,
             kind: Data,
             data: SectionData(
@@ -1159,6 +1186,9 @@ Object {
             id: ".xdata-1",
             name: ".xdata",
             address: 0,
+            offset: Some(
+                2227,
+            ),
             size: 8,
             kind: Data,
             data: SectionData(
@@ -1176,6 +1206,9 @@ Object {
             id: ".pdata-1",
             name: ".pdata",
             address: 0,
+            offset: Some(
+                2235,
+            ),
             size: 12,
             kind: Data,
             data: SectionData(
@@ -1218,6 +1251,9 @@ Object {
             id: ".xdata-2",
             name: ".xdata",
             address: 0,
+            offset: Some(
+                2277,
+            ),
             size: 8,
             kind: Data,
             data: SectionData(
@@ -1235,6 +1271,9 @@ Object {
             id: ".pdata-2",
             name: ".pdata",
             address: 0,
+            offset: Some(
+                2285,
+            ),
             size: 12,
             kind: Data,
             data: SectionData(
@@ -1277,6 +1316,9 @@ Object {
             id: ".xdata-3",
             name: ".xdata",
             address: 0,
+            offset: Some(
+                2327,
+            ),
             size: 8,
             kind: Data,
             data: SectionData(
@@ -1294,6 +1336,9 @@ Object {
             id: ".pdata-3",
             name: ".pdata",
             address: 0,
+            offset: Some(
+                2335,
+            ),
             size: 12,
             kind: Data,
             data: SectionData(
@@ -1336,6 +1381,9 @@ Object {
             id: ".rdata-0",
             name: ".rdata",
             address: 0,
+            offset: Some(
+                2377,
+            ),
             size: 256,
             kind: Data,
             data: SectionData(
@@ -1386,6 +1434,9 @@ Object {
             id: ".xdata-4",
             name: ".xdata",
             address: 0,
+            offset: Some(
+                2673,
+            ),
             size: 20,
             kind: Data,
             data: SectionData(
@@ -1412,6 +1463,9 @@ Object {
             id: ".pdata-4",
             name: ".pdata",
             address: 0,
+            offset: Some(
+                2703,
+            ),
             size: 12,
             kind: Data,
             data: SectionData(
@@ -1454,6 +1508,9 @@ Object {
             id: ".voltbl-0",
             name: ".voltbl",
             address: 0,
+            offset: Some(
+                2745,
+            ),
             size: 16,
             kind: Unknown,
             data: SectionData(
@@ -1471,6 +1528,9 @@ Object {
             id: ".rtc$IMZ-0",
             name: ".rtc$IMZ",
             address: 0,
+            offset: Some(
+                2761,
+            ),
             size: 8,
             kind: Data,
             data: SectionData(
@@ -1497,6 +1557,9 @@ Object {
             id: ".rtc$TMZ-0",
             name: ".rtc$TMZ",
             address: 0,
+            offset: Some(
+                2779,
+            ),
             size: 8,
             kind: Data,
             data: SectionData(
@@ -1523,6 +1586,9 @@ Object {
             id: ".rdata-1",
             name: ".rdata",
             address: 0,
+            offset: Some(
+                2797,
+            ),
             size: 4,
             kind: Data,
             data: SectionData(
@@ -1540,6 +1606,9 @@ Object {
             id: ".rdata-2",
             name: ".rdata",
             address: 0,
+            offset: Some(
+                2801,
+            ),
             size: 4,
             kind: Data,
             data: SectionData(
@@ -1557,6 +1626,9 @@ Object {
             id: ".chks64-0",
             name: ".chks64",
             address: 0,
+            offset: Some(
+                2805,
+            ),
             size: 192,
             kind: Unknown,
             data: SectionData(

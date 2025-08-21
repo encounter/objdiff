@@ -3443,6 +3443,9 @@ Object {
             id: ".symtab-0",
             name: ".symtab",
             address: 0,
+            offset: Some(
+                64,
+            ),
             size: 4240,
             kind: Unknown,
             data: SectionData(
@@ -3458,6 +3461,9 @@ Object {
             id: ".strtab-0",
             name: ".strtab",
             address: 0,
+            offset: Some(
+                4304,
+            ),
             size: 4913,
             kind: Unknown,
             data: SectionData(
@@ -3473,6 +3479,9 @@ Object {
             id: ".shstrtab-0",
             name: ".shstrtab",
             address: 0,
+            offset: Some(
+                9232,
+            ),
             size: 243,
             kind: Unknown,
             data: SectionData(
@@ -3488,6 +3497,9 @@ Object {
             id: ".comment-0",
             name: ".comment",
             address: 0,
+            offset: Some(
+                9488,
+            ),
             size: 36,
             kind: Unknown,
             data: SectionData(
@@ -3503,6 +3515,9 @@ Object {
             id: ".debug_info-0",
             name: ".debug_info",
             address: 0,
+            offset: Some(
+                9536,
+            ),
             size: 13724,
             kind: Unknown,
             data: SectionData(
@@ -3518,6 +3533,9 @@ Object {
             id: ".rel.debug_info-0",
             name: ".rel.debug_info",
             address: 0,
+            offset: Some(
+                23264,
+            ),
             size: 7680,
             kind: Unknown,
             data: SectionData(
@@ -3533,6 +3551,9 @@ Object {
             id: ".debug_macinfo-0",
             name: ".debug_macinfo",
             address: 0,
+            offset: Some(
+                30944,
+            ),
             size: 0,
             kind: Unknown,
             data: SectionData(
@@ -3548,6 +3569,9 @@ Object {
             id: ".debug_loc-0",
             name: ".debug_loc",
             address: 0,
+            offset: Some(
+                30944,
+            ),
             size: 0,
             kind: Unknown,
             data: SectionData(
@@ -3563,6 +3587,9 @@ Object {
             id: " rel.debug_loc-0",
             name: " rel.debug_loc",
             address: 0,
+            offset: Some(
+                30944,
+            ),
             size: 0,
             kind: Unknown,
             data: SectionData(
@@ -3578,6 +3605,9 @@ Object {
             id: ".debug_line-0",
             name: ".debug_line",
             address: 0,
+            offset: Some(
+                30944,
+            ),
             size: 180,
             kind: Unknown,
             data: SectionData(
@@ -3593,6 +3623,9 @@ Object {
             id: ".rel.debug_line-0",
             name: ".rel.debug_line",
             address: 0,
+            offset: Some(
+                31136,
+            ),
             size: 12,
             kind: Unknown,
             data: SectionData(
@@ -3608,6 +3641,9 @@ Object {
             id: ".debug_line-1",
             name: ".debug_line",
             address: 0,
+            offset: Some(
+                31152,
+            ),
             size: 0,
             kind: Unknown,
             data: SectionData(
@@ -3623,6 +3659,9 @@ Object {
             id: ".rel.debug_line-1",
             name: ".rel.debug_line",
             address: 0,
+            offset: Some(
+                31152,
+            ),
             size: 0,
             kind: Unknown,
             data: SectionData(
@@ -3638,6 +3677,9 @@ Object {
             id: ".debug_pubnames-0",
             name: ".debug_pubnames",
             address: 0,
+            offset: Some(
+                31152,
+            ),
             size: 18,
             kind: Unknown,
             data: SectionData(
@@ -3653,6 +3695,9 @@ Object {
             id: ".rel.debug_pubnames-0",
             name: ".rel.debug_pubnames",
             address: 0,
+            offset: Some(
+                31184,
+            ),
             size: 0,
             kind: Unknown,
             data: SectionData(
@@ -3668,6 +3713,9 @@ Object {
             id: ".debug_aranges-0",
             name: ".debug_aranges",
             address: 0,
+            offset: Some(
+                31184,
+            ),
             size: 0,
             kind: Unknown,
             data: SectionData(
@@ -3683,6 +3731,9 @@ Object {
             id: ".debug_abbrev-0",
             name: ".debug_abbrev",
             address: 0,
+            offset: Some(
+                31184,
+            ),
             size: 211,
             kind: Unknown,
             data: SectionData(
@@ -3698,6 +3749,9 @@ Object {
             id: ".text-0",
             name: ".text",
             address: 0,
+            offset: Some(
+                31408,
+            ),
             size: 244,
             kind: Code,
             data: SectionData(
@@ -3811,6 +3865,9 @@ Object {
             id: ".rela.text-0",
             name: ".rela.text",
             address: 0,
+            offset: Some(
+                31664,
+            ),
             size: 108,
             kind: Unknown,
             data: SectionData(
