@@ -675,7 +675,7 @@ fn make_symbol_ref(symbol: &object::Symbol) -> Result<ExtabSymbolRef> {
 #[derive(Debug)]
 struct PoolReference {
     addr_src_gpr: powerpc::GPR,
-    addr_offset: i16,
+    addr_offset: i64,
     addr_dst_gpr: Option<powerpc::GPR>,
 }
 
@@ -683,16 +683,20 @@ struct PoolReference {
 // If so, return information pertaining to where the instruction is getting that address from and
 // what it's doing with the address (e.g. copying it into another register, adding an offset, etc).
 fn get_pool_reference_for_inst(
-    opcode: powerpc::Opcode,
+    ins: powerpc::Ins,
     simplified: &powerpc::ParsedIns,
 ) -> Option<PoolReference> {
     use powerpc::{Argument, Opcode};
     let args = &simplified.args;
-    if flow_analysis::guess_data_type_from_load_store_inst_op(opcode).is_some() {
+    if flow_analysis::guess_data_type_from_load_store_inst_op(ins.op).is_some() {
         match (args[1], args[2]) {
             (Argument::Offset(offset), Argument::GPR(addr_src_gpr)) => {
                 // e.g. lwz. Immediate offset.
-                Some(PoolReference { addr_src_gpr, addr_offset: offset.0, addr_dst_gpr: None })
+                Some(PoolReference {
+                    addr_src_gpr,
+                    addr_offset: offset.0 as i64,
+                    addr_dst_gpr: None,
+                })
             }
             (Argument::GPR(addr_src_gpr), Argument::GPR(_offset_gpr)) => {
                 // e.g. lwzx. The offset is in a register and was likely calculated from an index.
@@ -712,17 +716,51 @@ fn get_pool_reference_for_inst(
         // If either of these match, we also want to return the destination register that the
         // address is being copied into so that we can detect any future references to that new
         // register as well.
-        match (opcode, args[0], args[1], args[2]) {
+        match (ins.op, args[0], args[1], args[2]) {
             (
+                // `addi` or `subi`
                 Opcode::Addi,
                 Argument::GPR(addr_dst_gpr),
                 Argument::GPR(addr_src_gpr),
                 Argument::Simm(simm),
-            ) => Some(PoolReference {
-                addr_src_gpr,
-                addr_offset: simm.0,
-                addr_dst_gpr: Some(addr_dst_gpr),
-            }),
+            ) => {
+                let offset = if simplified.mnemonic == "addi" { simm.0 } else { -simm.0 };
+                Some(PoolReference {
+                    addr_src_gpr,
+                    addr_offset: offset as i64,
+                    addr_dst_gpr: Some(addr_dst_gpr),
+                })
+            }
+            (
+                // `addis`
+                Opcode::Addis,
+                Argument::GPR(addr_dst_gpr),
+                Argument::GPR(addr_src_gpr),
+                Argument::Uimm(uimm), // Note: `addis` uses UIMM, unlike `addi`, `subi`, and `subis`
+            ) => {
+                assert_eq!(simplified.mnemonic, "addis");
+                let offset = (uimm.0 as i64) << 16;
+                Some(PoolReference {
+                    addr_src_gpr,
+                    addr_offset: offset,
+                    addr_dst_gpr: Some(addr_dst_gpr),
+                })
+            }
+            (
+                // `subis`
+                Opcode::Addis,
+                Argument::GPR(addr_dst_gpr),
+                Argument::GPR(addr_src_gpr),
+                Argument::Simm(simm),
+            ) => {
+                assert_eq!(simplified.mnemonic, "subis");
+                let offset = (simm.0 as i64) << 16;
+                Some(PoolReference {
+                    addr_src_gpr,
+                    addr_offset: offset,
+                    addr_dst_gpr: Some(addr_dst_gpr),
+                })
+            }
             (
                 // `mr` or `mr.`
                 Opcode::Or,
@@ -777,13 +815,13 @@ fn clear_overwritten_gprs(ins: powerpc::Ins, gpr_pool_relocs: &mut BTreeMap<u8, 
 // Also, if this instruction is accessing the middle of a symbol instead of the start, we add an
 // addend to indicate that.
 fn make_fake_pool_reloc(
-    offset: i16,
+    offset: i64,
     cur_addr: u32,
     pool_reloc: &Relocation,
     symbols: &[Symbol],
 ) -> Option<Relocation> {
     let pool_reloc = resolve_relocation(symbols, pool_reloc);
-    let offset_from_pool = pool_reloc.relocation.addend + offset as i64;
+    let offset_from_pool = pool_reloc.relocation.addend + offset;
     let target_address = pool_reloc.symbol.address.checked_add_signed(offset_from_pool)?;
     let target_symbol;
     let addend;
@@ -946,7 +984,7 @@ fn generate_fake_pool_relocations_for_function(
                         clear_overwritten_gprs(ins, &mut gpr_pool_relocs);
                     }
                 }
-            } else if let Some(pool_ref) = get_pool_reference_for_inst(ins.op, &simplified) {
+            } else if let Some(pool_ref) = get_pool_reference_for_inst(ins, &simplified) {
                 // This instruction doesn't have a real relocation, so it may be a reference to one of
                 // the already-loaded pools.
                 if let Some(pool_reloc) = gpr_pool_relocs.get(&pool_ref.addr_src_gpr.0) {
@@ -965,7 +1003,7 @@ fn generate_fake_pool_relocations_for_function(
                         // with the offset within the .data section of an array variable into r21.
                         // Then the body of the loop will `lwzx` one of the array elements from r21.
                         let mut new_reloc = pool_reloc.clone();
-                        new_reloc.addend += pool_ref.addr_offset as i64;
+                        new_reloc.addend += pool_ref.addr_offset;
                         gpr_pool_relocs.insert(addr_dst_gpr.0, new_reloc);
                     } else {
                         clear_overwritten_gprs(ins, &mut gpr_pool_relocs);
