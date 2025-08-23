@@ -25,11 +25,6 @@ use crate::{
     },
 };
 
-#[derive(Clone, Copy, Debug)]
-enum SelectedSymbol {
-    Symbol(usize),
-}
-
 #[derive(Clone, Copy)]
 struct DiffColumnContext<'a> {
     status: &'a BuildStatus,
@@ -44,17 +39,15 @@ impl<'a> DiffColumnContext<'a> {
         obj: Option<&'a (Object, ObjectDiff)>,
         selected_symbol: Option<&SymbolRefByName>,
     ) -> Self {
-        let selected_symbol = match view {
+        let selected_symbol_idx = match view {
             View::SymbolDiff => None,
             View::FunctionDiff | View::DataDiff | View::ExtabDiff => match (obj, selected_symbol) {
-                (Some(obj), Some(s)) => {
-                    obj.0.symbol_by_name(&s.symbol_name).map(SelectedSymbol::Symbol)
-                }
+                (Some(obj), Some(s)) => obj.0.symbol_by_name(&s.symbol_name),
                 _ => None,
             },
         };
-        let symbol = match (obj, selected_symbol) {
-            (Some((obj, obj_diff)), Some(SelectedSymbol::Symbol(symbol_ref))) => {
+        let symbol = match (obj, selected_symbol_idx) {
+            (Some((obj, obj_diff)), Some(symbol_ref)) => {
                 let symbol = &obj.symbols[symbol_ref];
                 Some((symbol, &obj_diff.symbols[symbol_ref], symbol_ref))
             }
