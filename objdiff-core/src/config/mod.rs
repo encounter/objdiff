@@ -204,8 +204,9 @@ pub struct ScratchConfig {
 pub const CONFIG_FILENAMES: [&str; 3] = ["objdiff.json", "objdiff.yml", "objdiff.yaml"];
 
 pub const DEFAULT_WATCH_PATTERNS: &[&str] = &[
-    "*.c", "*.cp", "*.cpp", "*.cxx", "*.h", "*.hp", "*.hpp", "*.hxx", "*.s", "*.S", "*.asm",
-    "*.inc", "*.py", "*.yml", "*.txt", "*.json",
+    "*.c", "*.cc", "*.cp", "*.cpp", "*.cxx", "*.c++", "*.h", "*.hh", "*.hp", "*.hpp", "*.hxx",
+    "*.h++", "*.pch", "*.pch++", "*.inc", "*.s", "*.S", "*.asm", "*.py", "*.yml", "*.txt",
+    "*.json",
 ];
 
 pub const DEFAULT_IGNORE_PATTERNS: &[&str] = &["build/**/*"];
