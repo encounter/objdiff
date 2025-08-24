@@ -687,8 +687,7 @@ fn find_symbol(
     if is_symbol_compiler_generated_literal(in_symbol)
         && matches!(section_kind, SectionKind::Data | SectionKind::Bss)
     {
-        let mut closest_match_symbol_idx = None;
-        let mut closest_match_percent = 0.0;
+        let mut matching_symbol_idx = None;
         for (symbol_idx, symbol) in unmatched_symbols(obj, used) {
             let Some(section_index) = symbol.section else {
                 continue;
@@ -701,31 +700,27 @@ fn find_symbol(
             }
             match section_kind {
                 SectionKind::Data => {
-                    // For data, we try to pick the first symbol that matches 100%.
-                    // If no symbol is a perfect match, pick whichever matches the closest.
+                    // For data, pick the first symbol that has the exact matching bytes and relocations.
                     if let Ok((left_diff, _right_diff)) =
                         diff_data_symbol(in_obj, obj, in_symbol_idx, symbol_idx)
                         && let Some(match_percent) = left_diff.match_percent
-                        && match_percent > closest_match_percent
+                        && match_percent == 100.0
                     {
-                        closest_match_symbol_idx = Some(symbol_idx);
-                        closest_match_percent = match_percent;
-                        if match_percent == 100.0 {
-                            break;
-                        }
+                        matching_symbol_idx = Some(symbol_idx);
+                        break;
                     }
                 }
                 SectionKind::Bss => {
-                    // For BSS, we simply pick the first symbol that has the exact matching size.
+                    // For BSS, pick the first symbol that has the exact matching size.
                     if in_symbol.size == symbol.size {
-                        closest_match_symbol_idx = Some(symbol_idx);
+                        matching_symbol_idx = Some(symbol_idx);
                         break;
                     }
                 }
                 _ => unreachable!(),
             }
         }
-        return closest_match_symbol_idx;
+        return matching_symbol_idx;
     }
 
     // Try to find an exact name match
