@@ -52,9 +52,9 @@ fn map_symbol(
 
         let section_kind = map_section_kind(&section);
         if section_kind == SectionKind::Data {
-            // For section symbols, the size would normally be zero and excluded from the diff.
-            // Instead we make them the size of all the data in the section so that the user can diff
-            // entire sections by clicking on the section symbol at the top of the section.
+            // For data section symbols, the size would normally be zero and excluded from the diff.
+            // Instead we make them the size of all the data in the section so that the user can
+            // diff entire sections by clicking on the section symbol at the top of the section.
             // We only do this for data sections, as there would be no point for code or bss sections.
             if let Some(last_symbol) = file
                 .symbols()
@@ -72,6 +72,13 @@ fn map_symbol(
                 // so only fall back to it if there are no symbols to look at.
                 size = section.size();
             }
+        } else {
+            // For non-data section symbols, set the size to zero. If the size is non-zero, it will
+            // be included in the diff. Most of the time, this is duplicative, given that we'll have
+            // function or object symbols that cover the same range. In the case of an empty
+            // section, the size inference logic below will set the size back to the section size,
+            // thus acting as a placeholder symbol.
+            size = 0;
         }
     }
 
