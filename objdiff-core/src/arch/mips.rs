@@ -331,7 +331,11 @@ impl Arch for ArchMips {
         }
     }
 
-    fn extra_symbol_flags(&self, symbol: &object::Symbol, _diff_config: &DiffObjConfig) -> SymbolFlagSet {
+    fn extra_symbol_flags(
+        &self,
+        symbol: &object::Symbol,
+        _diff_config: &DiffObjConfig,
+    ) -> SymbolFlagSet {
         let mut flags = SymbolFlagSet::default();
         if self.ignored_symbols.contains(&symbol.index().0) {
             flags |= SymbolFlag::Ignored;

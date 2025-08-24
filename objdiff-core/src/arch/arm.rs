@@ -457,7 +457,11 @@ impl Arch for ArchArm {
         if kind == SymbolKind::Function { address & !1 } else { address }
     }
 
-    fn extra_symbol_flags(&self, symbol: &object::Symbol, _diff_config: &DiffObjConfig) -> SymbolFlagSet {
+    fn extra_symbol_flags(
+        &self,
+        symbol: &object::Symbol,
+        _diff_config: &DiffObjConfig,
+    ) -> SymbolFlagSet {
         let mut flags = SymbolFlagSet::default();
         if DisasmMode::from_object_symbol(symbol).is_some() {
             flags |= SymbolFlag::Hidden;

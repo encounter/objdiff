@@ -376,7 +376,11 @@ pub trait Arch: Any + Debug + Send + Sync {
 
     fn symbol_address(&self, address: u64, _kind: SymbolKind) -> u64 { address }
 
-    fn extra_symbol_flags(&self, _symbol: &object::Symbol, _diff_config: &DiffObjConfig) -> SymbolFlagSet {
+    fn extra_symbol_flags(
+        &self,
+        _symbol: &object::Symbol,
+        _diff_config: &DiffObjConfig,
+    ) -> SymbolFlagSet {
         SymbolFlagSet::default()
     }
 
