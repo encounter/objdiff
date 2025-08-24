@@ -49,12 +49,30 @@ fn map_symbol(
     {
         let section_name = section.name().context("Failed to process section name")?;
         name = format!("[{section_name}]");
-        // For section symbols, set the size to zero. If the size is non-zero, it will be included
-        // in the diff. Most of the time, this is duplicative, given that we'll have function or
-        // object symbols that cover the same range. In the case of an empty section, the size
-        // inference logic below will set the size back to the section size, thus acting as a
-        // placeholder symbol.
-        size = 0;
+
+        let section_kind = map_section_kind(&section);
+        if section_kind == SectionKind::Data {
+            // For section symbols, the size would normally be zero and excluded from the diff.
+            // Instead we make them the size of all the data in the section so that the user can diff
+            // entire sections by clicking on the section symbol at the top of the section.
+            // We only do this for data sections, as there would be no point for code or bss sections.
+            if let Some(last_symbol) = file
+                .symbols()
+                .filter(|s| {
+                    s.section_index() == Some(section.index())
+                        && s.kind() == object::SymbolKind::Data
+                        && s.size() > 0
+                })
+                .max_by_key(|s| s.address())
+            {
+                // Use the address that the last symbol ends at as the section size.
+                size = last_symbol.address() + last_symbol.size();
+            } else {
+                // `section.size()` can include extra padding that doesn't correspond to any symbol,
+                // so only fall back to it if there are no symbols to look at.
+                size = section.size();
+            }
+        }
     }
 
     let mut flags = arch.extra_symbol_flags(symbol);
