@@ -49,37 +49,11 @@ fn map_symbol(
     {
         let section_name = section.name().context("Failed to process section name")?;
         name = format!("[{section_name}]");
-
-        let section_kind = map_section_kind(&section);
-        if section_kind == SectionKind::Data {
-            // For data section symbols, the size would normally be zero and excluded from the diff.
-            // Instead we make them the size of all the data in the section so that the user can
-            // diff entire sections by clicking on the section symbol at the top of the section.
-            // We only do this for data sections, as there would be no point for code or bss sections.
-            if let Some(last_symbol) = file
-                .symbols()
-                .filter(|s| {
-                    s.section_index() == Some(section.index())
-                        && s.kind() == object::SymbolKind::Data
-                        && s.size() > 0
-                })
-                .max_by_key(|s| s.address())
-            {
-                // Use the address that the last symbol ends at as the section size.
-                size = last_symbol.address() + last_symbol.size();
-            } else {
-                // `section.size()` can include extra padding that doesn't correspond to any symbol,
-                // so only fall back to it if there are no symbols to look at.
-                size = section.size();
-            }
-        } else {
-            // For non-data section symbols, set the size to zero. If the size is non-zero, it will
-            // be included in the diff. Most of the time, this is duplicative, given that we'll have
-            // function or object symbols that cover the same range. In the case of an empty
-            // section, the size inference logic below will set the size back to the section size,
-            // thus acting as a placeholder symbol.
-            size = 0;
-        }
+        // For section symbols, set the size to zero. If the size is non-zero, it will be included
+        // in the diff. The size inference logic below may set the size back to the section size for
+        // some sections, thus acting as a placeholder symbol to allow diffing an entire section at
+        // once.
+        size = 0;
     }
 
     let mut flags = arch.extra_symbol_flags(symbol);
@@ -233,7 +207,20 @@ fn infer_symbol_sizes(arch: &dyn Arch, symbols: &mut [Symbol], sections: &[Secti
         let section = &sections[section_idx];
         let next_address =
             next_symbol.map(|s| s.address).unwrap_or_else(|| section.address + section.size);
-        let new_size = if section.kind == SectionKind::Code {
+        let new_size = if symbol.kind == SymbolKind::Section && section.kind == SectionKind::Data {
+            // For data section symbols, set their size to the section size. Then the user can diff
+            // the entire section at once by clicking on the section symbol at the top.
+            // `section.size` can include extra padding, so instead prefer using the address that
+            // the last symbol ends at when there are symbols in the section.
+            symbols
+                .iter()
+                .filter(|s| {
+                    s.section == Some(section_idx) && s.kind == SymbolKind::Object && s.size > 0
+                })
+                .map(|s| s.address + s.size)
+                .max()
+                .unwrap_or(section.size)
+        } else if section.kind == SectionKind::Code {
             arch.infer_function_size(symbol, section, next_address)?
         } else {
             next_address.saturating_sub(symbol.address)
