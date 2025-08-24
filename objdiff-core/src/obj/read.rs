@@ -50,10 +50,9 @@ fn map_symbol(
         let section_name = section.name().context("Failed to process section name")?;
         name = format!("[{section_name}]");
         // For section symbols, set the size to zero. If the size is non-zero, it will be included
-        // in the diff. Most of the time, this is duplicative, given that we'll have function or
-        // object symbols that cover the same range. In the case of an empty section, the size
-        // inference logic below will set the size back to the section size, thus acting as a
-        // placeholder symbol.
+        // in the diff. The size inference logic below may set the size back to the section size for
+        // some sections, thus acting as a placeholder symbol to allow diffing an entire section at
+        // once.
         size = 0;
     }
 
@@ -208,7 +207,20 @@ fn infer_symbol_sizes(arch: &dyn Arch, symbols: &mut [Symbol], sections: &[Secti
         let section = &sections[section_idx];
         let next_address =
             next_symbol.map(|s| s.address).unwrap_or_else(|| section.address + section.size);
-        let new_size = if section.kind == SectionKind::Code {
+        let new_size = if symbol.kind == SymbolKind::Section && section.kind == SectionKind::Data {
+            // For data section symbols, set their size to the section size. Then the user can diff
+            // the entire section at once by clicking on the section symbol at the top.
+            // `section.size` can include extra padding, so instead prefer using the address that
+            // the last symbol ends at when there are symbols in the section.
+            symbols
+                .iter()
+                .filter(|s| {
+                    s.section == Some(section_idx) && s.kind == SymbolKind::Object && s.size > 0
+                })
+                .map(|s| s.address + s.size)
+                .max()
+                .unwrap_or(section.size)
+        } else if section.kind == SectionKind::Code {
             arch.infer_function_size(symbol, section, next_address)?
         } else {
             next_address.saturating_sub(symbol.address)

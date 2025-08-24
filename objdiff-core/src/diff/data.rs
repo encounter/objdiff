@@ -24,13 +24,13 @@ pub fn diff_bss_symbol(
             target_symbol: Some(right_symbol_ref),
             match_percent: Some(percent),
             diff_score: None,
-            instruction_rows: vec![],
+            ..Default::default()
         },
         SymbolDiff {
             target_symbol: Some(left_symbol_ref),
             match_percent: Some(percent),
             diff_score: None,
-            instruction_rows: vec![],
+            ..Default::default()
         },
     ))
 }
@@ -70,7 +70,83 @@ pub fn resolve_relocation<'obj>(
     ResolvedRelocation { relocation: reloc, symbol }
 }
 
-/// Compares relocations contained with a certain data range.
+/// Compares the bytes within a certain data range.
+fn diff_data_range(left_data: &[u8], right_data: &[u8]) -> (f32, Vec<DataDiff>, Vec<DataDiff>) {
+    let ops = capture_diff_slices(Algorithm::Patience, left_data, right_data);
+    let bytes_match_ratio = get_diff_ratio(&ops, left_data.len(), right_data.len());
+
+    let mut left_data_diff = Vec::<DataDiff>::new();
+    let mut right_data_diff = Vec::<DataDiff>::new();
+    for op in ops {
+        let (tag, left_range, right_range) = op.as_tag_tuple();
+        let left_len = left_range.len();
+        let right_len = right_range.len();
+        let mut len = left_len.max(right_len);
+        let kind = match tag {
+            similar::DiffTag::Equal => DataDiffKind::None,
+            similar::DiffTag::Delete => DataDiffKind::Delete,
+            similar::DiffTag::Insert => DataDiffKind::Insert,
+            similar::DiffTag::Replace => {
+                // Ensure replacements are equal length
+                len = left_len.min(right_len);
+                DataDiffKind::Replace
+            }
+        };
+        let left_data = &left_data[left_range];
+        let right_data = &right_data[right_range];
+        left_data_diff.push(DataDiff {
+            data: left_data[..len.min(left_data.len())].to_vec(),
+            kind,
+            len,
+            ..Default::default()
+        });
+        right_data_diff.push(DataDiff {
+            data: right_data[..len.min(right_data.len())].to_vec(),
+            kind,
+            len,
+            ..Default::default()
+        });
+        if kind == DataDiffKind::Replace {
+            match left_len.cmp(&right_len) {
+                Ordering::Less => {
+                    let len = right_len - left_len;
+                    left_data_diff.push(DataDiff {
+                        data: vec![],
+                        kind: DataDiffKind::Insert,
+                        len,
+                        ..Default::default()
+                    });
+                    right_data_diff.push(DataDiff {
+                        data: right_data[left_len..right_len].to_vec(),
+                        kind: DataDiffKind::Insert,
+                        len,
+                        ..Default::default()
+                    });
+                }
+                Ordering::Greater => {
+                    let len = left_len - right_len;
+                    left_data_diff.push(DataDiff {
+                        data: left_data[right_len..left_len].to_vec(),
+                        kind: DataDiffKind::Delete,
+                        len,
+                        ..Default::default()
+                    });
+                    right_data_diff.push(DataDiff {
+                        data: vec![],
+                        kind: DataDiffKind::Delete,
+                        len,
+                        ..Default::default()
+                    });
+                }
+                Ordering::Equal => {}
+            }
+        }
+    }
+
+    (bytes_match_ratio, left_data_diff, right_data_diff)
+}
+
+/// Compares relocations contained within a certain data range.
 fn diff_data_relocs_for_range<'left, 'right>(
     left_obj: &'left Object,
     right_obj: &'right Object,
@@ -172,76 +248,10 @@ pub fn diff_data_section(
         .min(right_section.size);
     let left_data = &left_section.data[..left_max as usize];
     let right_data = &right_section.data[..right_max as usize];
-    let ops = capture_diff_slices(Algorithm::Patience, left_data, right_data);
-    let match_percent = get_diff_ratio(&ops, left_data.len(), right_data.len()) * 100.0;
 
-    let mut left_data_diff = Vec::<DataDiff>::new();
-    let mut right_data_diff = Vec::<DataDiff>::new();
-    for op in ops {
-        let (tag, left_range, right_range) = op.as_tag_tuple();
-        let left_len = left_range.len();
-        let right_len = right_range.len();
-        let mut len = left_len.max(right_len);
-        let kind = match tag {
-            similar::DiffTag::Equal => DataDiffKind::None,
-            similar::DiffTag::Delete => DataDiffKind::Delete,
-            similar::DiffTag::Insert => DataDiffKind::Insert,
-            similar::DiffTag::Replace => {
-                // Ensure replacements are equal length
-                len = left_len.min(right_len);
-                DataDiffKind::Replace
-            }
-        };
-        let left_data = &left_section.data[left_range];
-        let right_data = &right_section.data[right_range];
-        left_data_diff.push(DataDiff {
-            data: left_data[..len.min(left_data.len())].to_vec(),
-            kind,
-            len,
-            ..Default::default()
-        });
-        right_data_diff.push(DataDiff {
-            data: right_data[..len.min(right_data.len())].to_vec(),
-            kind,
-            len,
-            ..Default::default()
-        });
-        if kind == DataDiffKind::Replace {
-            match left_len.cmp(&right_len) {
-                Ordering::Less => {
-                    let len = right_len - left_len;
-                    left_data_diff.push(DataDiff {
-                        data: vec![],
-                        kind: DataDiffKind::Insert,
-                        len,
-                        ..Default::default()
-                    });
-                    right_data_diff.push(DataDiff {
-                        data: right_data[left_len..right_len].to_vec(),
-                        kind: DataDiffKind::Insert,
-                        len,
-                        ..Default::default()
-                    });
-                }
-                Ordering::Greater => {
-                    let len = left_len - right_len;
-                    left_data_diff.push(DataDiff {
-                        data: left_data[right_len..left_len].to_vec(),
-                        kind: DataDiffKind::Delete,
-                        len,
-                        ..Default::default()
-                    });
-                    right_data_diff.push(DataDiff {
-                        data: vec![],
-                        kind: DataDiffKind::Delete,
-                        len,
-                        ..Default::default()
-                    });
-                }
-                Ordering::Equal => {}
-            }
-        }
-    }
+    let (bytes_match_ratio, left_data_diff, right_data_diff) =
+        diff_data_range(left_data, right_data);
+    let match_percent = bytes_match_ratio * 100.0;
 
     let mut left_reloc_diffs = Vec::new();
     let mut right_reloc_diffs = Vec::new();
@@ -300,6 +310,55 @@ pub fn diff_data_section(
     Ok((left_section_diff, right_section_diff))
 }
 
+pub fn no_diff_data_symbol(obj: &Object, symbol_index: usize) -> Result<SymbolDiff> {
+    let symbol = &obj.symbols[symbol_index];
+    let section_idx = symbol.section.ok_or_else(|| anyhow!("Data symbol section not found"))?;
+    let section = &obj.sections[section_idx];
+
+    let start = symbol
+        .address
+        .checked_sub(section.address)
+        .ok_or_else(|| anyhow!("Symbol address out of section bounds"))?;
+    let end = start + symbol.size;
+    if end > section.size {
+        return Err(anyhow!(
+            "Symbol {} size out of section bounds ({} > {})",
+            symbol.name,
+            end,
+            section.size
+        ));
+    }
+    let range = start as usize..end as usize;
+    let data = &section.data[range.clone()];
+
+    let len = symbol.size as usize;
+    let data_diff =
+        vec![DataDiff { data: data.to_vec(), kind: DataDiffKind::None, len, ..Default::default() }];
+
+    let mut reloc_diffs = Vec::new();
+    for reloc in section.relocations.iter() {
+        if !range.contains(&(reloc.address as usize)) {
+            continue;
+        }
+        let reloc_len = obj.arch.data_reloc_size(reloc.flags);
+        let range = reloc.address as usize..reloc.address as usize + reloc_len;
+        reloc_diffs.push(DataRelocationDiff {
+            reloc: reloc.clone(),
+            kind: DataDiffKind::None,
+            range,
+        });
+    }
+
+    Ok(SymbolDiff {
+        target_symbol: None,
+        match_percent: None,
+        diff_score: None,
+        data_diff,
+        data_reloc_diff: reloc_diffs,
+        ..Default::default()
+    })
+}
+
 pub fn diff_data_symbol(
     left_obj: &Object,
     right_obj: &Object,
@@ -348,6 +407,9 @@ pub fn diff_data_symbol(
     let left_data = &left_section.data[left_range.clone()];
     let right_data = &right_section.data[right_range.clone()];
 
+    let (bytes_match_ratio, left_data_diff, right_data_diff) =
+        diff_data_range(left_data, right_data);
+
     let reloc_diffs = diff_data_relocs_for_range(
         left_obj,
         right_obj,
@@ -357,10 +419,9 @@ pub fn diff_data_symbol(
         right_range,
     );
 
-    let ops = capture_diff_slices(Algorithm::Patience, left_data, right_data);
-    let bytes_match_ratio = get_diff_ratio(&ops, left_data.len(), right_data.len());
-
     let mut match_ratio = bytes_match_ratio;
+    let mut left_reloc_diffs = Vec::new();
+    let mut right_reloc_diffs = Vec::new();
     if !reloc_diffs.is_empty() {
         let mut total_reloc_bytes = 0;
         let mut matching_reloc_bytes = 0;
@@ -375,6 +436,27 @@ pub fn diff_data_symbol(
             total_reloc_bytes += reloc_diff_len;
             if diff_kind == DataDiffKind::None {
                 matching_reloc_bytes += reloc_diff_len;
+            }
+
+            if let Some(left_reloc) = left_reloc {
+                let len = left_obj.arch.data_reloc_size(left_reloc.relocation.flags);
+                let range = left_reloc.relocation.address as usize
+                    ..left_reloc.relocation.address as usize + len;
+                left_reloc_diffs.push(DataRelocationDiff {
+                    reloc: left_reloc.relocation.clone(),
+                    kind: diff_kind,
+                    range,
+                });
+            }
+            if let Some(right_reloc) = right_reloc {
+                let len = right_obj.arch.data_reloc_size(right_reloc.relocation.flags);
+                let range = right_reloc.relocation.address as usize
+                    ..right_reloc.relocation.address as usize + len;
+                right_reloc_diffs.push(DataRelocationDiff {
+                    reloc: right_reloc.relocation.clone(),
+                    kind: diff_kind,
+                    range,
+                });
             }
         }
         if total_reloc_bytes > 0 {
@@ -397,13 +479,17 @@ pub fn diff_data_symbol(
             target_symbol: Some(right_symbol_idx),
             match_percent: Some(match_percent),
             diff_score: None,
-            instruction_rows: vec![],
+            data_diff: left_data_diff,
+            data_reloc_diff: left_reloc_diffs,
+            ..Default::default()
         },
         SymbolDiff {
             target_symbol: Some(left_symbol_idx),
             match_percent: Some(match_percent),
             diff_score: None,
-            instruction_rows: vec![],
+            data_diff: right_data_diff,
+            data_reloc_diff: right_reloc_diffs,
+            ..Default::default()
         },
     ))
 }

@@ -41,7 +41,13 @@ pub fn no_diff_code(
         instruction_rows.push(InstructionDiffRow { ins_ref: Some(*i), ..Default::default() });
     }
     resolve_branches(&ops, &mut instruction_rows);
-    Ok(SymbolDiff { target_symbol: None, match_percent: None, diff_score: None, instruction_rows })
+    Ok(SymbolDiff {
+        target_symbol: None,
+        match_percent: None,
+        diff_score: None,
+        instruction_rows,
+        ..Default::default()
+    })
 }
 
 const PENALTY_IMM_DIFF: u64 = 1;
@@ -147,12 +153,14 @@ pub fn diff_code(
             match_percent: Some(match_percent),
             diff_score: Some((diff_score, max_score)),
             instruction_rows: left_rows,
+            ..Default::default()
         },
         SymbolDiff {
             target_symbol: Some(left_symbol_idx),
             match_percent: Some(match_percent),
             diff_score: Some((diff_score, max_score)),
             instruction_rows: right_rows,
+            ..Default::default()
         },
     ))
 }

@@ -2,10 +2,10 @@ use egui::{Id, Layout, RichText, ScrollArea, TextEdit, Ui, Widget, text::LayoutJ
 use objdiff_core::{
     build::BuildStatus,
     diff::{
-        DiffObjConfig, ObjectDiff, SectionDiff, SymbolDiff,
+        DiffObjConfig, ObjectDiff, SymbolDiff,
         display::{ContextItem, HoverItem, HoverItemColor, SymbolFilter, SymbolNavigationKind},
     },
-    obj::{Object, Section, Symbol},
+    obj::{Object, Symbol},
 };
 use time::format_description;
 
@@ -26,16 +26,9 @@ use crate::{
 };
 
 #[derive(Clone, Copy)]
-enum SelectedSymbol {
-    Symbol(usize),
-    Section(usize),
-}
-
-#[derive(Clone, Copy)]
 struct DiffColumnContext<'a> {
     status: &'a BuildStatus,
     obj: Option<&'a (Object, ObjectDiff)>,
-    section: Option<(&'a Section, &'a SectionDiff, usize)>,
     symbol: Option<(&'a Symbol, &'a SymbolDiff, usize)>,
 }
 
@@ -46,49 +39,28 @@ impl<'a> DiffColumnContext<'a> {
         obj: Option<&'a (Object, ObjectDiff)>,
         selected_symbol: Option<&SymbolRefByName>,
     ) -> Self {
-        let selected_symbol = match view {
+        let selected_symbol_idx = match view {
             View::SymbolDiff => None,
-            View::FunctionDiff | View::ExtabDiff => match (obj, selected_symbol) {
-                (Some(obj), Some(s)) => {
-                    obj.0.symbol_by_name(&s.symbol_name).map(SelectedSymbol::Symbol)
-                }
-                _ => None,
-            },
-            View::DataDiff => match (obj, selected_symbol) {
-                (Some(obj), Some(SymbolRefByName { section_name: Some(section_name), .. })) => {
-                    find_section(&obj.0, section_name).map(SelectedSymbol::Section)
-                }
+            View::FunctionDiff | View::DataDiff | View::ExtabDiff => match (obj, selected_symbol) {
+                (Some(obj), Some(s)) => obj.0.symbol_by_name(&s.symbol_name),
                 _ => None,
             },
         };
-        let (section, symbol) = match (obj, selected_symbol) {
-            (Some((obj, obj_diff)), Some(SelectedSymbol::Symbol(symbol_ref))) => {
+        let symbol = match (obj, selected_symbol_idx) {
+            (Some((obj, obj_diff)), Some(symbol_ref)) => {
                 let symbol = &obj.symbols[symbol_ref];
-                (
-                    symbol.section.map(|section_idx| {
-                        (&obj.sections[section_idx], &obj_diff.sections[section_idx], section_idx)
-                    }),
-                    Some((symbol, &obj_diff.symbols[symbol_ref], symbol_ref)),
-                )
+                Some((symbol, &obj_diff.symbols[symbol_ref], symbol_ref))
             }
-            (Some((obj, obj_diff)), Some(SelectedSymbol::Section(section_idx))) => (
-                Some((&obj.sections[section_idx], &obj_diff.sections[section_idx], section_idx)),
-                None,
-            ),
-            _ => (None, None),
+            _ => None,
         };
-        Self { status, obj, section, symbol }
+        Self { status, obj, symbol }
     }
 
     #[inline]
-    pub fn has_symbol(&self) -> bool { self.section.is_some() || self.symbol.is_some() }
+    pub fn has_symbol(&self) -> bool { self.symbol.is_some() }
 
     #[inline]
-    pub fn id(&self) -> Option<&str> {
-        self.symbol
-            .map(|(symbol, _, _)| symbol.name.as_str())
-            .or_else(|| self.section.map(|(section, _, _)| section.name.as_str()))
-    }
+    pub fn id(&self) -> Option<&str> { self.symbol.map(|(symbol, _, _)| symbol.name.as_str()) }
 }
 
 #[must_use]
@@ -133,10 +105,7 @@ pub fn diff_view_ui(
         {
             navigation.right_symbol = Some(target_symbol_ref);
         }
-    } else if navigation.left_symbol.is_some()
-        && left_ctx.obj.is_some()
-        && left_ctx.section.is_none()
-    {
+    } else if navigation.left_symbol.is_some() && left_ctx.obj.is_some() {
         // Clear selection if symbol goes missing
         navigation.left_symbol = None;
     }
@@ -147,10 +116,7 @@ pub fn diff_view_ui(
         {
             navigation.left_symbol = Some(target_symbol_ref);
         }
-    } else if navigation.right_symbol.is_some()
-        && right_ctx.obj.is_some()
-        && right_ctx.section.is_none()
-    {
+    } else if navigation.right_symbol.is_some() && right_ctx.obj.is_some() {
         // Clear selection if symbol goes missing
         navigation.right_symbol = None;
     }
@@ -225,12 +191,6 @@ pub fn diff_view_ui(
                 {
                     ret = Some(action);
                 }
-            } else if let Some((section, _, _)) = left_ctx.section {
-                ui.label(
-                    RichText::new(section.name.clone())
-                        .font(appearance.code_font.clone())
-                        .color(appearance.highlight_color),
-                );
             } else if right_ctx.has_symbol() {
                 ui.label(
                     RichText::new("Choose target symbol")
@@ -363,12 +323,6 @@ pub fn diff_view_ui(
                 {
                     ret = Some(action);
                 }
-            } else if let Some((section, _, _)) = right_ctx.section {
-                ui.label(
-                    RichText::new(section.name.clone())
-                        .font(appearance.code_font.clone())
-                        .color(appearance.highlight_color),
-                );
             } else if left_ctx.has_symbol() {
                 ui.label(
                     RichText::new("Choose base symbol")
@@ -509,17 +463,17 @@ pub fn diff_view_ui(
             View::DataDiff,
             Some((left_obj, _left_diff)),
             Some((right_obj, _right_diff)),
-            Some((_left_section, left_section_diff, _left_symbol_idx)),
-            Some((_right_section, right_section_diff, _right_symbol_idx)),
+            Some((left_symbol, left_symbol_diff, _left_symbol_idx)),
+            Some((right_symbol, right_symbol_diff, _right_symbol_idx)),
         ) =
-            (state.current_view, left_ctx.obj, right_ctx.obj, left_ctx.section, right_ctx.section)
+            (state.current_view, left_ctx.obj, right_ctx.obj, left_ctx.symbol, right_ctx.symbol)
         {
             // Joint diff view
             hotkeys::check_scroll_hotkeys(ui, true);
             let left_total_bytes =
-                left_section_diff.data_diff.iter().fold(0usize, |accum, item| accum + item.len);
+                left_symbol_diff.data_diff.iter().fold(0usize, |accum, item| accum + item.len);
             let right_total_bytes =
-                right_section_diff.data_diff.iter().fold(0usize, |accum, item| accum + item.len);
+                right_symbol_diff.data_diff.iter().fold(0usize, |accum, item| accum + item.len);
             if left_total_bytes != right_total_bytes {
                 ui.label("Data size mismatch");
                 return;
@@ -528,10 +482,16 @@ pub fn diff_view_ui(
                 return;
             }
             let total_rows = (left_total_bytes - 1) / BYTES_PER_ROW + 1;
-            let left_diffs =
-                split_diffs(&left_section_diff.data_diff, &left_section_diff.reloc_diff);
-            let right_diffs =
-                split_diffs(&right_section_diff.data_diff, &right_section_diff.reloc_diff);
+            let left_diffs = split_diffs(
+                &left_symbol_diff.data_diff,
+                &left_symbol_diff.data_reloc_diff,
+                left_symbol.address as usize,
+            );
+            let right_diffs = split_diffs(
+                &right_symbol_diff.data_diff,
+                &right_symbol_diff.data_reloc_diff,
+                right_symbol.address as usize,
+            );
             render_table(
                 ui,
                 available_width,
@@ -540,13 +500,14 @@ pub fn diff_view_ui(
                 total_rows,
                 |row, column| {
                     let i = row.index();
-                    let address = i * BYTES_PER_ROW;
+                    let row_offset = i * BYTES_PER_ROW;
                     row.col(|ui| {
                         if column == 0 {
                             data_row_ui(
                                 ui,
                                 Some(left_obj),
-                                address,
+                                left_symbol.address as usize,
+                                row_offset,
                                 &left_diffs[i],
                                 appearance,
                                 column,
@@ -555,7 +516,8 @@ pub fn diff_view_ui(
                             data_row_ui(
                                 ui,
                                 Some(right_obj),
-                                address,
+                                right_symbol.address as usize,
+                                row_offset,
                                 &right_diffs[i],
                                 appearance,
                                 column,
@@ -649,11 +611,46 @@ fn diff_col_ui(
     if !ctx.status.success {
         build_log_ui(ui, ctx.status, appearance);
     } else if let Some((obj, diff)) = ctx.obj {
-        if let Some((_symbol, symbol_diff, symbol_idx)) = ctx.symbol {
+        if let Some((symbol, symbol_diff, symbol_idx)) = ctx.symbol {
             hotkeys::check_scroll_hotkeys(ui, false);
             let ctx = FunctionDiffContext { obj, diff, symbol_ref: Some(symbol_idx) };
             if state.current_view == View::ExtabDiff {
                 extab_ui(ui, ctx, appearance, column);
+            } else if state.current_view == View::DataDiff {
+                hotkeys::check_scroll_hotkeys(ui, false);
+                let total_bytes =
+                    symbol_diff.data_diff.iter().fold(0usize, |accum, item| accum + item.len);
+                if total_bytes == 0 {
+                    return ret;
+                }
+                let total_rows = (total_bytes - 1) / BYTES_PER_ROW + 1;
+                let diffs = split_diffs(
+                    &symbol_diff.data_diff,
+                    &symbol_diff.data_reloc_diff,
+                    symbol.address as usize,
+                );
+                render_table(
+                    ui,
+                    available_width / 2.0,
+                    1,
+                    appearance.code_font.size,
+                    total_rows,
+                    |row, _column| {
+                        let i = row.index();
+                        let row_offset = i * BYTES_PER_ROW;
+                        row.col(|ui| {
+                            data_row_ui(
+                                ui,
+                                Some(obj),
+                                symbol.address as usize,
+                                row_offset,
+                                &diffs[i],
+                                appearance,
+                                column,
+                            );
+                        });
+                    },
+                );
             } else {
                 render_table(
                     ui,
@@ -678,29 +675,6 @@ fn diff_col_ui(
                     },
                 );
             }
-        } else if let Some((_section, section_diff, _section_idx)) = ctx.section {
-            hotkeys::check_scroll_hotkeys(ui, false);
-            let total_bytes =
-                section_diff.data_diff.iter().fold(0usize, |accum, item| accum + item.len);
-            if total_bytes == 0 {
-                return ret;
-            }
-            let total_rows = (total_bytes - 1) / BYTES_PER_ROW + 1;
-            let diffs = split_diffs(&section_diff.data_diff, &section_diff.reloc_diff);
-            render_table(
-                ui,
-                available_width / 2.0,
-                1,
-                appearance.code_font.size,
-                total_rows,
-                |row, _column| {
-                    let i = row.index();
-                    let address = i * BYTES_PER_ROW;
-                    row.col(|ui| {
-                        data_row_ui(ui, Some(obj), address, &diffs[i], appearance, column);
-                    });
-                },
-            );
         } else if let Some((_other_symbol, _other_symbol_diff, other_symbol_idx)) = other_ctx.symbol
         {
             if let Some(action) = symbol_list_ui(
@@ -794,10 +768,6 @@ fn missing_obj_ui(ui: &mut Ui, appearance: &Appearance) {
 
         ui.colored_label(appearance.replace_color, "No object configured");
     });
-}
-
-fn find_section(obj: &Object, section_name: &str) -> Option<usize> {
-    obj.sections.iter().position(|section| section.name == section_name)
 }
 
 pub fn hover_items_ui(ui: &mut Ui, items: Vec<HoverItem>, appearance: &Appearance) {
