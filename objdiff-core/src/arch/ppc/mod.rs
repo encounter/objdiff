@@ -368,7 +368,8 @@ impl Arch for ArchPpc {
             match symbol.name() {
                 Ok(name) => {
                     if name.starts_with("except_data_")
-                        || (name.starts_with("__unwind") && !diff_config.ppc_show_unwinds)
+                        || ((name.starts_with("__unwind") || name.starts_with("__catch"))
+                            && !diff_config.ppc_show_unwinds)
                     {
                         SymbolFlag::Hidden.into()
                     } else {
