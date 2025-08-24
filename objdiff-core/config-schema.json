@@ -216,6 +216,13 @@
       "description": "Display pooled data references in functions as fake relocations."
     },
     {
+      "id": "ppc.showUnwinds",
+      "type": "boolean",
+      "default": false,
+      "name": "Show unwinds",
+      "description": "Show auto-generated SEH __unwind functions. Useful if you're trying to link."
+    },
+    {
       "id": "x86.formatter",
       "type": "choice",
       "default": "intel",
@@ -279,7 +286,8 @@
       "name": "PowerPC",
       "properties": [
         "ppc.calculatePoolRelocations",
-        "analyzeDataFlow"
+        "analyzeDataFlow",
+        "ppc.showUnwinds"
       ]
     },
     {
