@@ -575,47 +575,57 @@ fn matching_symbols(
                 &mut matches,
             )?;
         }
-        for (symbol_idx, symbol) in left.symbols.iter().enumerate() {
-            if symbol.size == 0 || symbol.flags.contains(SymbolFlag::Ignored) {
-                continue;
-            }
-            let section_kind = symbol_section_kind(left, symbol);
-            if section_kind == SectionKind::Unknown {
-                continue;
-            }
-            if left_used.contains(&symbol_idx) {
-                continue;
-            }
-            let symbol_match = SymbolMatch {
-                left: Some(symbol_idx),
-                right: find_symbol(right, left, symbol_idx, Some(&right_used)),
-                prev: find_symbol(prev, left, symbol_idx, None),
-                section_kind,
-            };
-            matches.push(symbol_match);
-            if let Some(right) = symbol_match.right {
-                right_used.insert(right);
+        // Do two passes for nameless literals. The first only pairs up perfect matches to ensure
+        // those are correct first, while the second pass catches near matches.
+        for fuzzy_literals in [false, true] {
+            for (symbol_idx, symbol) in left.symbols.iter().enumerate() {
+                if symbol.size == 0 || symbol.flags.contains(SymbolFlag::Ignored) {
+                    continue;
+                }
+                let section_kind = symbol_section_kind(left, symbol);
+                if section_kind == SectionKind::Unknown {
+                    continue;
+                }
+                if left_used.contains(&symbol_idx) {
+                    continue;
+                }
+                let symbol_match = SymbolMatch {
+                    left: Some(symbol_idx),
+                    right: find_symbol(right, left, symbol_idx, Some(&right_used), fuzzy_literals),
+                    prev: find_symbol(prev, left, symbol_idx, None, fuzzy_literals),
+                    section_kind,
+                };
+                matches.push(symbol_match);
+                left_used.insert(symbol_idx);
+                if let Some(right) = symbol_match.right {
+                    right_used.insert(right);
+                }
             }
         }
     }
     if let Some(right) = right {
-        for (symbol_idx, symbol) in right.symbols.iter().enumerate() {
-            if symbol.size == 0 || symbol.flags.contains(SymbolFlag::Ignored) {
-                continue;
+        // Do two passes for nameless literals. The first only pairs up perfect matches to ensure
+        // those are correct first, while the second pass catches near matches.
+        for fuzzy_literals in [false, true] {
+            for (symbol_idx, symbol) in right.symbols.iter().enumerate() {
+                if symbol.size == 0 || symbol.flags.contains(SymbolFlag::Ignored) {
+                    continue;
+                }
+                let section_kind = symbol_section_kind(right, symbol);
+                if section_kind == SectionKind::Unknown {
+                    continue;
+                }
+                if right_used.contains(&symbol_idx) {
+                    continue;
+                }
+                matches.push(SymbolMatch {
+                    left: None,
+                    right: Some(symbol_idx),
+                    prev: find_symbol(prev, right, symbol_idx, None, fuzzy_literals),
+                    section_kind,
+                });
+                right_used.insert(symbol_idx);
             }
-            let section_kind = symbol_section_kind(right, symbol);
-            if section_kind == SectionKind::Unknown {
-                continue;
-            }
-            if right_used.contains(&symbol_idx) {
-                continue;
-            }
-            matches.push(SymbolMatch {
-                left: None,
-                right: Some(symbol_idx),
-                prev: find_symbol(prev, right, symbol_idx, None),
-                section_kind,
-            });
         }
     }
     Ok(matches)
@@ -677,6 +687,7 @@ fn find_symbol(
     in_obj: &Object,
     in_symbol_idx: usize,
     used: Option<&BTreeSet<usize>>,
+    fuzzy_literals: bool,
 ) -> Option<usize> {
     let in_symbol = &in_obj.symbols[in_symbol_idx];
     let obj = obj?;
@@ -687,7 +698,8 @@ fn find_symbol(
     if is_symbol_compiler_generated_literal(in_symbol)
         && matches!(section_kind, SectionKind::Data | SectionKind::Bss)
     {
-        let mut matching_symbol_idx = None;
+        let mut closest_match_symbol_idx = None;
+        let mut closest_match_percent = 0.0;
         for (symbol_idx, symbol) in unmatched_symbols(obj, used) {
             let Some(section_index) = symbol.section else {
                 continue;
@@ -700,27 +712,35 @@ fn find_symbol(
             }
             match section_kind {
                 SectionKind::Data => {
-                    // For data, pick the first symbol that has the exact matching bytes and relocations.
+                    // For data, pick the first symbol with exactly matching bytes and relocations.
+                    // If no symbols match exactly, and `fuzzy_literals` is true, pick the closest
+                    // plausible match instead.
                     if let Ok((left_diff, _right_diff)) =
                         diff_data_symbol(in_obj, obj, in_symbol_idx, symbol_idx)
                         && let Some(match_percent) = left_diff.match_percent
-                        && match_percent == 100.0
+                        && (match_percent == 100.0
+                            || (fuzzy_literals
+                                && match_percent >= 50.0
+                                && match_percent > closest_match_percent))
                     {
-                        matching_symbol_idx = Some(symbol_idx);
-                        break;
+                        closest_match_symbol_idx = Some(symbol_idx);
+                        closest_match_percent = match_percent;
+                        if match_percent == 100.0 {
+                            break;
+                        }
                     }
                 }
                 SectionKind::Bss => {
                     // For BSS, pick the first symbol that has the exact matching size.
                     if in_symbol.size == symbol.size {
-                        matching_symbol_idx = Some(symbol_idx);
+                        closest_match_symbol_idx = Some(symbol_idx);
                         break;
                     }
                 }
                 _ => unreachable!(),
             }
         }
-        return matching_symbol_idx;
+        return closest_match_symbol_idx;
     }
 
     // Try to find an exact name match
