@@ -366,12 +366,18 @@ impl Arch for ArchPpc {
                     if name.starts_with("except_data_"){
                         SymbolFlag::Hidden.into()
                     }
+                    // if the symbol name starts with __unwind and 
+                    // TODO: a "show unwinds" modifier is unchecked,
+                    // hide the symbol
+                    else if name.starts_with("__unwind"){
+                        SymbolFlag::Hidden.into()
+                    }
                     else {
                         SymbolFlag::none()
                     }
                 }
                 Err(_) => { SymbolFlag::none() }
-            } 
+            }
         }
         else if self.extab.as_ref().is_some_and(|extab| extab.contains_key(&(symbol.index().0 - 1))) {
             SymbolFlag::HasExtra.into()
