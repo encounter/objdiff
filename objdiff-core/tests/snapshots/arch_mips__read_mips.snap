@@ -110,7 +110,7 @@ Object {
             name: "[.sdata]",
             demangled_name: None,
             address: 0,
-            size: 64,
+            size: 76,
             kind: Section,
             section: Some(
                 8,
@@ -123,7 +123,7 @@ Object {
             name: "[.rodata]",
             demangled_name: None,
             address: 0,
-            size: 0,
+            size: 12,
             kind: Section,
             section: Some(
                 7,
