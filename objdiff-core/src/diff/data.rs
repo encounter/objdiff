@@ -35,6 +35,22 @@ pub fn diff_bss_symbol(
     ))
 }
 
+fn symbol_name_matches(left_name: &str, right_name: &str) -> bool {
+    // Match Metrowerks symbol$1234 against symbol$2345
+    if let Some((prefix, suffix)) = left_name.split_once('$') {
+        if !suffix.chars().all(char::is_numeric) {
+            return false;
+        }
+        if let Some((p, s)) = right_name.split_once('$') {
+            prefix == p && s.chars().all(char::is_numeric)
+        } else {
+            false
+        }
+    } else {
+        left_name == right_name
+    }
+}
+
 fn reloc_eq(
     left_obj: &Object,
     right_obj: &Object,
@@ -45,8 +61,8 @@ fn reloc_eq(
         return false;
     }
 
-    let symbol_name_addend_matches =
-        left.symbol.name == right.symbol.name && left.relocation.addend == right.relocation.addend;
+    let symbol_name_addend_matches = symbol_name_matches(&left.symbol.name, &right.symbol.name)
+        && left.relocation.addend == right.relocation.addend;
     match (left.symbol.section, right.symbol.section) {
         (Some(sl), Some(sr)) => {
             // Match if section and name+addend or address match
