@@ -669,7 +669,7 @@ fn is_symbol_compiler_generated_literal(symbol: &Symbol) -> bool {
         // Exclude @stringBase0, @GUARD@, etc.
         return false;
     }
-    return true;
+    true
 }
 
 fn find_symbol(
