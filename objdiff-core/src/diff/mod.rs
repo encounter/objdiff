@@ -596,8 +596,8 @@ fn matching_symbols(
                     section_kind,
                 };
                 matches.push(symbol_match);
-                left_used.insert(symbol_idx);
                 if let Some(right) = symbol_match.right {
+                    left_used.insert(symbol_idx);
                     right_used.insert(right);
                 }
             }
@@ -618,13 +618,16 @@ fn matching_symbols(
                 if right_used.contains(&symbol_idx) {
                     continue;
                 }
-                matches.push(SymbolMatch {
+                let symbol_match = SymbolMatch {
                     left: None,
                     right: Some(symbol_idx),
                     prev: find_symbol(prev, right, symbol_idx, None, fuzzy_literals),
                     section_kind,
-                });
-                right_used.insert(symbol_idx);
+                };
+                matches.push(symbol_match);
+                if symbol_match.prev.is_some() {
+                    right_used.insert(symbol_idx);
+                }
             }
         }
     }
