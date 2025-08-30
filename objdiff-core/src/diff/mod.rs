@@ -13,7 +13,7 @@ use crate::{
         code::{diff_code, no_diff_code},
         data::{
             diff_bss_section, diff_bss_symbol, diff_data_section, diff_data_symbol,
-            diff_generic_section, no_diff_bss_section, no_diff_data_section,
+            diff_generic_section, no_diff_bss_section, no_diff_data_section, symbol_name_matches,
         },
     },
     obj::{InstructionRef, Object, Relocation, SectionKind, Symbol, SymbolFlag},
@@ -753,23 +753,12 @@ fn find_symbol(
         return Some(symbol_idx);
     }
 
-    // Match Metrowerks symbol$1234 against symbol$2345
-    if let Some((prefix, suffix)) = in_symbol.name.split_once('$') {
-        if !suffix.chars().all(char::is_numeric) {
-            return None;
-        }
-        if let Some((symbol_idx, _)) = unmatched_symbols(obj, used).find(|&(_, symbol)| {
-            if let Some((p, s)) = symbol.name.split_once('$') {
-                prefix == p
-                    && s.chars().all(char::is_numeric)
-                    && symbol_section_kind(obj, symbol) == section_kind
-                    && symbol_section_name(obj, symbol) == Some(section_name)
-            } else {
-                false
-            }
-        }) {
-            return Some(symbol_idx);
-        }
+    if let Some((symbol_idx, _)) = unmatched_symbols(obj, used).find(|&(_, symbol)| {
+        symbol_name_matches(&in_symbol.name, &symbol.name)
+            && symbol_section_kind(obj, symbol) == section_kind
+            && symbol_section_name(obj, symbol) == Some(section_name)
+    }) {
+        return Some(symbol_idx);
     }
 
     None

@@ -35,7 +35,7 @@ pub fn diff_bss_symbol(
     ))
 }
 
-fn symbol_name_matches(left_name: &str, right_name: &str) -> bool {
+pub fn symbol_name_matches(left_name: &str, right_name: &str) -> bool {
     // Match Metrowerks symbol$1234 against symbol$2345
     if let Some((prefix, suffix)) = left_name.split_once('$') {
         if !suffix.chars().all(char::is_numeric) {
