@@ -1,3 +1,4 @@
+#![allow(clippy::derivable_impls)]
 use alloc::{
     format,
     rc::{Rc, Weak},
@@ -223,7 +224,7 @@ impl GuestDisplay for Component {
         let symbol_display = from_symbol_ref(symbol_ref);
         diff::display::symbol_context(obj, symbol_display.symbol as usize)
             .into_iter()
-            .map(|item| ContextItem::from(item))
+            .map(ContextItem::from)
             .collect()
     }
 
@@ -235,7 +236,7 @@ impl GuestDisplay for Component {
         let symbol_display = from_symbol_ref(symbol_ref);
         diff::display::symbol_hover(obj, symbol_display.symbol as usize, addend, override_color)
             .into_iter()
-            .map(|item| HoverItem::from(item))
+            .map(HoverItem::from)
             .collect()
     }
 
@@ -282,7 +283,7 @@ impl GuestDisplay for Component {
         };
         diff::display::instruction_context(obj, resolved, &ins)
             .into_iter()
-            .map(|item| ContextItem::from(item))
+            .map(ContextItem::from)
             .collect()
     }
 
@@ -331,7 +332,7 @@ impl GuestDisplay for Component {
         };
         diff::display::instruction_hover(obj, resolved, &ins)
             .into_iter()
-            .map(|item| HoverItem::from(item))
+            .map(HoverItem::from)
             .collect()
     }
 }
@@ -527,9 +528,7 @@ impl GuestObjectDiff for ResourceObjectDiff {
     fn get_symbol(&self, symbol_ref: SymbolRef) -> Option<SymbolInfo> {
         let obj = self.0.as_ref();
         let symbol_display = from_symbol_ref(symbol_ref);
-        let Some(symbol) = obj.symbols.get(symbol_display.symbol) else {
-            return None;
-        };
+        let symbol = obj.symbols.get(symbol_display.symbol)?;
         Some(SymbolInfo {
             id: to_symbol_ref(symbol_display),
             name: symbol.name.clone(),
