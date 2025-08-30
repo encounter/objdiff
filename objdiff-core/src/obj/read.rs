@@ -50,9 +50,9 @@ fn map_symbol(
         let section_name = section.name().context("Failed to process section name")?;
         name = format!("[{section_name}]");
         // For section symbols, set the size to zero. If the size is non-zero, it will be included
-        // in the diff. The size inference logic below may set the size back to the section size for
-        // some sections, thus acting as a placeholder symbol to allow diffing an entire section at
-        // once.
+        // in the diff. The size inference logic below will set the size back to the section size
+        // for data sections, thus acting as a placeholder symbol to allow diffing an entire section
+        // at once.
         size = 0;
     }
 
