@@ -650,7 +650,13 @@ where
 
 fn symbol_section<'obj>(obj: &'obj Object, symbol: &Symbol) -> Option<(&'obj str, SectionKind)> {
     if let Some(section) = symbol.section.and_then(|section_idx| obj.sections.get(section_idx)) {
-        Some((section.name.as_str(), section.kind))
+        // Match x86 .rdata$r against .rdata$rs
+        let section_name = if let Some((prefix, _)) = section.name.split_once('$') {
+            prefix
+        } else {
+            section.name.as_str()
+        };
+        Some((section_name, section.kind))
     } else if symbol.flags.contains(SymbolFlag::Common) {
         Some((".comm", SectionKind::Common))
     } else {
