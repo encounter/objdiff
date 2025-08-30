@@ -1,0 +1,6 @@
+[build]
+target = "wasm32-wasip2"
+
+[unstable]
+build-std = ["panic_abort", "core", "alloc"]
+build-std-features = ["compiler-builtins-mem"]

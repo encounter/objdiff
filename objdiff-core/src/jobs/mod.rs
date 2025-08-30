@@ -170,13 +170,6 @@ pub enum JobResult {
     CreateScratch(Option<Box<CreateScratchResult>>),
 }
 
-fn should_cancel(rx: &Receiver<()>) -> bool {
-    match rx.try_recv() {
-        Ok(_) | Err(TryRecvError::Disconnected) => true,
-        Err(_) => false,
-    }
-}
-
 fn start_job(
     waker: Waker,
     title: &str,
@@ -203,7 +196,6 @@ fn start_job(
         }
     });
     let id = JOB_ID.fetch_add(1, Ordering::Relaxed);
-    // log::info!("Started job {}", id); TODO
     JobState { id, kind, handle: Some(handle), context, cancel: tx }
 }
 
@@ -227,4 +219,11 @@ fn update_status(
     drop(w);
     context.waker.wake_by_ref();
     Ok(())
+}
+
+fn should_cancel(rx: &Receiver<()>) -> bool {
+    match rx.try_recv() {
+        Ok(_) | Err(TryRecvError::Disconnected) => true,
+        Err(_) => false,
+    }
 }

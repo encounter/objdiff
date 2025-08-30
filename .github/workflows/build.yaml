@@ -36,9 +36,9 @@ jobs:
       - name: Cache Rust workspace
         uses: Swatinem/rust-cache@v2
       - name: Cargo check
-        run: cargo check --all-targets --all-features
+        run: cargo check --all-targets --all-features --workspace
       - name: Cargo clippy
-        run: cargo clippy --all-targets --all-features
+        run: cargo clippy --all-targets --all-features --workspace
 
   fmt:
     name: Format
@@ -92,7 +92,7 @@ jobs:
       - name: Cache Rust workspace
         uses: Swatinem/rust-cache@v2
       - name: Cargo test
-        run: cargo test --release --features all
+        run: cargo test --release --all-features --workspace
 
   build-cli:
     name: Build objdiff-cli

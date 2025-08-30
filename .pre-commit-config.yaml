@@ -24,7 +24,7 @@ repos:
         description: Run cargo clippy on all project files.
         language: system
         entry: cargo
-        args: ["+nightly", "clippy", "--all-targets", "--all-features"]
+        args: ["+nightly", "clippy", "--all-targets", "--all-features", "--workspace"]
         pass_filenames: false
       - id: cargo-deny
         name: cargo deny

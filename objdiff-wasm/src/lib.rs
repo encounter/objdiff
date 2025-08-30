@@ -1,9 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 
-#[cfg(target_os = "wasi")]
 mod api;
-#[cfg(target_os = "wasi")]
 mod logging;
 
 #[cfg(all(target_os = "wasi", not(feature = "std")))]
