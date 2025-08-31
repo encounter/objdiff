@@ -358,28 +358,7 @@ impl Arch for ArchPpc {
     }
 
     fn extra_symbol_flags(&self, symbol: &object::Symbol) -> SymbolFlagSet {
-        // X360 COFFs should automatically hide all symbols starting with "except_data",
-        // because those are not functions - they're pointers to exception data structs
-        if self.extensions.eq(&powerpc::Extensions::xenon()) {
-            match symbol.name() {
-                Ok(name) => {
-                    if name.starts_with("except_data_"){
-                        SymbolFlag::Hidden.into()
-                    }
-                    // if the symbol name starts with __unwind and 
-                    // TODO: a "show unwinds" modifier is unchecked,
-                    // hide the symbol
-                    else if name.starts_with("__unwind"){
-                        SymbolFlag::Hidden.into()
-                    }
-                    else {
-                        SymbolFlag::none()
-                    }
-                }
-                Err(_) => { SymbolFlag::none() }
-            }
-        }
-        else if self.extab.as_ref().is_some_and(|extab| extab.contains_key(&(symbol.index().0 - 1))) {
+        if self.extab.as_ref().is_some_and(|extab| extab.contains_key(&(symbol.index().0 - 1))) {
             SymbolFlag::HasExtra.into()
         } else {
             SymbolFlag::none()

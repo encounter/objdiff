@@ -74,6 +74,17 @@ fn map_symbol(
     {
         flags |= SymbolFlag::Hidden;
     }
+    if file.format() == object::BinaryFormat::Coff
+    {
+        match symbol.name(){
+            Ok(name) => {
+                if name.starts_with("except_data_") || name.starts_with("__unwind") || name.starts_with("__catch") {
+                    flags |= SymbolFlag::Hidden;
+                }
+            }
+            Err(_) => {}
+        }
+    }
 
     let kind = match symbol.kind() {
         object::SymbolKind::Text => SymbolKind::Function,
