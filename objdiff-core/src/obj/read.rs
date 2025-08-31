@@ -145,7 +145,7 @@ fn add_section_symbols(sections: &[Section], symbols: &mut Vec<Symbol>) {
             // section to begin with.
             format!("[{}-0]", section.name)
         } else {
-            format!("[{}]", section.id.clone())
+            format!("[{}]", section.id)
         };
 
         // `section.size` can include extra padding, so instead prefer using the address that the
