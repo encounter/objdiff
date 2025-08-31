@@ -449,4 +449,17 @@ expression: obj.symbols
         align: None,
         virtual_address: None,
     },
+    Symbol {
+        name: "[.data-0]",
+        demangled_name: None,
+        address: 0,
+        size: 0,
+        kind: Section,
+        section: Some(
+            2,
+        ),
+        flags: FlagSet(Local),
+        align: None,
+        virtual_address: None,
+    },
 ]

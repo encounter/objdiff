@@ -1,6 +1,5 @@
 ---
 source: objdiff-core/tests/arch_ppc.rs
-assertion_line: 70
 expression: sections_display
 ---
 [
@@ -37,7 +36,7 @@ expression: sections_display
         ),
         symbols: [
             SectionDisplaySymbol {
-                symbol: 2,
+                symbol: 16,
                 is_mapping_symbol: false,
             },
         ],

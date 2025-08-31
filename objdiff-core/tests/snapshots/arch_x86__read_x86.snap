@@ -48,7 +48,7 @@ Object {
             name: "[.data]",
             demangled_name: None,
             address: 0,
-            size: 10,
+            size: 0,
             kind: Section,
             section: Some(
                 1,
@@ -121,6 +121,19 @@ Object {
                 1,
             ),
             flags: FlagSet(Local | SizeInferred),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "[.data-0]",
+            demangled_name: None,
+            address: 0,
+            size: 10,
+            kind: Section,
+            section: Some(
+                1,
+            ),
+            flags: FlagSet(Local),
             align: None,
             virtual_address: None,
         },
