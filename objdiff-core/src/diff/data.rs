@@ -41,11 +41,9 @@ pub fn symbol_name_matches(left_name: &str, right_name: &str) -> bool {
         if !suffix.chars().all(char::is_numeric) {
             return false;
         }
-        if let Some((p, s)) = right_name.split_once('$') {
-            prefix == p && s.chars().all(char::is_numeric)
-        } else {
-            false
-        }
+        right_name
+            .split_once('$')
+            .is_some_and(|(p, s)| p == prefix && s.chars().all(char::is_numeric))
     } else {
         left_name == right_name
     }

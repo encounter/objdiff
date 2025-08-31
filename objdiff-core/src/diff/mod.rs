@@ -651,24 +651,14 @@ where
 fn symbol_section<'obj>(obj: &'obj Object, symbol: &Symbol) -> Option<(&'obj str, SectionKind)> {
     if let Some(section) = symbol.section.and_then(|section_idx| obj.sections.get(section_idx)) {
         // Match x86 .rdata$r against .rdata$rs
-        let section_name = if let Some((prefix, _)) = section.name.split_once('$') {
-            prefix
-        } else {
-            section.name.as_str()
-        };
+        let section_name =
+            section.name.split_once('$').map_or(section.name.as_str(), |(prefix, _)| prefix);
         Some((section_name, section.kind))
     } else if symbol.flags.contains(SymbolFlag::Common) {
         Some((".comm", SectionKind::Common))
     } else {
         None
     }
-}
-
-fn symbol_section_name<'obj>(obj: &'obj Object, symbol: &Symbol) -> Option<&'obj str> {
-    if let Some((name, _kind)) = symbol_section(obj, symbol) {
-        return Some(name);
-    }
-    None
 }
 
 fn symbol_section_kind(obj: &Object, symbol: &Symbol) -> SectionKind {
@@ -762,7 +752,7 @@ fn find_symbol(
     if let Some((symbol_idx, _)) = unmatched_symbols(obj, used).find(|&(_, symbol)| {
         symbol_name_matches(&in_symbol.name, &symbol.name)
             && symbol_section_kind(obj, symbol) == section_kind
-            && symbol_section_name(obj, symbol) == Some(section_name)
+            && symbol_section(obj, symbol).is_some_and(|(name, _)| name == section_name)
     }) {
         return Some(symbol_idx);
     }
