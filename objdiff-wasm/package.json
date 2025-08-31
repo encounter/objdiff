@@ -1,6 +1,6 @@
 {
   "name": "objdiff-wasm",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "A local diffing tool for decompilation projects.",
   "author": {
     "name": "Luke Street",
@@ -19,8 +19,8 @@
   "types": "dist/objdiff.d.ts",
   "scripts": {
     "build": "npm run build:wasm && npm run build:transpile && npm run build:lib",
-    "build:wasm": "cargo +nightly -Zbuild-std=panic_abort,core,alloc -Zbuild-std-features=compiler-builtins-mem build --target wasm32-wasip2 --release --no-default-features",
-    "build:transpile": "jco transpile ../target/wasm32-wasip2/release/objdiff_wasm.wasm --no-nodejs-compat --no-wasi-shim --no-namespaced-exports --map wasi:logging/logging=./wasi-logging.js --optimize -o pkg --name objdiff",
+    "build:wasm": "cargo build --profile release-min --no-default-features",
+    "build:transpile": "jco transpile ../target/wasm32-wasip2/release-min/objdiff_wasm.wasm --no-nodejs-compat --no-wasi-shim --no-namespaced-exports --map wasi:logging/logging=./wasi-logging.js --optimize -o pkg --name objdiff",
     "build:lib": "rslib build"
   },
   "devDependencies": {

@@ -504,6 +504,14 @@ fn diff_instruction(
                 result.right_args_diff.push(InstructionArgDiffIndex::new(b_diff));
             }
         }
+        if result.kind == InstructionDiffKind::None
+            && left_resolved.code.len() != right_resolved.code.len()
+        {
+            // If everything else matches but the raw code length differs (e.g. x86 instructions
+            // with same disassembly but different encoding), mark as op mismatch
+            result.kind = InstructionDiffKind::OpMismatch;
+            state.diff_score += PENALTY_REG_DIFF;
+        }
         return Ok(result);
     }
 

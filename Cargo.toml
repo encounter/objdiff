@@ -5,7 +5,21 @@ members = [
     "objdiff-gui",
     "objdiff-wasm",
 ]
+default-members = [
+    "objdiff-cli",
+    "objdiff-core",
+    "objdiff-gui",
+    # Exclude objdiff-wasm by default
+]
 resolver = "3"
+
+[workspace.package]
+version = "3.0.1"
+authors = ["Luke Street <luke@street.dev>"]
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/encounter/objdiff"
+rust-version = "1.88"
 
 [profile.release-lto]
 inherits = "release"
@@ -13,10 +27,6 @@ lto = "fat"
 strip = "debuginfo"
 codegen-units = 1
 
-[workspace.package]
-version = "3.0.0"
-authors = ["Luke Street <luke@street.dev>"]
-edition = "2024"
-license = "MIT OR Apache-2.0"
-repository = "https://github.com/encounter/objdiff"
-rust-version = "1.88"
+[profile.release-min]
+inherits = "release-lto"
+opt-level = "z"
