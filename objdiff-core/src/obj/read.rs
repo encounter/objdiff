@@ -74,15 +74,13 @@ fn map_symbol(
     {
         flags |= SymbolFlag::Hidden;
     }
-    if file.format() == object::BinaryFormat::Coff {
-        if let Ok(name) = symbol.name() {
-            if name.starts_with("except_data_")
-                || name.starts_with("__unwind")
-                || name.starts_with("__catch")
-            {
-                flags |= SymbolFlag::Hidden;
-            }
-        }
+    if file.format() == object::BinaryFormat::Coff
+        && let Ok(name) = symbol.name()
+        && (name.starts_with("except_data_")
+            || name.starts_with("__unwind")
+            || name.starts_with("__catch"))
+    {
+        flags |= SymbolFlag::Hidden;
     }
 
     let kind = match symbol.kind() {
