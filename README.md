@@ -7,12 +7,14 @@ A local diffing tool for decompilation projects. Inspired by [decomp.me](https:/
 
 Features:
 
-- Compare entire object files: functions and data.
-- Built-in symbol demangling for C++. (CodeWarrior, Itanium & MSVC)
-- Automatic rebuild on source file changes.
-- Project integration via [configuration file](#configuration).
-- Search and filter all of a project's objects and quickly switch.
-- Click to highlight all instances of values and registers.
+- Compare entire object files: functions and data
+- Built-in C++ symbol demangling (GCC, MSVC, CodeWarrior, Itanium)
+- Automatic rebuild on source file changes
+- Project integration via [configuration file](#configuration)
+- Search and filter objects with quick switching
+- Click-to-highlight values and registers
+- Detailed progress reporting (powers [decomp.dev](https://decomp.dev))
+- WebAssembly API, [web interface](https://github.com/encounter/objdiff-web) and [Visual Studio Code extension](https://marketplace.visualstudio.com/items?itemName=decomp-dev.objdiff) (WIP)
 
 Supports:
 
@@ -40,7 +42,7 @@ For Linux and macOS, run `chmod +x objdiff-*` to make the binary executable.
 
 ### CLI
 
-CLI binaries can be found on the [releases page](https://github.com/encounter/objdiff/releases).
+CLI binaries are available on the [releases page](https://github.com/encounter/objdiff/releases).
 
 ## Screenshots
 
@@ -49,33 +51,30 @@ CLI binaries can be found on the [releases page](https://github.com/encounter/ob
 
 ## Usage
 
-objdiff works by comparing two relocatable object files (`.o`). The objects are expected to have the same relative path
-from the "target" and "base" directories.
+objdiff compares two relocatable object files (`.o`). Here's how it works:
 
-For example, if the target ("expected") object is located at `build/asm/MetroTRK/mslsupp.o` and the base ("actual")
-object is located at `build/src/MetroTRK/mslsupp.o`, the following configuration would be used:
+1. **Create an `objdiff.json` configuration file** in your project root (or generate it with your build script).  
+  This file lists **all objects in the project** with their target ("expected") and base ("current") paths.
 
-- Target build directory: `build/asm`
-- Base build directory: `build/src`
-- Object: `MetroTRK/mslsupp.o`
+2. **Load the project** in objdiff.
 
-objdiff will then execute the build system from the project directory to build both objects:
+3. **Select an object** from the sidebar to begin diffing.
 
-```sh
-$ make build/asm/MetroTRK/mslsupp.o # Only if "Build target object" is enabled
-$ make build/src/MetroTRK/mslsupp.o
-```
+4. **objdiff automatically:**
+   - Executes the build system to compile the base object (from current source code)
+   - Compares the two objects and displays the differences
+   - Watches for source file changes and rebuilds when detected
 
-The objects will then be compared and the results will be displayed in the UI.
+The configuration file allows complete flexibility in project structure - your build directories can have any layout as long as the paths are specified correctly.
 
-See [Configuration](#configuration) for more information.
+See [Configuration](#configuration) for setup details.
 
 ## Configuration
 
-While **not required** (most settings can be specified in the UI), projects can add an `objdiff.json` file to configure the tool automatically. The configuration file must be located in
+Projects can add an `objdiff.json` file to configure the tool automatically. The configuration file must be located in
 the root project directory.
 
-If your project has a generator script (e.g. `configure.py`), it's recommended to generate the objdiff configuration
+If your project has a generator script (e.g. `configure.py`), it's highly recommended to generate the objdiff configuration
 file as well. You can then add `objdiff.json` to your `.gitignore` to prevent it from being committed.
 
 ```json
@@ -128,78 +127,69 @@ file as well. You can then add `objdiff.json` to your `.gitignore` to prevent it
 
 ### Schema
 
-View [config.schema.json](config.schema.json) for all available options. The below list is a summary of the most important options.
+> [!NOTE]  
+> View [config.schema.json](config.schema.json) for all available options. Below is a summary of the most important options.
 
-`custom_make` _(optional)_: By default, objdiff will use `make` to build the project.  
-If the project uses a different build system (e.g. `ninja`), specify it here.  
-The build command will be `[custom_make] [custom_args] path/to/object.o`.
+#### Build Configuration
 
-`custom_args` _(optional)_: Additional arguments to pass to the build command prior to the object path.
+**`custom_make`** _(optional, default: `"make"`)_  
+If the project uses a different build system (e.g. `ninja`), specify it here. The build command will be `[custom_make] [custom_args] path/to/object.o`.
 
-`build_target`: If true, objdiff will tell the build system to build the target objects before diffing (e.g.
-  `make path/to/target.o`).  
-This is useful if the target objects are not built by default or can change based on project configuration or edits
-to assembly files.  
-Requires the build system to be configured properly.
+**`custom_args`** _(optional)_  
+Additional arguments to pass to the build command prior to the object path.
 
-`build_base`: If true, objdiff will tell the build system to build the base objects before diffing (e.g. `make path/to/base.o`).  
-It's unlikely you'll want to disable this, unless you're using an external tool to rebuild the base object on source file changes.
+**`build_target`**  _(default: `false`)_  
+If true, objdiff will build the target objects before diffing (e.g. `make path/to/target.o`). Useful if target objects are not built by default or can change based on project configuration. Requires proper build system configuration.
 
-`watch_patterns` _(optional)_: A list of glob patterns to watch for changes.
-([Supported syntax](https://docs.rs/globset/latest/globset/#syntax))  
-If any of these files change, objdiff will automatically rebuild the objects and re-compare them.  
-If not specified, objdiff will use the default patterns listed above.
+**`build_base`**  _(default: `true`)_  
+If true, objdiff will build the base objects before diffing (e.g. `make path/to/base.o`). It's unlikely you'll want to disable this unless using an external tool to rebuild the base object.
 
-`ignore_patterns` _(optional)_: A list of glob patterns to explicitly ignore when watching for changes.  
-([Supported syntax](https://docs.rs/globset/latest/globset/#syntax))  
-If not specified, objdiff will use the default patterns listed above.
+#### File Watching
 
-`units` _(optional)_: If specified, objdiff will display a list of objects in the sidebar for easy navigation.
+**`watch_patterns`** _(optional, default: listed above)_  
+A list of glob patterns to watch for changes ([supported syntax](https://docs.rs/globset/latest/globset/#syntax)). When these files change, objdiff automatically rebuilds and re-compares objects.
 
-> `name` _(optional)_: The name of the object in the UI. If not specified, the object's `path` will be used.
->
-> `target_path`: Path to the "target" or "expected" object from the project root.  
-> This object is the **intended result** of the match.
->
-> `base_path`: Path to the "base" or "actual" object from the project root.  
-> This object is built from the **current source code**.
->
-> `metadata.auto_generated` _(optional)_: Hides the object from the object list, but still includes it in reports.
->
-> `metadata.complete` _(optional)_: Marks the object as "complete" (or "linked") in the object list.  
-> This is useful for marking objects that are fully decompiled. A value of `false` will mark the object as "incomplete".
+**`ignore_patterns`** _(optional, default: listed above)_  
+A list of glob patterns to explicitly ignore when watching for changes ([supported syntax](https://docs.rs/globset/latest/globset/#syntax)).
+
+#### Units (Objects)
+
+**`units`** _(optional)_  
+If specified, objdiff displays a list of objects in the sidebar for easy navigation. Each unit contains:
+
+- **`name`** _(optional)_ - The display name in the UI. Defaults to the object's `path`.
+- **`target_path`** _(optional)_ - Path to the "target" or "expected" object (the **intended result**).
+- **`base_path`** _(optional)_ - Path to the "base" or "current" object (built from **current source code**). Omit if there is no source object yet.
+- **`metadata.auto_generated`** _(optional)_ - Hides the object from the sidebar but includes it in progress reports.
+- **`metadata.complete`** _(optional)_ - Marks the object as "complete" (linked) when `true` or "incomplete" when `false`.
 
 ## Building
 
 Install Rust via [rustup](https://rustup.rs).
 
 ```shell
-$ git clone https://github.com/encounter/objdiff.git
-$ cd objdiff
-$ cargo run --release
+git clone https://github.com/encounter/objdiff.git
+cd objdiff
+cargo run --release
 ```
 
-Or using `cargo install`.
+Or install directly with cargo:
 
 ```shell
-$ cargo install --locked --git https://github.com/encounter/objdiff.git objdiff-gui objdiff-cli
+cargo install --locked --git https://github.com/encounter/objdiff.git objdiff-gui objdiff-cli
 ```
 
-The binaries will be installed to `~/.cargo/bin` as `objdiff` and `objdiff-cli`.
+Binaries will be installed to `~/.cargo/bin` as `objdiff` and `objdiff-cli`.
 
-## Installing `pre-commit`
+## Contributing
 
-When contributing, it's recommended to install `pre-commit` to automatically run the linter and formatter before a commit.
-
-[`uv`](https://github.com/astral-sh/uv#installation) is recommended to manage Python version and tools.
-
-Rust nightly is required for `cargo +nightly fmt` and `cargo +nightly clippy`.
+Install `pre-commit` to run linting and formatting automatically:
 
 ```shell
-$ cargo install --locked cargo-deny
-$ rustup toolchain install nightly
-$ uv tool install pre-commit
-$ pre-commit install
+rustup toolchain install nightly  # Required for cargo fmt/clippy
+cargo install --locked cargo-deny # https://github.com/EmbarkStudios/cargo-deny
+uv tool install pre-commit        # https://docs.astral.sh/uv, or use pipx or pip
+pre-commit install
 ```
 
 ## License

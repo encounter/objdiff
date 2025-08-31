@@ -15,7 +15,7 @@
     },
     "custom_make": {
       "type": "string",
-      "description": "By default, objdiff will use make to build the project.\nIf the project uses a different build system (e.g. ninja), specify it here.\nThe build command will be `[custom_make] [custom_args] path/to/object.o`.",
+      "description": "If the project uses a different build system (e.g. ninja), specify it here.\nThe build command will be `[custom_make] [custom_args] path/to/object.o`.",
       "examples": [
         "make",
         "ninja"
@@ -41,17 +41,17 @@
     },
     "build_target": {
       "type": "boolean",
-      "description": "If true, objdiff will tell the build system to build the target objects before diffing (e.g. `make path/to/target.o`).\nThis is useful if the target objects are not built by default or can change based on project configuration or edits to assembly files.\nRequires the build system to be configured properly.",
+      "description": "If true, objdiff will build the target objects before diffing (e.g. `make path/to/target.o`).\nUseful if target objects are not built by default or can change based on project configuration.\nRequires proper build system configuration.",
       "default": false
     },
     "build_base": {
       "type": "boolean",
-      "description": "If true, objdiff will tell the build system to build the base objects before diffing (e.g. `make path/to/base.o`).\nIt's unlikely you'll want to disable this, unless you're using an external tool to rebuild the base object on source file changes.",
+      "description": "If true, objdiff will build the base objects before diffing (e.g. `make path/to/base.o`).\nIt's unlikely you'll want to disable this unless using an external tool to rebuild the base object.",
       "default": true
     },
     "watch_patterns": {
       "type": "array",
-      "description": "List of glob patterns to watch for changes in the project.\nIf any of these files change, objdiff will automatically rebuild the objects and re-compare them.\nSupported syntax: https://docs.rs/globset/latest/globset/#syntax",
+      "description": "A list of glob patterns to watch for changes.\nWhen these files change, objdiff automatically rebuilds and re-compares objects.\nSupported syntax: https://docs.rs/globset/latest/globset/#syntax",
       "items": {
         "type": "string"
       },
@@ -82,7 +82,7 @@
     },
     "ignore_patterns": {
       "type": "array",
-      "description": "List of glob patterns to explicitly ignore when watching for changes.\nFiles matching these patterns will not trigger a rebuild.\nSupported syntax: https://docs.rs/globset/latest/globset/#syntax",
+      "description": "A list of glob patterns to explicitly ignore when watching for changes.\nSupported syntax: https://docs.rs/globset/latest/globset/#syntax",
       "items": {
         "type": "string"
       },
@@ -119,7 +119,7 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "The name of the object in the UI. If not specified, the object's path will be used."
+          "description": "The display name in the UI. Defaults to the object's path."
         },
         "path": {
           "type": "string",
@@ -128,11 +128,11 @@
         },
         "target_path": {
           "type": "string",
-          "description": "Path to the target object from the project root.\nRequired if path is not specified."
+          "description": "Path to the \"target\" or \"expected\" object (the intended result)."
         },
         "base_path": {
           "type": "string",
-          "description": "Path to the base object from the project root.\nRequired if path is not specified."
+          "description": "Path to the \"base\" or \"current\" object (built from current source code).\nOmit if there is no source object yet."
         },
         "reverse_fn_order": {
           "type": "boolean",
@@ -207,7 +207,7 @@
       "properties": {
         "complete": {
           "type": "boolean",
-          "description": "Marks the object as \"complete\" (or \"linked\") in the object list.\nThis is useful for marking objects that are fully decompiled. A value of `false` will mark the object as \"incomplete\"."
+          "description": "Marks the object as \"complete\" (linked) when `true` or \"incomplete\" when `false`."
         },
         "reverse_fn_order": {
           "type": "boolean",
@@ -227,7 +227,7 @@
         },
         "auto_generated": {
           "type": "boolean",
-          "description": "Hides the object from the object list by default, but still includes it in reports."
+          "description": "Hides the object from the sidebar but includes it in progress reports."
         }
       }
     },
