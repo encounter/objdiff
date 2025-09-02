@@ -9,7 +9,7 @@ use alloc::{
 };
 use core::cell::RefCell;
 
-use objdiff_core::{diff, obj};
+use objdiff_core::{diff, obj::{self, DiffSide}};
 use regex::{Regex, RegexBuilder};
 use xxhash_rust::xxh3::xxh3_64;
 
@@ -471,7 +471,7 @@ unsafe impl Sync for ObjectCache {}
 static OBJECT_CACHE: ObjectCache = ObjectCache::new();
 
 impl GuestObject for ResourceObject {
-    fn parse(data: Vec<u8>, diff_config: DiffConfigBorrow) -> Result<Object, String> {
+    fn parse(data: Vec<u8>, diff_config: DiffConfigBorrow, diff_side: DiffSide) -> Result<Object, String> {
         let hash = xxh3_64(&data);
         let mut cached = None;
         OBJECT_CACHE.borrow_mut().retain(|c| {
@@ -487,7 +487,7 @@ impl GuestObject for ResourceObject {
             return Ok(Object::new(ResourceObject(obj, hash)));
         }
         let diff_config = diff_config.get::<ResourceDiffConfig>().0.borrow();
-        let obj = Rc::new(obj::read::parse(&data, &diff_config).map_err(|e| e.to_string())?);
+        let obj = Rc::new(obj::read::parse(&data, &diff_config, diff_side).map_err(|e| e.to_string())?);
         OBJECT_CACHE.borrow_mut().push(CachedObject(Rc::downgrade(&obj), hash));
         Ok(Object::new(ResourceObject(obj, hash)))
     }
