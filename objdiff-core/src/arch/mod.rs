@@ -17,10 +17,13 @@ use object::Endian as _;
 
 use crate::{
     diff::{
-        display::{ContextItem, HoverItem, InstructionPart}, DiffObjConfig
+        DiffObjConfig,
+        display::{ContextItem, HoverItem, InstructionPart},
     },
     obj::{
-        DiffSide, FlowAnalysisResult, InstructionArg, InstructionRef, Object, ParsedInstruction, Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedSymbol, Section, Symbol, SymbolFlagSet, SymbolKind
+        DiffSide, FlowAnalysisResult, InstructionArg, InstructionRef, Object, ParsedInstruction,
+        Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedSymbol, Section, Symbol,
+        SymbolFlagSet, SymbolKind,
     },
     util::ReallySigned,
 };

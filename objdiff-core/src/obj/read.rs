@@ -11,10 +11,12 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
 
 use crate::{
-    arch::{new_arch, Arch, RelocationOverride, RelocationOverrideTarget},
+    arch::{Arch, RelocationOverride, RelocationOverrideTarget, new_arch},
     diff::DiffObjConfig,
     obj::{
-        split_meta::{SplitMeta, SPLITMETA_SECTION}, DiffSide, FlowAnalysisResult, Object, Relocation, RelocationFlags, Section, SectionData, SectionFlag, SectionKind, Symbol, SymbolFlag, SymbolKind
+        DiffSide, FlowAnalysisResult, Object, Relocation, RelocationFlags, Section, SectionData,
+        SectionFlag, SectionKind, Symbol, SymbolFlag, SymbolKind,
+        split_meta::{SPLITMETA_SECTION, SplitMeta},
     },
     util::{align_data_slice_to, align_u64_to, read_u16, read_u32},
 };
@@ -923,7 +925,11 @@ fn do_combine_sections(
 }
 
 #[cfg(feature = "std")]
-pub fn read(obj_path: &std::path::Path, config: &DiffObjConfig, diff_side: DiffSide) -> Result<Object> {
+pub fn read(
+    obj_path: &std::path::Path,
+    config: &DiffObjConfig,
+    diff_side: DiffSide,
+) -> Result<Object> {
     let (data, timestamp) = {
         let file = std::fs::File::open(obj_path)?;
         let timestamp = filetime::FileTime::from_last_modification_time(&file.metadata()?);

@@ -5,10 +5,10 @@ use time::OffsetDateTime;
 use typed_path::Utf8PlatformPathBuf;
 
 use crate::{
-    build::{run_make, BuildConfig, BuildStatus},
-    diff::{diff_objs, DiffObjConfig, MappingConfig, ObjectDiff},
-    jobs::{start_job, update_status, Job, JobContext, JobResult, JobState},
-    obj::{read, DiffSide, Object},
+    build::{BuildConfig, BuildStatus, run_make},
+    diff::{DiffObjConfig, MappingConfig, ObjectDiff, diff_objs},
+    jobs::{Job, JobContext, JobResult, JobState, start_job, update_status},
+    obj::{DiffSide, Object, read},
 };
 
 pub struct ObjDiffConfig {

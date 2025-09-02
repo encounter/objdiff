@@ -4,10 +4,12 @@ use anyhow::{Context, Result, bail};
 use argp::FromArgs;
 use objdiff_core::{
     bindings::report::{
-        ChangeItem, ChangeItemInfo, ChangeUnit, Changes, ChangesInput, Measures, Report, ReportCategory, ReportItem, ReportItemMetadata, ReportUnit, ReportUnitMetadata, REPORT_VERSION
+        ChangeItem, ChangeItemInfo, ChangeUnit, Changes, ChangesInput, Measures, REPORT_VERSION,
+        Report, ReportCategory, ReportItem, ReportItemMetadata, ReportUnit, ReportUnitMetadata,
     },
     config::path::platform_path,
-    diff, obj::{self, DiffSide, SectionKind, SymbolFlag},
+    diff,
+    obj::{self, DiffSide, SectionKind, SymbolFlag},
 };
 use prost::Message;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -175,14 +177,16 @@ fn report_object(
         .target_path
         .as_ref()
         .map(|p| {
-            obj::read::read(p.as_ref(), diff_config, DiffSide::Target).with_context(|| format!("Failed to open {p}"))
+            obj::read::read(p.as_ref(), diff_config, DiffSide::Target)
+                .with_context(|| format!("Failed to open {p}"))
         })
         .transpose()?;
     let base = object
         .base_path
         .as_ref()
         .map(|p| {
-            obj::read::read(p.as_ref(), diff_config, DiffSide::Base).with_context(|| format!("Failed to open {p}"))
+            obj::read::read(p.as_ref(), diff_config, DiffSide::Base)
+                .with_context(|| format!("Failed to open {p}"))
         })
         .transpose()?;
     let result =

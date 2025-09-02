@@ -12,9 +12,10 @@ use rabbitizer::{
 
 use crate::{
     arch::{Arch, RelocationOverride, RelocationOverrideTarget},
-    diff::{display::InstructionPart, DiffObjConfig, MipsAbi, MipsInstrCategory},
+    diff::{DiffObjConfig, MipsAbi, MipsInstrCategory, display::InstructionPart},
     obj::{
-        DiffSide, InstructionArg, InstructionArgValue, InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation, Section, Symbol, SymbolFlag, SymbolFlagSet
+        DiffSide, InstructionArg, InstructionArgValue, InstructionRef, Relocation, RelocationFlags,
+        ResolvedInstructionRef, ResolvedRelocation, Section, Symbol, SymbolFlag, SymbolFlagSet,
     },
 };
 
@@ -124,7 +125,9 @@ impl ArchMips {
             let Ok(name) = obj_symbol.name() else { continue };
             if let Some(prefix) = name.strip_suffix(".NON_MATCHING") {
                 ignored_symbols.insert(obj_symbol.index().0);
-                if diff_side == DiffSide::Base && let Some(target_symbol) = object.symbol_by_name(prefix) {
+                if diff_side == DiffSide::Base
+                    && let Some(target_symbol) = object.symbol_by_name(prefix)
+                {
                     ignored_symbols.insert(target_symbol.index().0);
                 }
             }
