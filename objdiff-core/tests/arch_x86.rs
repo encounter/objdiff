@@ -6,7 +6,12 @@ mod common;
 #[cfg(feature = "x86")]
 fn read_x86() {
     let diff_config = diff::DiffObjConfig::default();
-    let obj = obj::read::parse(include_object!("data/x86/staticdebug.obj"), &diff_config, obj::DiffSide::Base).unwrap();
+    let obj = obj::read::parse(
+        include_object!("data/x86/staticdebug.obj"),
+        &diff_config,
+        obj::DiffSide::Base,
+    )
+    .unwrap();
     insta::assert_debug_snapshot!(obj);
     let symbol_idx = obj.symbols.iter().position(|s| s.name == "?PrintThing@@YAXXZ").unwrap();
     let diff = diff::code::no_diff_code(&obj, symbol_idx, &diff_config).unwrap();
@@ -23,7 +28,9 @@ fn read_x86_combine_sections() {
         combine_text_sections: true,
         ..Default::default()
     };
-    let obj = obj::read::parse(include_object!("data/x86/rtest.obj"), &diff_config, obj::DiffSide::Base).unwrap();
+    let obj =
+        obj::read::parse(include_object!("data/x86/rtest.obj"), &diff_config, obj::DiffSide::Base)
+            .unwrap();
     insta::assert_debug_snapshot!(obj.sections);
 }
 
@@ -31,7 +38,12 @@ fn read_x86_combine_sections() {
 #[cfg(feature = "x86")]
 fn read_x86_64() {
     let diff_config = diff::DiffObjConfig::default();
-    let obj = obj::read::parse(include_object!("data/x86_64/vs2022.o"), &diff_config, obj::DiffSide::Base).unwrap();
+    let obj = obj::read::parse(
+        include_object!("data/x86_64/vs2022.o"),
+        &diff_config,
+        obj::DiffSide::Base,
+    )
+    .unwrap();
     insta::assert_debug_snapshot!(obj);
     let symbol_idx =
         obj.symbols.iter().position(|s| s.name == "?Dot@Vector@@QEAAMPEAU1@@Z").unwrap();
@@ -45,7 +57,12 @@ fn read_x86_64() {
 #[cfg(feature = "x86")]
 fn display_section_ordering() {
     let diff_config = diff::DiffObjConfig::default();
-    let obj = obj::read::parse(include_object!("data/x86/basenode.obj"), &diff_config, obj::DiffSide::Base).unwrap();
+    let obj = obj::read::parse(
+        include_object!("data/x86/basenode.obj"),
+        &diff_config,
+        obj::DiffSide::Base,
+    )
+    .unwrap();
     let obj_diff =
         diff::diff_objs(Some(&obj), None, None, &diff_config, &diff::MappingConfig::default())
             .unwrap()
@@ -60,7 +77,12 @@ fn display_section_ordering() {
 #[cfg(feature = "x86")]
 fn read_x86_jumptable() {
     let diff_config = diff::DiffObjConfig::default();
-    let obj = obj::read::parse(include_object!("data/x86/jumptable.o"), &diff_config, obj::DiffSide::Base).unwrap();
+    let obj = obj::read::parse(
+        include_object!("data/x86/jumptable.o"),
+        &diff_config,
+        obj::DiffSide::Base,
+    )
+    .unwrap();
     insta::assert_debug_snapshot!(obj);
     let symbol_idx = obj.symbols.iter().position(|s| s.name == "?test@@YAHH@Z").unwrap();
     let diff = diff::code::no_diff_code(&obj, symbol_idx, &diff_config).unwrap();
@@ -74,6 +96,11 @@ fn read_x86_jumptable() {
 #[cfg(feature = "x86")]
 fn read_x86_local_labels() {
     let diff_config = diff::DiffObjConfig::default();
-    let obj = obj::read::parse(include_object!("data/x86/local_labels.obj"), &diff_config, obj::DiffSide::Base).unwrap();
+    let obj = obj::read::parse(
+        include_object!("data/x86/local_labels.obj"),
+        &diff_config,
+        obj::DiffSide::Base,
+    )
+    .unwrap();
     insta::assert_debug_snapshot!(obj);
 }
