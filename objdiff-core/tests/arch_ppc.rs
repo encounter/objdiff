@@ -10,7 +10,7 @@ mod common;
 #[cfg(feature = "ppc")]
 fn read_ppc() {
     let diff_config = diff::DiffObjConfig::default();
-    let obj = obj::read::parse(include_object!("data/ppc/IObj.o"), &diff_config).unwrap();
+    let obj = obj::read::parse(include_object!("data/ppc/IObj.o"), &diff_config, obj::DiffSide::Base).unwrap();
     insta::assert_debug_snapshot!(obj);
     let symbol_idx =
         obj.symbols.iter().position(|s| s.name == "Type2Text__10SObjectTagFUi").unwrap();
@@ -24,7 +24,7 @@ fn read_ppc() {
 #[cfg(feature = "ppc")]
 fn read_dwarf1_line_info() {
     let diff_config = diff::DiffObjConfig::default();
-    let obj = obj::read::parse(include_object!("data/ppc/m_Do_hostIO.o"), &diff_config).unwrap();
+    let obj = obj::read::parse(include_object!("data/ppc/m_Do_hostIO.o"), &diff_config, obj::DiffSide::Base).unwrap();
     let line_infos = obj
         .sections
         .iter()
@@ -38,7 +38,7 @@ fn read_dwarf1_line_info() {
 #[cfg(feature = "ppc")]
 fn read_extab() {
     let diff_config = diff::DiffObjConfig::default();
-    let obj = obj::read::parse(include_object!("data/ppc/NMWException.o"), &diff_config).unwrap();
+    let obj = obj::read::parse(include_object!("data/ppc/NMWException.o"), &diff_config, obj::DiffSide::Base).unwrap();
     insta::assert_debug_snapshot!(obj);
 }
 
@@ -48,10 +48,10 @@ fn diff_ppc() {
     let diff_config = diff::DiffObjConfig::default();
     let mapping_config = diff::MappingConfig::default();
     let target_obj =
-        obj::read::parse(include_object!("data/ppc/CDamageVulnerability_target.o"), &diff_config)
+        obj::read::parse(include_object!("data/ppc/CDamageVulnerability_target.o"), &diff_config, obj::DiffSide::Target)
             .unwrap();
     let base_obj =
-        obj::read::parse(include_object!("data/ppc/CDamageVulnerability_base.o"), &diff_config)
+        obj::read::parse(include_object!("data/ppc/CDamageVulnerability_base.o"), &diff_config, obj::DiffSide::Base)
             .unwrap();
     let diff =
         diff::diff_objs(Some(&target_obj), Some(&base_obj), None, &diff_config, &mapping_config)
@@ -90,7 +90,7 @@ fn diff_ppc() {
 #[cfg(feature = "ppc")]
 fn read_vmx128_coff() {
     let diff_config = diff::DiffObjConfig { combine_data_sections: true, ..Default::default() };
-    let obj = obj::read::parse(include_object!("data/ppc/vmx128.obj"), &diff_config).unwrap();
+    let obj = obj::read::parse(include_object!("data/ppc/vmx128.obj"), &diff_config, obj::DiffSide::Base).unwrap();
     insta::assert_debug_snapshot!(obj);
     let symbol_idx =
         obj.symbols.iter().position(|s| s.name == "?FloatingPointExample@@YAXXZ").unwrap();
