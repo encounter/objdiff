@@ -7,7 +7,7 @@ mod common;
 fn read_mips() {
     let diff_config = diff::DiffObjConfig { mips_register_prefix: true, ..Default::default() };
     let obj =
-        obj::read::parse(include_object!("data/mips/main.c.o"), &diff_config, obj::DiffSide::Base)
+        obj::read::parse(include_object!("data/mips/main.c.o"), &diff_config, diff::DiffSide::Base)
             .unwrap();
     insta::assert_debug_snapshot!(obj);
     let symbol_idx = obj.symbols.iter().position(|s| s.name == "ControlEntry").unwrap();
@@ -21,13 +21,19 @@ fn read_mips() {
 #[cfg(feature = "mips")]
 fn cross_endian_diff() {
     let diff_config = diff::DiffObjConfig::default();
-    let obj_be =
-        obj::read::parse(include_object!("data/mips/code_be.o"), &diff_config, obj::DiffSide::Base)
-            .unwrap();
+    let obj_be = obj::read::parse(
+        include_object!("data/mips/code_be.o"),
+        &diff_config,
+        diff::DiffSide::Base,
+    )
+    .unwrap();
     assert_eq!(obj_be.endianness, object::Endianness::Big);
-    let obj_le =
-        obj::read::parse(include_object!("data/mips/code_le.o"), &diff_config, obj::DiffSide::Base)
-            .unwrap();
+    let obj_le = obj::read::parse(
+        include_object!("data/mips/code_le.o"),
+        &diff_config,
+        diff::DiffSide::Base,
+    )
+    .unwrap();
     assert_eq!(obj_le.endianness, object::Endianness::Little);
     let left_symbol_idx = obj_be.symbols.iter().position(|s| s.name == "func_00000000").unwrap();
     let right_symbol_idx =
@@ -51,7 +57,7 @@ fn filter_non_matching() {
     let obj = obj::read::parse(
         include_object!("data/mips/vw_main.c.o"),
         &diff_config,
-        obj::DiffSide::Base,
+        diff::DiffSide::Base,
     )
     .unwrap();
     insta::assert_debug_snapshot!(obj.symbols);

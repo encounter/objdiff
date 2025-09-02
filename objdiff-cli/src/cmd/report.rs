@@ -9,7 +9,7 @@ use objdiff_core::{
     },
     config::path::platform_path,
     diff,
-    obj::{self, DiffSide, SectionKind, SymbolFlag},
+    obj::{self, SectionKind, SymbolFlag},
 };
 use prost::Message;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -177,7 +177,7 @@ fn report_object(
         .target_path
         .as_ref()
         .map(|p| {
-            obj::read::read(p.as_ref(), diff_config, DiffSide::Target)
+            obj::read::read(p.as_ref(), diff_config, diff::DiffSide::Target)
                 .with_context(|| format!("Failed to open {p}"))
         })
         .transpose()?;
@@ -185,7 +185,7 @@ fn report_object(
         .base_path
         .as_ref()
         .map(|p| {
-            obj::read::read(p.as_ref(), diff_config, DiffSide::Base)
+            obj::read::read(p.as_ref(), diff_config, diff::DiffSide::Base)
                 .with_context(|| format!("Failed to open {p}"))
         })
         .transpose()?;

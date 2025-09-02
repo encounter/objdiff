@@ -437,11 +437,3 @@ impl Default for ResolvedInstructionRef<'_> {
         }
     }
 }
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum DiffSide {
-    /// The target/expected side of the diff.
-    Target,
-    /// The base side of the diff.
-    Base,
-}

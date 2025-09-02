@@ -12,10 +12,10 @@ use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
 
 use crate::{
     arch::{Arch, RelocationOverride, RelocationOverrideTarget, new_arch},
-    diff::DiffObjConfig,
+    diff::{DiffObjConfig, DiffSide},
     obj::{
-        DiffSide, FlowAnalysisResult, Object, Relocation, RelocationFlags, Section, SectionData,
-        SectionFlag, SectionKind, Symbol, SymbolFlag, SymbolKind,
+        FlowAnalysisResult, Object, Relocation, RelocationFlags, Section, SectionData, SectionFlag,
+        SectionKind, Symbol, SymbolFlag, SymbolKind,
         split_meta::{SPLITMETA_SECTION, SplitMeta},
     },
     util::{align_data_slice_to, align_u64_to, read_u16, read_u32},

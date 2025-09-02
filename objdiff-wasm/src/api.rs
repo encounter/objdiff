@@ -470,7 +470,7 @@ unsafe impl Sync for ObjectCache {}
 
 static OBJECT_CACHE: ObjectCache = ObjectCache::new();
 
-impl From<DiffSide> for objdiff_core::obj::DiffSide {
+impl From<DiffSide> for objdiff_core::diff::DiffSide {
     fn from(value: DiffSide) -> Self {
         match value {
             DiffSide::Target => Self::Target,

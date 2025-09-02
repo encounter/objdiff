@@ -6,9 +6,9 @@ use typed_path::Utf8PlatformPathBuf;
 
 use crate::{
     build::{BuildConfig, BuildStatus, run_make},
-    diff::{DiffObjConfig, MappingConfig, ObjectDiff, diff_objs},
+    diff::{DiffObjConfig, DiffSide, MappingConfig, ObjectDiff, diff_objs},
     jobs::{Job, JobContext, JobResult, JobState, start_job, update_status},
-    obj::{DiffSide, Object, read},
+    obj::{Object, read},
 };
 
 pub struct ObjDiffConfig {

@@ -12,9 +12,9 @@ use rabbitizer::{
 
 use crate::{
     arch::{Arch, RelocationOverride, RelocationOverrideTarget},
-    diff::{DiffObjConfig, MipsAbi, MipsInstrCategory, display::InstructionPart},
+    diff::{DiffObjConfig, DiffSide, MipsAbi, MipsInstrCategory, display::InstructionPart},
     obj::{
-        DiffSide, InstructionArg, InstructionArgValue, InstructionRef, Relocation, RelocationFlags,
+        InstructionArg, InstructionArgValue, InstructionRef, Relocation, RelocationFlags,
         ResolvedInstructionRef, ResolvedRelocation, Section, Symbol, SymbolFlag, SymbolFlagSet,
     },
 };
