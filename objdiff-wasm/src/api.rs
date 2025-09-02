@@ -9,10 +9,7 @@ use alloc::{
 };
 use core::cell::RefCell;
 
-use objdiff_core::{
-    diff,
-    obj,
-};
+use objdiff_core::{diff, obj};
 use regex::{Regex, RegexBuilder};
 use xxhash_rust::xxh3::xxh3_64;
 
@@ -27,10 +24,9 @@ wit_bindgen::generate!({
 
 use exports::objdiff::core::{
     diff::{
-        DiffConfigBorrow, DiffResult, Guest as GuestDiff, GuestDiffConfig, GuestObject,
+        DiffConfigBorrow, DiffResult, DiffSide, Guest as GuestDiff, GuestDiffConfig, GuestObject,
         GuestObjectDiff, MappingConfig, Object, ObjectBorrow, ObjectDiff, ObjectDiffBorrow,
         SymbolFlags, SymbolInfo, SymbolKind, SymbolRef,
-        DiffSide,
     },
     display::{
         ContextItem, ContextItemCopy, ContextItemNavigate, DiffText, DiffTextColor, DiffTextOpcode,
@@ -504,8 +500,9 @@ impl GuestObject for ResourceObject {
             return Ok(Object::new(ResourceObject(obj, hash)));
         }
         let diff_config = diff_config.get::<ResourceDiffConfig>().0.borrow();
-        let obj =
-            Rc::new(obj::read::parse(&data, &diff_config, diff_side.into()).map_err(|e| e.to_string())?);
+        let obj = Rc::new(
+            obj::read::parse(&data, &diff_config, diff_side.into()).map_err(|e| e.to_string())?,
+        );
         OBJECT_CACHE.borrow_mut().push(CachedObject(Rc::downgrade(&obj), hash));
         Ok(Object::new(ResourceObject(obj, hash)))
     }
