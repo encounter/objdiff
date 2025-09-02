@@ -11,12 +11,10 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
 
 use crate::{
-    arch::{Arch, RelocationOverride, RelocationOverrideTarget, new_arch},
+    arch::{new_arch, Arch, RelocationOverride, RelocationOverrideTarget},
     diff::DiffObjConfig,
     obj::{
-        FlowAnalysisResult, Object, Relocation, RelocationFlags, Section, SectionData, SectionFlag,
-        SectionKind, Symbol, SymbolFlag, SymbolKind,
-        split_meta::{SPLITMETA_SECTION, SplitMeta},
+        split_meta::{SplitMeta, SPLITMETA_SECTION}, DiffSide, FlowAnalysisResult, Object, Relocation, RelocationFlags, Section, SectionData, SectionFlag, SectionKind, Symbol, SymbolFlag, SymbolKind
     },
     util::{align_data_slice_to, align_u64_to, read_u16, read_u32},
 };
@@ -925,21 +923,21 @@ fn do_combine_sections(
 }
 
 #[cfg(feature = "std")]
-pub fn read(obj_path: &std::path::Path, config: &DiffObjConfig) -> Result<Object> {
+pub fn read(obj_path: &std::path::Path, config: &DiffObjConfig, diff_side: DiffSide) -> Result<Object> {
     let (data, timestamp) = {
         let file = std::fs::File::open(obj_path)?;
         let timestamp = filetime::FileTime::from_last_modification_time(&file.metadata()?);
         (unsafe { memmap2::Mmap::map(&file) }?, timestamp)
     };
-    let mut obj = parse(&data, config)?;
+    let mut obj = parse(&data, config, diff_side)?;
     obj.path = Some(obj_path.to_path_buf());
     obj.timestamp = Some(timestamp);
     Ok(obj)
 }
 
-pub fn parse(data: &[u8], config: &DiffObjConfig) -> Result<Object> {
+pub fn parse(data: &[u8], config: &DiffObjConfig, diff_side: DiffSide) -> Result<Object> {
     let obj_file = object::File::parse(data)?;
-    let mut arch = new_arch(&obj_file)?;
+    let mut arch = new_arch(&obj_file, diff_side)?;
     let split_meta = parse_split_meta(&obj_file)?;
     let (mut sections, section_indices) =
         map_sections(arch.as_ref(), &obj_file, split_meta.as_ref())?;

@@ -17,13 +17,10 @@ use object::Endian as _;
 
 use crate::{
     diff::{
-        DiffObjConfig,
-        display::{ContextItem, HoverItem, InstructionPart},
+        display::{ContextItem, HoverItem, InstructionPart}, DiffObjConfig
     },
     obj::{
-        FlowAnalysisResult, InstructionArg, InstructionRef, Object, ParsedInstruction, Relocation,
-        RelocationFlags, ResolvedInstructionRef, ResolvedSymbol, Section, Symbol, SymbolFlagSet,
-        SymbolKind,
+        DiffSide, FlowAnalysisResult, InstructionArg, InstructionRef, Object, ParsedInstruction, Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedSymbol, Section, Symbol, SymbolFlagSet, SymbolKind
     },
     util::ReallySigned,
 };
@@ -418,15 +415,18 @@ pub trait Arch: Any + Debug + Send + Sync {
     }
 }
 
-pub fn new_arch(object: &object::File) -> Result<Box<dyn Arch>> {
+pub fn new_arch(object: &object::File, diff_side: DiffSide) -> Result<Box<dyn Arch>> {
     use object::Object as _;
+    // Avoid unused warnings on non-mips builds
+    let _ = diff_side;
+
     Ok(match object.architecture() {
         #[cfg(feature = "ppc")]
         object::Architecture::PowerPc | object::Architecture::PowerPc64 => {
             Box::new(ppc::ArchPpc::new(object)?)
         }
         #[cfg(feature = "mips")]
-        object::Architecture::Mips => Box::new(mips::ArchMips::new(object)?),
+        object::Architecture::Mips => Box::new(mips::ArchMips::new(object, diff_side)?),
         #[cfg(feature = "x86")]
         object::Architecture::I386 | object::Architecture::X86_64 => {
             Box::new(x86::ArchX86::new(object)?)

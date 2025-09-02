@@ -5,10 +5,10 @@ use time::OffsetDateTime;
 use typed_path::Utf8PlatformPathBuf;
 
 use crate::{
-    build::{BuildConfig, BuildStatus, run_make},
-    diff::{DiffObjConfig, MappingConfig, ObjectDiff, diff_objs},
-    jobs::{Job, JobContext, JobResult, JobState, start_job, update_status},
-    obj::{Object, read},
+    build::{run_make, BuildConfig, BuildStatus},
+    diff::{diff_objs, DiffObjConfig, MappingConfig, ObjectDiff},
+    jobs::{start_job, update_status, Job, JobContext, JobResult, JobState},
+    obj::{read, DiffSide, Object},
 };
 
 pub struct ObjDiffConfig {
@@ -117,7 +117,7 @@ fn run_build(
                 &cancel,
             )?;
             step_idx += 1;
-            match read::read(target_path.as_ref(), &config.diff_obj_config) {
+            match read::read(target_path.as_ref(), &config.diff_obj_config, DiffSide::Target) {
                 Ok(obj) => Some(obj),
                 Err(e) => {
                     first_status = BuildStatus {
@@ -141,7 +141,7 @@ fn run_build(
         Some(base_path) if second_status.success => {
             update_status(context, format!("Loading base {base_path}"), step_idx, total, &cancel)?;
             step_idx += 1;
-            match read::read(base_path.as_ref(), &config.diff_obj_config) {
+            match read::read(base_path.as_ref(), &config.diff_obj_config, DiffSide::Base) {
                 Ok(obj) => Some(obj),
                 Err(e) => {
                     second_status = BuildStatus {

@@ -12,10 +12,9 @@ use rabbitizer::{
 
 use crate::{
     arch::{Arch, RelocationOverride, RelocationOverrideTarget},
-    diff::{DiffObjConfig, MipsAbi, MipsInstrCategory, display::InstructionPart},
+    diff::{display::InstructionPart, DiffObjConfig, MipsAbi, MipsInstrCategory},
     obj::{
-        InstructionArg, InstructionArgValue, InstructionRef, Relocation, RelocationFlags,
-        ResolvedInstructionRef, ResolvedRelocation, Section, Symbol, SymbolFlag, SymbolFlagSet,
+        DiffSide, InstructionArg, InstructionArgValue, InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation, Section, Symbol, SymbolFlag, SymbolFlagSet
     },
 };
 
@@ -27,6 +26,7 @@ pub struct ArchMips {
     pub ri_gp_value: i32,
     pub paired_relocations: Vec<BTreeMap<u64, i64>>,
     pub ignored_symbols: BTreeSet<usize>,
+    pub diff_side: DiffSide,
 }
 
 const EF_MIPS_ABI: u32 = 0x0000F000;
@@ -38,7 +38,7 @@ const EF_MIPS_MACH_5900: u32 = 0x00920000;
 const R_MIPS15_S3: u32 = 119;
 
 impl ArchMips {
-    pub fn new(object: &object::File) -> Result<Self> {
+    pub fn new(object: &object::File, diff_side: DiffSide) -> Result<Self> {
         let mut abi = Abi::O32;
         let mut isa_extension = None;
         match object.flags() {
@@ -124,7 +124,7 @@ impl ArchMips {
             let Ok(name) = obj_symbol.name() else { continue };
             if let Some(prefix) = name.strip_suffix(".NON_MATCHING") {
                 ignored_symbols.insert(obj_symbol.index().0);
-                if let Some(target_symbol) = object.symbol_by_name(prefix) {
+                if diff_side == DiffSide::Base && let Some(target_symbol) = object.symbol_by_name(prefix) {
                     ignored_symbols.insert(target_symbol.index().0);
                 }
             }
@@ -137,6 +137,7 @@ impl ArchMips {
             ri_gp_value,
             paired_relocations,
             ignored_symbols,
+            diff_side,
         })
     }
 
