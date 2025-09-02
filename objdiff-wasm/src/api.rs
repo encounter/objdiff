@@ -9,7 +9,10 @@ use alloc::{
 };
 use core::cell::RefCell;
 
-use objdiff_core::{diff, obj::{self, DiffSide}};
+use objdiff_core::{
+    diff,
+    obj,
+};
 use regex::{Regex, RegexBuilder};
 use xxhash_rust::xxh3::xxh3_64;
 
@@ -27,6 +30,7 @@ use exports::objdiff::core::{
         DiffConfigBorrow, DiffResult, Guest as GuestDiff, GuestDiffConfig, GuestObject,
         GuestObjectDiff, MappingConfig, Object, ObjectBorrow, ObjectDiff, ObjectDiffBorrow,
         SymbolFlags, SymbolInfo, SymbolKind, SymbolRef,
+        DiffSide,
     },
     display::{
         ContextItem, ContextItemCopy, ContextItemNavigate, DiffText, DiffTextColor, DiffTextOpcode,
@@ -470,8 +474,21 @@ unsafe impl Sync for ObjectCache {}
 
 static OBJECT_CACHE: ObjectCache = ObjectCache::new();
 
+impl From<DiffSide> for objdiff_core::obj::DiffSide {
+    fn from(value: DiffSide) -> Self {
+        match value {
+            DiffSide::Target => Self::Target,
+            DiffSide::Base => Self::Base,
+        }
+    }
+}
+
 impl GuestObject for ResourceObject {
-    fn parse(data: Vec<u8>, diff_config: DiffConfigBorrow, diff_side: DiffSide) -> Result<Object, String> {
+    fn parse(
+        data: Vec<u8>,
+        diff_config: DiffConfigBorrow,
+        diff_side: DiffSide,
+    ) -> Result<Object, String> {
         let hash = xxh3_64(&data);
         let mut cached = None;
         OBJECT_CACHE.borrow_mut().retain(|c| {
@@ -487,7 +504,8 @@ impl GuestObject for ResourceObject {
             return Ok(Object::new(ResourceObject(obj, hash)));
         }
         let diff_config = diff_config.get::<ResourceDiffConfig>().0.borrow();
-        let obj = Rc::new(obj::read::parse(&data, &diff_config, diff_side).map_err(|e| e.to_string())?);
+        let obj =
+            Rc::new(obj::read::parse(&data, &diff_config, diff_side.into()).map_err(|e| e.to_string())?);
         OBJECT_CACHE.borrow_mut().push(CachedObject(Rc::downgrade(&obj), hash));
         Ok(Object::new(ResourceObject(obj, hash)))
     }
