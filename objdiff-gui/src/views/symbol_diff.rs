@@ -233,7 +233,6 @@ impl DiffViewState {
                 let resolved_nav = resolve_navigation(nav.kind, resolved_left, resolved_right);
                 if (resolved_nav.left_symbol.is_some() && resolved_nav.right_symbol.is_some())
                     || (resolved_nav.left_symbol.is_none() && resolved_nav.right_symbol.is_none())
-                    || resolved_nav.view != View::FunctionDiff
                 {
                     // Regular navigation
                     if state.is_selecting_symbol() {
