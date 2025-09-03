@@ -19,6 +19,7 @@ interface diff {
     parse: static func(
       data: list<u8>,
       config: borrow<diff-config>,
+      side: diff-side,
     ) -> result<object, string>;
 
     hash: func() -> u64;
@@ -80,6 +81,11 @@ interface diff {
     config: borrow<diff-config>,
     mapping: mapping-config,
   ) -> result<diff-result, string>;
+
+  enum diff-side {
+    target,
+    base,
+  }
 }
 
 interface display {

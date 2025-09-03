@@ -807,3 +807,11 @@ fn find_section(
         s.kind == section_kind && s.name == name && !matches.iter().any(|m| m.right == Some(i))
     })
 }
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum DiffSide {
+    /// The target/expected side of the diff.
+    Target,
+    /// The base side of the diff.
+    Base,
+}
