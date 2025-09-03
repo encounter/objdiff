@@ -177,14 +177,16 @@ fn report_object(
         .target_path
         .as_ref()
         .map(|p| {
-            obj::read::read(p.as_ref(), diff_config).with_context(|| format!("Failed to open {p}"))
+            obj::read::read(p.as_ref(), diff_config, diff::DiffSide::Target)
+                .with_context(|| format!("Failed to open {p}"))
         })
         .transpose()?;
     let base = object
         .base_path
         .as_ref()
         .map(|p| {
-            obj::read::read(p.as_ref(), diff_config).with_context(|| format!("Failed to open {p}"))
+            obj::read::read(p.as_ref(), diff_config, diff::DiffSide::Base)
+                .with_context(|| format!("Failed to open {p}"))
         })
         .transpose()?;
     let result =

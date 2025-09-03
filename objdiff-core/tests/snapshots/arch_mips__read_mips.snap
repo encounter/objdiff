@@ -1,5 +1,6 @@
 ---
 source: objdiff-core/tests/arch_mips.rs
+assertion_line: 10
 expression: obj
 ---
 Object {
@@ -51,6 +52,7 @@ Object {
             {},
         ],
         ignored_symbols: {},
+        diff_side: Base,
     },
     endianness: Little,
     symbols: [
