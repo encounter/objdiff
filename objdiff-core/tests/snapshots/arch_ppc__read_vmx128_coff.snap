@@ -1101,6 +1101,45 @@ Object {
             align: None,
             virtual_address: None,
         },
+        Symbol {
+            name: "[.XBLD$W-0]",
+            demangled_name: None,
+            address: 0,
+            size: 16,
+            kind: Section,
+            section: Some(
+                2,
+            ),
+            flags: FlagSet(Local),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "[.rdata-0]",
+            demangled_name: None,
+            address: 0,
+            size: 416,
+            kind: Section,
+            section: Some(
+                4,
+            ),
+            flags: FlagSet(Local),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "[.pdata-0]",
+            demangled_name: None,
+            address: 0,
+            size: 40,
+            kind: Section,
+            section: Some(
+                6,
+            ),
+            flags: FlagSet(Local),
+            align: None,
+            virtual_address: None,
+        },
     ],
     sections: [
         Section {

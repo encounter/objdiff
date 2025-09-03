@@ -21,6 +21,7 @@ use crate::{
     obj::{
         FlowAnalysisResult, InstructionRef, Object, Relocation, RelocationFlags,
         ResolvedInstructionRef, ResolvedRelocation, Section, Symbol, SymbolFlag, SymbolFlagSet,
+        SymbolKind,
     },
 };
 
@@ -832,6 +833,7 @@ fn make_fake_pool_reloc(
                 && s.size > 0
                 && !s.flags.contains(SymbolFlag::Hidden)
                 && !s.flags.contains(SymbolFlag::Ignored)
+                && s.kind != SymbolKind::Section
                 && (s.address..s.address + s.size).contains(&target_address)
         })?;
         addend = target_address.checked_sub(symbols[target_symbol].address)? as i64;

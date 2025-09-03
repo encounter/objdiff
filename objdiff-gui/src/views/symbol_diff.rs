@@ -233,7 +233,6 @@ impl DiffViewState {
                 let resolved_nav = resolve_navigation(nav.kind, resolved_left, resolved_right);
                 if (resolved_nav.left_symbol.is_some() && resolved_nav.right_symbol.is_some())
                     || (resolved_nav.left_symbol.is_none() && resolved_nav.right_symbol.is_none())
-                    || resolved_nav.view != View::FunctionDiff
                 {
                     // Regular navigation
                     if state.is_selecting_symbol() {
@@ -416,14 +415,8 @@ fn resolve_navigation(
             },
             (SectionKind::Data, SectionKind::Data) => ResolvedNavigation {
                 view: View::DataDiff,
-                left_symbol: Some(SymbolRefByName {
-                    symbol_name: "".to_string(),
-                    section_name: Some(left.section.name.clone()),
-                }),
-                right_symbol: Some(SymbolRefByName {
-                    symbol_name: "".to_string(),
-                    section_name: Some(right.section.name.clone()),
-                }),
+                left_symbol: Some(left.symbol_ref),
+                right_symbol: Some(right.symbol_ref),
             },
             _ => ResolvedNavigation::default(),
         },
@@ -438,14 +431,8 @@ fn resolve_navigation(
             },
             SectionKind::Data => ResolvedNavigation {
                 view: View::DataDiff,
-                left_symbol: Some(SymbolRefByName {
-                    symbol_name: "".to_string(),
-                    section_name: Some(left.section.name.clone()),
-                }),
-                right_symbol: Some(SymbolRefByName {
-                    symbol_name: "".to_string(),
-                    section_name: Some(left.section.name.clone()),
-                }),
+                left_symbol: Some(left.symbol_ref),
+                right_symbol: None,
             },
             _ => ResolvedNavigation::default(),
         },
@@ -460,14 +447,8 @@ fn resolve_navigation(
             },
             SectionKind::Data => ResolvedNavigation {
                 view: View::DataDiff,
-                left_symbol: Some(SymbolRefByName {
-                    symbol_name: "".to_string(),
-                    section_name: Some(right.section.name.clone()),
-                }),
-                right_symbol: Some(SymbolRefByName {
-                    symbol_name: "".to_string(),
-                    section_name: Some(right.section.name.clone()),
-                }),
+                left_symbol: None,
+                right_symbol: Some(right.symbol_ref),
             },
             _ => ResolvedNavigation::default(),
         },

@@ -9,7 +9,7 @@ use objdiff_core::{
     },
     config::path::platform_path,
     diff,
-    obj::{self, SectionKind, SymbolFlag},
+    obj::{self, SectionKind, SymbolFlag, SymbolKind},
 };
 use prost::Message;
 use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
@@ -247,6 +247,7 @@ fn report_object(
                 || symbol.size == 0
                 || symbol.flags.contains(SymbolFlag::Hidden)
                 || symbol.flags.contains(SymbolFlag::Ignored)
+                || symbol.kind == SymbolKind::Section
             {
                 continue;
             }

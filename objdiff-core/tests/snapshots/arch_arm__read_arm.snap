@@ -1507,6 +1507,19 @@ Object {
             align: None,
             virtual_address: None,
         },
+        Symbol {
+            name: "[.data-0]",
+            demangled_name: None,
+            address: 0,
+            size: 76,
+            kind: Section,
+            section: Some(
+                2,
+            ),
+            flags: FlagSet(Local),
+            align: None,
+            virtual_address: None,
+        },
     ],
     sections: [
         Section {

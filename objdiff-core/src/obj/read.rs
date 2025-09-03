@@ -15,7 +15,7 @@ use crate::{
     diff::{DiffObjConfig, DiffSide},
     obj::{
         FlowAnalysisResult, Object, Relocation, RelocationFlags, Section, SectionData, SectionFlag,
-        SectionKind, Symbol, SymbolFlag, SymbolKind,
+        SectionKind, Symbol, SymbolFlag, SymbolFlagSet, SymbolKind,
         split_meta::{SPLITMETA_SECTION, SplitMeta},
     },
     util::{align_data_slice_to, align_u64_to, read_u16, read_u32},
@@ -118,7 +118,7 @@ fn map_symbols(
     split_meta: Option<&SplitMeta>,
 ) -> Result<(Vec<Symbol>, Vec<usize>)> {
     let symbol_count = obj_file.symbols().count();
-    let mut symbols = Vec::<Symbol>::with_capacity(symbol_count);
+    let mut symbols = Vec::<Symbol>::with_capacity(symbol_count + obj_file.sections().count());
     let mut symbol_indices = Vec::<usize>::with_capacity(symbol_count + 1);
     for obj_symbol in obj_file.symbols() {
         if symbol_indices.len() <= obj_symbol.index().0 {
@@ -133,6 +133,52 @@ fn map_symbols(
     infer_symbol_sizes(arch, &mut symbols, sections)?;
 
     Ok((symbols, symbol_indices))
+}
+
+/// Add an extra fake symbol to the start of each data section in order to allow the user to diff
+/// all of the data in the section at once by clicking on this fake symbol at the top of the list.
+fn add_section_symbols(sections: &[Section], symbols: &mut Vec<Symbol>) {
+    for (section_idx, section) in sections.iter().enumerate() {
+        if section.kind != SectionKind::Data {
+            continue;
+        }
+
+        // Instead of naming the fake section symbol after `section.name` (e.g. ".data") we use
+        // `section.id` (e.g. ".data-0") so that it is unique when multiple sections with the same
+        // name exist and it also doesn't conflict with any real section symbols from the object.
+        let name = if section.flags.contains(SectionFlag::Combined) {
+            // For combined sections, `section.id` (e.g. ".data-combined") is inconsistent with
+            // uncombined section IDs, so we add the "-0" suffix to the name to enable proper
+            // pairing when one side had multiple sections combined and the other only had one
+            // section to begin with.
+            format!("[{}-0]", section.name)
+        } else {
+            format!("[{}]", section.id)
+        };
+
+        // `section.size` can include extra padding, so instead prefer using the address that the
+        // last symbol ends at when there are any symbols in the section.
+        let size = symbols
+            .iter()
+            .filter(|s| {
+                s.section == Some(section_idx) && s.kind == SymbolKind::Object && s.size > 0
+            })
+            .map(|s| s.address + s.size)
+            .max()
+            .unwrap_or(section.size);
+
+        symbols.push(Symbol {
+            name,
+            demangled_name: None,
+            address: 0,
+            size,
+            kind: SymbolKind::Section,
+            section: Some(section_idx),
+            flags: SymbolFlagSet::default() | SymbolFlag::Local,
+            align: None,
+            virtual_address: None,
+        });
+    }
 }
 
 /// When inferring a symbol's size, we ignore symbols that start with specific prefixes. They are
@@ -216,7 +262,11 @@ fn infer_symbol_sizes(arch: &dyn Arch, symbols: &mut [Symbol], sections: &[Secti
         let section = &sections[section_idx];
         let next_address =
             next_symbol.map(|s| s.address).unwrap_or_else(|| section.address + section.size);
-        let new_size = if section.kind == SectionKind::Code {
+        let new_size = if symbol.kind == SymbolKind::Section && section.kind == SectionKind::Data {
+            // Data sections already have always-visible section symbols created by objdiff to allow
+            // diffing them, so no need to unhide these.
+            0
+        } else if section.kind == SectionKind::Code {
             arch.infer_function_size(symbol, section, next_address)?
         } else {
             next_address.saturating_sub(symbol.address)
@@ -954,6 +1004,7 @@ pub fn parse(data: &[u8], config: &DiffObjConfig, diff_side: DiffSide) -> Result
     if config.combine_data_sections || config.combine_text_sections {
         combine_sections(&mut sections, &mut symbols, config)?;
     }
+    add_section_symbols(&sections, &mut symbols);
     arch.post_init(&sections, &symbols);
     let mut obj = Object {
         arch,
