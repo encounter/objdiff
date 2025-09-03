@@ -379,7 +379,9 @@ pub enum HoverItem {
 }
 
 pub fn symbol_context(obj: &Object, symbol_index: usize) -> Vec<ContextItem> {
-    let symbol = &obj.symbols[symbol_index];
+    let Some(symbol) = obj.symbols.get(symbol_index) else {
+        return Vec::new();
+    };
     let mut out = Vec::new();
     out.push(ContextItem::Copy { value: symbol.name.clone(), label: None });
     if let Some(name) = &symbol.demangled_name {
@@ -403,7 +405,9 @@ pub fn symbol_hover(
     addend: i64,
     override_color: Option<HoverItemColor>,
 ) -> Vec<HoverItem> {
-    let symbol = &obj.symbols[symbol_index];
+    let Some(symbol) = obj.symbols.get(symbol_index) else {
+        return Vec::new();
+    };
     let addend_str = match addend.cmp(&0i64) {
         Ordering::Greater => format!("+{addend:x}"),
         Ordering::Less => format!("-{:x}", -addend),
