@@ -137,9 +137,8 @@ impl Arch for ArchX86 {
                             let indirect_array_size = reloc_iter
                                 .peek()
                                 .map(|next_reloc| {
-                                    next_reloc
-                                        .address
-                                        .saturating_sub(indirect_array_address) as usize
+                                    next_reloc.address.saturating_sub(indirect_array_address)
+                                        as usize
                                 })
                                 .unwrap_or(max_size)
                                 .min(max_size);
@@ -154,7 +153,8 @@ impl Arch for ArchX86 {
                                     });
                                 }
                                 // move decoder to after the array (there can be multiple jump+indirect tables in one function)
-                                let _ = decoder.set_position(indirect_array_pos + indirect_array_size);
+                                let _ =
+                                    decoder.set_position(indirect_array_pos + indirect_array_size);
                                 decoder.set_ip(indirect_array_address + indirect_array_size as u64);
                             }
 
@@ -833,7 +833,12 @@ mod test {
         let mut parts = Vec::new();
         arch.display_instruction(
             ResolvedInstructionRef {
-                ins_ref: InstructionRef { address: 0x1234, size: 1, opcode: DATA_OPCODE, branch_dest: None },
+                ins_ref: InstructionRef {
+                    address: 0x1234,
+                    size: 1,
+                    opcode: DATA_OPCODE,
+                    branch_dest: None,
+                },
                 code: &code,
                 ..Default::default()
             },
