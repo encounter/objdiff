@@ -680,16 +680,16 @@ fn symbol_section_kind(obj: &Object, symbol: &Symbol) -> SectionKind {
     }
 }
 
-/// Check if a symbol is a compiler-generated literal like @1234.
-fn is_symbol_compiler_generated_literal(symbol: &Symbol) -> bool {
-    if !symbol.name.starts_with('@') {
-        return false;
-    }
-    if !symbol.name[1..].chars().all(char::is_numeric) {
+/// Check if a symbol is a compiler-generated like @1234 or _$E1234.
+fn is_symbol_compiler_generated(symbol: &Symbol) -> bool {
+    if symbol.name.starts_with('@') && symbol.name[1..].chars().all(char::is_numeric) {
         // Exclude @stringBase0, @GUARD@, etc.
-        return false;
+        return true;
     }
-    true
+    if symbol.name.starts_with("_$E") && symbol.name[3..].chars().all(char::is_numeric) {
+        return true;
+    }
+    false
 }
 
 fn find_symbol(
@@ -705,8 +705,8 @@ fn find_symbol(
 
     // Match compiler-generated symbols against each other (e.g. @251 -> @60)
     // If they are in the same section and have the same value
-    if is_symbol_compiler_generated_literal(in_symbol)
-        && matches!(section_kind, SectionKind::Data | SectionKind::Bss)
+    if is_symbol_compiler_generated(in_symbol)
+        && matches!(section_kind, SectionKind::Code | SectionKind::Data | SectionKind::Bss)
     {
         let mut closest_match_symbol_idx = None;
         let mut closest_match_percent = 0.0;
@@ -717,12 +717,12 @@ fn find_symbol(
             if obj.sections[section_index].name != section_name {
                 continue;
             }
-            if !is_symbol_compiler_generated_literal(symbol) {
+            if !is_symbol_compiler_generated(symbol) {
                 continue;
             }
             match section_kind {
-                SectionKind::Data => {
-                    // For data, pick the first symbol with exactly matching bytes and relocations.
+                SectionKind::Data | SectionKind::Code => {
+                    // For code or data, pick the first symbol with exactly matching bytes and relocations.
                     // If no symbols match exactly, and `fuzzy_literals` is true, pick the closest
                     // plausible match instead.
                     if let Ok((left_diff, _right_diff)) =
