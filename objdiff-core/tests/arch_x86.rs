@@ -104,3 +104,21 @@ fn read_x86_local_labels() {
     .unwrap();
     insta::assert_debug_snapshot!(obj);
 }
+
+#[test]
+#[cfg(feature = "x86")]
+fn read_x86_indirect_table() {
+    let diff_config = diff::DiffObjConfig::default();
+    let obj = obj::read::parse(
+        include_object!("data/x86/indirect_table.obj"),
+        &diff_config,
+        diff::DiffSide::Base,
+    )
+    .unwrap();
+    insta::assert_debug_snapshot!(obj);
+    let symbol_idx = obj.symbols.iter().position(|s| s.name == "?process@@YAHHHH@Z").unwrap();
+    let diff = diff::code::no_diff_code(&obj, symbol_idx, &diff_config).unwrap();
+    insta::assert_debug_snapshot!(diff.instruction_rows);
+    let output = common::display_diff(&obj, &diff, symbol_idx, &diff_config);
+    insta::assert_snapshot!(output);
+}
