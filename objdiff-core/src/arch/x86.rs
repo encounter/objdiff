@@ -124,7 +124,40 @@ impl Arch for ArchX86 {
                                 opcode: DATA_OPCODE,
                                 branch_dest: None,
                             });
+
                             reloc_iter.next();
+
+                            // support .byte arrays after jump tables (they're typically known as indirect tables)
+
+                            let indirect_array_address = address.wrapping_add(size as u64);
+                            let indirect_array_pos = decoder.position();
+
+                            let max_size = code.len().saturating_sub(indirect_array_pos);
+
+                            let indirect_array_size = reloc_iter
+                                .peek()
+                                .map(|next_reloc| {
+                                    next_reloc.address.saturating_sub(indirect_array_address)
+                                        as usize
+                                })
+                                .unwrap_or(max_size)
+                                .min(max_size);
+
+                            if indirect_array_size > 0 {
+                                for i in 0..indirect_array_size {
+                                    out.push(InstructionRef {
+                                        address: indirect_array_address + i as u64,
+                                        size: 1,
+                                        opcode: DATA_OPCODE,
+                                        branch_dest: None,
+                                    });
+                                }
+                                // move decoder to after the array (there can be multiple jump+indirect tables in one function)
+                                let _ =
+                                    decoder.set_position(indirect_array_pos + indirect_array_size);
+                                decoder.set_ip(indirect_array_address + indirect_array_size as u64);
+                            }
+
                             continue 'outer;
                         }
                     }
@@ -156,6 +189,7 @@ impl Arch for ArchX86 {
     ) -> Result<()> {
         if resolved.ins_ref.opcode == DATA_OPCODE {
             let (mnemonic, imm) = match resolved.ins_ref.size {
+                1 => (".byte", resolved.code[0] as u64),
                 2 => (".word", self.endianness.read_u16_bytes(resolved.code.try_into()?) as u64),
                 4 => (".dword", self.endianness.read_u32_bytes(resolved.code.try_into()?) as u64),
                 _ => bail!("Unsupported x86 inline data size {}", resolved.ins_ref.size),
@@ -790,5 +824,34 @@ mod test {
         )
         .unwrap();
         assert_eq!(parts, &[InstructionPart::opcode("call", opcode), InstructionPart::reloc()]);
+    }
+
+    #[test]
+    fn test_display_1_byte_inline_data() {
+        let arch = ArchX86 { arch: Architecture::X86, endianness: object::Endianness::Little };
+        let code = [0xAB];
+        let mut parts = Vec::new();
+        arch.display_instruction(
+            ResolvedInstructionRef {
+                ins_ref: InstructionRef {
+                    address: 0x1234,
+                    size: 1,
+                    opcode: DATA_OPCODE,
+                    branch_dest: None,
+                },
+                code: &code,
+                ..Default::default()
+            },
+            &DiffObjConfig::default(),
+            &mut |part| {
+                parts.push(part.into_static());
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(parts, &[
+            InstructionPart::opcode(".byte", DATA_OPCODE),
+            InstructionPart::unsigned(0xABu64),
+        ]);
     }
 }
