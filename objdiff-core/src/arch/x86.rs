@@ -314,8 +314,8 @@ impl Arch for ArchX86 {
 
                 unsafe {
                     let len = UnDecorateSymbolName(
-                        cstr.as_ptr() as *const u8,
-                        buffer.as_mut_ptr(),
+                        cstr.as_ptr() as windows_sys::core::PCSTR,
+                        buffer.as_mut_ptr() as windows_sys::core::PSTR,
                         buffer.len() as u32,
                         0, // UNDNAME_COMPLETE
                     );
