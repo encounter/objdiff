@@ -12,7 +12,10 @@ use itertools::Itertools;
 use regex::Regex;
 
 use crate::{
-    diff::{DiffObjConfig, InstructionDiffKind, InstructionDiffRow, ObjectDiff, SymbolDiff},
+    diff::{
+        DataDiffKind, DataDiffRow, DiffObjConfig, InstructionDiffKind, InstructionDiffRow,
+        ObjectDiff, SymbolDiff, data::resolve_relocation,
+    },
     obj::{
         FlowAnalysisValue, InstructionArg, InstructionArgValue, Object, ParsedInstruction,
         ResolvedInstructionRef, ResolvedRelocation, SectionFlag, SectionKind, Symbol, SymbolFlag,
@@ -494,6 +497,57 @@ pub fn relocation_context(
     out
 }
 
+pub fn data_row_hover(obj: &Object, diff_row: &DataDiffRow) -> Vec<HoverItem> {
+    let mut out = Vec::new();
+    let mut prev_reloc = None;
+    let mut first = true;
+    for reloc_diff in diff_row.relocations.iter() {
+        let reloc = &reloc_diff.reloc;
+        if prev_reloc == Some(reloc) {
+            // Avoid showing consecutive duplicate relocations.
+            // We do this because a single relocation can span across multiple diffs if the
+            // bytes in the relocation changed (e.g. first byte is added, second is unchanged).
+            continue;
+        }
+        prev_reloc = Some(reloc);
+
+        if first {
+            first = false;
+        } else {
+            out.push(HoverItem::Separator);
+        }
+
+        let reloc = resolve_relocation(&obj.symbols, reloc);
+        let color = match reloc_diff.kind {
+            DataDiffKind::None => HoverItemColor::Normal,
+            DataDiffKind::Replace => HoverItemColor::Special,
+            DataDiffKind::Delete => HoverItemColor::Delete,
+            DataDiffKind::Insert => HoverItemColor::Insert,
+        };
+        out.append(&mut relocation_hover(obj, reloc, Some(color)));
+    }
+    out
+}
+
+pub fn data_row_context(obj: &Object, diff_row: &DataDiffRow) -> Vec<ContextItem> {
+    let mut out = Vec::new();
+    let mut prev_reloc = None;
+    for reloc_diff in diff_row.relocations.iter() {
+        let reloc = &reloc_diff.reloc;
+        if prev_reloc == Some(reloc) {
+            // Avoid showing consecutive duplicate relocations.
+            // We do this because a single relocation can span across multiple diffs if the
+            // bytes in the relocation changed (e.g. first byte is added, second is unchanged).
+            continue;
+        }
+        prev_reloc = Some(reloc);
+
+        let reloc = resolve_relocation(&obj.symbols, reloc);
+        out.append(&mut relocation_context(obj, reloc, None));
+    }
+    out
+}
+
 pub fn relocation_hover(
     obj: &Object,
     reloc: ResolvedRelocation,
@@ -677,6 +731,7 @@ pub struct SectionDisplay {
     pub size: u64,
     pub match_percent: Option<f32>,
     pub symbols: Vec<SectionDisplaySymbol>,
+    pub kind: SectionKind,
 }
 
 pub fn display_sections(
@@ -755,6 +810,7 @@ pub fn display_sections(
                 size: section.size,
                 match_percent: section_diff.match_percent,
                 symbols,
+                kind: section.kind,
             });
         } else {
             // Don't sort, preserve order of absolute symbols
@@ -764,6 +820,7 @@ pub fn display_sections(
                 size: 0,
                 match_percent: None,
                 symbols,
+                kind: SectionKind::Common,
             });
         }
     }

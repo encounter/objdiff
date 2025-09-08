@@ -26,13 +26,14 @@ use exports::objdiff::core::{
     diff::{
         DiffConfigBorrow, DiffResult, DiffSide, Guest as GuestDiff, GuestDiffConfig, GuestObject,
         GuestObjectDiff, MappingConfig, Object, ObjectBorrow, ObjectDiff, ObjectDiffBorrow,
-        SymbolFlags, SymbolInfo, SymbolKind, SymbolRef,
+        SectionKind, SymbolFlags, SymbolInfo, SymbolKind, SymbolRef,
     },
     display::{
-        ContextItem, ContextItemCopy, ContextItemNavigate, DiffText, DiffTextColor, DiffTextOpcode,
-        DiffTextSegment, DiffTextSymbol, DisplayConfig, Guest as GuestDisplay, HoverItem,
-        HoverItemColor, HoverItemText, InstructionDiffKind, InstructionDiffRow, SectionDisplay,
-        SymbolDisplay, SymbolFilter, SymbolNavigationKind,
+        ContextItem, ContextItemCopy, ContextItemNavigate, DataDiff, DataDiffKind, DataDiffRow,
+        DataRelocationDiff, DiffText, DiffTextColor, DiffTextOpcode, DiffTextSegment,
+        DiffTextSymbol, DisplayConfig, Guest as GuestDisplay, HoverItem, HoverItemColor,
+        HoverItemText, InstructionDiffKind, InstructionDiffRow, SectionDisplay, SymbolDisplay,
+        SymbolFilter, SymbolNavigationKind,
     },
 };
 
@@ -138,6 +139,7 @@ impl GuestDisplay for Component {
             size: d.size,
             match_percent: d.match_percent,
             symbols: d.symbols.into_iter().map(to_symbol_ref).collect(),
+            kind: d.kind.into(),
         })
         .collect()
     }
@@ -162,6 +164,7 @@ impl GuestDisplay for Component {
         } else {
             obj_diff.symbols.get(symbol_display.symbol)
         };
+        let section = symbol.section.and_then(|s| obj.sections.get(s));
         SymbolDisplay {
             info: SymbolInfo {
                 id: to_symbol_ref(symbol_display),
@@ -171,9 +174,8 @@ impl GuestDisplay for Component {
                 size: symbol.size,
                 kind: SymbolKind::from(symbol.kind),
                 section: symbol.section.map(|s| s as u32),
-                section_name: symbol
-                    .section
-                    .and_then(|s| obj.sections.get(s).map(|sec| sec.name.clone())),
+                section_name: section.map(|sec| sec.name.clone()),
+                section_kind: section.map_or(SectionKind::Unknown, |sec| sec.kind.into()),
                 flags: SymbolFlags::from(symbol.flags),
                 align: symbol.align.map(|a| a.get()),
                 virtual_address: symbol.virtual_address,
@@ -181,7 +183,8 @@ impl GuestDisplay for Component {
             target_symbol: symbol_diff.and_then(|sd| sd.target_symbol.map(|s| s as u32)),
             match_percent: symbol_diff.and_then(|sd| sd.match_percent),
             diff_score: symbol_diff.and_then(|sd| sd.diff_score),
-            row_count: symbol_diff.map_or(0, |sd| sd.instruction_rows.len() as u32),
+            row_count: symbol_diff
+                .map_or(0, |sd| sd.instruction_rows.len().max(sd.data_rows.len()) as u32),
         }
     }
 
@@ -334,6 +337,120 @@ impl GuestDisplay for Component {
             .into_iter()
             .map(HoverItem::from)
             .collect()
+    }
+
+    fn display_data_row(
+        diff: ObjectDiffBorrow,
+        symbol_ref: SymbolRef,
+        row_index: u32,
+    ) -> DataDiffRow {
+        let obj_diff = diff.get::<ResourceObjectDiff>();
+        let obj_diff = &obj_diff.1;
+        let symbol_display = from_symbol_ref(symbol_ref);
+        let symbol_diff = if symbol_display.is_mapping_symbol {
+            obj_diff
+                .mapping_symbols
+                .iter()
+                .find(|s| s.symbol_index == symbol_display.symbol)
+                .map(|s| &s.symbol_diff)
+        } else {
+            obj_diff.symbols.get(symbol_display.symbol)
+        };
+        let Some(symbol_diff) = symbol_diff else {
+            return DataDiffRow::default();
+        };
+        symbol_diff.data_rows.get(row_index as usize).map(DataDiffRow::from).unwrap_or_default()
+    }
+
+    fn data_hover(diff: ObjectDiffBorrow, symbol_ref: SymbolRef, row_index: u32) -> Vec<HoverItem> {
+        let obj_diff = diff.get::<ResourceObjectDiff>();
+        let obj = &obj_diff.0;
+        let obj_diff = &obj_diff.1;
+        let symbol_display = from_symbol_ref(symbol_ref);
+        let symbol_diff = if symbol_display.is_mapping_symbol {
+            obj_diff
+                .mapping_symbols
+                .iter()
+                .find(|s| s.symbol_index == symbol_display.symbol)
+                .map(|s| &s.symbol_diff)
+        } else {
+            obj_diff.symbols.get(symbol_display.symbol)
+        };
+        let Some(symbol_diff) = symbol_diff else {
+            return vec![];
+        };
+        let Some(diff_row) = symbol_diff.data_rows.get(row_index as usize) else {
+            return vec![];
+        };
+        diff::display::data_row_hover(obj, diff_row).into_iter().map(HoverItem::from).collect()
+    }
+
+    fn data_context(
+        diff: ObjectDiffBorrow,
+        symbol_ref: SymbolRef,
+        row_index: u32,
+    ) -> Vec<ContextItem> {
+        let obj_diff = diff.get::<ResourceObjectDiff>();
+        let obj = &obj_diff.0;
+        let obj_diff = &obj_diff.1;
+        let symbol_display = from_symbol_ref(symbol_ref);
+        let symbol_diff = if symbol_display.is_mapping_symbol {
+            obj_diff
+                .mapping_symbols
+                .iter()
+                .find(|s| s.symbol_index == symbol_display.symbol)
+                .map(|s| &s.symbol_diff)
+        } else {
+            obj_diff.symbols.get(symbol_display.symbol)
+        };
+        let Some(symbol_diff) = symbol_diff else {
+            return vec![];
+        };
+        let Some(diff_row) = symbol_diff.data_rows.get(row_index as usize) else {
+            return vec![];
+        };
+        diff::display::data_row_context(obj, diff_row).into_iter().map(ContextItem::from).collect()
+    }
+}
+
+impl From<diff::DataDiffKind> for DataDiffKind {
+    fn from(kind: diff::DataDiffKind) -> Self {
+        match kind {
+            diff::DataDiffKind::None => DataDiffKind::None,
+            diff::DataDiffKind::Replace => DataDiffKind::Replace,
+            diff::DataDiffKind::Delete => DataDiffKind::Delete,
+            diff::DataDiffKind::Insert => DataDiffKind::Insert,
+        }
+    }
+}
+
+impl Default for DataDiffRow {
+    fn default() -> Self { Self { address: 0, segments: Vec::new(), relocations: Vec::new() } }
+}
+
+impl From<&diff::DataDiffRow> for DataDiffRow {
+    fn from(row: &diff::DataDiffRow) -> Self {
+        Self {
+            address: row.address,
+            segments: row.segments.iter().map(DataDiff::from).collect(),
+            relocations: row.relocations.iter().map(DataRelocationDiff::from).collect(),
+        }
+    }
+}
+
+impl From<&diff::DataDiff> for DataDiff {
+    fn from(diff: &diff::DataDiff) -> Self {
+        Self { data: diff.data.clone(), size: diff.size as u32, kind: diff.kind.into() }
+    }
+}
+
+impl From<&diff::DataRelocationDiff> for DataRelocationDiff {
+    fn from(diff: &diff::DataRelocationDiff) -> Self {
+        Self {
+            address: diff.reloc.address,
+            size: (diff.range.end - diff.range.start) as u32,
+            kind: diff.kind.into(),
+        }
     }
 }
 
@@ -523,6 +640,7 @@ impl GuestObjectDiff for ResourceObjectDiff {
                 }
         })?;
         let symbol = obj.symbols.get(symbol_idx)?;
+        let section = symbol.section.and_then(|s| obj.sections.get(s));
         Some(SymbolInfo {
             id: symbol_idx as SymbolRef,
             name: symbol.name.clone(),
@@ -531,9 +649,8 @@ impl GuestObjectDiff for ResourceObjectDiff {
             size: symbol.size,
             kind: SymbolKind::from(symbol.kind),
             section: symbol.section.map(|s| s as u32),
-            section_name: symbol
-                .section
-                .and_then(|s| obj.sections.get(s).map(|sec| sec.name.clone())),
+            section_name: section.map(|sec| sec.name.clone()),
+            section_kind: section.map_or(SectionKind::Unknown, |sec| sec.kind.into()),
             flags: SymbolFlags::from(symbol.flags),
             align: symbol.align.map(|a| a.get()),
             virtual_address: symbol.virtual_address,
@@ -544,6 +661,7 @@ impl GuestObjectDiff for ResourceObjectDiff {
         let obj = self.0.as_ref();
         let symbol_display = from_symbol_ref(symbol_ref);
         let symbol = obj.symbols.get(symbol_display.symbol)?;
+        let section = symbol.section.and_then(|s| obj.sections.get(s));
         Some(SymbolInfo {
             id: to_symbol_ref(symbol_display),
             name: symbol.name.clone(),
@@ -552,9 +670,8 @@ impl GuestObjectDiff for ResourceObjectDiff {
             size: symbol.size,
             kind: SymbolKind::from(symbol.kind),
             section: symbol.section.map(|s| s as u32),
-            section_name: symbol
-                .section
-                .and_then(|s| obj.sections.get(s).map(|sec| sec.name.clone())),
+            section_name: section.map(|sec| sec.name.clone()),
+            section_kind: section.map_or(SectionKind::Unknown, |sec| sec.kind.into()),
             flags: SymbolFlags::from(symbol.flags),
             align: symbol.align.map(|a| a.get()),
             virtual_address: symbol.virtual_address,
@@ -639,6 +756,7 @@ impl Default for SymbolInfo {
             kind: Default::default(),
             section: Default::default(),
             section_name: Default::default(),
+            section_kind: Default::default(),
             flags: Default::default(),
             align: Default::default(),
             virtual_address: Default::default(),
@@ -681,6 +799,22 @@ fn to_symbol_ref(display_symbol: diff::display::SectionDisplaySymbol) -> SymbolR
         display_symbol.symbol as u32 | (1 << 31)
     } else {
         display_symbol.symbol as u32
+    }
+}
+
+impl Default for SectionKind {
+    fn default() -> Self { Self::Unknown }
+}
+
+impl From<obj::SectionKind> for SectionKind {
+    fn from(kind: obj::SectionKind) -> Self {
+        match kind {
+            obj::SectionKind::Unknown => SectionKind::Unknown,
+            obj::SectionKind::Code => SectionKind::Code,
+            obj::SectionKind::Data => SectionKind::Data,
+            obj::SectionKind::Bss => SectionKind::Bss,
+            obj::SectionKind::Common => SectionKind::Common,
+        }
     }
 }
 

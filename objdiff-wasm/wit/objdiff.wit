@@ -54,6 +54,7 @@ interface diff {
     kind: symbol-kind,
     section: option<u32>,
     section-name: option<string>,
+    section-kind: section-kind,
     %flags: symbol-flags,
     align: option<u32>,
     virtual-address: option<u64>,
@@ -86,6 +87,14 @@ interface diff {
     target,
     base,
   }
+
+  enum section-kind {
+    unknown,
+    code,
+    data,
+    bss,
+    common,
+  }
 }
 
 interface display {
@@ -94,7 +103,8 @@ interface display {
     object-diff,
     diff-config,
     symbol-info,
-    symbol-ref
+    symbol-ref,
+    section-kind
   };
 
   record display-config {
@@ -114,6 +124,7 @@ interface display {
     size: u64,
     match-percent: option<f32>,
     symbols: list<symbol-ref>,
+    kind: section-kind,
   }
 
   record symbol-display {
@@ -238,6 +249,31 @@ interface display {
     delete,
   }
 
+  enum data-diff-kind {
+    none,
+    replace,
+    delete,
+    insert,
+  }
+
+  record data-diff {
+    data: list<u8>,
+    size: u32,
+    kind: data-diff-kind,
+  }
+
+  record data-relocation-diff {
+    address: u64,
+    size: u32,
+    kind: data-diff-kind,
+  }
+
+  record data-diff-row {
+    address: u64,
+    segments: list<data-diff>,
+    relocations: list<data-relocation-diff>,
+  }
+
   display-sections: func(
     diff: borrow<object-diff>,
     filter: symbol-filter,
@@ -278,6 +314,24 @@ interface display {
     symbol: symbol-ref,
     row-index: u32,
     config: borrow<diff-config>,
+  ) -> list<hover-item>;
+
+  display-data-row: func(
+    diff: borrow<object-diff>,
+    symbol: symbol-ref,
+    row-index: u32,
+  ) -> data-diff-row;
+
+  data-context: func(
+    diff: borrow<object-diff>,
+    symbol: symbol-ref,
+    row-index: u32,
+  ) -> list<context-item>;
+
+  data-hover: func(
+    diff: borrow<object-diff>,
+    symbol: symbol-ref,
+    row-index: u32,
   ) -> list<hover-item>;
 }
 

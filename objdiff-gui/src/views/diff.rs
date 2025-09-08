@@ -3,6 +3,7 @@ use objdiff_core::{
     build::BuildStatus,
     diff::{
         DiffObjConfig, ObjectDiff, SymbolDiff,
+        data::BYTES_PER_ROW,
         display::{ContextItem, HoverItem, HoverItemColor, SymbolFilter, SymbolNavigationKind},
     },
     obj::{Object, Symbol},
@@ -14,7 +15,7 @@ use crate::{
     views::{
         appearance::Appearance,
         column_layout::{render_header, render_strips, render_table},
-        data_diff::{BYTES_PER_ROW, data_row_ui, split_diffs},
+        data_diff::data_row_ui,
         extab_diff::extab_ui,
         function_diff::{FunctionDiffContext, asm_col_ui},
         symbol_diff::{
@@ -470,28 +471,14 @@ pub fn diff_view_ui(
         {
             // Joint diff view
             hotkeys::check_scroll_hotkeys(ui, true);
-            let left_total_bytes =
-                left_symbol_diff.data_diff.iter().fold(0usize, |accum, item| accum + item.len);
-            let right_total_bytes =
-                right_symbol_diff.data_diff.iter().fold(0usize, |accum, item| accum + item.len);
-            if left_total_bytes != right_total_bytes {
-                ui.label("Data size mismatch");
+            let total_rows = left_symbol_diff.data_rows.len();
+            if total_rows != right_symbol_diff.data_rows.len() {
+                ui.label("Row count mismatch");
                 return;
             }
-            if left_total_bytes == 0 {
+            if total_rows == 0 {
                 return;
             }
-            let total_rows = (left_total_bytes - 1) / BYTES_PER_ROW + 1;
-            let left_diffs = split_diffs(
-                &left_symbol_diff.data_diff,
-                &left_symbol_diff.data_reloc_diff,
-                left_symbol.address as usize,
-            );
-            let right_diffs = split_diffs(
-                &right_symbol_diff.data_diff,
-                &right_symbol_diff.data_reloc_diff,
-                right_symbol.address as usize,
-            );
             render_table(
                 ui,
                 available_width,
@@ -500,15 +487,15 @@ pub fn diff_view_ui(
                 total_rows,
                 |row, column| {
                     let i = row.index();
-                    let row_offset = i * BYTES_PER_ROW;
+                    let row_offset = i as u64 * BYTES_PER_ROW as u64;
                     row.col(|ui| {
                         if column == 0 {
                             data_row_ui(
                                 ui,
                                 Some(left_obj),
-                                left_symbol.address as usize,
+                                left_symbol.address,
                                 row_offset,
-                                &left_diffs[i],
+                                &left_symbol_diff.data_rows[i],
                                 appearance,
                                 column,
                             );
@@ -516,9 +503,9 @@ pub fn diff_view_ui(
                             data_row_ui(
                                 ui,
                                 Some(right_obj),
-                                right_symbol.address as usize,
+                                right_symbol.address,
                                 row_offset,
-                                &right_diffs[i],
+                                &right_symbol_diff.data_rows[i],
                                 appearance,
                                 column,
                             );
@@ -618,17 +605,10 @@ fn diff_col_ui(
                 extab_ui(ui, ctx, appearance, column);
             } else if state.current_view == View::DataDiff {
                 hotkeys::check_scroll_hotkeys(ui, false);
-                let total_bytes =
-                    symbol_diff.data_diff.iter().fold(0usize, |accum, item| accum + item.len);
-                if total_bytes == 0 {
+                let total_rows = symbol_diff.data_rows.len();
+                if total_rows == 0 {
                     return ret;
                 }
-                let total_rows = (total_bytes - 1) / BYTES_PER_ROW + 1;
-                let diffs = split_diffs(
-                    &symbol_diff.data_diff,
-                    &symbol_diff.data_reloc_diff,
-                    symbol.address as usize,
-                );
                 render_table(
                     ui,
                     available_width / 2.0,
@@ -637,14 +617,14 @@ fn diff_col_ui(
                     total_rows,
                     |row, _column| {
                         let i = row.index();
-                        let row_offset = i * BYTES_PER_ROW;
+                        let row_offset = i as u64 * BYTES_PER_ROW as u64;
                         row.col(|ui| {
                             data_row_ui(
                                 ui,
                                 Some(obj),
-                                symbol.address as usize,
+                                symbol.address,
                                 row_offset,
-                                &diffs[i],
+                                &symbol_diff.data_rows[i],
                                 appearance,
                                 column,
                             );
