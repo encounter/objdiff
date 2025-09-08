@@ -26,6 +26,7 @@ expression: sections_display
                 is_mapping_symbol: false,
             },
         ],
+        kind: Common,
     },
     SectionDisplay {
         id: ".ctors-0",
@@ -40,6 +41,7 @@ expression: sections_display
                 is_mapping_symbol: false,
             },
         ],
+        kind: Data,
     },
     SectionDisplay {
         id: ".text-0",
@@ -82,5 +84,6 @@ expression: sections_display
                 is_mapping_symbol: false,
             },
         ],
+        kind: Code,
     },
 ]
