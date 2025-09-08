@@ -304,12 +304,36 @@ impl Arch for ArchX86 {
 
     fn demangle(&self, name: &str) -> Option<String> {
         if name.starts_with('?') {
-            msvc_demangler::demangle(name, msvc_demangler::DemangleFlags::llvm()).ok()
-        } else {
-            cpp_demangle::Symbol::new(name)
-                .ok()
-                .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
+            #[cfg(target_os = "windows")]
+            {
+                use std::ffi::{CString, CStr};
+                use windows_sys::Win32::System::Diagnostics::Debug::UnDecorateSymbolName;
+
+                let cstr = CString::new(name).ok()?;
+                let mut buffer = vec![0u8; 1024];
+
+                unsafe {
+                    let len = UnDecorateSymbolName(
+                        cstr.as_ptr() as *const u8,
+                        buffer.as_mut_ptr(),
+                        buffer.len() as u32,
+                        0, // UNDNAME_COMPLETE
+                    );
+                    if len > 0 {
+                        let result = CStr::from_ptr(buffer.as_ptr() as *const i8)
+                            .to_str()
+                            .ok()?
+                            .to_string();
+                        return Some(result);
+                    }
+                }
+            }
+            return msvc_demangler::demangle(name, msvc_demangler::DemangleFlags::llvm()).ok();
         }
+
+        cpp_demangle::Symbol::new(name)
+            .ok()
+            .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
     }
 
     fn reloc_name(&self, flags: RelocationFlags) -> Option<&'static str> {
