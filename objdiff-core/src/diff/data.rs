@@ -5,7 +5,7 @@ use anyhow::{Result, anyhow};
 use similar::{Algorithm, capture_diff_slices, get_diff_ratio};
 
 use super::{
-    DataDiff, DataDiffKind, DataRelocationDiff, ObjectDiff, SectionDiff, SymbolDiff,
+    DataDiff, DataDiffKind, DataDiffRow, DataRelocationDiff, ObjectDiff, SectionDiff, SymbolDiff,
     code::{address_eq, section_name_eq},
 };
 use crate::obj::{Object, Relocation, ResolvedRelocation, Symbol, SymbolFlag, SymbolKind};
@@ -111,14 +111,12 @@ fn diff_data_range(left_data: &[u8], right_data: &[u8]) -> (f32, Vec<DataDiff>, 
         left_data_diff.push(DataDiff {
             data: left_data[..len.min(left_data.len())].to_vec(),
             kind,
-            len,
-            ..Default::default()
+            size: len,
         });
         right_data_diff.push(DataDiff {
             data: right_data[..len.min(right_data.len())].to_vec(),
             kind,
-            len,
-            ..Default::default()
+            size: len,
         });
         if kind == DataDiffKind::Replace {
             match left_len.cmp(&right_len) {
@@ -127,14 +125,12 @@ fn diff_data_range(left_data: &[u8], right_data: &[u8]) -> (f32, Vec<DataDiff>, 
                     left_data_diff.push(DataDiff {
                         data: vec![],
                         kind: DataDiffKind::Insert,
-                        len,
-                        ..Default::default()
+                        size: len,
                     });
                     right_data_diff.push(DataDiff {
                         data: right_data[left_len..right_len].to_vec(),
                         kind: DataDiffKind::Insert,
-                        len,
-                        ..Default::default()
+                        size: len,
                     });
                 }
                 Ordering::Greater => {
@@ -142,14 +138,12 @@ fn diff_data_range(left_data: &[u8], right_data: &[u8]) -> (f32, Vec<DataDiff>, 
                     left_data_diff.push(DataDiff {
                         data: left_data[right_len..left_len].to_vec(),
                         kind: DataDiffKind::Delete,
-                        len,
-                        ..Default::default()
+                        size: len,
                     });
                     right_data_diff.push(DataDiff {
                         data: vec![],
                         kind: DataDiffKind::Delete,
-                        len,
-                        ..Default::default()
+                        size: len,
                     });
                 }
                 Ordering::Equal => {}
@@ -219,16 +213,17 @@ fn diff_data_relocs_for_range<'left, 'right>(
 
 pub fn no_diff_data_section(obj: &Object, section_idx: usize) -> Result<SectionDiff> {
     let section = &obj.sections[section_idx];
-    let len = section.data.len();
-    let data = &section.data[0..len];
 
-    let data_diff =
-        vec![DataDiff { data: data.to_vec(), kind: DataDiffKind::None, len, ..Default::default() }];
+    let data_diff = vec![DataDiff {
+        data: section.data.0.clone(),
+        kind: DataDiffKind::None,
+        size: section.data.len(),
+    }];
 
     let mut reloc_diffs = Vec::new();
     for reloc in section.relocations.iter() {
         let reloc_len = obj.arch.data_reloc_size(reloc.flags);
-        let range = reloc.address as usize..reloc.address as usize + reloc_len;
+        let range = reloc.address..reloc.address + reloc_len as u64;
         reloc_diffs.push(DataRelocationDiff {
             reloc: reloc.clone(),
             kind: DataDiffKind::None,
@@ -279,8 +274,7 @@ pub fn diff_data_section(
     ) {
         if let Some(left_reloc) = left_reloc {
             let len = left_obj.arch.data_reloc_size(left_reloc.relocation.flags);
-            let range = left_reloc.relocation.address as usize
-                ..left_reloc.relocation.address as usize + len;
+            let range = left_reloc.relocation.address..left_reloc.relocation.address + len as u64;
             left_reloc_diffs.push(DataRelocationDiff {
                 reloc: left_reloc.relocation.clone(),
                 kind: diff_kind,
@@ -289,8 +283,7 @@ pub fn diff_data_section(
         }
         if let Some(right_reloc) = right_reloc {
             let len = right_obj.arch.data_reloc_size(right_reloc.relocation.flags);
-            let range = right_reloc.relocation.address as usize
-                ..right_reloc.relocation.address as usize + len;
+            let range = right_reloc.relocation.address..right_reloc.relocation.address + len as u64;
             right_reloc_diffs.push(DataRelocationDiff {
                 reloc: right_reloc.relocation.clone(),
                 kind: diff_kind,
@@ -345,9 +338,11 @@ pub fn no_diff_data_symbol(obj: &Object, symbol_index: usize) -> Result<SymbolDi
     let range = start as usize..end as usize;
     let data = &section.data[range.clone()];
 
-    let len = symbol.size as usize;
-    let data_diff =
-        vec![DataDiff { data: data.to_vec(), kind: DataDiffKind::None, len, ..Default::default() }];
+    let data_diff = vec![DataDiff {
+        data: data.to_vec(),
+        kind: DataDiffKind::None,
+        size: symbol.size as usize,
+    }];
 
     let mut reloc_diffs = Vec::new();
     for reloc in section.relocations.iter() {
@@ -355,7 +350,7 @@ pub fn no_diff_data_symbol(obj: &Object, symbol_index: usize) -> Result<SymbolDi
             continue;
         }
         let reloc_len = obj.arch.data_reloc_size(reloc.flags);
-        let range = reloc.address as usize..reloc.address as usize + reloc_len;
+        let range = reloc.address..reloc.address + reloc_len as u64;
         reloc_diffs.push(DataRelocationDiff {
             reloc: reloc.clone(),
             kind: DataDiffKind::None,
@@ -363,12 +358,12 @@ pub fn no_diff_data_symbol(obj: &Object, symbol_index: usize) -> Result<SymbolDi
         });
     }
 
+    let data_rows = build_data_diff_rows(&data_diff, &reloc_diffs, symbol.address);
     Ok(SymbolDiff {
         target_symbol: None,
         match_percent: None,
         diff_score: None,
-        data_diff,
-        data_reloc_diff: reloc_diffs,
+        data_rows,
         ..Default::default()
     })
 }
@@ -454,8 +449,8 @@ pub fn diff_data_symbol(
 
             if let Some(left_reloc) = left_reloc {
                 let len = left_obj.arch.data_reloc_size(left_reloc.relocation.flags);
-                let range = left_reloc.relocation.address as usize
-                    ..left_reloc.relocation.address as usize + len;
+                let range =
+                    left_reloc.relocation.address..left_reloc.relocation.address + len as u64;
                 left_reloc_diffs.push(DataRelocationDiff {
                     reloc: left_reloc.relocation.clone(),
                     kind: diff_kind,
@@ -464,8 +459,8 @@ pub fn diff_data_symbol(
             }
             if let Some(right_reloc) = right_reloc {
                 let len = right_obj.arch.data_reloc_size(right_reloc.relocation.flags);
-                let range = right_reloc.relocation.address as usize
-                    ..right_reloc.relocation.address as usize + len;
+                let range =
+                    right_reloc.relocation.address..right_reloc.relocation.address + len as u64;
                 right_reloc_diffs.push(DataRelocationDiff {
                     reloc: right_reloc.relocation.clone(),
                     kind: diff_kind,
@@ -486,23 +481,29 @@ pub fn diff_data_symbol(
         }
     }
 
+    left_reloc_diffs
+        .sort_by(|a, b| a.range.start.cmp(&b.range.start).then(a.range.end.cmp(&b.range.end)));
+    right_reloc_diffs
+        .sort_by(|a, b| a.range.start.cmp(&b.range.start).then(a.range.end.cmp(&b.range.end)));
+
     let match_percent = match_ratio * 100.0;
+    let left_rows = build_data_diff_rows(&left_data_diff, &left_reloc_diffs, left_symbol.address);
+    let right_rows =
+        build_data_diff_rows(&right_data_diff, &right_reloc_diffs, right_symbol.address);
 
     Ok((
         SymbolDiff {
             target_symbol: Some(right_symbol_idx),
             match_percent: Some(match_percent),
             diff_score: None,
-            data_diff: left_data_diff,
-            data_reloc_diff: left_reloc_diffs,
+            data_rows: left_rows,
             ..Default::default()
         },
         SymbolDiff {
             target_symbol: Some(left_symbol_idx),
             match_percent: Some(match_percent),
             diff_score: None,
-            data_diff: right_data_diff,
-            data_reloc_diff: right_reloc_diffs,
+            data_rows: right_rows,
             ..Default::default()
         },
     ))
@@ -592,4 +593,69 @@ fn symbols_matching_section(
             && s.size > 0
             && !s.flags.contains(SymbolFlag::Ignored)
     })
+}
+
+pub const BYTES_PER_ROW: usize = 16;
+
+fn build_data_diff_row(
+    data_diffs: &[DataDiff],
+    reloc_diffs: &[DataRelocationDiff],
+    symbol_address: u64,
+    row_index: usize,
+) -> DataDiffRow {
+    let row_start = row_index * BYTES_PER_ROW;
+    let row_end = row_start + BYTES_PER_ROW;
+    let mut row_diff = DataDiffRow {
+        address: symbol_address + row_start as u64,
+        segments: Vec::new(),
+        relocations: Vec::new(),
+    };
+
+    // Collect all segments that overlap with this row
+    let mut current_offset = 0;
+    for diff in data_diffs {
+        let diff_end = current_offset + diff.size;
+        if current_offset < row_end && diff_end > row_start {
+            let start_in_diff = row_start.saturating_sub(current_offset);
+            let end_in_diff = row_end.min(diff_end) - current_offset;
+            if start_in_diff < end_in_diff {
+                let data_slice = if diff.data.is_empty() {
+                    Vec::new()
+                } else {
+                    diff.data[start_in_diff..end_in_diff.min(diff.data.len())].to_vec()
+                };
+                row_diff.segments.push(DataDiff {
+                    data: data_slice,
+                    kind: diff.kind,
+                    size: end_in_diff - start_in_diff,
+                });
+            }
+        }
+        current_offset = diff_end;
+        if current_offset >= row_start + BYTES_PER_ROW {
+            break;
+        }
+    }
+
+    // Collect all relocations that overlap with this row
+    let row_end_absolute = row_diff.address + BYTES_PER_ROW as u64;
+    row_diff.relocations = reloc_diffs
+        .iter()
+        .filter(|rd| rd.range.start < row_end_absolute && rd.range.end > row_diff.address)
+        .cloned()
+        .collect();
+
+    row_diff
+}
+
+fn build_data_diff_rows(
+    segments: &[DataDiff],
+    relocations: &[DataRelocationDiff],
+    symbol_address: u64,
+) -> Vec<DataDiffRow> {
+    let total_len = segments.iter().map(|s| s.size as u64).sum::<u64>();
+    let num_rows = total_len.div_ceil(BYTES_PER_ROW as u64) as usize;
+    (0..num_rows)
+        .map(|row_index| build_data_diff_row(segments, relocations, symbol_address, row_index))
+        .collect()
 }

@@ -45,8 +45,7 @@ pub struct SymbolDiff {
     pub match_percent: Option<f32>,
     pub diff_score: Option<(u64, u64)>,
     pub instruction_rows: Vec<InstructionDiffRow>,
-    pub data_diff: Vec<DataDiff>,
-    pub data_reloc_diff: Vec<DataRelocationDiff>,
+    pub data_rows: Vec<DataDiffRow>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -83,16 +82,15 @@ pub enum InstructionDiffKind {
 #[derive(Debug, Clone, Default)]
 pub struct DataDiff {
     pub data: Vec<u8>,
+    pub size: usize,
     pub kind: DataDiffKind,
-    pub len: usize,
-    pub symbol: String,
 }
 
 #[derive(Debug, Clone)]
 pub struct DataRelocationDiff {
     pub reloc: Relocation,
+    pub range: Range<u64>,
     pub kind: DataDiffKind,
-    pub range: Range<usize>,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Default)]
@@ -102,6 +100,13 @@ pub enum DataDiffKind {
     Replace,
     Delete,
     Insert,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct DataDiffRow {
+    pub address: u64,
+    pub segments: Vec<DataDiff>,
+    pub relocations: Vec<DataRelocationDiff>,
 }
 
 /// Index of the argument diff for coloring.
