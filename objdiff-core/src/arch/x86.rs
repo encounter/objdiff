@@ -306,7 +306,7 @@ impl Arch for ArchX86 {
         if name.starts_with('?') {
             #[cfg(target_os = "windows")]
             {
-                use std::ffi::{CString, CStr};
+                use std::ffi::{CStr, CString};
                 use windows_sys::Win32::System::Diagnostics::Debug::UnDecorateSymbolName;
 
                 let cstr = CString::new(name).ok()?;
@@ -320,10 +320,8 @@ impl Arch for ArchX86 {
                         0, // UNDNAME_COMPLETE
                     );
                     if len > 0 {
-                        let result = CStr::from_ptr(buffer.as_ptr() as *const i8)
-                            .to_str()
-                            .ok()?
-                            .to_string();
+                        let result =
+                            CStr::from_ptr(buffer.as_ptr() as *const i8).to_str().ok()?.to_string();
                         return Some(result);
                     }
                 }
