@@ -181,7 +181,7 @@ pub fn display_row(
     }
     cb(DiffTextSegment {
         text: DiffText::Address(ins_ref.address.saturating_sub(resolved.symbol.address)),
-        color: base_color,
+        color: DiffTextColor::Dim,
         pad_to: 5,
     })?;
     if let Some(branch) = &ins_row.branch_from {
