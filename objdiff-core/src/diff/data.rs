@@ -67,11 +67,7 @@ fn reloc_eq(
             section_name_eq(left_obj, right_obj, sl, sr)
                 && (symbol_name_addend_matches || address_eq(left, right))
         }
-        (None, Some(_)) => {
-            // Match if possibly stripped weak symbol
-            symbol_name_addend_matches && right.symbol.flags.contains(SymbolFlag::Weak)
-        }
-        (Some(_), None) | (None, None) => symbol_name_addend_matches,
+        (Some(_), None) | (None, Some(_)) | (None, None) => symbol_name_addend_matches,
     }
 }
 
