@@ -1,12 +1,12 @@
 ---
 source: objdiff-core/tests/arch_mips.rs
-assertion_line: 10
+assertion_line: 12
 expression: obj
 ---
 Object {
     arch: ArchMips {
         endianness: Little,
-        abi: N32,
+        abi: EABI64,
         isa_extension: Some(
             R5900EE,
         ),
