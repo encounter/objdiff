@@ -46,8 +46,11 @@ impl ArchMips {
             object::FileFlags::None => {}
             object::FileFlags::Elf { e_flags, .. } => {
                 abi = match e_flags & EF_MIPS_ABI {
-                    elf::EF_MIPS_ABI_O32 | elf::EF_MIPS_ABI_O64 => Abi::O32,
-                    elf::EF_MIPS_ABI_EABI32 | elf::EF_MIPS_ABI_EABI64 => Abi::N32,
+                    elf::EF_MIPS_ABI_O32 => Abi::O32,
+                    elf::EF_MIPS_ABI_O64 if e_flags & elf::EF_MIPS_ABI2 != 0 => Abi::N64,
+                    elf::EF_MIPS_ABI_O64 => Abi::O64,
+                    elf::EF_MIPS_ABI_EABI32 => Abi::EABI32,
+                    elf::EF_MIPS_ABI_EABI64 => Abi::EABI64,
                     _ => {
                         if e_flags & elf::EF_MIPS_ABI2 != 0 {
                             Abi::N32
@@ -170,8 +173,11 @@ impl ArchMips {
         .with_abi(match diff_config.mips_abi {
             MipsAbi::Auto => self.abi,
             MipsAbi::O32 => Abi::O32,
+            MipsAbi::O64 => Abi::O64,
             MipsAbi::N32 => Abi::N32,
             MipsAbi::N64 => Abi::N64,
+            MipsAbi::Eabi32 => Abi::EABI32,
+            MipsAbi::Eabi64 => Abi::EABI64,
         })
     }
 

@@ -159,12 +159,24 @@
           "name": "O32"
         },
         {
+          "value": "o64",
+          "name": "O64"
+        },
+        {
           "value": "n32",
           "name": "N32"
         },
         {
           "value": "n64",
           "name": "N64"
+        },
+        {
+          "value": "eabi32",
+          "name": "eabi32"
+        },
+        {
+          "value": "eabi64",
+          "name": "eabi64"
         }
       ]
     },
