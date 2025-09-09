@@ -14,7 +14,7 @@ use super::{
 };
 use crate::obj::{
     InstructionArg, InstructionArgValue, InstructionRef, Object, ResolvedInstructionRef,
-    ResolvedRelocation, ResolvedSymbol, SymbolFlag, SymbolKind,
+    ResolvedRelocation, ResolvedSymbol, SymbolKind,
 };
 
 pub fn no_diff_code(
@@ -333,11 +333,7 @@ fn reloc_eq(
                     || display_ins_data_literals(left_obj, left_ins)
                         == display_ins_data_literals(right_obj, right_ins))
         }
-        (None, Some(_)) => {
-            // Match if possibly stripped weak symbol
-            symbol_name_addend_matches && right_reloc.symbol.flags.contains(SymbolFlag::Weak)
-        }
-        (Some(_), None) | (None, None) => symbol_name_addend_matches,
+        (Some(_), None) | (None, Some(_)) | (None, None) => symbol_name_addend_matches,
     }
 }
 
