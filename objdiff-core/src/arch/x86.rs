@@ -307,6 +307,7 @@ impl Arch for ArchX86 {
             #[cfg(target_os = "windows")]
             {
                 use std::ffi::{CStr, CString};
+
                 use windows_sys::Win32::System::Diagnostics::Debug::UnDecorateSymbolName;
 
                 let cstr = CString::new(name).ok()?;

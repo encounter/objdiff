@@ -162,7 +162,6 @@ rabbitizer = { version = "2.0.0-alpha.4", default-features = false, features = [
 cpp_demangle = { version = "0.4", default-features = false, features = ["alloc"], optional = true }
 iced-x86 = { version = "1.21", default-features = false, features = ["decoder", "intel", "gas", "masm", "nasm", "exhaustive_enums", "no_std"], optional = true }
 msvc-demangler = { version = "0.11", optional = true }
-windows-sys = { version = "0.59", features = ["Win32_System_Diagnostics_Debug"] }
 
 # arm
 unarm = { version = "1.9", optional = true }
@@ -182,6 +181,7 @@ encoding_rs = { version = "0.8.35", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", optional = true, features = ["winbase"] }
+windows-sys = { version = "0.61", optional = true, features = ["Win32_System_Diagnostics_Debug"] }
 
 # For Linux static binaries, use rustls
 [target.'cfg(target_os = "linux")'.dependencies]
