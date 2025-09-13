@@ -3541,6 +3541,7 @@ dependencies = [
  "typed-path",
  "unarm",
  "winapi",
+ "windows-sys 0.61.0",
  "yaxpeax-arch",
  "yaxpeax-arm",
 ]

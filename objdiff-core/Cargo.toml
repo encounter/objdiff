@@ -181,6 +181,7 @@ encoding_rs = { version = "0.8.35", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", optional = true, features = ["winbase"] }
+windows-sys = { version = "0.61", optional = true, features = ["Win32_System_Diagnostics_Debug"] }
 
 # For Linux static binaries, use rustls
 [target.'cfg(target_os = "linux")'.dependencies]
