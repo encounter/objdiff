@@ -41,7 +41,8 @@ pub mod superh;
 #[cfg(feature = "x86")]
 pub mod x86;
 
-pub const OPCODE_INVALID: u16 = u16::MAX - 1;
+pub const OPCODE_INVALID: u16 = u16::MAX;
+pub const OPCODE_DATA: u16 = u16::MAX - 1;
 
 /// Represents the type of data associated with an instruction
 #[derive(PartialEq)]

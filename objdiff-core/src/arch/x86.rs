@@ -9,7 +9,7 @@ use iced_x86::{
 use object::{Endian as _, Object as _, ObjectSection as _, elf, pe};
 
 use crate::{
-    arch::{Arch, OPCODE_INVALID, RelocationOverride, RelocationOverrideTarget},
+    arch::{Arch, OPCODE_DATA, RelocationOverride, RelocationOverrideTarget},
     diff::{DiffObjConfig, X86Formatter, display::InstructionPart},
     obj::{InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, Section, Symbol},
 };
@@ -119,7 +119,7 @@ impl Arch for ArchX86 {
                             out.push(InstructionRef {
                                 address,
                                 size: size as u8,
-                                opcode: OPCODE_INVALID,
+                                opcode: OPCODE_DATA,
                                 branch_dest: None,
                             });
 
@@ -146,7 +146,7 @@ impl Arch for ArchX86 {
                                     out.push(InstructionRef {
                                         address: indirect_array_address + i as u64,
                                         size: 1,
-                                        opcode: OPCODE_INVALID,
+                                        opcode: OPCODE_DATA,
                                         branch_dest: None,
                                     });
                                 }
@@ -185,14 +185,14 @@ impl Arch for ArchX86 {
         diff_config: &DiffObjConfig,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
-        if resolved.ins_ref.opcode == OPCODE_INVALID {
+        if resolved.ins_ref.opcode == OPCODE_DATA {
             let (mnemonic, imm) = match resolved.ins_ref.size {
                 1 => (".byte", resolved.code[0] as u64),
                 2 => (".word", self.endianness.read_u16_bytes(resolved.code.try_into()?) as u64),
                 4 => (".dword", self.endianness.read_u32_bytes(resolved.code.try_into()?) as u64),
                 _ => bail!("Unsupported x86 inline data size {}", resolved.ins_ref.size),
             };
-            cb(InstructionPart::opcode(mnemonic, OPCODE_INVALID))?;
+            cb(InstructionPart::opcode(mnemonic, OPCODE_DATA))?;
             if resolved.relocation.is_some() {
                 cb(InstructionPart::reloc())?;
             } else {
@@ -834,7 +834,7 @@ mod test {
                 ins_ref: InstructionRef {
                     address: 0x1234,
                     size: 1,
-                    opcode: OPCODE_INVALID,
+                    opcode: OPCODE_DATA,
                     branch_dest: None,
                 },
                 code: &code,
@@ -848,7 +848,7 @@ mod test {
         )
         .unwrap();
         assert_eq!(parts, &[
-            InstructionPart::opcode(".byte", OPCODE_INVALID),
+            InstructionPart::opcode(".byte", OPCODE_DATA),
             InstructionPart::unsigned(0xABu64),
         ]);
     }
