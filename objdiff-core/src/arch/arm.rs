@@ -11,7 +11,7 @@ use object::{Endian as _, Object as _, ObjectSection as _, ObjectSymbol as _, el
 use unarm::{args, arm, thumb};
 
 use crate::{
-    arch::{Arch, RelocationOverride, RelocationOverrideTarget},
+    arch::{Arch, OPCODE_DATA, OPCODE_INVALID, RelocationOverride, RelocationOverrideTarget},
     diff::{ArmArchVersion, ArmR9Usage, DiffObjConfig, display::InstructionPart},
     obj::{
         InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation,
@@ -164,7 +164,7 @@ impl ArchArm {
             }
             _ => bail!("Invalid instruction size {}", ins_ref.size),
         };
-        let (ins, parsed_ins) = if ins_ref.opcode == u16::MAX {
+        let (ins, parsed_ins) = if ins_ref.opcode == OPCODE_DATA {
             let mut args = args::Arguments::default();
             args[0] = args::Argument::UImm(code);
             let mnemonic = if ins_ref.size == 4 { ".word" } else { ".hword" };
@@ -238,7 +238,7 @@ impl Arch for ArchArm {
                 ops.push(InstructionRef {
                     address: address as u64,
                     size: data.len() as u8,
-                    opcode: u16::MAX,
+                    opcode: OPCODE_DATA,
                     branch_dest: None,
                 });
                 break;
@@ -257,7 +257,7 @@ impl Arch for ArchArm {
                     ops.push(InstructionRef {
                         address: address as u64,
                         size: ins_size as u8,
-                        opcode: u16::MAX,
+                        opcode: OPCODE_INVALID,
                         branch_dest: None,
                     });
                     address += ins_size as u32;
@@ -318,7 +318,7 @@ impl Arch for ArchArm {
                     };
                     (opcode, branch_dest)
                 }
-                unarm::ParseMode::Data => (u16::MAX, None),
+                unarm::ParseMode::Data => (OPCODE_DATA, None),
             };
 
             ops.push(InstructionRef {
