@@ -14,7 +14,7 @@ use yaxpeax_arm::armv8::a64::{
 };
 
 use crate::{
-    arch::Arch,
+    arch::{Arch, OPCODE_INVALID},
     diff::{DiffObjConfig, display::InstructionPart},
     obj::{
         InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation,
@@ -60,7 +60,7 @@ impl Arch for ArchArm64 {
                         ops.push(InstructionRef {
                             address,
                             size: 4,
-                            opcode: u16::MAX,
+                            opcode: OPCODE_INVALID,
                             branch_dest: None,
                         });
                         continue;
@@ -87,7 +87,7 @@ impl Arch for ArchArm64 {
         let decoder = InstDecoder::default();
         let mut ins = Instruction::default();
         if decoder.decode_into(&mut ins, &mut reader).is_err() {
-            cb(InstructionPart::opcode("<invalid>", u16::MAX))?;
+            cb(InstructionPart::opcode("<invalid>", OPCODE_INVALID))?;
             return Ok(());
         }
 
@@ -2295,7 +2295,7 @@ where Cb: FnMut(InstructionPart<'static>) {
 // Opcode is #[repr(u16)], but the tuple variants negate that, so we have to do this instead.
 const fn opcode_to_u16(opcode: Opcode) -> u16 {
     match opcode {
-        Opcode::Invalid => u16::MAX,
+        Opcode::Invalid => OPCODE_INVALID,
         Opcode::UDF => 0,
         Opcode::MOVN => 1,
         Opcode::MOVK => 2,
