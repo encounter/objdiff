@@ -305,10 +305,14 @@ impl Arch for ArchMips {
     }
 
     fn demangle(&self, name: &str) -> Option<String> {
-        cpp_demangle::Symbol::new(name)
+        gnuv2_demangle::demangle(name, &gnuv2_demangle::DemangleConfig::new_no_cfilt_mimics())
             .ok()
-            .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
-            .or_else(|| cwdemangle::demangle(name, &cwdemangle::DemangleOptions::default()))
+            .or_else(|| {
+                cpp_demangle::Symbol::new(name)
+                    .ok()
+                    .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
+                    .or_else(|| cwdemangle::demangle(name, &cwdemangle::DemangleOptions::default()))
+            })
     }
 
     fn reloc_name(&self, flags: RelocationFlags) -> Option<&'static str> {
