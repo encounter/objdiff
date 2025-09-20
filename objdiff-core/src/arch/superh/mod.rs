@@ -1,4 +1,4 @@
-use alloc::{collections::BTreeMap, format, vec::Vec};
+use alloc::{collections::BTreeMap, format, vec, vec::Vec};
 
 use anyhow::Result;
 use object::elf;

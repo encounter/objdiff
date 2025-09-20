@@ -20,7 +20,7 @@ use objdiff_core::{
         default_ignore_patterns, default_watch_patterns, path::platform_path_serde_option,
         save_project_config,
     },
-    diff::{Demangler, DiffObjConfig},
+    diff::DiffObjConfig,
     jobs::{Job, JobQueue, JobResult},
 };
 use time::UtcOffset;

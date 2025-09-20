@@ -1,3 +1,5 @@
+use alloc::string::String;
+
 use crate::diff::Demangler;
 
 #[cfg(feature = "demangler")]
