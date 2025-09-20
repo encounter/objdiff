@@ -20,7 +20,7 @@ use objdiff_core::{
         default_ignore_patterns, default_watch_patterns, path::platform_path_serde_option,
         save_project_config,
     },
-    diff::DiffObjConfig,
+    diff::{Demangler, DiffObjConfig},
     jobs::{Job, JobQueue, JobResult},
 };
 use time::UtcOffset;
@@ -811,7 +811,9 @@ impl eframe::App for App {
 
         project_window(ctx, state, show_project_config, config_state, appearance);
         appearance_window(ctx, show_appearance_config, appearance);
-        demangle_window(ctx, show_demangle, demangle_state, appearance);
+        let demangler =
+            state.read().map(|state| state.config.diff_obj_config.demangler).unwrap_or_default();
+        demangle_window(ctx, show_demangle, demangle_state, appearance, demangler);
         rlwinm_decode_window(ctx, show_rlwinm_decode, rlwinm_decode_state, appearance);
         arch_config_window(ctx, state, show_arch_config, appearance);
         debug_window(ctx, show_debug, frame_history, appearance);
