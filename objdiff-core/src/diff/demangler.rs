@@ -8,7 +8,7 @@ impl Demangler {
         match self {
             Demangler::Codewarrior => Self::demangle_codewarrior(name),
             Demangler::Msvc => Self::demangle_msvc(name),
-            Demangler::GnuModern => Self::demangle_gnu_modern(name),
+            Demangler::Itanium => Self::demangle_itanium(name),
             Demangler::GnuV2 => Self::demangle_gnu_v2(name),
             Demangler::Auto => {
                 // Try to guess
@@ -17,7 +17,7 @@ impl Demangler {
                 } else {
                     Self::demangle_codewarrior(name)
                         .or_else(|| Self::demangle_gnu_v2(name))
-                        .or_else(|| Self::demangle_gnu_modern(name))
+                        .or_else(|| Self::demangle_itanium(name))
                 }
             }
         }
@@ -31,7 +31,7 @@ impl Demangler {
         msvc_demangler::demangle(name, msvc_demangler::DemangleFlags::llvm()).ok()
     }
 
-    fn demangle_gnu_modern(name: &str) -> Option<String> {
+    fn demangle_itanium(name: &str) -> Option<String> {
         cpp_demangle::Symbol::new(name)
             .ok()
             .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
