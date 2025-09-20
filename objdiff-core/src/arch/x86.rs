@@ -307,6 +307,13 @@ impl Arch for ArchX86 {
             cpp_demangle::Symbol::new(name)
                 .ok()
                 .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
+                .or_else(|| {
+                    gnuv2_demangle::demangle(
+                        name,
+                        &gnuv2_demangle::DemangleConfig::new_no_cfilt_mimics(),
+                    )
+                    .ok()
+                })
         }
     }
 

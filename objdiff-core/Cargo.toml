@@ -105,6 +105,7 @@ x86 = [
     "dep:cpp_demangle",
     "dep:iced-x86",
     "dep:msvc-demangler",
+    "dep:gnuv2_demangle",
 ]
 arm = [
     "any-arch",
