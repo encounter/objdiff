@@ -26,6 +26,37 @@
       ]
     },
     {
+      "id": "demangler",
+      "type": "choice",
+      "default": "auto",
+      "name": "Demangler",
+      "description": "Which demangler should be used to demangle each symbol.",
+      "items": [
+        {
+          "value": "auto",
+          "name": "Auto",
+          "description": "Try to automatically guess the mangling format."
+        },
+        {
+          "value": "codewarrior",
+          "name": "CodeWarrior"
+        },
+        {
+          "value": "msvc",
+          "name": "MSVC"
+        },
+        {
+          "value": "gnu_modern",
+          "name": "GNU g++ (Itanium)"
+        },
+        {
+          "value": "gnu_v2",
+          "name": "GNU g++ (V2)",
+          "description": "Use the old GNU mangling ABI. Used up to g++ 2.9.x"
+        }
+      ]
+    },
+    {
       "id": "analyzeDataFlow",
       "type": "boolean",
       "default": false,
@@ -259,6 +290,7 @@
       "name": "General",
       "properties": [
         "functionRelocDiffs",
+        "demangler",
         "spaceBetweenArgs",
         "combineDataSections",
         "combineTextSections"

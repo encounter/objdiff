@@ -1,6 +1,6 @@
 use alloc::{
     collections::{BTreeMap, BTreeSet},
-    string::{String, ToString},
+    string::ToString,
     vec::Vec,
 };
 
@@ -302,17 +302,6 @@ impl Arch for ArchMips {
             }
             _ => Ok(None),
         }
-    }
-
-    fn demangle(&self, name: &str) -> Option<String> {
-        gnuv2_demangle::demangle(name, &gnuv2_demangle::DemangleConfig::new_no_cfilt_mimics())
-            .ok()
-            .or_else(|| {
-                cpp_demangle::Symbol::new(name)
-                    .ok()
-                    .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
-                    .or_else(|| cwdemangle::demangle(name, &cwdemangle::DemangleOptions::default()))
-            })
     }
 
     fn reloc_name(&self, flags: RelocationFlags) -> Option<&'static str> {

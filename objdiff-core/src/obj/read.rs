@@ -41,6 +41,7 @@ fn map_symbol(
     symbol: &object::Symbol,
     section_indices: &[usize],
     split_meta: Option<&SplitMeta>,
+    config: &DiffObjConfig,
 ) -> Result<Symbol> {
     let mut name = symbol.name().context("Failed to process symbol name")?.to_string();
     let mut size = symbol.size();
@@ -90,7 +91,7 @@ fn map_symbol(
         _ => SymbolKind::Unknown,
     };
     let address = arch.symbol_address(symbol.address(), kind);
-    let demangled_name = arch.demangle(&name);
+    let demangled_name = config.demangler.demangle(&name);
     // Find the virtual address for the symbol if available
     let virtual_address = split_meta
         .and_then(|m| m.virtual_addresses.as_ref())
@@ -116,6 +117,7 @@ fn map_symbols(
     sections: &[Section],
     section_indices: &[usize],
     split_meta: Option<&SplitMeta>,
+    config: &DiffObjConfig,
 ) -> Result<(Vec<Symbol>, Vec<usize>)> {
     let symbol_count = obj_file.symbols().count();
     let mut symbols = Vec::<Symbol>::with_capacity(symbol_count + obj_file.sections().count());
@@ -124,7 +126,7 @@ fn map_symbols(
         if symbol_indices.len() <= obj_symbol.index().0 {
             symbol_indices.resize(obj_symbol.index().0 + 1, usize::MAX);
         }
-        let symbol = map_symbol(arch, obj_file, &obj_symbol, section_indices, split_meta)?;
+        let symbol = map_symbol(arch, obj_file, &obj_symbol, section_indices, split_meta, config)?;
         symbol_indices[obj_symbol.index().0] = symbols.len();
         symbols.push(symbol);
     }
@@ -997,8 +999,14 @@ pub fn parse(data: &[u8], config: &DiffObjConfig, diff_side: DiffSide) -> Result
     let split_meta = parse_split_meta(&obj_file)?;
     let (mut sections, section_indices) =
         map_sections(arch.as_ref(), &obj_file, split_meta.as_ref())?;
-    let (mut symbols, symbol_indices) =
-        map_symbols(arch.as_ref(), &obj_file, &sections, &section_indices, split_meta.as_ref())?;
+    let (mut symbols, symbol_indices) = map_symbols(
+        arch.as_ref(),
+        &obj_file,
+        &sections,
+        &section_indices,
+        split_meta.as_ref(),
+        config,
+    )?;
     map_relocations(arch.as_ref(), &obj_file, &mut sections, &section_indices, &symbol_indices)?;
     parse_line_info(&obj_file, &mut sections, &section_indices, data)?;
     if config.combine_data_sections || config.combine_text_sections {

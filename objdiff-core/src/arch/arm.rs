@@ -1,9 +1,4 @@
-use alloc::{
-    collections::BTreeMap,
-    format,
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{collections::BTreeMap, format, string::ToString, vec::Vec};
 
 use anyhow::{Result, bail};
 use arm_attr::{BuildAttrs, enums::CpuArch, tag::Tag};
@@ -407,12 +402,6 @@ impl Arch for ArchArm {
             }
             _ => Ok(None),
         }
-    }
-
-    fn demangle(&self, name: &str) -> Option<String> {
-        cpp_demangle::Symbol::new(name)
-            .ok()
-            .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
     }
 
     fn reloc_name(&self, flags: RelocationFlags) -> Option<&'static str> {

@@ -41,7 +41,8 @@ any-arch = [
     "dep:regex",
     "dep:similar",
     "dep:syn",
-    "dep:encoding_rs"
+    "dep:encoding_rs",
+    "demangler",
 ]
 bindings = [
     "dep:prost",
@@ -88,39 +89,36 @@ std = [
 ]
 mips = [
     "any-arch",
-    "dep:cpp_demangle",
-    "dep:cwdemangle",
     "dep:rabbitizer",
-    "dep:gnuv2_demangle",
 ]
 ppc = [
     "any-arch",
-    "dep:cwdemangle",
     "dep:cwextab",
     "dep:powerpc",
     "dep:rlwinmdec",
 ]
 x86 = [
     "any-arch",
-    "dep:cpp_demangle",
     "dep:iced-x86",
-    "dep:msvc-demangler",
-    "dep:gnuv2_demangle",
 ]
 arm = [
     "any-arch",
     "dep:arm-attr",
-    "dep:cpp_demangle",
     "dep:unarm",
 ]
 arm64 = [
     "any-arch",
-    "dep:cpp_demangle",
     "dep:yaxpeax-arch",
     "dep:yaxpeax-arm",
 ]
 superh = [
     "any-arch",
+]
+demangler = [
+    "dep:cpp_demangle",
+    "dep:cwdemangle",
+    "dep:gnuv2_demangle",
+    "dep:msvc-demangler",
 ]
 
 [package.metadata.docs.rs]
