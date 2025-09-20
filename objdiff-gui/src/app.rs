@@ -811,9 +811,7 @@ impl eframe::App for App {
 
         project_window(ctx, state, show_project_config, config_state, appearance);
         appearance_window(ctx, show_appearance_config, appearance);
-        let demangler =
-            state.read().map(|state| state.config.diff_obj_config.demangler).unwrap_or_default();
-        demangle_window(ctx, show_demangle, demangle_state, appearance, demangler);
+        demangle_window(ctx, show_demangle, demangle_state, appearance);
         rlwinm_decode_window(ctx, show_rlwinm_decode, rlwinm_decode_state, appearance);
         arch_config_window(ctx, state, show_arch_config, appearance);
         debug_window(ctx, show_debug, frame_history, appearance);

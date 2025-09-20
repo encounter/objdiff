@@ -1,11 +1,12 @@
 use egui::TextStyle;
-use objdiff_core::diff::Demangler;
+use objdiff_core::diff::{ConfigEnum, Demangler};
 
 use crate::views::appearance::Appearance;
 
 #[derive(Default)]
 pub struct DemangleViewState {
     pub text: String,
+    pub demangler: Demangler,
 }
 
 pub fn demangle_window(
@@ -13,12 +14,19 @@ pub fn demangle_window(
     show: &mut bool,
     state: &mut DemangleViewState,
     appearance: &Appearance,
-    demangler: Demangler,
 ) {
     egui::Window::new("Demangle").open(show).show(ctx, |ui| {
+        egui::ComboBox::from_label("Demangler")
+            .selected_text(state.demangler.name().to_string())
+            .show_ui(ui, |ui| {
+                for demangler in Demangler::variants() {
+                    ui.selectable_value(&mut state.demangler, *demangler, demangler.name());
+                }
+            });
+        ui.separator();
         ui.text_edit_singleline(&mut state.text);
         ui.add_space(10.0);
-        if let Some(demangled) = demangler.demangle(&state.text) {
+        if let Some(demangled) = state.demangler.demangle(&state.text) {
             ui.scope(|ui| {
                 ui.style_mut().override_text_style = Some(TextStyle::Monospace);
                 ui.colored_label(appearance.replace_color, &demangled);
