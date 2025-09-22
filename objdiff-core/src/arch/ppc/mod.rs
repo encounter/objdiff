@@ -308,18 +308,6 @@ impl Arch for ArchPpc {
         }
     }
 
-    fn demangle(&self, mut name: &str) -> Option<String> {
-        if name.starts_with('?') {
-            msvc_demangler::demangle(name, msvc_demangler::DemangleFlags::llvm()).ok()
-        } else {
-            name = name.trim_start_matches('.');
-            cpp_demangle::Symbol::new(name)
-                .ok()
-                .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
-                .or_else(|| cwdemangle::demangle(name, &cwdemangle::DemangleOptions::default()))
-        }
-    }
-
     fn reloc_name(&self, flags: RelocationFlags) -> Option<&'static str> {
         match flags {
             RelocationFlags::Elf(r_type) => match r_type {

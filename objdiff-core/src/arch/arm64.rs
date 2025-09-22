@@ -1,8 +1,4 @@
-use alloc::{
-    format,
-    string::{String, ToString},
-    vec::Vec,
-};
+use alloc::{format, string::ToString, vec::Vec};
 use core::cmp::Ordering;
 
 use anyhow::Result;
@@ -106,12 +102,6 @@ impl Arch for ArchArm64 {
             cb(arg)?;
         }
         Ok(())
-    }
-
-    fn demangle(&self, name: &str) -> Option<String> {
-        cpp_demangle::Symbol::new(name)
-            .ok()
-            .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
     }
 
     fn reloc_name(&self, flags: RelocationFlags) -> Option<&'static str> {

@@ -371,8 +371,6 @@ pub trait Arch: Any + Debug + Send + Sync {
         Ok(None)
     }
 
-    fn demangle(&self, _name: &str) -> Option<String> { None }
-
     fn reloc_name(&self, _flags: RelocationFlags) -> Option<&'static str> { None }
 
     fn data_reloc_size(&self, flags: RelocationFlags) -> usize;

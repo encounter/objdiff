@@ -22,6 +22,7 @@ use crate::{
 
 pub mod code;
 pub mod data;
+pub mod demangler;
 pub mod display;
 
 include!(concat!(env!("OUT_DIR"), "/config.gen.rs"));

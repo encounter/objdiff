@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, string::String, vec::Vec};
+use alloc::{boxed::Box, format, vec::Vec};
 use core::cmp::Ordering;
 
 use anyhow::{Context, Result, anyhow, bail};
@@ -298,16 +298,6 @@ impl Arch for ArchX86 {
             },
         };
         Ok(Some(RelocationOverride { target: RelocationOverrideTarget::Keep, addend }))
-    }
-
-    fn demangle(&self, name: &str) -> Option<String> {
-        if name.starts_with('?') {
-            msvc_demangler::demangle(name, msvc_demangler::DemangleFlags::llvm()).ok()
-        } else {
-            cpp_demangle::Symbol::new(name)
-                .ok()
-                .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
-        }
     }
 
     fn reloc_name(&self, flags: RelocationFlags) -> Option<&'static str> {

@@ -41,7 +41,8 @@ any-arch = [
     "dep:regex",
     "dep:similar",
     "dep:syn",
-    "dep:encoding_rs"
+    "dep:encoding_rs",
+    "demangler",
 ]
 bindings = [
     "dep:prost",
@@ -88,37 +89,36 @@ std = [
 ]
 mips = [
     "any-arch",
-    "dep:cpp_demangle",
-    "dep:cwdemangle",
     "dep:rabbitizer",
 ]
 ppc = [
     "any-arch",
-    "dep:cwdemangle",
     "dep:cwextab",
     "dep:powerpc",
     "dep:rlwinmdec",
 ]
 x86 = [
     "any-arch",
-    "dep:cpp_demangle",
     "dep:iced-x86",
-    "dep:msvc-demangler",
 ]
 arm = [
     "any-arch",
     "dep:arm-attr",
-    "dep:cpp_demangle",
     "dep:unarm",
 ]
 arm64 = [
     "any-arch",
-    "dep:cpp_demangle",
     "dep:yaxpeax-arch",
     "dep:yaxpeax-arm",
 ]
 superh = [
     "any-arch",
+]
+demangler = [
+    "dep:cpp_demangle",
+    "dep:cwdemangle",
+    "dep:gnuv2_demangle",
+    "dep:msvc-demangler",
 ]
 
 [package.metadata.docs.rs]
@@ -150,7 +150,6 @@ gimli = { git = "https://github.com/gimli-rs/gimli", rev = "7335f00e7c39fd501511
 typed-arena = { version = "2.0", default-features = false, optional = true }
 
 # ppc
-cwdemangle = { version = "1.0", optional = true }
 cwextab = { version = "1.1", optional = true }
 powerpc = { version = "0.4", optional = true }
 rlwinmdec = { version = "1.1", optional = true }
@@ -159,9 +158,7 @@ rlwinmdec = { version = "1.1", optional = true }
 rabbitizer = { version = "2.0.0-alpha.4", default-features = false, features = ["all_extensions"], optional = true }
 
 # x86
-cpp_demangle = { version = "0.4", default-features = false, features = ["alloc"], optional = true }
 iced-x86 = { version = "1.21", default-features = false, features = ["decoder", "intel", "gas", "masm", "nasm", "exhaustive_enums", "no_std"], optional = true }
-msvc-demangler = { version = "0.11", optional = true }
 
 # arm
 unarm = { version = "1.9", optional = true }
@@ -178,6 +175,12 @@ shell-escape = { version = "0.1", optional = true }
 tempfile = { version = "3.20", optional = true }
 time = { version = "0.3", optional = true }
 encoding_rs = { version = "0.8.35", optional = true }
+
+# demangler
+cpp_demangle = { version = "0.4", optional = true, default-features = false, features = ["alloc"] }
+cwdemangle = { version = "1.0", optional = true }
+gnuv2_demangle = { version = "0.1.0", optional = true }
+msvc-demangler = { version = "0.11", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", optional = true, features = ["winbase"] }
