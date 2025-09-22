@@ -9,14 +9,14 @@ impl Demangler {
             Demangler::Codewarrior => Self::demangle_codewarrior(name),
             Demangler::Msvc => Self::demangle_msvc(name),
             Demangler::Itanium => Self::demangle_itanium(name),
-            Demangler::GnuV2 => Self::demangle_gnu_v2(name),
+            Demangler::GnuLegacy => Self::demangle_gnu_legacy(name),
             Demangler::Auto => {
                 // Try to guess
                 if name.starts_with('?') {
                     Self::demangle_msvc(name)
                 } else {
                     Self::demangle_codewarrior(name)
-                        .or_else(|| Self::demangle_gnu_v2(name))
+                        .or_else(|| Self::demangle_gnu_legacy(name))
                         .or_else(|| Self::demangle_itanium(name))
                 }
             }
@@ -32,12 +32,14 @@ impl Demangler {
     }
 
     fn demangle_itanium(name: &str) -> Option<String> {
+        let name = name.trim_start_matches('.');
         cpp_demangle::Symbol::new(name)
             .ok()
             .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
     }
 
-    fn demangle_gnu_v2(name: &str) -> Option<String> {
+    fn demangle_gnu_legacy(name: &str) -> Option<String> {
+        let name = name.trim_start_matches('.');
         gnuv2_demangle::demangle(name, &gnuv2_demangle::DemangleConfig::new_no_cfilt_mimics()).ok()
     }
 }

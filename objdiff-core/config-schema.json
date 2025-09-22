@@ -50,8 +50,8 @@
           "name": "Itanium"
         },
         {
-          "value": "gnu_v2",
-          "name": "GNU g++ (V2)",
+          "value": "gnu_legacy",
+          "name": "GNU g++ (Legacy)",
           "description": "Use the old GNU mangling ABI. Used up to g++ 2.9.x"
         }
       ]
