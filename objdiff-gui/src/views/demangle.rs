@@ -20,7 +20,9 @@ pub fn demangle_window(
             .selected_text(state.demangler.name().to_string())
             .show_ui(ui, |ui| {
                 for demangler in Demangler::variants() {
-                    ui.selectable_value(&mut state.demangler, *demangler, demangler.name());
+                    if *demangler != Demangler::None {
+                        ui.selectable_value(&mut state.demangler, *demangler, demangler.name());
+                    }
                 }
             });
         ui.separator();

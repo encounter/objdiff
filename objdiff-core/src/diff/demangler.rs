@@ -6,6 +6,7 @@ use crate::diff::Demangler;
 impl Demangler {
     pub fn demangle(&self, name: &str) -> Option<String> {
         match self {
+            Demangler::None => None,
             Demangler::Codewarrior => Self::demangle_codewarrior(name),
             Demangler::Msvc => Self::demangle_msvc(name),
             Demangler::Itanium => Self::demangle_itanium(name),

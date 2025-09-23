@@ -38,16 +38,21 @@
           "description": "Try to automatically guess the mangling format."
         },
         {
+          "value": "none",
+          "name": "None",
+          "description": "Disable demangling."
+        },
+        {
           "value": "codewarrior",
           "name": "CodeWarrior"
         },
         {
-          "value": "msvc",
-          "name": "MSVC"
-        },
-        {
           "value": "itanium",
           "name": "Itanium"
+        },
+        {
+          "value": "msvc",
+          "name": "MSVC"
         },
         {
           "value": "gnu_legacy",
@@ -312,26 +317,17 @@
     {
       "id": "mips",
       "name": "MIPS",
-      "properties": [
-        "mips.abi",
-        "mips.instrCategory",
-        "mips.registerPrefix"
-      ]
+      "properties": ["mips.abi", "mips.instrCategory", "mips.registerPrefix"]
     },
     {
       "id": "ppc",
       "name": "PowerPC",
-      "properties": [
-        "ppc.calculatePoolRelocations",
-        "analyzeDataFlow"
-      ]
+      "properties": ["ppc.calculatePoolRelocations", "analyzeDataFlow"]
     },
     {
       "id": "x86",
       "name": "x86",
-      "properties": [
-        "x86.formatter"
-      ]
+      "properties": ["x86.formatter"]
     }
   ]
 }
