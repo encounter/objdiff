@@ -24,7 +24,8 @@ use objdiff_core::{
         watcher::{Watcher, create_watcher},
     },
     config::{
-        ProjectConfig, ProjectObject, ProjectObjectMetadata, build_globset,
+        ProjectConfig, ProjectObject, ProjectObjectMetadata, ProjectOptions, apply_project_options,
+        build_globset,
         path::{check_path_buf, platform_path, platform_path_serde_option},
     },
     diff::{DiffObjConfig, MappingConfig, ObjectDiff},
@@ -77,11 +78,11 @@ pub struct Args {
 }
 
 pub fn run(args: Args) -> Result<()> {
-    let (target_path, base_path, project_config) =
+    let (target_path, base_path, project_config, unit_options) =
         match (&args.target, &args.base, &args.project, &args.unit) {
             (Some(_), Some(_), None, None)
             | (Some(_), None, None, None)
-            | (None, Some(_), None, None) => (args.target.clone(), args.base.clone(), None),
+            | (None, Some(_), None, None) => (args.target.clone(), args.base.clone(), None, None),
             (None, None, p, u) => {
                 let project = match p {
                     Some(project) => project.clone(),
@@ -106,28 +107,32 @@ pub fn run(args: Args) -> Result<()> {
                     .base_dir
                     .as_ref()
                     .map(|p| project.join(p.with_platform_encoding()));
-                let objects = project_config
-                    .units
+                let units = project_config.units.as_deref().unwrap_or_default();
+                let objects = units
                     .iter()
-                    .flatten()
-                    .map(|o| {
-                        ObjectConfig::new(
-                            o,
-                            &project,
-                            target_obj_dir.as_deref(),
-                            base_obj_dir.as_deref(),
+                    .enumerate()
+                    .map(|(idx, o)| {
+                        (
+                            ObjectConfig::new(
+                                o,
+                                &project,
+                                target_obj_dir.as_deref(),
+                                base_obj_dir.as_deref(),
+                            ),
+                            idx,
                         )
                     })
                     .collect::<Vec<_>>();
-                let object = if let Some(u) = u {
+                let (object, unit_idx) = if let Some(u) = u {
                     objects
                         .iter()
-                        .find(|obj| obj.name == *u)
+                        .find(|(obj, _)| obj.name == *u)
+                        .map(|(obj, idx)| (obj, *idx))
                         .ok_or_else(|| anyhow!("Unit not found: {}", u))?
                 } else if let Some(symbol_name) = &args.symbol {
                     let mut idx = None;
                     let mut count = 0usize;
-                    for (i, obj) in objects.iter().enumerate() {
+                    for (i, (obj, unit_idx)) in objects.iter().enumerate() {
                         if obj
                             .target_path
                             .as_deref()
@@ -135,7 +140,7 @@ pub fn run(args: Args) -> Result<()> {
                             .transpose()?
                             .unwrap_or(false)
                         {
-                            idx = Some(i);
+                            idx = Some((i, *unit_idx));
                             count += 1;
                             if count > 1 {
                                 break;
@@ -144,7 +149,7 @@ pub fn run(args: Args) -> Result<()> {
                     }
                     match (count, idx) {
                         (0, None) => bail!("Symbol not found: {}", symbol_name),
-                        (1, Some(i)) => &objects[i],
+                        (1, Some((i, unit_idx))) => (&objects[i].0, unit_idx),
                         (2.., Some(_)) => bail!(
                             "Multiple instances of {} were found, try specifying a unit",
                             symbol_name
@@ -154,18 +159,29 @@ pub fn run(args: Args) -> Result<()> {
                 } else {
                     bail!("Must specify one of: symbol, project and unit, target and base objects")
                 };
+                let unit_options = units.get(unit_idx).and_then(|u| u.options().cloned());
                 let target_path = object.target_path.clone();
                 let base_path = object.base_path.clone();
-                (target_path, base_path, Some(project_config))
+                (target_path, base_path, Some(project_config), unit_options)
             }
             _ => bail!("Either target and base or project and unit must be specified"),
         };
 
-    run_interactive(args, target_path, base_path, project_config)
+    run_interactive(args, target_path, base_path, project_config, unit_options)
 }
 
-fn build_config_from_args(args: &Args) -> Result<(DiffObjConfig, MappingConfig)> {
+fn build_config_from_args(
+    args: &Args,
+    project_config: Option<&ProjectConfig>,
+    unit_options: Option<&ProjectOptions>,
+) -> Result<(DiffObjConfig, MappingConfig)> {
     let mut diff_config = DiffObjConfig::default();
+    if let Some(options) = project_config.and_then(|config| config.options.as_ref()) {
+        apply_project_options(&mut diff_config, options)?;
+    }
+    if let Some(options) = unit_options {
+        apply_project_options(&mut diff_config, options)?;
+    }
     apply_config_args(&mut diff_config, &args.config)?;
     let mut mapping_config = MappingConfig {
         mappings: Default::default(),
@@ -316,11 +332,13 @@ fn run_interactive(
     target_path: Option<Utf8PlatformPathBuf>,
     base_path: Option<Utf8PlatformPathBuf>,
     project_config: Option<ProjectConfig>,
+    unit_options: Option<ProjectOptions>,
 ) -> Result<()> {
     let Some(symbol_name) = &args.symbol else { bail!("Interactive mode requires a symbol name") };
     let time_format = time::format_description::parse_borrowed::<2>("[hour]:[minute]:[second]")
         .context("Failed to parse time format")?;
-    let (diff_obj_config, mapping_config) = build_config_from_args(&args)?;
+    let (diff_obj_config, mapping_config) =
+        build_config_from_args(&args, project_config.as_ref(), unit_options.as_ref())?;
     let mut state = AppState {
         jobs: Default::default(),
         waker: Default::default(),

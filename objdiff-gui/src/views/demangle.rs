@@ -21,7 +21,11 @@ pub fn demangle_window(
             .show_ui(ui, |ui| {
                 for demangler in Demangler::variants() {
                     if *demangler != Demangler::None {
-                        ui.selectable_value(&mut state.demangler, *demangler, demangler.name());
+                        let response =
+                            ui.selectable_value(&mut state.demangler, *demangler, demangler.name());
+                        if let Some(description) = demangler.description() {
+                            response.on_hover_text(description);
+                        }
                     }
                 }
             });

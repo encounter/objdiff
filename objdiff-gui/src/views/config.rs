@@ -519,8 +519,7 @@ fn format_path(path: &Option<Utf8PlatformPathBuf>, appearance: &Appearance) -> R
     RichText::new(text).color(color).family(FontFamily::Monospace)
 }
 
-pub const CONFIG_DISABLED_TEXT: &str =
-    "Option disabled because it's set by the project configuration file.";
+pub const CONFIG_DISABLED_TEXT: &str = "Value is overridden by the project configuration.";
 
 fn pick_folder_ui(
     ui: &mut egui::Ui,
@@ -533,8 +532,13 @@ fn pick_folder_ui(
     let response = ui.horizontal(|ui| {
         subheading(ui, label, appearance);
         ui.link(HELP_ICON).on_hover_ui(tooltip);
-        ui.add_enabled(enabled, egui::Button::new("Select"))
-            .on_disabled_hover_text(CONFIG_DISABLED_TEXT)
+        let button = ui
+            .add_enabled(enabled, egui::Button::new("Select"))
+            .on_disabled_hover_text(CONFIG_DISABLED_TEXT);
+        if !enabled {
+            project_override_badge(ui).on_hover_text(CONFIG_DISABLED_TEXT);
+        }
+        button
     });
     ui.label(format_path(dir, appearance));
     response.inner
@@ -552,17 +556,6 @@ pub fn project_window(
     egui::Window::new("Project").open(show).show(ctx, |ui| {
         split_obj_config_ui(ui, &mut state_guard, config_state, appearance);
     });
-
-    if let Some(error) = &state_guard.config_error {
-        let mut open = true;
-        egui::Window::new("Error").open(&mut open).show(ctx, |ui| {
-            ui.label("Failed to load project config:");
-            ui.colored_label(appearance.delete_color, error);
-        });
-        if !open {
-            state_guard.config_error = None;
-        }
-    }
 }
 
 fn split_obj_config_ui(
@@ -623,6 +616,9 @@ fn split_obj_config_ui(
             job.append(".", 0.0, text_format.clone());
             ui.label(job);
         });
+        if state.project_config_info.is_some() {
+            project_override_badge(ui).on_hover_text(CONFIG_DISABLED_TEXT);
+        }
     });
     let mut custom_make_str = state.config.custom_make.clone().unwrap_or_default();
     if ui
@@ -831,6 +827,9 @@ fn patterns_ui(
             *patterns = on_reset();
             change = true;
         }
+        if has_project_config {
+            project_override_badge(ui).on_hover_text(CONFIG_DISABLED_TEXT);
+        }
     });
     let mut remove_at: Option<usize> = None;
     for (idx, glob) in patterns.iter().enumerate() {
@@ -885,20 +884,64 @@ pub fn arch_config_window(
     });
 }
 
+fn project_override_badge(ui: &mut egui::Ui) -> egui::Response {
+    ui.add(egui::Label::new(RichText::new("⛭").color(ui.visuals().warn_fg_color)).selectable(false))
+}
+
 fn config_property_ui(
     ui: &mut egui::Ui,
     state: &mut AppState,
     property_id: ConfigPropertyId,
 ) -> bool {
     let mut changed = false;
-    let current_value = state.config.diff_obj_config.get_property_value(property_id);
-    match (property_id.kind(), current_value) {
-        (ConfigPropertyKind::Boolean, ConfigPropertyValue::Boolean(mut checked)) => {
-            let mut response = ui.checkbox(&mut checked, property_id.name());
-            if let Some(description) = property_id.description() {
-                response = response.on_hover_text(description);
-            }
-            if response.changed() {
+    let is_overridden = state.current_project_config.as_ref().is_some_and(|config| {
+        let key = property_id.name();
+        if let Some(selected) = state.config.selected_obj.as_ref()
+            && let Some(units) = config.units.as_deref()
+            && let Some(unit) = units.iter().find(|unit| unit.name() == selected.name)
+            && let Some(options) = unit.options()
+            && options.contains_key(key)
+        {
+            return true;
+        }
+        if let Some(options) = config.options.as_ref()
+            && options.contains_key(key)
+        {
+            return true;
+        }
+        false
+    });
+    let override_value =
+        is_overridden.then(|| state.effective_diff_config().get_property_value(property_id));
+    let base_value = state.config.diff_obj_config.get_property_value(property_id);
+    match (property_id.kind(), base_value, override_value) {
+        (
+            ConfigPropertyKind::Boolean,
+            ConfigPropertyValue::Boolean(base_checked),
+            override_value,
+        ) => {
+            let mut checked = match override_value {
+                Some(ConfigPropertyValue::Boolean(value)) => value,
+                _ => base_checked,
+            };
+            let response = ui
+                .horizontal(|ui| {
+                    let mut response = ui
+                        .add_enabled(
+                            !is_overridden,
+                            egui::widgets::Checkbox::new(&mut checked, property_id.name()),
+                        )
+                        .on_disabled_hover_text(CONFIG_DISABLED_TEXT);
+                    if let Some(description) = property_id.description() {
+                        response = response.on_hover_text(description);
+                    }
+                    if is_overridden {
+                        project_override_badge(ui).on_hover_text(CONFIG_DISABLED_TEXT);
+                    }
+                    response
+                })
+                .inner;
+            if !is_overridden && response.changed() {
                 state
                     .config
                     .diff_obj_config
@@ -907,7 +950,11 @@ fn config_property_ui(
                 changed = true;
             }
         }
-        (ConfigPropertyKind::Choice(variants), ConfigPropertyValue::Choice(selected)) => {
+        (
+            ConfigPropertyKind::Choice(variants),
+            ConfigPropertyValue::Choice(base_selected),
+            override_value,
+        ) => {
             fn variant_name(variant: &ConfigEnumVariantInfo) -> String {
                 if variant.is_default {
                     format!("{} (default)", variant.name)
@@ -915,36 +962,51 @@ fn config_property_ui(
                     variant.name.to_string()
                 }
             }
+            let display_selected = match override_value {
+                Some(ConfigPropertyValue::Choice(value)) => value,
+                _ => base_selected,
+            };
             let selected_variant = variants
                 .iter()
-                .find(|v| v.value == selected)
+                .find(|v| v.value == display_selected)
                 .or_else(|| variants.iter().find(|v| v.is_default))
                 .expect("Invalid choice variant");
-            let response = egui::ComboBox::new(property_id.name(), property_id.name())
-                .selected_text(variant_name(selected_variant))
-                .show_ui(ui, |ui| {
-                    for variant in variants {
-                        let mut response =
-                            ui.selectable_label(selected == variant.value, variant_name(variant));
-                        if let Some(description) = variant.description {
-                            response = response.on_hover_text(description);
-                        }
-                        if response.clicked() {
-                            state
-                                .config
-                                .diff_obj_config
-                                .set_property_value(
-                                    property_id,
-                                    ConfigPropertyValue::Choice(variant.value),
-                                )
-                                .expect("Failed to set property value");
-                            changed = true;
-                        }
-                    }
-                })
-                .response;
-            if let Some(description) = property_id.description() {
-                response.on_hover_text(description);
+            let mut new_value: Option<&'static str> = None;
+            ui.horizontal(|ui| {
+                let inner = ui.add_enabled_ui(!is_overridden, |ui| {
+                    egui::ComboBox::new(property_id.name(), property_id.name())
+                        .selected_text(variant_name(selected_variant))
+                        .show_ui(ui, |ui| {
+                            for variant in variants {
+                                let mut response = ui.selectable_label(
+                                    display_selected == variant.value,
+                                    variant_name(variant),
+                                );
+                                if let Some(description) = variant.description {
+                                    response = response.on_hover_text(description);
+                                }
+                                if response.clicked() {
+                                    new_value = Some(variant.value);
+                                }
+                            }
+                        });
+                });
+                let mut response = inner.response.on_disabled_hover_text(CONFIG_DISABLED_TEXT);
+                if let Some(description) = property_id.description() {
+                    response = response.on_hover_text(description);
+                }
+                if is_overridden {
+                    project_override_badge(ui).on_hover_text(CONFIG_DISABLED_TEXT);
+                }
+                response
+            });
+            if !is_overridden && let Some(value) = new_value {
+                state
+                    .config
+                    .diff_obj_config
+                    .set_property_value(property_id, ConfigPropertyValue::Choice(value))
+                    .expect("Failed to set property value");
+                changed = true;
             }
         }
         _ => panic!("Incompatible property kind and value"),

@@ -111,6 +111,25 @@
       "items": {
         "$ref": "#/$defs/progress_category"
       }
+    },
+    "options": {
+      "type": "object",
+      "description": "Diff configuration options that should be applied automatically when the project is loaded.",
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string"
+          }
+        ]
+      },
+      "examples": [
+        {
+          "demangler": "gnu_legacy"
+        }
+      ]
     }
   },
   "$defs": {
@@ -155,6 +174,20 @@
           "description": "Manual symbol mappings from target to base.",
           "additionalProperties": {
             "type": "string"
+          }
+        },
+        "options": {
+          "type": "object",
+          "description": "Diff configuration options that should be applied when this unit is active.",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "string"
+              }
+            ]
           }
         }
       }

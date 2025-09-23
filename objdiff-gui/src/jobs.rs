@@ -106,7 +106,7 @@ pub fn create_objdiff_config(state: &AppState) -> objdiff::ObjDiffConfig {
             .as_ref()
             .and_then(|obj| obj.base_path.as_ref())
             .cloned(),
-        diff_obj_config: state.config.diff_obj_config.clone(),
+        diff_obj_config: state.effective_diff_config(),
         mapping_config: MappingConfig {
             mappings: state
                 .config
