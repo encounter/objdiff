@@ -1,6 +1,7 @@
 pub mod path;
 
 use alloc::{
+    borrow::Cow,
     collections::BTreeMap,
     string::{String, ToString},
     vec::Vec,
@@ -45,6 +46,8 @@ pub struct ProjectConfig {
     pub units: Option<Vec<ProjectObject>>,
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub progress_categories: Option<Vec<ProjectProgressCategory>>,
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub options: Option<ProjectOptions>,
 }
 
 impl ProjectConfig {
@@ -141,6 +144,15 @@ pub struct ProjectObjectMetadata {
 pub struct ProjectProgressCategory {
     pub id: String,
     pub name: String,
+}
+
+pub type ProjectOptions = BTreeMap<String, ProjectOptionValue>;
+
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(untagged))]
+pub enum ProjectOptionValue {
+    Bool(bool),
+    String(String),
 }
 
 impl ProjectObject {
@@ -309,4 +321,48 @@ pub fn build_globset(vec: &[Glob]) -> Result<GlobSet, globset::Error> {
         builder.add(glob.clone());
     }
     builder.build()
+}
+
+#[cfg(feature = "any-arch")]
+pub fn apply_project_options(
+    diff_config: &mut crate::diff::DiffObjConfig,
+    options: &ProjectOptions,
+) -> Result<()> {
+    use core::str::FromStr;
+
+    use crate::diff::{ConfigEnum, ConfigPropertyId, ConfigPropertyKind};
+
+    let mut result = Ok(());
+    for (key, value) in options.iter() {
+        let property_id = ConfigPropertyId::from_str(key)
+            .map_err(|()| anyhow!("Invalid configuration property: {key}"))?;
+        let value = match value {
+            ProjectOptionValue::Bool(value) => Cow::Borrowed(if *value { "true" } else { "false" }),
+            ProjectOptionValue::String(value) => Cow::Borrowed(value.as_str()),
+        };
+        if diff_config.set_property_value_str(property_id, &value).is_err() {
+            if result.is_err() {
+                // Already returning an error, skip further errors
+                continue;
+            }
+            let mut expected = String::new();
+            match property_id.kind() {
+                ConfigPropertyKind::Boolean => expected.push_str("true, false"),
+                ConfigPropertyKind::Choice(variants) => {
+                    for (idx, variant) in variants.iter().enumerate() {
+                        if idx > 0 {
+                            expected.push_str(", ");
+                        }
+                        expected.push_str(variant.value);
+                    }
+                }
+            }
+            result = Err(anyhow!(
+                "Invalid value for {}. Expected one of: {}",
+                property_id.name(),
+                expected
+            ));
+        }
+    }
+    result
 }

@@ -24,7 +24,7 @@ use objdiff_core::{
         watcher::{Watcher, create_watcher},
     },
     config::{
-        ProjectConfig, ProjectObject, ProjectObjectMetadata, build_globset,
+        ProjectConfig, ProjectObject, ProjectObjectMetadata, apply_project_options, build_globset,
         path::{check_path_buf, platform_path, platform_path_serde_option},
     },
     diff::{DiffObjConfig, MappingConfig, ObjectDiff},
@@ -164,8 +164,14 @@ pub fn run(args: Args) -> Result<()> {
     run_interactive(args, target_path, base_path, project_config)
 }
 
-fn build_config_from_args(args: &Args) -> Result<(DiffObjConfig, MappingConfig)> {
+fn build_config_from_args(
+    args: &Args,
+    project_config: Option<&ProjectConfig>,
+) -> Result<(DiffObjConfig, MappingConfig)> {
     let mut diff_config = DiffObjConfig::default();
+    if let Some(options) = project_config.and_then(|config| config.options.as_ref()) {
+        apply_project_options(&mut diff_config, options)?;
+    }
     apply_config_args(&mut diff_config, &args.config)?;
     let mut mapping_config = MappingConfig {
         mappings: Default::default(),
@@ -320,7 +326,7 @@ fn run_interactive(
     let Some(symbol_name) = &args.symbol else { bail!("Interactive mode requires a symbol name") };
     let time_format = time::format_description::parse_borrowed::<2>("[hour]:[minute]:[second]")
         .context("Failed to parse time format")?;
-    let (diff_obj_config, mapping_config) = build_config_from_args(&args)?;
+    let (diff_obj_config, mapping_config) = build_config_from_args(&args, project_config.as_ref())?;
     let mut state = AppState {
         jobs: Default::default(),
         waker: Default::default(),

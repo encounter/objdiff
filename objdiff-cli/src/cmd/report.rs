@@ -7,7 +7,7 @@ use objdiff_core::{
         ChangeItem, ChangeItemInfo, ChangeUnit, Changes, ChangesInput, Measures, REPORT_VERSION,
         Report, ReportCategory, ReportItem, ReportItemMetadata, ReportUnit, ReportUnitMetadata,
     },
-    config::path::platform_path,
+    config::{apply_project_options, path::platform_path},
     diff,
     obj::{self, SectionKind, SymbolFlag, SymbolKind},
 };
@@ -90,7 +90,6 @@ fn generate(args: GenerateArgs) -> Result<()> {
         ppc_calculate_pool_relocations: false,
         ..Default::default()
     };
-    apply_config_args(&mut diff_config, &args.config)?;
 
     let output_format = OutputFormat::from_option(args.format.as_deref())?;
     let project_dir = args.project.as_deref().unwrap_or_else(|| Utf8PlatformPath::new("."));
@@ -101,6 +100,10 @@ fn generate(args: GenerateArgs) -> Result<()> {
         Some((Err(err), _)) => bail!("Failed to load project configuration: {}", err),
         None => bail!("No project configuration found"),
     };
+    if let Some(options) = project.options.as_ref() {
+        apply_project_options(&mut diff_config, options)?;
+    }
+    apply_config_args(&mut diff_config, &args.config)?;
     info!(
         "Generating report for {} units (using {} threads)",
         project.units().len(),

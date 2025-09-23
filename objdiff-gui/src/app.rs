@@ -11,14 +11,15 @@ use std::{
     time::Instant,
 };
 
+use egui::text::LayoutJob;
 use filetime::FileTime;
 use globset::Glob;
 use objdiff_core::{
     build::watcher::{Watcher, create_watcher},
     config::{
-        ProjectConfig, ProjectConfigInfo, ProjectObject, ScratchConfig, build_globset,
-        default_ignore_patterns, default_watch_patterns, path::platform_path_serde_option,
-        save_project_config,
+        ProjectConfig, ProjectConfigInfo, ProjectObject, ScratchConfig, apply_project_options,
+        build_globset, default_ignore_patterns, default_watch_patterns,
+        path::platform_path_serde_option, save_project_config,
     },
     diff::DiffObjConfig,
     jobs::{Job, JobQueue, JobResult},
@@ -164,7 +165,7 @@ pub struct AppState {
     pub selecting_left: Option<String>,
     /// The left object symbol name that we're selecting a right symbol for
     pub selecting_right: Option<String>,
-    pub config_error: Option<String>,
+    pub top_left_toasts: egui_notify::Toasts,
 }
 
 impl Default for AppState {
@@ -183,9 +184,21 @@ impl Default for AppState {
             last_mod_check: Instant::now(),
             selecting_left: None,
             selecting_right: None,
-            config_error: None,
+            top_left_toasts: create_toasts(egui_notify::Anchor::TopLeft),
         }
     }
+}
+
+pub fn create_toasts(anchor: egui_notify::Anchor) -> egui_notify::Toasts {
+    egui_notify::Toasts::default()
+        .with_anchor(anchor)
+        .with_margin(egui::vec2(10.0, 32.0))
+        .with_shadow(egui::Shadow {
+            offset: [0, 0],
+            blur: 0,
+            spread: 1,
+            color: egui::Color32::GRAY,
+        })
 }
 
 #[derive(Clone, serde::Deserialize, serde::Serialize)]
@@ -321,6 +334,17 @@ impl AppState {
         self.selecting_right = None;
     }
 
+    pub fn effective_diff_config(&self) -> DiffObjConfig {
+        let mut config = self.config.diff_obj_config.clone();
+        if let Some(options) =
+            self.current_project_config.as_ref().and_then(|project| project.options.as_ref())
+        {
+            // Ignore errors here, we display them when loading the project config
+            let _ = apply_project_options(&mut config, options);
+        }
+        config
+    }
+
     pub fn set_selecting_left(&mut self, right: &str) {
         let Some(object) = self.config.selected_obj.as_mut() else {
             return;
@@ -401,10 +425,21 @@ impl AppState {
         match save_project_config(config, info) {
             Ok(new_info) => *info = new_info,
             Err(e) => {
-                log::error!("Failed to save project config: {e}");
-                self.config_error = Some(format!("Failed to save project config: {e}"));
+                log::error!("Failed to save project config: {e:#}");
+                self.show_error_toast("Failed to save project config", &e);
             }
         }
+    }
+
+    pub fn show_error_toast(&mut self, context: &str, e: &anyhow::Error) {
+        let mut job = LayoutJob::default();
+        job.append(context, 0.0, Default::default());
+        job.append("\n", 0.0, Default::default());
+        job.append(&format!("{e:#}"), 0.0, egui::TextFormat {
+            color: egui::Color32::LIGHT_RED,
+            ..Default::default()
+        });
+        self.top_left_toasts.error(job).closable(true).duration(None);
     }
 }
 
@@ -548,12 +583,9 @@ impl App {
 
         if state.config_change {
             state.config_change = false;
-            match load_project_config(state) {
-                Ok(()) => state.config_error = None,
-                Err(e) => {
-                    log::error!("Failed to load project config: {e}");
-                    state.config_error = Some(e.to_string());
-                }
+            if let Err(e) = load_project_config(state) {
+                log::error!("Failed to load project config: {e:#}");
+                state.show_error_toast("Failed to load project config", &e);
             }
         }
 
@@ -579,7 +611,10 @@ impl App {
                         .map_err(anyhow::Error::new)
                     }) {
                     Ok(watcher) => self.watcher = Some(watcher),
-                    Err(e) => log::error!("Failed to create watcher: {e}"),
+                    Err(e) => {
+                        log::error!("Failed to create watcher: {e:#}");
+                        state.show_error_toast("Failed to create file watcher", &e);
+                    }
                 }
                 state.watcher_change = false;
             }
@@ -806,7 +841,7 @@ impl eframe::App for App {
         let mut action = None;
         egui::CentralPanel::default().show(ctx, |ui| {
             let state = state.read().unwrap();
-            action = diff_view_ui(ui, diff_state, appearance, &state.config.diff_obj_config);
+            action = diff_view_ui(ui, diff_state, appearance, &state.effective_diff_config());
         });
 
         project_window(ctx, state, show_project_config, config_state, appearance);
@@ -817,6 +852,10 @@ impl eframe::App for App {
         debug_window(ctx, show_debug, frame_history, appearance);
         graphics_window(ctx, show_graphics, frame_history, graphics_state, appearance);
         jobs_window(ctx, show_jobs, jobs, appearance);
+
+        if let Ok(mut state) = self.state.write() {
+            state.top_left_toasts.show(ctx);
+        }
 
         self.post_update(ctx, action);
     }

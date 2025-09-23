@@ -1,6 +1,11 @@
 use anyhow::Result;
 use globset::Glob;
-use objdiff_core::config::{default_ignore_patterns, default_watch_patterns, try_project_config};
+use objdiff_core::{
+    config::{
+        apply_project_options, default_ignore_patterns, default_watch_patterns, try_project_config,
+    },
+    diff::DiffObjConfig,
+};
 use typed_path::{Utf8UnixComponent, Utf8UnixPath};
 
 use crate::app::{AppState, ObjectConfig};
@@ -124,6 +129,15 @@ pub fn load_project_config(state: &mut AppState) -> Result<()> {
         state.object_nodes = build_nodes(&mut state.objects);
         state.current_project_config = Some(project_config);
         state.project_config_info = Some(info);
+        if let Some(options) =
+            state.current_project_config.as_ref().and_then(|project| project.options.as_ref())
+        {
+            let mut diff_config = DiffObjConfig::default();
+            if let Err(e) = apply_project_options(&mut diff_config, options) {
+                log::error!("Failed to apply project config options: {e:#}");
+                state.show_error_toast("Failed to apply project config options", &e);
+            }
+        }
 
         // Reload selected object
         if let Some(selected_obj) = &state.config.selected_obj {
