@@ -336,11 +336,18 @@ impl AppState {
 
     pub fn effective_diff_config(&self) -> DiffObjConfig {
         let mut config = self.config.diff_obj_config.clone();
-        if let Some(options) =
-            self.current_project_config.as_ref().and_then(|project| project.options.as_ref())
-        {
-            // Ignore errors here, we display them when loading the project config
-            let _ = apply_project_options(&mut config, options);
+        if let Some(project) = self.current_project_config.as_ref() {
+            if let Some(options) = project.options.as_ref() {
+                // Ignore errors here, we display them when loading the project config
+                let _ = apply_project_options(&mut config, options);
+            }
+            if let Some(selected) = self.config.selected_obj.as_ref()
+                && let Some(units) = project.units.as_deref()
+                && let Some(unit) = units.iter().find(|unit| unit.name() == selected.name)
+                && let Some(options) = unit.options()
+            {
+                let _ = apply_project_options(&mut config, options);
+            }
         }
         config
     }

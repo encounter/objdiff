@@ -1,6 +1,6 @@
 #[cfg(all(windows, feature = "wsl"))]
 use std::string::FromUtf16Error;
-use std::{mem::take, path::MAIN_SEPARATOR, str::FromStr};
+use std::{mem::take, path::MAIN_SEPARATOR};
 
 #[cfg(all(windows, feature = "wsl"))]
 use anyhow::{Context, Result};
@@ -894,20 +894,27 @@ fn config_property_ui(
     property_id: ConfigPropertyId,
 ) -> bool {
     let mut changed = false;
-    let project_override = state
-        .current_project_config
-        .as_ref()
-        .and_then(|config| config.options.as_ref())
-        .and_then(|options| {
-            options.iter().find_map(|(key, value)| {
-                ConfigPropertyId::from_str(key).ok().filter(|id| *id == property_id).map(|_| value)
-            })
-        });
-    let is_overridden = project_override.is_some();
-    let effective_value =
+    let is_overridden = state.current_project_config.as_ref().is_some_and(|config| {
+        let key = property_id.name();
+        if let Some(selected) = state.config.selected_obj.as_ref()
+            && let Some(units) = config.units.as_deref()
+            && let Some(unit) = units.iter().find(|unit| unit.name() == selected.name)
+            && let Some(options) = unit.options()
+            && options.contains_key(key)
+        {
+            return true;
+        }
+        if let Some(options) = config.options.as_ref()
+            && options.contains_key(key)
+        {
+            return true;
+        }
+        false
+    });
+    let override_value =
         is_overridden.then(|| state.effective_diff_config().get_property_value(property_id));
     let base_value = state.config.diff_obj_config.get_property_value(property_id);
-    match (property_id.kind(), base_value, effective_value) {
+    match (property_id.kind(), base_value, override_value) {
         (
             ConfigPropertyKind::Boolean,
             ConfigPropertyValue::Boolean(base_checked),

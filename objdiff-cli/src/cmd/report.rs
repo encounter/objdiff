@@ -7,7 +7,7 @@ use objdiff_core::{
         ChangeItem, ChangeItemInfo, ChangeUnit, Changes, ChangesInput, Measures, REPORT_VERSION,
         Report, ReportCategory, ReportItem, ReportItemMetadata, ReportUnit, ReportUnitMetadata,
     },
-    config::{apply_project_options, path::platform_path},
+    config::{ProjectObject, ProjectOptions, apply_project_options, path::platform_path},
     diff,
     obj::{self, SectionKind, SymbolFlag, SymbolKind},
 };
@@ -83,7 +83,7 @@ pub fn run(args: Args) -> Result<()> {
 }
 
 fn generate(args: GenerateArgs) -> Result<()> {
-    let mut diff_config = diff::DiffObjConfig {
+    let base_diff_config = diff::DiffObjConfig {
         function_reloc_diffs: diff::FunctionRelocDiffs::None,
         combine_data_sections: true,
         combine_text_sections: true,
@@ -100,35 +100,44 @@ fn generate(args: GenerateArgs) -> Result<()> {
         Some((Err(err), _)) => bail!("Failed to load project configuration: {}", err),
         None => bail!("No project configuration found"),
     };
-    if let Some(options) = project.options.as_ref() {
-        apply_project_options(&mut diff_config, options)?;
-    }
-    apply_config_args(&mut diff_config, &args.config)?;
-    info!(
-        "Generating report for {} units (using {} threads)",
-        project.units().len(),
-        if args.deduplicate { 1 } else { rayon::current_num_threads() }
-    );
-
     let target_obj_dir =
         project.target_dir.as_ref().map(|p| project_dir.join(p.with_platform_encoding()));
     let base_obj_dir =
         project.base_dir.as_ref().map(|p| project_dir.join(p.with_platform_encoding()));
-    let objects = project
-        .units
+    let project_units = project.units.as_deref().unwrap_or_default();
+    let objects = project_units
         .iter()
-        .flatten()
-        .map(|o| {
-            ObjectConfig::new(o, project_dir, target_obj_dir.as_deref(), base_obj_dir.as_deref())
+        .enumerate()
+        .map(|(idx, o)| {
+            (
+                ObjectConfig::new(
+                    o,
+                    project_dir,
+                    target_obj_dir.as_deref(),
+                    base_obj_dir.as_deref(),
+                ),
+                idx,
+            )
         })
         .collect::<Vec<_>>();
+    info!(
+        "Generating report for {} units (using {} threads)",
+        objects.len(),
+        if args.deduplicate { 1 } else { rayon::current_num_threads() }
+    );
 
     let start = Instant::now();
     let mut units = vec![];
     let mut existing_functions: HashSet<String> = HashSet::new();
     if args.deduplicate {
         // If deduplicating, we need to run single-threaded
-        for object in &objects {
+        for (object, unit_idx) in &objects {
+            let diff_config = build_unit_diff_config(
+                &base_diff_config,
+                project.options.as_ref(),
+                project_units.get(*unit_idx).and_then(ProjectObject::options),
+                &args.config,
+            )?;
             if let Some(unit) = report_object(object, &diff_config, Some(&mut existing_functions))?
             {
                 units.push(unit);
@@ -137,7 +146,15 @@ fn generate(args: GenerateArgs) -> Result<()> {
     } else {
         let vec = objects
             .par_iter()
-            .map(|object| report_object(object, &diff_config, None))
+            .map(|(object, unit_idx)| {
+                let diff_config = build_unit_diff_config(
+                    &base_diff_config,
+                    project.options.as_ref(),
+                    project_units.get(*unit_idx).and_then(ProjectObject::options),
+                    &args.config,
+                )?;
+                report_object(object, &diff_config, None)
+            })
             .collect::<Result<Vec<Option<ReportUnit>>>>()?;
         units = vec.into_iter().flatten().collect();
     }
@@ -157,6 +174,24 @@ fn generate(args: GenerateArgs) -> Result<()> {
     info!("Report generated in {}.{:03}s", duration.as_secs(), duration.subsec_millis());
     write_output(&report, args.output.as_deref(), output_format)?;
     Ok(())
+}
+
+fn build_unit_diff_config(
+    base: &diff::DiffObjConfig,
+    project_options: Option<&ProjectOptions>,
+    unit_options: Option<&ProjectOptions>,
+    cli_args: &[String],
+) -> Result<diff::DiffObjConfig> {
+    let mut diff_config = base.clone();
+    if let Some(options) = project_options {
+        apply_project_options(&mut diff_config, options)?;
+    }
+    if let Some(options) = unit_options {
+        apply_project_options(&mut diff_config, options)?;
+    }
+    // CLI args override project and unit options
+    apply_config_args(&mut diff_config, cli_args)?;
+    Ok(diff_config)
 }
 
 fn report_object(

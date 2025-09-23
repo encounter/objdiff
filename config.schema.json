@@ -175,6 +175,20 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "options": {
+          "type": "object",
+          "description": "Diff configuration options that should be applied when this unit is active.",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
         }
       }
     },

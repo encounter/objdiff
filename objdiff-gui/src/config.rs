@@ -138,6 +138,29 @@ pub fn load_project_config(state: &mut AppState) -> Result<()> {
                 state.show_error_toast("Failed to apply project config options", &e);
             }
         }
+        if let Some(project) = state.current_project_config.as_ref()
+            && let Some(units) = project.units.as_deref()
+        {
+            let mut unit_option_errors = Vec::new();
+            for unit in units {
+                if let Some(options) = unit.options() {
+                    let mut diff_config = DiffObjConfig::default();
+                    if let Err(e) = apply_project_options(&mut diff_config, options) {
+                        unit_option_errors.push((unit.name().to_string(), e));
+                    }
+                }
+            }
+            for (unit_name, error) in unit_option_errors {
+                log::error!(
+                    "Failed to apply project config options for unit {}: {error:#}",
+                    unit_name
+                );
+                state.show_error_toast(
+                    &format!("Failed to apply project config options for unit {unit_name}"),
+                    &error,
+                );
+            }
+        }
 
         // Reload selected object
         if let Some(selected_obj) = &state.config.selected_obj {

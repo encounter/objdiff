@@ -119,6 +119,8 @@ pub struct ProjectObject {
     pub metadata: Option<ProjectObjectMetadata>,
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub symbol_mappings: Option<BTreeMap<String, String>>,
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub options: Option<ProjectOptions>,
 }
 
 #[derive(Default, Clone)]
@@ -191,6 +193,8 @@ impl ProjectObject {
     pub fn auto_generated(&self) -> Option<bool> {
         self.metadata.as_ref().and_then(|m| m.auto_generated)
     }
+
+    pub fn options(&self) -> Option<&ProjectOptions> { self.options.as_ref() }
 }
 
 #[derive(Default, Clone, Eq, PartialEq)]
