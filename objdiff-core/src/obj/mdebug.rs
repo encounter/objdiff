@@ -101,17 +101,20 @@ pub(super) fn parse_line_info_mdebug(
             }
 
             let local_index = pdr.isym as u32;
-            let mut size = None;
+            let mut end_address = None;
             for sym in &symbols[global_sym_index..sym_end] {
                 if sym.st == ST_END && sym.index == local_index {
-                    size = Some(sym.value);
+                    end_address = Some(sym.value);
                     break;
                 }
             }
-            let Some(size) = size else {
+            let Some(end_address) = end_address else {
                 continue;
             };
-            if size == 0 {
+            let Some(size) = end_address.checked_sub(start_symbol.value) else {
+                continue;
+            };
+            if size == 0 || size % 4 != 0 {
                 continue;
             }
             let word_count = (size / 4) as usize;
