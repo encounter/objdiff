@@ -1,0 +1,48 @@
+---
+source: objdiff-core/tests/arch_arm.rs
+expression: diff.instruction_rows
+---
+[
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 0,
+                size: 2,
+                opcode: 64,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 2,
+                size: 2,
+                opcode: 64,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 4,
+                size: 2,
+                opcode: 23,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+]
