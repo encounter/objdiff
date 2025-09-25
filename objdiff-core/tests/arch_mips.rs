@@ -62,3 +62,21 @@ fn filter_non_matching() {
     .unwrap();
     insta::assert_debug_snapshot!(obj.symbols);
 }
+
+#[test]
+#[cfg(feature = "mips")]
+fn ido_mdebug_line_numbers() {
+    let diff_config = diff::DiffObjConfig::default();
+    let obj = obj::read::parse(
+        include_object!("data/mips/ido_lines_example.o"),
+        &diff_config,
+        diff::DiffSide::Base,
+    )
+    .unwrap();
+
+    let text_section = obj.sections.iter().find(|s| s.name == ".text").unwrap();
+    assert_eq!(text_section.line_info.get(&0), Some(&6));
+    assert_eq!(text_section.line_info.get(&12), Some(&7));
+    assert_eq!(text_section.line_info.get(&56), Some(&9));
+    assert_eq!(text_section.line_info.len(), 66);
+}
