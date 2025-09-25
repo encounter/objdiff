@@ -1,5 +1,6 @@
 #[cfg(feature = "dwarf")]
 mod dwarf2;
+mod mdebug;
 pub mod read;
 pub mod split_meta;
 
