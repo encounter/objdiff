@@ -370,6 +370,7 @@ pub struct Relocation {
 pub enum RelocationFlags {
     Elf(u32),
     Coff(u16),
+    Omf(/* TODO */),
 }
 
 #[derive(Debug, Copy, Clone)]

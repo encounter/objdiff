@@ -132,7 +132,7 @@ itertools = { version = "0.14", default-features = false, features = ["use_alloc
 log = { version = "0.4", default-features = false, optional = true }
 memmap2 = { version = "0.9", optional = true }
 num-traits = { version = "0.2", default-features = false, optional = true }
-object = { version = "0.37", default-features = false, features = ["read_core", "elf", "coff"] }
+object = { git = "https://github.com/encounter/object", branch = "omf", default-features = false, features = ["read_core", "elf", "coff", "omf"] }
 pbjson = { version = "0.8", default-features = false, optional = true }
 prost = { version = "0.14", default-features = false, features = ["derive"], optional = true }
 regex = { version = "1.11", default-features = false, features = [], optional = true }

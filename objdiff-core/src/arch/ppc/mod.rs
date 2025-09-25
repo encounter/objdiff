@@ -332,6 +332,7 @@ impl Arch for ArchPpc {
                 pe::IMAGE_REL_PPC_PAIR => Some("IMAGE_REL_PPC_PAIR"),
                 _ => None,
             },
+            _ => None,
         }
     }
 

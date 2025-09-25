@@ -510,6 +510,7 @@ fn map_section_relocations(
         let flags = match reloc.flags() {
             object::RelocationFlags::Elf { r_type } => RelocationFlags::Elf(r_type),
             object::RelocationFlags::Coff { typ } => RelocationFlags::Coff(typ),
+            object::RelocationFlags::Omf { .. } => RelocationFlags::Omf(/* TODO */),
             flags => bail!("Unhandled relocation flags: {:?}", flags),
         };
         let target_symbol = match symbol_indices.get(symbol_index.0).copied() {

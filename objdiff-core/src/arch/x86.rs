@@ -72,6 +72,7 @@ impl ArchX86 {
                     elf::R_386_16 => Some(2),
                     _ => None,
                 },
+                RelocationFlags::Omf() => Some(4), // TODO
             },
             Architecture::X86_64 => match flags {
                 RelocationFlags::Coff(typ) => match typ {
@@ -84,6 +85,7 @@ impl ArchX86 {
                     elf::R_X86_64_64 => Some(8),
                     _ => None,
                 },
+                RelocationFlags::Omf() => None, // TODO
             },
         }
     }
