@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use anyhow::{Context, Result, bail, ensure};
 use object::{Endianness, Object, ObjectSection};
 
@@ -154,16 +156,16 @@ pub(super) fn parse_line_info_mdebug(
 fn assign_lines(sections: &mut [Section], base_address: u64, lines: &[i32]) {
     let mut address = base_address;
     for &line in lines {
-        if line >= 0 {
-            if let Some(section) = find_code_section(sections, address) {
-                section.line_info.insert(address, line as u32);
-            }
+        if line >= 0
+            && let Some(section) = find_code_section(sections, address)
+        {
+            section.line_info.insert(address, line as u32);
         }
         address = address.wrapping_add(4);
     }
 }
 
-fn find_code_section<'a>(sections: &'a mut [Section], address: u64) -> Option<&'a mut Section> {
+fn find_code_section(sections: &mut [Section], address: u64) -> Option<&mut Section> {
     sections.iter_mut().find(|section| {
         section.kind == SectionKind::Code
             && address >= section.address
@@ -195,12 +197,12 @@ fn decode_delta(
     }
 }
 
-fn slice_at<'a>(
-    data: &'a [u8],
+fn slice_at(
+    data: &[u8],
     offset: u32,
     size: u32,
     section_file_offset: Option<usize>,
-) -> Result<&'a [u8]> {
+) -> Result<&[u8]> {
     let size = size as usize;
     if size == 0 {
         ensure!(
@@ -355,7 +357,7 @@ struct SymbolEntry {
 }
 
 fn parse_symbols(data: &[u8], endianness: Endianness) -> Result<Vec<SymbolEntry>> {
-    ensure!(data.len() % SYMR_SIZE == 0, "symbol table misaligned");
+    ensure!(data.len().is_multiple_of(SYMR_SIZE), "symbol table misaligned");
     let mut symbols = Vec::with_capacity(data.len() / SYMR_SIZE);
     let mut cursor = 0;
     while cursor + SYMR_SIZE <= data.len() {
