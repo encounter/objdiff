@@ -457,6 +457,7 @@ impl Arch for ArchPpc {
         while next_address >= symbol.address + 4
             && let Some(data) = section.data_range(next_address - 4, 4)
             && data == [0u8; 4]
+            && section.relocation_at(next_address - 4, 4).is_none()
         {
             next_address -= 4;
         }

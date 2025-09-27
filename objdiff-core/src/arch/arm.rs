@@ -425,12 +425,16 @@ impl Arch for ArchArm {
         section: &Section,
         mut next_address: u64,
     ) -> Result<u64> {
-        // Trim any trailing 4-byte zeroes from the end (padding)
-        while next_address >= symbol.address + 4
-            && let Some(data) = section.data_range(next_address - 4, 4)
-            && data == [0u8; 4]
+        // TODO: This should probably check the disasm mode and trim accordingly,
+        // but self.disasm_modes isn't populated until post_init, so it needs a refactor.
+
+        // Trim any trailing 2-byte zeroes from the end (padding)
+        while next_address >= symbol.address + 2
+            && let Some(data) = section.data_range(next_address - 2, 2)
+            && data == [0u8; 2]
+            && section.relocation_at(next_address - 2, 2).is_none()
         {
-            next_address -= 4;
+            next_address -= 2;
         }
         Ok(next_address.saturating_sub(symbol.address))
     }

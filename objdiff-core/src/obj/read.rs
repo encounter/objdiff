@@ -654,6 +654,10 @@ fn parse_line_info(
         log::warn!("Failed to parse COFF line info: {e}");
     }
 
+    if let Err(e) = super::mdebug::parse_line_info_mdebug(obj_file, sections) {
+        log::warn!("Failed to parse MIPS mdebug line info: {e}");
+    }
+
     Ok(())
 }
 

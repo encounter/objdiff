@@ -1,5 +1,6 @@
 #[cfg(feature = "dwarf")]
 mod dwarf2;
+mod mdebug;
 pub mod read;
 pub mod split_meta;
 
@@ -107,32 +108,33 @@ impl Section {
     // The alignment to use when "Combine data/text sections" is enabled.
     pub fn combined_alignment(&self) -> u64 {
         const MIN_ALIGNMENT: u64 = 4;
-        self.align.map(|align| align.get().max(MIN_ALIGNMENT)).unwrap_or(MIN_ALIGNMENT)
+        self.align.map_or(MIN_ALIGNMENT, |align| align.get().max(MIN_ALIGNMENT))
     }
 
-    pub fn relocation_at<'obj>(
-        &'obj self,
-        obj: &'obj Object,
-        ins_ref: InstructionRef,
-    ) -> Option<ResolvedRelocation<'obj>> {
-        match self.relocations.binary_search_by_key(&ins_ref.address, |r| r.address) {
+    pub fn relocation_at(&self, address: u64, size: u8) -> Option<&Relocation> {
+        match self.relocations.binary_search_by_key(&address, |r| r.address) {
             Ok(mut i) => {
                 // Find the first relocation at the address
                 while i
                     .checked_sub(1)
                     .and_then(|n| self.relocations.get(n))
-                    .is_some_and(|r| r.address == ins_ref.address)
+                    .is_some_and(|r| r.address == address)
                 {
                     i -= 1;
                 }
                 self.relocations.get(i)
             }
-            Err(i) => self
-                .relocations
-                .get(i)
-                .filter(|r| r.address < ins_ref.address + ins_ref.size as u64),
+            Err(i) => self.relocations.get(i).filter(|r| r.address < address + size as u64),
         }
-        .and_then(|relocation| {
+    }
+
+    pub fn resolve_relocation_at<'obj>(
+        &'obj self,
+        obj: &'obj Object,
+        address: u64,
+        size: u8,
+    ) -> Option<ResolvedRelocation<'obj>> {
+        self.relocation_at(address, size).and_then(|relocation| {
             let symbol = obj.symbols.get(relocation.target_symbol)?;
             Some(ResolvedRelocation { relocation, symbol })
         })
@@ -316,7 +318,7 @@ impl Object {
         let section = self.sections.get(section_index)?;
         let offset = ins_ref.address.checked_sub(section.address)?;
         let code = section.data.get(offset as usize..offset as usize + ins_ref.size as usize)?;
-        let relocation = section.relocation_at(self, ins_ref);
+        let relocation = section.resolve_relocation_at(self, ins_ref.address, ins_ref.size);
         Some(ResolvedInstructionRef {
             ins_ref,
             symbol_index,
