@@ -1,16 +1,18 @@
-use alloc::{collections::BTreeMap, format, string::ToString, vec::Vec};
+use alloc::{collections::BTreeMap, vec::Vec};
+use core::fmt::Write;
+use std::borrow::Cow;
 
 use anyhow::{Result, bail};
 use arm_attr::{BuildAttrs, enums::CpuArch, tag::Tag};
 use object::{Endian as _, Object as _, ObjectSection as _, ObjectSymbol as _, elf};
-use unarm::{args, arm, thumb};
+use unarm::parse_thumb;
 
 use crate::{
     arch::{Arch, OPCODE_DATA, OPCODE_INVALID, RelocationOverride, RelocationOverrideTarget},
     diff::{ArmArchVersion, ArmR9Usage, DiffObjConfig, display::InstructionPart},
     obj::{
-        InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation,
-        Section, SectionKind, Symbol, SymbolFlag, SymbolFlagSet, SymbolKind,
+        InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, Section, SectionKind,
+        Symbol, SymbolFlag, SymbolFlagSet, SymbolKind,
     },
 };
 
@@ -18,7 +20,7 @@ use crate::{
 pub struct ArchArm {
     /// Maps section index, to list of disasm modes (arm, thumb or data) sorted by address
     disasm_modes: BTreeMap<usize, Vec<DisasmMode>>,
-    detected_version: Option<unarm::ArmVersion>,
+    detected_version: Option<unarm::Version>,
     endianness: object::Endianness,
 }
 
@@ -36,7 +38,7 @@ impl ArchArm {
         }
     }
 
-    fn elf_detect_arm_version(file: &object::File) -> Result<Option<unarm::ArmVersion>> {
+    fn elf_detect_arm_version(file: &object::File) -> Result<Option<unarm::Version>> {
         // Check ARM attributes
         if let Some(arm_attrs) = file.sections().find(|s| {
             s.kind() == object::SectionKind::Elf(elf::SHT_ARM_ATTRIBUTES)
@@ -57,9 +59,12 @@ impl ArchArm {
                     if let Tag::CpuArch(cpu_arch) = tag { Some(cpu_arch) } else { None }
                 });
                 match cpu_arch {
-                    Some(CpuArch::V4T) => return Ok(Some(unarm::ArmVersion::V4T)),
-                    Some(CpuArch::V5TE) => return Ok(Some(unarm::ArmVersion::V5Te)),
-                    Some(CpuArch::V6K) => return Ok(Some(unarm::ArmVersion::V6K)),
+                    Some(CpuArch::V4) => return Ok(Some(unarm::Version::V4)),
+                    Some(CpuArch::V4T) => return Ok(Some(unarm::Version::V4T)),
+                    Some(CpuArch::V5TE) => return Ok(Some(unarm::Version::V5Te)),
+                    Some(CpuArch::V5TEJ) => return Ok(Some(unarm::Version::V5Tej)),
+                    Some(CpuArch::V6) => return Ok(Some(unarm::Version::V6)),
+                    Some(CpuArch::V6K) => return Ok(Some(unarm::Version::V6K)),
                     Some(arch) => bail!("ARM arch {} not supported", arch),
                     None => {}
                 };
@@ -89,31 +94,29 @@ impl ArchArm {
             .collect()
     }
 
-    fn parse_flags(&self, diff_config: &DiffObjConfig) -> unarm::ParseFlags {
-        unarm::ParseFlags {
-            ual: diff_config.arm_unified_syntax,
+    fn unarm_options(&self, diff_config: &DiffObjConfig) -> unarm::Options {
+        unarm::Options {
             version: match diff_config.arm_arch_version {
-                ArmArchVersion::Auto => self.detected_version.unwrap_or(unarm::ArmVersion::V5Te),
-                ArmArchVersion::V4t => unarm::ArmVersion::V4T,
-                ArmArchVersion::V5te => unarm::ArmVersion::V5Te,
-                ArmArchVersion::V6k => unarm::ArmVersion::V6K,
+                ArmArchVersion::Auto => self.detected_version.unwrap_or(unarm::Version::V5Te),
+                ArmArchVersion::V4 => unarm::Version::V4,
+                ArmArchVersion::V4t => unarm::Version::V4T,
+                ArmArchVersion::V5t => unarm::Version::V5T,
+                ArmArchVersion::V5te => unarm::Version::V5Te,
+                ArmArchVersion::V5tej => unarm::Version::V5Tej,
+                ArmArchVersion::V6 => unarm::Version::V6,
+                ArmArchVersion::V6k => unarm::Version::V6K,
             },
-        }
-    }
-
-    fn display_options(&self, diff_config: &DiffObjConfig) -> unarm::DisplayOptions {
-        unarm::DisplayOptions {
-            reg_names: unarm::RegNames {
-                av_registers: diff_config.arm_av_registers,
-                r9_use: match diff_config.arm_r9_usage {
-                    ArmR9Usage::GeneralPurpose => unarm::R9Use::GeneralPurpose,
-                    ArmR9Usage::Sb => unarm::R9Use::Pid,
-                    ArmR9Usage::Tr => unarm::R9Use::Tls,
-                },
-                explicit_stack_limit: diff_config.arm_sl_usage,
-                frame_pointer: diff_config.arm_fp_usage,
-                ip: diff_config.arm_ip_usage,
+            extensions: unarm::Extensions::all(), // TODO: Add checkboxes for extensions
+            av: diff_config.arm_av_registers,
+            r9_use: match diff_config.arm_r9_usage {
+                ArmR9Usage::GeneralPurpose => unarm::R9Use::R9,
+                ArmR9Usage::Sb => unarm::R9Use::Sb,
+                ArmR9Usage::Tr => unarm::R9Use::Tr,
             },
+            sl: diff_config.arm_sl_usage,
+            fp: diff_config.arm_fp_usage,
+            ip: diff_config.arm_ip_usage,
+            ual: diff_config.arm_unified_syntax,
         }
     }
 
@@ -122,32 +125,7 @@ impl ArchArm {
         ins_ref: InstructionRef,
         code: &[u8],
         diff_config: &DiffObjConfig,
-    ) -> Result<(unarm::Ins, unarm::ParsedIns)> {
-        if ins_ref.opcode == thumb::Opcode::BlH as u16 && ins_ref.size == 4 {
-            // Special case: combined thumb BL instruction
-            let parse_flags = self.parse_flags(diff_config);
-            let first_ins = thumb::Ins {
-                code: match self.endianness {
-                    object::Endianness::Little => u16::from_le_bytes([code[0], code[1]]),
-                    object::Endianness::Big => u16::from_be_bytes([code[0], code[1]]),
-                } as u32,
-                op: thumb::Opcode::BlH,
-            };
-            let second_ins = thumb::Ins::new(
-                match self.endianness {
-                    object::Endianness::Little => u16::from_le_bytes([code[2], code[3]]),
-                    object::Endianness::Big => u16::from_be_bytes([code[2], code[3]]),
-                } as u32,
-                &parse_flags,
-            );
-            let first_parsed = first_ins.parse(&parse_flags);
-            let second_parsed = second_ins.parse(&parse_flags);
-            return Ok((
-                unarm::Ins::Thumb(first_ins),
-                first_parsed.combine_thumb_bl(&second_parsed),
-            ));
-        }
-
+    ) -> Result<unarm::Ins> {
         let code = match (self.endianness, ins_ref.size) {
             (object::Endianness::Little, 2) => u16::from_le_bytes([code[0], code[1]]) as u32,
             (object::Endianness::Little, 4) => {
@@ -159,21 +137,24 @@ impl ArchArm {
             }
             _ => bail!("Invalid instruction size {}", ins_ref.size),
         };
-        let (ins, parsed_ins) = if ins_ref.opcode == OPCODE_DATA {
-            let mut args = args::Arguments::default();
-            args[0] = args::Argument::UImm(code);
-            let mnemonic = if ins_ref.size == 4 { ".word" } else { ".hword" };
-            (unarm::Ins::Data, unarm::ParsedIns { mnemonic, args })
-        } else if ins_ref.opcode & (1 << 15) != 0 {
-            let ins = arm::Ins { code, op: arm::Opcode::from(ins_ref.opcode as u8) };
-            let parsed = ins.parse(&self.parse_flags(diff_config));
-            (unarm::Ins::Arm(ins), parsed)
+
+        let thumb = ins_ref.opcode & (1 << 15) == 0;
+        let options = self.unarm_options(diff_config);
+
+        // TODO: Optimize parsing by providing the opcode discriminant
+        let ins = if ins_ref.opcode == OPCODE_DATA {
+            match ins_ref.size {
+                4 => unarm::Ins::Word(code),
+                2 => unarm::Ins::HalfWord(code as u16),
+                _ => bail!("Invalid data size {}", ins_ref.size),
+            }
+        } else if thumb {
+            let (ins, _size) = unarm::parse_thumb(code, ins_ref.address as u32, &options);
+            ins
         } else {
-            let ins = thumb::Ins { code, op: thumb::Opcode::from(ins_ref.opcode as u8) };
-            let parsed = ins.parse(&self.parse_flags(diff_config));
-            (unarm::Ins::Thumb(ins), parsed)
+            unarm::parse_arm(code, ins_ref.address as u32, &options)
         };
-        Ok((ins, parsed_ins))
+        Ok(ins)
     }
 }
 
@@ -213,10 +194,11 @@ impl Arch for ArchArm {
             .take_while(|x| x.address < end_addr);
         let mut next_mapping = mappings_iter.next();
 
-        let ins_count = code.len() / mode.instruction_size(start_addr);
+        let min_ins_size = if mode == unarm::ParseMode::Thumb { 2 } else { 4 };
+        let ins_count = code.len() / min_ins_size;
         let mut ops = Vec::<InstructionRef>::with_capacity(ins_count);
 
-        let parse_flags = self.parse_flags(diff_config);
+        let options = self.unarm_options(diff_config);
 
         let mut address = start_addr;
         while address < end_addr {
@@ -226,9 +208,8 @@ impl Arch for ArchArm {
                 next_mapping = mappings_iter.next();
             }
 
-            let mut ins_size = mode.instruction_size(address);
             let data = &code[(address - start_addr) as usize..];
-            if data.len() < ins_size {
+            if data.len() < min_ins_size {
                 // Push the remainder as data
                 ops.push(InstructionRef {
                     address: address as u64,
@@ -238,82 +219,70 @@ impl Arch for ArchArm {
                 });
                 break;
             }
-            let code = match (self.endianness, ins_size) {
-                (object::Endianness::Little, 2) => u16::from_le_bytes([data[0], data[1]]) as u32,
-                (object::Endianness::Little, 4) => {
-                    u32::from_le_bytes([data[0], data[1], data[2], data[3]])
-                }
-                (object::Endianness::Big, 2) => u16::from_be_bytes([data[0], data[1]]) as u32,
-                (object::Endianness::Big, 4) => {
-                    u32::from_be_bytes([data[0], data[1], data[2], data[3]])
-                }
-                _ => {
-                    // Invalid instruction size
-                    ops.push(InstructionRef {
-                        address: address as u64,
-                        size: ins_size as u8,
-                        opcode: OPCODE_INVALID,
-                        branch_dest: None,
-                    });
-                    address += ins_size as u32;
-                    continue;
-                }
+
+            // Check how many bytes we can/should read
+            let num_code_bytes = if data.len() >= 4 {
+                // Read 4 bytes even for Thumb, as the parser will determine if it's a 2 or 4 byte instruction
+                4
+            } else if mode != unarm::ParseMode::Arm {
+                2
+            } else {
+                // Invalid instruction size
+                ops.push(InstructionRef {
+                    address: address as u64,
+                    size: min_ins_size as u8,
+                    opcode: OPCODE_INVALID,
+                    branch_dest: None,
+                });
+                address += min_ins_size as u32;
+                continue;
             };
 
-            let (opcode, branch_dest) = match mode {
+            let code = match num_code_bytes {
+                4 => match self.endianness {
+                    object::Endianness::Little => {
+                        u32::from_le_bytes([data[0], data[1], data[2], data[3]])
+                    }
+                    object::Endianness::Big => {
+                        u32::from_be_bytes([data[0], data[1], data[2], data[3]])
+                    }
+                },
+                2 => match self.endianness {
+                    object::Endianness::Little => u16::from_le_bytes([data[0], data[1]]) as u32,
+                    object::Endianness::Big => u16::from_be_bytes([data[0], data[1]]) as u32,
+                },
+                _ => unreachable!(),
+            };
+
+            let (opcode, ins, ins_size) = match mode {
                 unarm::ParseMode::Arm => {
-                    let ins = arm::Ins::new(code, &parse_flags);
-                    let opcode = ins.op as u16 | (1 << 15);
-                    let branch_dest = match ins.op {
-                        arm::Opcode::B | arm::Opcode::Bl => {
-                            address.checked_add_signed(ins.field_branch_offset())
-                        }
-                        arm::Opcode::BlxI => address.checked_add_signed(ins.field_blx_offset()),
-                        _ => None,
-                    };
-                    (opcode, branch_dest)
+                    let ins = unarm::parse_arm(code, address, &options);
+                    let opcode = ins.discriminant() | (1 << 15);
+                    (opcode, ins, 4)
                 }
                 unarm::ParseMode::Thumb => {
-                    let ins = thumb::Ins::new(code, &parse_flags);
-                    let opcode = ins.op as u16;
-                    let branch_dest = match ins.op {
-                        thumb::Opcode::B | thumb::Opcode::Bl => {
-                            address.checked_add_signed(ins.field_branch_offset_8())
-                        }
-                        thumb::Opcode::BlH if data.len() >= 4 => {
-                            // Combine BL instructions
-                            let second_ins = thumb::Ins::new(
-                                match self.endianness {
-                                    object::Endianness::Little => {
-                                        u16::from_le_bytes([data[2], data[3]]) as u32
-                                    }
-                                    object::Endianness::Big => {
-                                        u16::from_be_bytes([data[2], data[3]]) as u32
-                                    }
-                                },
-                                &parse_flags,
-                            );
-                            if let Some(low) = match second_ins.op {
-                                thumb::Opcode::Bl => Some(second_ins.field_low_branch_offset_11()),
-                                thumb::Opcode::BlxI => Some(second_ins.field_low_blx_offset_11()),
-                                _ => None,
-                            } {
-                                ins_size = 4;
-                                address.checked_add_signed(
-                                    (ins.field_high_branch_offset_11() + (low as i32)) << 9 >> 9,
-                                )
-                            } else {
-                                None
-                            }
-                        }
-                        thumb::Opcode::BLong => {
-                            address.checked_add_signed(ins.field_branch_offset_11())
-                        }
-                        _ => None,
-                    };
-                    (opcode, branch_dest)
+                    let (ins, size) = parse_thumb(code, address, &options);
+                    let opcode = ins.discriminant();
+                    (opcode, ins, size)
                 }
-                unarm::ParseMode::Data => (OPCODE_DATA, None),
+                unarm::ParseMode::Data => (
+                    OPCODE_DATA,
+                    if num_code_bytes == 4 {
+                        unarm::Ins::Word(code)
+                    } else {
+                        unarm::Ins::HalfWord(code as u16)
+                    },
+                    num_code_bytes,
+                ),
+            };
+
+            let branch_dest = match ins {
+                unarm::Ins::B { target, .. }
+                | unarm::Ins::Bl { target, .. }
+                | unarm::Ins::Blx { target: unarm::BlxTarget::Direct(target), .. } => {
+                    Some(target.addr)
+                }
+                _ => None,
             };
 
             ops.push(InstructionRef {
@@ -322,7 +291,7 @@ impl Arch for ArchArm {
                 opcode,
                 branch_dest: branch_dest.map(|x| x as u64),
             });
-            address += ins_size as u32;
+            address += ins_size;
         }
 
         Ok(ops)
@@ -334,20 +303,16 @@ impl Arch for ArchArm {
         diff_config: &DiffObjConfig,
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()> {
-        let (ins, parsed_ins) = self.parse_ins_ref(resolved.ins_ref, resolved.code, diff_config)?;
-        cb(InstructionPart::opcode(parsed_ins.mnemonic, resolved.ins_ref.opcode))?;
-        if ins == unarm::Ins::Data && resolved.relocation.is_some() {
-            cb(InstructionPart::reloc())?;
-        } else {
-            push_args(
-                ins,
-                &parsed_ins,
-                resolved.relocation,
-                resolved.ins_ref.address as u32,
-                self.display_options(diff_config),
-                cb,
-            )?;
-        }
+        let ins = self.parse_ins_ref(resolved.ins_ref, resolved.code, diff_config)?;
+
+        let options = self.unarm_options(diff_config);
+        let mut string_fmt = unarm::StringFormatter::new(&options);
+        ins.write_opcode(&mut string_fmt)?;
+        let opcode = string_fmt.into_string();
+        cb(InstructionPart::opcode(opcode, resolved.ins_ref.opcode))?;
+
+        let mut args_formatter = ArgsFormatter { options: &options, cb, resolved: &resolved };
+        ins.write_params(&mut args_formatter)?;
         Ok(())
     }
 
@@ -491,203 +456,156 @@ impl DisasmMode {
     }
 }
 
-fn push_args(
-    ins: unarm::Ins,
-    parsed_ins: &unarm::ParsedIns,
-    relocation: Option<ResolvedRelocation>,
-    cur_addr: u32,
-    display_options: unarm::DisplayOptions,
-    mut arg_cb: impl FnMut(InstructionPart) -> Result<()>,
-) -> Result<()> {
-    let reloc_arg = find_reloc_arg(parsed_ins, relocation);
-    let mut writeback = false;
-    let mut deref = false;
-    for (i, &arg) in parsed_ins.args_iter().enumerate() {
-        // Emit punctuation before separator
-        if deref {
-            match arg {
-                args::Argument::OffsetImm(args::OffsetImm { post_indexed: true, value: _ })
-                | args::Argument::OffsetReg(args::OffsetReg {
-                    add: _,
-                    post_indexed: true,
-                    reg: _,
-                })
-                | args::Argument::CoOption(_) => {
-                    deref = false;
-                    arg_cb(InstructionPart::basic("]"))?;
-                    if writeback {
-                        writeback = false;
-                        arg_cb(InstructionPart::opaque("!"))?;
-                    }
+pub struct ArgsFormatter<'a> {
+    options: &'a unarm::Options,
+    cb: &'a mut dyn FnMut(InstructionPart) -> Result<()>,
+    resolved: &'a ResolvedInstructionRef<'a>,
+}
+
+impl ArgsFormatter<'_> {
+    fn write(&mut self, part: InstructionPart) -> core::fmt::Result {
+        (self.cb)(part).map_err(|_| core::fmt::Error)
+    }
+}
+
+impl Write for ArgsFormatter<'_> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result { self.write(InstructionPart::basic(s)) }
+}
+
+impl unarm::Write for ArgsFormatter<'_> {
+    fn options(&self) -> &unarm::Options { self.options }
+
+    fn write_ins(&mut self, ins: &unarm::Ins) -> core::fmt::Result {
+        let mut string_fmt = unarm::StringFormatter::new(self.options);
+        ins.write_opcode(&mut string_fmt)?;
+        let opcode = string_fmt.into_string();
+        self.write(InstructionPart::Opcode(Cow::Owned(opcode), self.resolved.ins_ref.opcode))?;
+        ins.write_params(self)
+    }
+
+    fn write_separator(&mut self) -> core::fmt::Result { self.write(InstructionPart::separator()) }
+
+    fn write_uimm(&mut self, uimm: u32) -> core::fmt::Result {
+        if let Some(resolved) = self.resolved.relocation
+            && let RelocationFlags::Elf(elf::R_ARM_ABS32) = resolved.relocation.flags
+        {
+            return self.write(InstructionPart::reloc());
+        }
+        self.write(InstructionPart::unsigned(uimm))
+    }
+
+    fn write_simm(&mut self, simm: i32) -> core::fmt::Result {
+        self.write(InstructionPart::signed(simm))
+    }
+
+    fn write_branch_target(&mut self, branch_target: unarm::BranchTarget) -> core::fmt::Result {
+        if let Some(resolved) = self.resolved.relocation {
+            match resolved.relocation.flags {
+                RelocationFlags::Elf(elf::R_ARM_THM_XPC22)
+                | RelocationFlags::Elf(elf::R_ARM_THM_PC22)
+                | RelocationFlags::Elf(elf::R_ARM_PC24)
+                | RelocationFlags::Elf(elf::R_ARM_XPC25)
+                | RelocationFlags::Elf(elf::R_ARM_CALL) => {
+                    return self.write(InstructionPart::reloc());
                 }
                 _ => {}
             }
         }
-
-        if i > 0 {
-            arg_cb(InstructionPart::separator())?;
-        }
-
-        if reloc_arg == Some(i) {
-            arg_cb(InstructionPart::reloc())?;
-        } else {
-            match arg {
-                args::Argument::None => {}
-                args::Argument::Reg(reg) => {
-                    if reg.deref {
-                        deref = true;
-                        arg_cb(InstructionPart::basic("["))?;
-                    }
-                    arg_cb(InstructionPart::opaque(
-                        reg.reg.display(display_options.reg_names).to_string(),
-                    ))?;
-                    if reg.writeback {
-                        if reg.deref {
-                            writeback = true;
-                        } else {
-                            arg_cb(InstructionPart::opaque("!"))?;
-                        }
-                    }
-                }
-                args::Argument::RegList(reg_list) => {
-                    arg_cb(InstructionPart::basic("{"))?;
-                    let mut first = true;
-                    for i in 0..16 {
-                        if (reg_list.regs & (1 << i)) != 0 {
-                            if !first {
-                                arg_cb(InstructionPart::separator())?;
-                            }
-                            arg_cb(InstructionPart::opaque(
-                                args::Register::parse(i)
-                                    .display(display_options.reg_names)
-                                    .to_string(),
-                            ))?;
-                            first = false;
-                        }
-                    }
-                    arg_cb(InstructionPart::basic("}"))?;
-                    if reg_list.user_mode {
-                        arg_cb(InstructionPart::opaque("^"))?;
-                    }
-                }
-                args::Argument::UImm(value)
-                | args::Argument::CoOpcode(value)
-                | args::Argument::SatImm(value) => {
-                    arg_cb(InstructionPart::basic("#"))?;
-                    arg_cb(InstructionPart::unsigned(value))?;
-                }
-                args::Argument::SImm(value)
-                | args::Argument::OffsetImm(args::OffsetImm { post_indexed: _, value }) => {
-                    arg_cb(InstructionPart::basic("#"))?;
-                    arg_cb(InstructionPart::signed(value))?;
-                }
-                args::Argument::BranchDest(value) => {
-                    arg_cb(InstructionPart::branch_dest(cur_addr.wrapping_add_signed(value)))?;
-                }
-                args::Argument::CoOption(value) => {
-                    arg_cb(InstructionPart::basic("{"))?;
-                    arg_cb(InstructionPart::unsigned(value))?;
-                    arg_cb(InstructionPart::basic("}"))?;
-                }
-                args::Argument::CoprocNum(value) => {
-                    arg_cb(InstructionPart::opaque(format!("p{value}")))?;
-                }
-                args::Argument::ShiftImm(shift) => {
-                    arg_cb(InstructionPart::opaque(shift.op.to_string()))?;
-                    arg_cb(InstructionPart::basic(" #"))?;
-                    arg_cb(InstructionPart::unsigned(shift.imm))?;
-                }
-                args::Argument::ShiftReg(shift) => {
-                    arg_cb(InstructionPart::opaque(shift.op.to_string()))?;
-                    arg_cb(InstructionPart::basic(" "))?;
-                    arg_cb(InstructionPart::opaque(
-                        shift.reg.display(display_options.reg_names).to_string(),
-                    ))?;
-                }
-                args::Argument::OffsetReg(offset) => {
-                    if !offset.add {
-                        arg_cb(InstructionPart::basic("-"))?;
-                    }
-                    arg_cb(InstructionPart::opaque(
-                        offset.reg.display(display_options.reg_names).to_string(),
-                    ))?;
-                }
-                args::Argument::CpsrMode(mode) => {
-                    arg_cb(InstructionPart::basic("#"))?;
-                    arg_cb(InstructionPart::unsigned(mode.mode))?;
-                    if mode.writeback {
-                        arg_cb(InstructionPart::opaque("!"))?;
-                    }
-                }
-                args::Argument::CoReg(_)
-                | args::Argument::StatusReg(_)
-                | args::Argument::StatusMask(_)
-                | args::Argument::Shift(_)
-                | args::Argument::CpsrFlags(_)
-                | args::Argument::Endian(_) => {
-                    arg_cb(InstructionPart::opaque(
-                        arg.display(display_options, None).to_string(),
-                    ))?;
-                }
-            }
-        }
-    }
-    if deref {
-        arg_cb(InstructionPart::basic("]"))?;
-        if writeback {
-            arg_cb(InstructionPart::opaque("!"))?;
-        }
+        self.write(InstructionPart::branch_dest(branch_target.addr))
     }
 
-    let branch_dest = get_pc_relative_load_address(ins, cur_addr);
-    if let Some(branch_dest) = branch_dest {
-        arg_cb(InstructionPart::basic(" (->"))?;
-        arg_cb(InstructionPart::branch_dest(branch_dest))?;
-        arg_cb(InstructionPart::basic(")"))?;
+    fn write_reg(&mut self, reg: unarm::Reg) -> core::fmt::Result {
+        let mut string_fmt = unarm::StringFormatter::new(self.options);
+        reg.write(&mut string_fmt)?;
+        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
+        Ok(())
     }
 
-    Ok(())
-}
-
-fn find_reloc_arg(
-    parsed_ins: &unarm::ParsedIns,
-    relocation: Option<ResolvedRelocation>,
-) -> Option<usize> {
-    if let Some(resolved) = relocation {
-        match resolved.relocation.flags {
-            // Calls
-            RelocationFlags::Elf(elf::R_ARM_THM_XPC22)
-            | RelocationFlags::Elf(elf::R_ARM_THM_PC22)
-            | RelocationFlags::Elf(elf::R_ARM_PC24)
-            | RelocationFlags::Elf(elf::R_ARM_XPC25)
-            | RelocationFlags::Elf(elf::R_ARM_CALL) => {
-                parsed_ins.args.iter().rposition(|a| matches!(a, args::Argument::BranchDest(_)))
-            }
-            // Data
-            RelocationFlags::Elf(elf::R_ARM_ABS32) => {
-                parsed_ins.args.iter().rposition(|a| matches!(a, args::Argument::UImm(_)))
-            }
-            _ => None,
-        }
-    } else {
-        None
+    fn write_status_reg(&mut self, status_reg: unarm::StatusReg) -> core::fmt::Result {
+        let mut string_fmt = unarm::StringFormatter::new(self.options);
+        status_reg.write(&mut string_fmt)?;
+        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
+        Ok(())
     }
-}
 
-fn get_pc_relative_load_address(ins: unarm::Ins, address: u32) -> Option<u32> {
-    match ins {
-        unarm::Ins::Arm(ins)
-            if ins.op == arm::Opcode::Ldr
-                && ins.modifier_addr_ldr_str() == arm::AddrLdrStr::Imm
-                && ins.field_rn_deref().reg == args::Register::Pc =>
+    fn write_status_fields(&mut self, status_fields: unarm::StatusFields) -> core::fmt::Result {
+        let mut string_fmt = unarm::StringFormatter::new(self.options);
+        status_fields.write(&mut string_fmt)?;
+        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
+        Ok(())
+    }
+
+    fn write_shift_op(&mut self, shift_op: unarm::ShiftOp) -> core::fmt::Result {
+        let mut string_fmt = unarm::StringFormatter::new(self.options);
+        shift_op.write(&mut string_fmt)?;
+        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
+        Ok(())
+    }
+
+    fn write_coproc(&mut self, coproc: unarm::Coproc) -> core::fmt::Result {
+        let mut string_fmt = unarm::StringFormatter::new(self.options);
+        coproc.write(&mut string_fmt)?;
+        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
+        Ok(())
+    }
+
+    fn write_co_reg(&mut self, co_reg: unarm::CoReg) -> core::fmt::Result {
+        let mut string_fmt = unarm::StringFormatter::new(self.options);
+        co_reg.write(&mut string_fmt)?;
+        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
+        Ok(())
+    }
+
+    fn write_aif_flags(&mut self, aif_flags: unarm::AifFlags) -> core::fmt::Result {
+        let mut string_fmt = unarm::StringFormatter::new(self.options);
+        aif_flags.write(&mut string_fmt)?;
+        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
+        Ok(())
+    }
+
+    fn write_endianness(&mut self, endianness: unarm::Endianness) -> core::fmt::Result {
+        let mut string_fmt = unarm::StringFormatter::new(self.options);
+        endianness.write(&mut string_fmt)?;
+        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
+        Ok(())
+    }
+
+    fn write_sreg(&mut self, sreg: unarm::Sreg) -> core::fmt::Result {
+        let mut string_fmt = unarm::StringFormatter::new(self.options);
+        sreg.write(&mut string_fmt)?;
+        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
+        Ok(())
+    }
+
+    fn write_dreg(&mut self, dreg: unarm::Dreg) -> core::fmt::Result {
+        let mut string_fmt = unarm::StringFormatter::new(self.options);
+        dreg.write(&mut string_fmt)?;
+        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
+        Ok(())
+    }
+
+    fn write_fpscr(&mut self, fpscr: unarm::Fpscr) -> core::fmt::Result {
+        let mut string_fmt = unarm::StringFormatter::new(self.options);
+        fpscr.write(&mut string_fmt)?;
+        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
+        Ok(())
+    }
+
+    fn write_addr_ldr_str(&mut self, addr_ldr_str: unarm::AddrLdrStr) -> core::fmt::Result {
+        addr_ldr_str.write(self)?;
+        if let unarm::AddrLdrStr::Pre {
+            rn: unarm::Reg::Pc,
+            offset: unarm::LdrStrOffset::Imm(offset),
+            ..
+        } = addr_ldr_str
         {
-            let offset = ins.field_offset_12().value;
-            Some(address.wrapping_add_signed(offset + 8))
+            let thumb = self.resolved.ins_ref.opcode & (1 << 15) == 0;
+            let pc_offset = if thumb { 4 } else { 8 };
+            let pc = (self.resolved.ins_ref.address as u32 & !3) + pc_offset;
+            self.write(InstructionPart::basic(" (->"))?;
+            self.write(InstructionPart::branch_dest(pc.wrapping_add(offset as u32)))?;
+            self.write(InstructionPart::basic(")"))?;
         }
-        unarm::Ins::Thumb(ins) if ins.op == thumb::Opcode::LdrPc => {
-            let offset = ins.field_rel_immed_8().value;
-            Some((address & !3).wrapping_add_signed(offset + 4))
-        }
-        _ => None,
+        Ok(())
     }
 }

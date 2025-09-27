@@ -108,12 +108,28 @@
           "name": "Auto"
         },
         {
+          "value": "v4",
+          "name": "ARMv4"
+        },
+        {
           "value": "v4t",
           "name": "ARMv4T (GBA)"
         },
         {
+          "value": "v5t",
+          "name": "ARMv5T"
+        },
+        {
           "value": "v5te",
           "name": "ARMv5TE (DS)"
+        },
+        {
+          "value": "v5tej",
+          "name": "ARMv5TEJ"
+        },
+        {
+          "value": "v6",
+          "name": "ARMv6"
         },
         {
           "value": "v6k",
