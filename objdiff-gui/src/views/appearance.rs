@@ -13,6 +13,7 @@ pub struct Appearance {
     pub diff_colors: Vec<Color32>,
     pub diff_bg_color: Option<Color32>,
     pub theme: egui::Theme,
+    pub show_symbol_sizes: ShowSymbolSizeState,
 
     // Applied by theme
     #[serde(skip)]
@@ -43,6 +44,12 @@ pub struct Appearance {
     pub next_code_font: Option<FontId>,
 }
 
+#[derive(serde::Deserialize, serde::Serialize, PartialEq, Debug)]
+pub enum ShowSymbolSizeState {
+    Off,
+    Decimal,
+    Hex,
+}
 pub struct FontState {
     definitions: egui::FontDefinitions,
     source: font_kit::source::SystemSource,
@@ -60,6 +67,7 @@ impl Default for Appearance {
             code_font: DEFAULT_CODE_FONT,
             diff_colors: DEFAULT_COLOR_ROTATION.to_vec(),
             theme: egui::Theme::Dark,
+            show_symbol_sizes: ShowSymbolSizeState::Off,
             text_color: Color32::GRAY,
             emphasized_text_color: Color32::LIGHT_GRAY,
             deemphasized_text_color: Color32::DARK_GRAY,
@@ -301,6 +309,26 @@ pub fn appearance_window(ctx: &egui::Context, show: &mut bool, appearance: &mut 
             DEFAULT_CODE_FONT,
             appearance,
         );
+        ui.separator();
+        egui::ComboBox::from_label("Show symbol sizes")
+            .selected_text(format!("{:?}", appearance.show_symbol_sizes))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(
+                    &mut appearance.show_symbol_sizes,
+                    ShowSymbolSizeState::Off,
+                    "Off",
+                );
+                ui.selectable_value(
+                    &mut appearance.show_symbol_sizes,
+                    ShowSymbolSizeState::Decimal,
+                    "Decimal",
+                );
+                ui.selectable_value(
+                    &mut appearance.show_symbol_sizes,
+                    ShowSymbolSizeState::Hex,
+                    "Hex",
+                );
+            });
         ui.separator();
         ui.horizontal(|ui| {
             ui.label("Diff fill color:");

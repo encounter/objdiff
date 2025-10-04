@@ -22,7 +22,7 @@ use crate::{
     hotkeys,
     jobs::{is_create_scratch_available, start_create_scratch},
     views::{
-        appearance::Appearance,
+        appearance::{Appearance, ShowSymbolSizeState},
         diff::{context_menu_items_ui, hover_items_ui},
         function_diff::FunctionViewState,
         write_text,
@@ -572,12 +572,21 @@ fn symbol_ui(
         write_text(") ", appearance.text_color, &mut job, appearance.code_font.clone());
     }
     write_text(name, appearance.highlight_color, &mut job, appearance.code_font.clone());
-    write_text(
-        &format!(" (size={})", symbol.size),
-        appearance.deemphasized_text_color,
-        &mut job,
-        appearance.code_font.clone(),
-    );
+    if appearance.show_symbol_sizes == ShowSymbolSizeState::Decimal {
+        write_text(
+            &format!(" (size={})", symbol.size),
+            appearance.deemphasized_text_color,
+            &mut job,
+            appearance.code_font.clone(),
+        );
+    } else if appearance.show_symbol_sizes == ShowSymbolSizeState::Hex {
+        write_text(
+            &format!(" (size={:x})", symbol.size),
+            appearance.deemphasized_text_color,
+            &mut job,
+            appearance.code_font.clone(),
+        );
+    }
     let response = egui::Button::selectable(selected, job)
         .ui(ui)
         .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, ctx, symbol_idx, appearance));
