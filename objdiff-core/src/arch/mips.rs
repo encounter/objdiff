@@ -293,6 +293,9 @@ impl Arch for ArchMips {
                         }
                         elf::R_MIPS_PC16 => 0, // PC-relative relocation
                         R_MIPS15_S3 => ((code & 0x001FFFC0) >> 3) as i64,
+                        elf::R_MIPS_GPREL32 => {
+                            (code as i32 as i64) + self.ri_gp_value as i64
+                        },
                         flags => bail!("Unsupported MIPS implicit relocation {flags:?}"),
                     };
                     Ok(Some(RelocationOverride { target: RelocationOverrideTarget::Keep, addend }))
