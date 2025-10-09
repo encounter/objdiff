@@ -19,7 +19,9 @@ pub struct AppConfigVersion {
 }
 
 impl Default for AppConfigVersion {
-    fn default() -> Self { Self { version: 3 } }
+    fn default() -> Self {
+        Self { version: 3 }
+    }
 }
 
 /// Deserialize the AppConfig from storage, handling upgrades from older versions.
@@ -44,7 +46,9 @@ pub fn deserialize_config(storage: &dyn Storage) -> Option<AppConfig> {
 }
 
 fn from_str<T>(str: &str) -> Option<T>
-where T: serde::de::DeserializeOwned {
+where
+    T: serde::de::DeserializeOwned,
+{
     match ron::from_str(str) {
         Ok(config) => Some(config),
         Err(err) => {
@@ -292,7 +296,9 @@ impl DiffObjConfigV1 {
 }
 
 #[inline]
-fn bool_true() -> bool { true }
+fn bool_true() -> bool {
+    true
+}
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct AppConfigV1 {

@@ -6,7 +6,10 @@ use objdiff_core::{
     diff::{
         DiffObjConfig, ObjectDiff, SymbolDiff,
         data::BYTES_PER_ROW,
-        display::{ContextItem, DiffText, HoverItem, HoverItemColor, SymbolFilter, SymbolNavigationKind, display_row},
+        display::{
+            ContextItem, DiffText, HoverItem, HoverItemColor, SymbolFilter, SymbolNavigationKind,
+            display_row,
+        },
     },
     obj::{InstructionArgValue, Object, Symbol},
     util::ReallySigned,
@@ -61,16 +64,25 @@ impl<'a> DiffColumnContext<'a> {
     }
 
     #[inline]
-    pub fn has_symbol(&self) -> bool { self.symbol.is_some() }
+    pub fn has_symbol(&self) -> bool {
+        self.symbol.is_some()
+    }
 
     #[inline]
-    pub fn id(&self) -> Option<&str> { self.symbol.map(|(symbol, _, _)| symbol.name.as_str()) }
+    pub fn id(&self) -> Option<&str> {
+        self.symbol.map(|(symbol, _, _)| symbol.name.as_str())
+    }
 }
 
 /// Obtains the assembly text for a given symbol diff, suitable for copying to clipboard.
-fn get_asm_text(obj: &Object, symbol_diff: &SymbolDiff, symbol_idx: usize, diff_config: &DiffObjConfig) -> String {
+fn get_asm_text(
+    obj: &Object,
+    symbol_diff: &SymbolDiff,
+    symbol_idx: usize,
+    diff_config: &DiffObjConfig,
+) -> String {
     let mut asm_text = String::new();
-    
+
     for ins_row in &symbol_diff.instruction_rows {
         let mut line = String::new();
         let result = display_row(obj, symbol_idx, ins_row, diff_config, |segment| {
@@ -97,13 +109,13 @@ fn get_asm_text(obj: &Object, symbol_diff: &SymbolDiff, symbol_idx: usize, diff_
             line.push_str(&text);
             Ok(())
         });
-        
+
         if result.is_ok() {
             asm_text.push_str(&line);
             asm_text.push('\n');
         }
     }
-    
+
     asm_text
 }
 
@@ -255,7 +267,9 @@ pub fn diff_view_ui(
                     if state.current_view == View::FunctionDiff
                         && ui
                             .button("Change target")
-                            .on_hover_text_at_pointer("Choose a different symbol to use as the target")
+                            .on_hover_text_at_pointer(
+                                "Choose a different symbol to use as the target",
+                            )
                             .clicked()
                         || hotkeys::consume_change_target_shortcut(ui.ctx())
                     {
@@ -263,7 +277,7 @@ pub fn diff_view_ui(
                             ret = Some(DiffViewAction::SelectingLeft(symbol_ref.clone()));
                         }
                     }
-                    
+
                     // Copy target ASM button.
                     if state.current_view == View::FunctionDiff {
                         if let Some((_, symbol_diff, symbol_idx)) = left_ctx.symbol {
@@ -273,7 +287,8 @@ pub fn diff_view_ui(
                                     .on_hover_text_at_pointer("Copy assembly to clipboard")
                                     .clicked()
                                 {
-                                    let asm_text = get_asm_text(obj, symbol_diff, symbol_idx, diff_config);
+                                    let asm_text =
+                                        get_asm_text(obj, symbol_diff, symbol_idx, diff_config);
                                     ui.ctx().copy_text(asm_text);
                                 }
                             }
@@ -436,7 +451,7 @@ pub fn diff_view_ui(
                         {
                             ret = Some(DiffViewAction::SelectingRight(symbol_ref.clone()));
                         }
-                        
+
                         // Copy base ASM button.
                         if let Some((_, symbol_diff, symbol_idx)) = right_ctx.symbol {
                             if let Some((obj, _)) = right_ctx.obj {
@@ -445,7 +460,8 @@ pub fn diff_view_ui(
                                     .on_hover_text_at_pointer("Copy assembly to clipboard")
                                     .clicked()
                                 {
-                                    let asm_text = get_asm_text(obj, symbol_diff, symbol_idx, diff_config);
+                                    let asm_text =
+                                        get_asm_text(obj, symbol_diff, symbol_idx, diff_config);
                                     ui.ctx().copy_text(asm_text);
                                 }
                             }

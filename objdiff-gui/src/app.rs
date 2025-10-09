@@ -147,7 +147,9 @@ impl ObjectConfig {
 }
 
 #[inline]
-fn bool_true() -> bool { true }
+fn bool_true() -> bool {
+    true
+}
 
 pub struct AppState {
     pub config: AppConfig,
@@ -442,10 +444,11 @@ impl AppState {
         let mut job = LayoutJob::default();
         job.append(context, 0.0, Default::default());
         job.append("\n", 0.0, Default::default());
-        job.append(&format!("{e:#}"), 0.0, egui::TextFormat {
-            color: egui::Color32::LIGHT_RED,
-            ..Default::default()
-        });
+        job.append(
+            &format!("{e:#}"),
+            0.0,
+            egui::TextFormat { color: egui::Color32::LIGHT_RED, ..Default::default() },
+        );
         self.top_left_toasts.error(job).closable(true).duration(None);
     }
 }
