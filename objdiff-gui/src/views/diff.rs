@@ -111,7 +111,7 @@ fn get_asm_text(
         });
 
         if result.is_ok() {
-            asm_text.push_str(&line);
+            asm_text.push_str(line.trim_end());
             asm_text.push('\n');
         }
     }
@@ -264,35 +264,30 @@ pub fn diff_view_ui(
             // Third row
             if left_ctx.has_symbol() && right_ctx.has_symbol() {
                 ui.horizontal(|ui| {
-                    if state.current_view == View::FunctionDiff
+                    if (state.current_view == View::FunctionDiff
                         && ui
                             .button("Change target")
                             .on_hover_text_at_pointer(
                                 "Choose a different symbol to use as the target",
                             )
                             .clicked()
-                        || hotkeys::consume_change_target_shortcut(ui.ctx())
+                        || hotkeys::consume_change_target_shortcut(ui.ctx()))
+                        && let Some(symbol_ref) = state.symbol_state.right_symbol.as_ref()
                     {
-                        if let Some(symbol_ref) = state.symbol_state.right_symbol.as_ref() {
-                            ret = Some(DiffViewAction::SelectingLeft(symbol_ref.clone()));
-                        }
+                        ret = Some(DiffViewAction::SelectingLeft(symbol_ref.clone()));
                     }
 
                     // Copy target ASM button.
-                    if state.current_view == View::FunctionDiff {
-                        if let Some((_, symbol_diff, symbol_idx)) = left_ctx.symbol {
-                            if let Some((obj, _)) = left_ctx.obj {
-                                if ui
-                                    .button("Copy ASM")
-                                    .on_hover_text_at_pointer("Copy assembly to clipboard")
-                                    .clicked()
-                                {
-                                    let asm_text =
-                                        get_asm_text(obj, symbol_diff, symbol_idx, diff_config);
-                                    ui.ctx().copy_text(asm_text);
-                                }
-                            }
-                        }
+                    if state.current_view == View::FunctionDiff
+                        && let Some((_, symbol_diff, symbol_idx)) = left_ctx.symbol
+                        && let Some((obj, _)) = left_ctx.obj
+                        && ui
+                            .button("Copy ASM")
+                            .on_hover_text_at_pointer("Copy assembly to clipboard")
+                            .clicked()
+                    {
+                        let asm_text = get_asm_text(obj, symbol_diff, symbol_idx, diff_config);
+                        ui.ctx().copy_text(asm_text);
                     }
                 });
             } else if left_ctx.status.success && !left_ctx.has_symbol() {
@@ -453,18 +448,15 @@ pub fn diff_view_ui(
                         }
 
                         // Copy base ASM button.
-                        if let Some((_, symbol_diff, symbol_idx)) = right_ctx.symbol {
-                            if let Some((obj, _)) = right_ctx.obj {
-                                if ui
-                                    .button("Copy ASM")
-                                    .on_hover_text_at_pointer("Copy assembly to clipboard")
-                                    .clicked()
-                                {
-                                    let asm_text =
-                                        get_asm_text(obj, symbol_diff, symbol_idx, diff_config);
-                                    ui.ctx().copy_text(asm_text);
-                                }
-                            }
+                        if let Some((_, symbol_diff, symbol_idx)) = right_ctx.symbol
+                            && let Some((obj, _)) = right_ctx.obj
+                            && ui
+                                .button("Copy ASM")
+                                .on_hover_text_at_pointer("Copy assembly to clipboard")
+                                .clicked()
+                        {
+                            let asm_text = get_asm_text(obj, symbol_diff, symbol_idx, diff_config);
+                            ui.ctx().copy_text(asm_text);
                         }
                     }
                 } else if right_ctx.status.success && !right_ctx.has_symbol() {
