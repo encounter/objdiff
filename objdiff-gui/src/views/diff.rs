@@ -1,12 +1,15 @@
+use std::cmp::Ordering;
+
 use egui::{Id, Layout, RichText, ScrollArea, TextEdit, Ui, Widget, text::LayoutJob};
 use objdiff_core::{
     build::BuildStatus,
     diff::{
         DiffObjConfig, ObjectDiff, SymbolDiff,
         data::BYTES_PER_ROW,
-        display::{ContextItem, HoverItem, HoverItemColor, SymbolFilter, SymbolNavigationKind, display_row},
+        display::{ContextItem, DiffText, HoverItem, HoverItemColor, SymbolFilter, SymbolNavigationKind, display_row},
     },
-    obj::{Object, Symbol},
+    obj::{InstructionArgValue, Object, Symbol},
+    util::ReallySigned,
 };
 use time::format_description;
 
@@ -71,7 +74,27 @@ fn get_asm_text(obj: &Object, symbol_diff: &SymbolDiff, symbol_idx: usize, diff_
     for ins_row in &symbol_diff.instruction_rows {
         let mut line = String::new();
         let result = display_row(obj, symbol_idx, ins_row, diff_config, |segment| {
-            line.push_str(&segment.text.to_string());
+            let text = match segment.text {
+                DiffText::Basic(text) => text.to_string(),
+                DiffText::Line(num) => format!("{num} "),
+                DiffText::Address(addr) => format!("{addr:x}:"),
+                DiffText::Opcode(mnemonic, _op) => format!("{mnemonic} "),
+                DiffText::Argument(arg) => match arg {
+                    InstructionArgValue::Signed(v) => format!("{:#x}", ReallySigned(v)),
+                    InstructionArgValue::Unsigned(v) => format!("{v:#x}"),
+                    InstructionArgValue::Opaque(v) => v.into_owned(),
+                },
+                DiffText::BranchDest(addr) => format!("{addr:x}"),
+                DiffText::Symbol(sym) => sym.demangled_name.as_ref().unwrap_or(&sym.name).clone(),
+                DiffText::Addend(addend) => match addend.cmp(&0i64) {
+                    Ordering::Greater => format!("+{addend:#x}"),
+                    Ordering::Less => format!("-{:#x}", -addend),
+                    _ => String::new(),
+                },
+                DiffText::Spacing(n) => " ".repeat(n),
+                DiffText::Eol => "\n".to_string(),
+            };
+            line.push_str(&text);
             Ok(())
         });
         
