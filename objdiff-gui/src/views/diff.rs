@@ -91,7 +91,7 @@ fn get_asm_text(obj: &Object, symbol_diff: &SymbolDiff, symbol_idx: usize, diff_
                     Ordering::Less => format!("-{:#x}", -addend),
                     _ => String::new(),
                 },
-                DiffText::Spacing(n) => " ".repeat(n),
+                DiffText::Spacing(n) => " ".repeat(n.into()),
                 DiffText::Eol => "\n".to_string(),
             };
             line.push_str(&text);
