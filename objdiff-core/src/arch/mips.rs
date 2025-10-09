@@ -319,6 +319,7 @@ impl Arch for ArchMips {
                 elf::R_MIPS_GOT16 => Some("R_MIPS_GOT16"),
                 elf::R_MIPS_PC16 => Some("R_MIPS_PC16"),
                 elf::R_MIPS_CALL16 => Some("R_MIPS_CALL16"),
+                elf::R_MIPS_GPREL32 => Some("R_MIPS_GPREL32"),
                 R_MIPS15_S3 => Some("R_MIPS15_S3"),
                 _ => None,
             },
