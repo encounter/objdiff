@@ -40,9 +40,13 @@ use exports::objdiff::core::{
 struct Component;
 
 impl Guest for Component {
-    fn init(level: logging::wasi_logging::Level) { logging::init(level); }
+    fn init(level: logging::wasi_logging::Level) {
+        logging::init(level);
+    }
 
-    fn version() -> String { env!("CARGO_PKG_VERSION").to_string() }
+    fn version() -> String {
+        env!("CARGO_PKG_VERSION").to_string()
+    }
 }
 
 struct ResourceObject(Rc<obj::Object>, u64);
@@ -425,7 +429,9 @@ impl From<diff::DataDiffKind> for DataDiffKind {
 }
 
 impl Default for DataDiffRow {
-    fn default() -> Self { Self { address: 0, segments: Vec::new(), relocations: Vec::new() } }
+    fn default() -> Self {
+        Self { address: 0, segments: Vec::new(), relocations: Vec::new() }
+    }
 }
 
 impl From<&diff::DataDiffRow> for DataDiffRow {
@@ -549,7 +555,9 @@ impl From<diff::InstructionDiffKind> for InstructionDiffKind {
 }
 
 impl GuestDiffConfig for ResourceDiffConfig {
-    fn new() -> Self { Self(RefCell::new(diff::DiffObjConfig::default())) }
+    fn new() -> Self {
+        Self(RefCell::new(diff::DiffObjConfig::default()))
+    }
 
     fn set_property(&self, key: String, value: String) -> Result<(), String> {
         let id = diff::ConfigPropertyId::from_str(&key)
@@ -573,13 +581,17 @@ struct ObjectCache(RefCell<Vec<CachedObject>>);
 
 impl ObjectCache {
     #[inline]
-    const fn new() -> Self { Self(RefCell::new(Vec::new())) }
+    const fn new() -> Self {
+        Self(RefCell::new(Vec::new()))
+    }
 }
 
 impl core::ops::Deref for ObjectCache {
     type Target = RefCell<Vec<CachedObject>>;
 
-    fn deref(&self) -> &Self::Target { &self.0 }
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 // Assume single-threaded environment
@@ -624,7 +636,9 @@ impl GuestObject for ResourceObject {
         Ok(Object::new(ResourceObject(obj, hash)))
     }
 
-    fn hash(&self) -> u64 { self.1 }
+    fn hash(&self) -> u64 {
+        self.1
+    }
 }
 
 impl GuestObjectDiff for ResourceObjectDiff {
@@ -730,19 +744,27 @@ impl From<diff::display::SymbolNavigationKind> for SymbolNavigationKind {
 }
 
 impl Default for InstructionDiffKind {
-    fn default() -> Self { Self::None }
+    fn default() -> Self {
+        Self::None
+    }
 }
 
 impl Default for InstructionDiffRow {
-    fn default() -> Self { Self { segments: Default::default(), diff_kind: Default::default() } }
+    fn default() -> Self {
+        Self { segments: Default::default(), diff_kind: Default::default() }
+    }
 }
 
 impl Default for SymbolKind {
-    fn default() -> Self { Self::Unknown }
+    fn default() -> Self {
+        Self::Unknown
+    }
 }
 
 impl Default for SymbolFlags {
-    fn default() -> Self { Self::empty() }
+    fn default() -> Self {
+        Self::empty()
+    }
 }
 
 impl Default for SymbolInfo {
@@ -803,7 +825,9 @@ fn to_symbol_ref(display_symbol: diff::display::SectionDisplaySymbol) -> SymbolR
 }
 
 impl Default for SectionKind {
-    fn default() -> Self { Self::Unknown }
+    fn default() -> Self {
+        Self::Unknown
+    }
 }
 
 impl From<obj::SectionKind> for SectionKind {

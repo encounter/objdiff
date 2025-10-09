@@ -38,7 +38,9 @@ pub struct JobQueue {
 impl JobQueue {
     /// Adds a job to the queue.
     #[inline]
-    pub fn push(&mut self, state: JobState) { self.jobs.push(state); }
+    pub fn push(&mut self, state: JobState) {
+        self.jobs.push(state);
+    }
 
     /// Adds a job to the queue if a job of the given kind is not already running.
     #[inline]
@@ -64,7 +66,9 @@ impl JobQueue {
     }
 
     /// Iterates over all jobs mutably.
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut JobState> + '_ { self.jobs.iter_mut() }
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut JobState> + '_ {
+        self.jobs.iter_mut()
+    }
 
     /// Iterates over all finished jobs, returning the job state and the result.
     pub fn iter_finished(
@@ -95,7 +99,9 @@ impl JobQueue {
     }
 
     /// Removes a job from the queue given its ID.
-    pub fn remove(&mut self, id: usize) { self.jobs.retain(|job| job.id != id); }
+    pub fn remove(&mut self, id: usize) {
+        self.jobs.retain(|job| job.id != id);
+    }
 
     /// Collects the results of all finished jobs and handles any errors.
     pub fn collect_results(&mut self) {

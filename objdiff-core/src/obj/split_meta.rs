@@ -33,7 +33,9 @@ const NT_SPLIT_VIRTUAL_ADDRESSES: u32 = u32::from_be_bytes(*b"VIRT");
 
 impl SplitMeta {
     pub fn from_section<E>(section: object::Section, e: E, is_64: bool) -> Result<Self>
-    where E: Endian {
+    where
+        E: Endian,
+    {
         let mut result = SplitMeta::default();
         let data = section.uncompressed_data().map_err(object_error)?;
         let mut iter = NoteIterator::new(data.as_ref(), section.align(), e, is_64)?;
@@ -144,7 +146,9 @@ impl SplitMeta {
 
 /// Convert an object::read::Error to a String.
 #[inline]
-fn object_error(err: object::read::Error) -> anyhow::Error { anyhow::Error::new(err) }
+fn object_error(err: object::read::Error) -> anyhow::Error {
+    anyhow::Error::new(err)
+}
 
 /// An ELF note entry.
 struct Note<'data> {
@@ -156,14 +160,16 @@ struct Note<'data> {
 /// object::read::elf::NoteIterator is awkward to use generically,
 /// so wrap it in our own iterator.
 enum NoteIterator<'data, E>
-where E: Endian
+where
+    E: Endian,
 {
     B32(object::read::elf::NoteIterator<'data, object::elf::FileHeader32<E>>),
     B64(object::read::elf::NoteIterator<'data, object::elf::FileHeader64<E>>),
 }
 
 impl<'data, E> NoteIterator<'data, E>
-where E: Endian
+where
+    E: Endian,
 {
     fn new(data: &'data [u8], align: u64, e: E, is_64: bool) -> Result<Self> {
         Ok(if is_64 {

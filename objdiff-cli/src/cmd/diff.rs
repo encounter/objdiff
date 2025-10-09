@@ -322,9 +322,13 @@ impl AppState {
 pub struct TermWaker(pub AtomicBool);
 
 impl Wake for TermWaker {
-    fn wake(self: Arc<Self>) { self.0.store(true, Ordering::Relaxed); }
+    fn wake(self: Arc<Self>) {
+        self.0.store(true, Ordering::Relaxed);
+    }
 
-    fn wake_by_ref(self: &Arc<Self>) { self.0.store(true, Ordering::Relaxed); }
+    fn wake_by_ref(self: &Arc<Self>) {
+        self.0.store(true, Ordering::Relaxed);
+    }
 }
 
 fn run_interactive(

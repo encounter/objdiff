@@ -103,45 +103,61 @@ pub enum InstructionPart<'a> {
 impl<'a> InstructionPart<'a> {
     #[inline(always)]
     pub fn basic<T>(s: T) -> Self
-    where T: Into<Cow<'a, str>> {
+    where
+        T: Into<Cow<'a, str>>,
+    {
         InstructionPart::Basic(s.into())
     }
 
     #[inline(always)]
     pub fn opcode<T>(s: T, o: u16) -> Self
-    where T: Into<Cow<'a, str>> {
+    where
+        T: Into<Cow<'a, str>>,
+    {
         InstructionPart::Opcode(s.into(), o)
     }
 
     #[inline(always)]
     pub fn opaque<T>(s: T) -> Self
-    where T: Into<Cow<'a, str>> {
+    where
+        T: Into<Cow<'a, str>>,
+    {
         InstructionPart::Arg(InstructionArg::Value(InstructionArgValue::Opaque(s.into())))
     }
 
     #[inline(always)]
     pub fn signed<T>(v: T) -> InstructionPart<'static>
-    where T: Into<i64> {
+    where
+        T: Into<i64>,
+    {
         InstructionPart::Arg(InstructionArg::Value(InstructionArgValue::Signed(v.into())))
     }
 
     #[inline(always)]
     pub fn unsigned<T>(v: T) -> InstructionPart<'static>
-    where T: Into<u64> {
+    where
+        T: Into<u64>,
+    {
         InstructionPart::Arg(InstructionArg::Value(InstructionArgValue::Unsigned(v.into())))
     }
 
     #[inline(always)]
     pub fn branch_dest<T>(v: T) -> InstructionPart<'static>
-    where T: Into<u64> {
+    where
+        T: Into<u64>,
+    {
         InstructionPart::Arg(InstructionArg::BranchDest(v.into()))
     }
 
     #[inline(always)]
-    pub fn reloc() -> InstructionPart<'static> { InstructionPart::Arg(InstructionArg::Reloc) }
+    pub fn reloc() -> InstructionPart<'static> {
+        InstructionPart::Arg(InstructionArg::Reloc)
+    }
 
     #[inline(always)]
-    pub fn separator() -> InstructionPart<'static> { InstructionPart::Separator }
+    pub fn separator() -> InstructionPart<'static> {
+        InstructionPart::Separator
+    }
 
     pub fn into_static(self) -> InstructionPart<'static> {
         match self {
@@ -338,7 +354,9 @@ impl PartialEq<DiffText<'_>> for HighlightKind {
 }
 
 impl PartialEq<HighlightKind> for DiffText<'_> {
-    fn eq(&self, other: &HighlightKind) -> bool { other.eq(self) }
+    fn eq(&self, other: &HighlightKind) -> bool {
+        other.eq(self)
+    }
 }
 
 impl From<&DiffText<'_>> for HighlightKind {

@@ -52,7 +52,9 @@ pub struct ProjectConfig {
 
 impl ProjectConfig {
     #[inline]
-    pub fn units(&self) -> &[ProjectObject] { self.units.as_deref().unwrap_or_default() }
+    pub fn units(&self) -> &[ProjectObject] {
+        self.units.as_deref().unwrap_or_default()
+    }
 
     #[inline]
     pub fn progress_categories(&self) -> &[ProjectProgressCategory] {
@@ -194,7 +196,9 @@ impl ProjectObject {
         self.metadata.as_ref().and_then(|m| m.auto_generated)
     }
 
-    pub fn options(&self) -> Option<&ProjectOptions> { self.options.as_ref() }
+    pub fn options(&self) -> Option<&ProjectOptions> {
+        self.options.as_ref()
+    }
 }
 
 #[derive(Default, Clone, Eq, PartialEq)]

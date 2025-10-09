@@ -45,7 +45,9 @@ fn is_rel_abs_arg(arg: &powerpc::Argument) -> bool {
     )
 }
 
-fn is_offset_arg(arg: &powerpc::Argument) -> bool { matches!(arg, powerpc::Argument::Offset(_)) }
+fn is_offset_arg(arg: &powerpc::Argument) -> bool {
+    matches!(arg, powerpc::Argument::Offset(_))
+}
 
 #[derive(Debug)]
 pub struct ArchPpc {
@@ -228,9 +230,10 @@ impl Arch for ArchPpc {
                 .skip_while(|&(a, _)| a < address)
                 .take_while(|&(a, _)| a == address)
                 .find(|(_, reloc)| {
-                    matches!(reloc.flags(), object::RelocationFlags::Coff {
-                        typ: pe::IMAGE_REL_PPC_PAIR
-                    })
+                    matches!(
+                        reloc.flags(),
+                        object::RelocationFlags::Coff { typ: pe::IMAGE_REL_PPC_PAIR }
+                    )
                 })
                 .map_or(
                     Ok(Some(RelocationOverride {
@@ -624,12 +627,15 @@ fn decode_exception_info(
         };
 
         //Add the new entry to the list
-        result.insert(extab_func.index().0 - 1, ExceptionInfo {
-            eti_symbol: make_symbol_ref(&extabindex)?,
-            etb_symbol: make_symbol_ref(&extab)?,
-            data,
-            dtors,
-        });
+        result.insert(
+            extab_func.index().0 - 1,
+            ExceptionInfo {
+                eti_symbol: make_symbol_ref(&extabindex)?,
+                etb_symbol: make_symbol_ref(&extab)?,
+                data,
+                dtors,
+            },
+        );
     }
 
     Ok(Some(result))

@@ -28,7 +28,9 @@ pub mod display;
 include!(concat!(env!("OUT_DIR"), "/config.gen.rs"));
 
 impl DiffObjConfig {
-    pub fn separator(&self) -> &'static str { if self.space_between_args { ", " } else { "," } }
+    pub fn separator(&self) -> &'static str {
+        if self.space_between_args { ", " } else { "," }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -124,13 +126,19 @@ impl InstructionArgDiffIndex {
     }
 
     #[inline(always)]
-    pub fn get(&self) -> Option<u32> { self.0.map(|idx| idx.get() - 1) }
+    pub fn get(&self) -> Option<u32> {
+        self.0.map(|idx| idx.get() - 1)
+    }
 
     #[inline(always)]
-    pub fn is_some(&self) -> bool { self.0.is_some() }
+    pub fn is_some(&self) -> bool {
+        self.0.is_some()
+    }
 
     #[inline(always)]
-    pub fn is_none(&self) -> bool { self.0.is_none() }
+    pub fn is_none(&self) -> bool {
+        self.0.is_none()
+    }
 }
 
 #[derive(Debug, Clone)]

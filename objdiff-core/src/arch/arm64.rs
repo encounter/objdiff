@@ -21,7 +21,9 @@ use crate::{
 pub struct ArchArm64 {}
 
 impl ArchArm64 {
-    pub fn new(_file: &object::File) -> Result<Self> { Ok(Self {}) }
+    pub fn new(_file: &object::File) -> Result<Self> {
+        Ok(Self {})
+    }
 }
 
 impl Arch for ArchArm64 {
@@ -186,7 +188,9 @@ struct DisplayCtx<'a> {
 // Reworked for more structured output. The library only gives us a Display impl, and no way to
 // capture any of this information, so it needs to be reimplemented here.
 fn display_instruction<Cb>(args: &mut Cb, ins: &Instruction, ctx: &mut DisplayCtx) -> &'static str
-where Cb: FnMut(InstructionPart<'static>) {
+where
+    Cb: FnMut(InstructionPart<'static>),
+{
     let mnemonic = match ins.opcode {
         Opcode::Invalid => return "<invalid>",
         Opcode::UDF => "udf",
@@ -2001,13 +2005,17 @@ fn condition_code(cond: u8) -> &'static str {
 
 #[inline]
 fn push_register<Cb>(args: &mut Cb, size: SizeCode, reg: u16, sp: bool)
-where Cb: FnMut(InstructionPart<'static>) {
+where
+    Cb: FnMut(InstructionPart<'static>),
+{
     push_opaque(args, reg_name(size, reg, sp));
 }
 
 #[inline]
 fn push_shift<Cb>(args: &mut Cb, style: ShiftStyle, amount: u8)
-where Cb: FnMut(InstructionPart<'static>) {
+where
+    Cb: FnMut(InstructionPart<'static>),
+{
     push_opaque(args, shift_style(style));
     if amount != 0 {
         push_plain(args, " ");
@@ -2017,12 +2025,16 @@ where Cb: FnMut(InstructionPart<'static>) {
 
 #[inline]
 fn push_condition_code<Cb>(args: &mut Cb, cond: u8)
-where Cb: FnMut(InstructionPart<'static>) {
+where
+    Cb: FnMut(InstructionPart<'static>),
+{
     push_opaque(args, condition_code(cond));
 }
 
 fn push_barrier<Cb>(args: &mut Cb, option: u8)
-where Cb: FnMut(InstructionPart<'static>) {
+where
+    Cb: FnMut(InstructionPart<'static>),
+{
     match option {
         0b0001 => push_opaque(args, "oshld"),
         0b0010 => push_opaque(args, "oshst"),
@@ -2042,32 +2054,42 @@ where Cb: FnMut(InstructionPart<'static>) {
 
 #[inline]
 fn push_opaque<'a, Cb>(args: &mut Cb, text: &'a str)
-where Cb: FnMut(InstructionPart<'a>) {
+where
+    Cb: FnMut(InstructionPart<'a>),
+{
     args(InstructionPart::opaque(text));
 }
 
 #[inline]
 fn push_plain<Cb>(args: &mut Cb, text: &'static str)
-where Cb: FnMut(InstructionPart<'static>) {
+where
+    Cb: FnMut(InstructionPart<'static>),
+{
     args(InstructionPart::basic(text));
 }
 
 #[inline]
 fn push_separator<Cb>(args: &mut Cb)
-where Cb: FnMut(InstructionPart<'static>) {
+where
+    Cb: FnMut(InstructionPart<'static>),
+{
     args(InstructionPart::separator());
 }
 
 #[inline]
 fn push_unsigned<Cb>(args: &mut Cb, v: u64)
-where Cb: FnMut(InstructionPart<'static>) {
+where
+    Cb: FnMut(InstructionPart<'static>),
+{
     push_plain(args, "#");
     args(InstructionPart::unsigned(v));
 }
 
 #[inline]
 fn push_signed<Cb>(args: &mut Cb, v: i64)
-where Cb: FnMut(InstructionPart<'static>) {
+where
+    Cb: FnMut(InstructionPart<'static>),
+{
     push_plain(args, "#");
     args(InstructionPart::signed(v));
 }
@@ -2107,7 +2129,9 @@ fn is_reg_index_reloc(resolved: Option<ResolvedRelocation>) -> bool {
 }
 
 fn push_operand<Cb>(args: &mut Cb, o: &Operand, ctx: &mut DisplayCtx)
-where Cb: FnMut(InstructionPart<'static>) {
+where
+    Cb: FnMut(InstructionPart<'static>),
+{
     match o {
         Operand::Nothing => unreachable!(),
         Operand::PCOffset(off) => {
