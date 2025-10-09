@@ -71,7 +71,7 @@ fn get_asm_text(obj: &Object, symbol_diff: &SymbolDiff, symbol_idx: usize, diff_
     for ins_row in &symbol_diff.instruction_rows {
         let mut line = String::new();
         let result = display_row(obj, symbol_idx, ins_row, diff_config, |segment| {
-            line.push_str(&segment.text);
+            line.push_str(&segment.text.to_string());
             Ok(())
         });
         
@@ -414,7 +414,7 @@ pub fn diff_view_ui(
                             ret = Some(DiffViewAction::SelectingRight(symbol_ref.clone()));
                         }
                         
-                        /// Copy base ASM button.
+                        // Copy base ASM button.
                         if let Some((_, symbol_diff, symbol_idx)) = right_ctx.symbol {
                             if let Some((obj, _)) = right_ctx.obj {
                                 if ui
