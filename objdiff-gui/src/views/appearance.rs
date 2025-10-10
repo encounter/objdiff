@@ -91,19 +91,16 @@ impl Default for FontState {
 impl Appearance {
     pub fn pre_update(&mut self, ctx: &egui::Context) {
         let mut style = ctx.style().as_ref().clone();
-        style.text_styles.insert(
-            TextStyle::Body,
-            FontId {
-                size: (self.ui_font.size * 0.75).floor(),
-                family: self.ui_font.family.clone(),
-            },
-        );
+        style.text_styles.insert(TextStyle::Body, FontId {
+            size: (self.ui_font.size * 0.75).floor(),
+            family: self.ui_font.family.clone(),
+        });
         style.text_styles.insert(TextStyle::Body, self.ui_font.clone());
         style.text_styles.insert(TextStyle::Button, self.ui_font.clone());
-        style.text_styles.insert(
-            TextStyle::Heading,
-            FontId { size: (self.ui_font.size * 1.5).floor(), family: self.ui_font.family.clone() },
-        );
+        style.text_styles.insert(TextStyle::Heading, FontId {
+            size: (self.ui_font.size * 1.5).floor(),
+            family: self.ui_font.family.clone(),
+        });
         style.text_styles.insert(TextStyle::Monospace, self.code_font.clone());
         match self.theme {
             egui::Theme::Dark => {

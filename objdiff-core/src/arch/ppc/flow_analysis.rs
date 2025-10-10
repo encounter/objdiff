@@ -175,9 +175,7 @@ impl RegisterState {
 impl Index<powerpc::GPR> for RegisterState {
     type Output = RegisterContent;
 
-    fn index(&self, gpr: powerpc::GPR) -> &Self::Output {
-        &self.gpr[gpr.0 as usize]
-    }
+    fn index(&self, gpr: powerpc::GPR) -> &Self::Output { &self.gpr[gpr.0 as usize] }
 }
 impl IndexMut<powerpc::GPR> for RegisterState {
     fn index_mut(&mut self, gpr: powerpc::GPR) -> &mut Self::Output {
@@ -188,9 +186,7 @@ impl IndexMut<powerpc::GPR> for RegisterState {
 impl Index<powerpc::FPR> for RegisterState {
     type Output = RegisterContent;
 
-    fn index(&self, fpr: powerpc::FPR) -> &Self::Output {
-        &self.fpr[fpr.0 as usize]
-    }
+    fn index(&self, fpr: powerpc::FPR) -> &Self::Output { &self.fpr[fpr.0 as usize] }
 }
 impl IndexMut<powerpc::FPR> for RegisterState {
     fn index_mut(&mut self, fpr: powerpc::FPR) -> &mut Self::Output {
@@ -300,9 +296,7 @@ impl PPCFlowAnalysisResult {
         self.argument_contents.insert((address, argument), value);
     }
 
-    fn new() -> Self {
-        PPCFlowAnalysisResult { argument_contents: Default::default() }
-    }
+    fn new() -> Self { PPCFlowAnalysisResult { argument_contents: Default::default() } }
 }
 
 impl FlowAnalysisResult for PPCFlowAnalysisResult {
@@ -383,9 +377,7 @@ fn fill_registers_from_relocation(
 // See: https://github.com/encounter/decomp-toolkit/blob/main/src/analysis/pass.rs
 const SLEDS: [&str; 6] = ["_savefpr_", "_restfpr_", "_savegpr_", "_restgpr_", "_savev", "_restv"];
 
-fn is_sled_function(name: &str) -> bool {
-    SLEDS.iter().any(|sled| name.starts_with(sled))
-}
+fn is_sled_function(name: &str) -> bool { SLEDS.iter().any(|sled| name.starts_with(sled)) }
 
 pub fn ppc_data_flow_analysis(
     obj: &Object,

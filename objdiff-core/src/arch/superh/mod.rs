@@ -15,9 +15,7 @@ pub mod disasm;
 pub struct ArchSuperH {}
 
 impl ArchSuperH {
-    pub fn new(_file: &object::File) -> Result<Self> {
-        Ok(Self {})
-    }
+    pub fn new(_file: &object::File) -> Result<Self> { Ok(Self {}) }
 }
 
 struct DataInfo {

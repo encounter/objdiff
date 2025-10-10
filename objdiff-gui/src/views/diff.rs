@@ -64,14 +64,10 @@ impl<'a> DiffColumnContext<'a> {
     }
 
     #[inline]
-    pub fn has_symbol(&self) -> bool {
-        self.symbol.is_some()
-    }
+    pub fn has_symbol(&self) -> bool { self.symbol.is_some() }
 
     #[inline]
-    pub fn id(&self) -> Option<&str> {
-        self.symbol.map(|(symbol, _, _)| symbol.name.as_str())
-    }
+    pub fn id(&self) -> Option<&str> { self.symbol.map(|(symbol, _, _)| symbol.name.as_str()) }
 }
 
 /// Obtains the assembly text for a given symbol diff, suitable for copying to clipboard.

@@ -43,13 +43,10 @@ impl ArchArm {
                 && s.name() == Ok(".ARM.attributes")
         }) {
             let attr_data = arm_attrs.uncompressed_data()?;
-            let build_attrs = BuildAttrs::new(
-                &attr_data,
-                match file.endianness() {
-                    object::Endianness::Little => arm_attr::Endian::Little,
-                    object::Endianness::Big => arm_attr::Endian::Big,
-                },
-            )?;
+            let build_attrs = BuildAttrs::new(&attr_data, match file.endianness() {
+                object::Endianness::Little => arm_attr::Endian::Little,
+                object::Endianness::Big => arm_attr::Endian::Big,
+            })?;
             for subsection in build_attrs.subsections() {
                 let subsection = subsection?;
                 if !subsection.is_aeabi() {

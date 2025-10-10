@@ -47,7 +47,5 @@ impl Demangler {
 
 #[cfg(not(feature = "demangler"))]
 impl Demangler {
-    pub fn demangle(&self, _name: &str) -> Option<String> {
-        None
-    }
+    pub fn demangle(&self, _name: &str) -> Option<String> { None }
 }

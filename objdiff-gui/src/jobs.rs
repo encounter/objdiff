@@ -20,18 +20,12 @@ use crate::{
 struct EguiWaker(egui::Context);
 
 impl Wake for EguiWaker {
-    fn wake(self: Arc<Self>) {
-        self.0.request_repaint();
-    }
+    fn wake(self: Arc<Self>) { self.0.request_repaint(); }
 
-    fn wake_by_ref(self: &Arc<Self>) {
-        self.0.request_repaint();
-    }
+    fn wake_by_ref(self: &Arc<Self>) { self.0.request_repaint(); }
 }
 
-pub fn egui_waker(ctx: &egui::Context) -> Waker {
-    Waker::from(Arc::new(EguiWaker(ctx.clone())))
-}
+pub fn egui_waker(ctx: &egui::Context) -> Waker { Waker::from(Arc::new(EguiWaker(ctx.clone()))) }
 
 pub fn is_create_scratch_available(config: &AppConfig) -> bool {
     let Some(selected_obj) = &config.selected_obj else {
@@ -133,13 +127,10 @@ pub fn start_build(ctx: &egui::Context, jobs: &mut JobQueue, config: objdiff::Ob
 
 pub fn start_check_update(ctx: &egui::Context, jobs: &mut JobQueue) {
     jobs.push_once(Job::Update, || {
-        jobs::check_update::start_check_update(
-            egui_waker(ctx),
-            CheckUpdateConfig {
-                build_updater,
-                bin_names: vec![BIN_NAME_NEW.to_string(), BIN_NAME_OLD.to_string()],
-            },
-        )
+        jobs::check_update::start_check_update(egui_waker(ctx), CheckUpdateConfig {
+            build_updater,
+            bin_names: vec![BIN_NAME_NEW.to_string(), BIN_NAME_OLD.to_string()],
+        })
     });
 }
 

@@ -2,9 +2,7 @@ use egui::{
     Context, Key, KeyboardShortcut, Modifiers, PointerButton, style::ScrollAnimation, vec2,
 };
 
-fn any_widget_focused(ctx: &Context) -> bool {
-    ctx.memory(|mem| mem.focused().is_some())
-}
+fn any_widget_focused(ctx: &Context) -> bool { ctx.memory(|mem| mem.focused().is_some()) }
 
 pub fn enter_pressed(ctx: &Context) -> bool {
     if any_widget_focused(ctx) {
@@ -42,21 +40,13 @@ pub fn down_pressed(ctx: &Context) -> bool {
     ctx.input_mut(|i| i.key_pressed(Key::ArrowDown) || i.key_pressed(Key::S))
 }
 
-pub fn page_up_pressed(ctx: &Context) -> bool {
-    ctx.input_mut(|i| i.key_pressed(Key::PageUp))
-}
+pub fn page_up_pressed(ctx: &Context) -> bool { ctx.input_mut(|i| i.key_pressed(Key::PageUp)) }
 
-pub fn page_down_pressed(ctx: &Context) -> bool {
-    ctx.input_mut(|i| i.key_pressed(Key::PageDown))
-}
+pub fn page_down_pressed(ctx: &Context) -> bool { ctx.input_mut(|i| i.key_pressed(Key::PageDown)) }
 
-pub fn home_pressed(ctx: &Context) -> bool {
-    ctx.input_mut(|i| i.key_pressed(Key::Home))
-}
+pub fn home_pressed(ctx: &Context) -> bool { ctx.input_mut(|i| i.key_pressed(Key::Home)) }
 
-pub fn end_pressed(ctx: &Context) -> bool {
-    ctx.input_mut(|i| i.key_pressed(Key::End))
-}
+pub fn end_pressed(ctx: &Context) -> bool { ctx.input_mut(|i| i.key_pressed(Key::End)) }
 
 pub fn check_scroll_hotkeys(ui: &mut egui::Ui, include_small_increments: bool) {
     let ui_height = ui.available_rect_before_wrap().height();

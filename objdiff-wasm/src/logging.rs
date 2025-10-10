@@ -10,9 +10,7 @@ pub use wasi::logging::logging as wasi_logging;
 struct WasiLogger;
 
 impl log::Log for WasiLogger {
-    fn enabled(&self, metadata: &log::Metadata) -> bool {
-        metadata.level() <= log::max_level()
-    }
+    fn enabled(&self, metadata: &log::Metadata) -> bool { metadata.level() <= log::max_level() }
 
     fn log(&self, record: &log::Record) {
         if !self.enabled(record.metadata()) {

@@ -7,14 +7,12 @@ use std::ffi::OsStr;
 use argp::{EarlyExit, FromArgs, TopLevelCommand, parser::ParseGlobalOptions};
 
 struct ArgsOrVersion<T>(T)
-where
-    T: FromArgs;
+where T: FromArgs;
 
 impl<T> TopLevelCommand for ArgsOrVersion<T> where T: FromArgs {}
 
 impl<T> FromArgs for ArgsOrVersion<T>
-where
-    T: FromArgs,
+where T: FromArgs
 {
     fn _from_args(
         command_name: &[&str],
@@ -60,8 +58,6 @@ where
 /// This function will exit early from the current process if argument parsing was unsuccessful or if information like `--help` was requested.
 /// Error messages will be printed to stderr, and `--help` output to stdout.
 pub fn from_env<T>() -> T
-where
-    T: TopLevelCommand,
-{
+where T: TopLevelCommand {
     argp::parse_args_or_exit::<ArgsOrVersion<T>>(argp::DEFAULT).0
 }
