@@ -5691,7 +5691,8 @@ dependencies = [
 [[package]]
 name = "unarm"
 version = "2.0.0"
-source = "git+https://github.com/AetiasHax/unarm.git?branch=2.0#1de9778ec49d860b9d63b6581126891dc7826919"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "436d156704e29cfcb88868642869fe6c40cbaac98b819e4033dc75531e6ee261"
 
 [[package]]
 name = "unicase"

@@ -5,7 +5,6 @@ use std::borrow::Cow;
 use anyhow::{Result, bail};
 use arm_attr::{BuildAttrs, enums::CpuArch, tag::Tag};
 use object::{Endian as _, Object as _, ObjectSection as _, ObjectSymbol as _, elf};
-use unarm::parse_thumb;
 
 use crate::{
     arch::{Arch, OPCODE_DATA, OPCODE_INVALID, RelocationOverride, RelocationOverrideTarget},
@@ -139,9 +138,10 @@ impl ArchArm {
         };
 
         let thumb = ins_ref.opcode & (1 << 15) == 0;
+        let discriminant = ins_ref.opcode & !(1 << 15);
+        let pc = ins_ref.address as u32;
         let options = self.unarm_options(diff_config);
 
-        // TODO: Optimize parsing by providing the opcode discriminant
         let ins = if ins_ref.opcode == OPCODE_DATA {
             match ins_ref.size {
                 4 => unarm::Ins::Word(code),
@@ -149,10 +149,9 @@ impl ArchArm {
                 _ => bail!("Invalid data size {}", ins_ref.size),
             }
         } else if thumb {
-            let (ins, _size) = unarm::parse_thumb(code, ins_ref.address as u32, &options);
-            ins
+            unarm::parse_thumb_with_discriminant(code, discriminant, pc, &options)
         } else {
-            unarm::parse_arm(code, ins_ref.address as u32, &options)
+            unarm::parse_arm_with_discriminant(code, discriminant, pc, &options)
         };
         Ok(ins)
     }
@@ -261,7 +260,7 @@ impl Arch for ArchArm {
                     (opcode, ins, 4)
                 }
                 unarm::ParseMode::Thumb => {
-                    let (ins, size) = parse_thumb(code, address, &options);
+                    let (ins, size) = unarm::parse_thumb(code, address, &options);
                     let opcode = ins.discriminant();
                     (opcode, ins, size)
                 }
@@ -476,7 +475,7 @@ impl Write for ArgsFormatter<'_> {
     fn write_str(&mut self, s: &str) -> core::fmt::Result { self.write(InstructionPart::basic(s)) }
 }
 
-impl unarm::Write for ArgsFormatter<'_> {
+impl unarm::FormatIns for ArgsFormatter<'_> {
     fn options(&self) -> &unarm::Options { self.options }
 
     fn write_ins(&mut self, ins: &unarm::Ins) -> core::fmt::Result {
