@@ -95,6 +95,10 @@ impl ArchArm {
     }
 
     fn unarm_options(&self, diff_config: &DiffObjConfig) -> unarm::Options {
+        let mut extensions = unarm::Extensions::none();
+        if diff_config.arm_vfp_v2 {
+            extensions = extensions.with(unarm::Extension::VfpV2);
+        }
         unarm::Options {
             version: match diff_config.arm_arch_version {
                 ArmArchVersion::Auto => self.detected_version.unwrap_or(unarm::Version::V5Te),
@@ -106,7 +110,7 @@ impl ArchArm {
                 ArmArchVersion::V6 => unarm::Version::V6,
                 ArmArchVersion::V6k => unarm::Version::V6K,
             },
-            extensions: unarm::Extensions::all(), // TODO: Add checkboxes for extensions
+            extensions,
             av: diff_config.arm_av_registers,
             r9_use: match diff_config.arm_r9_usage {
                 ArmR9Usage::GeneralPurpose => unarm::R9Use::R9,

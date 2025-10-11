@@ -138,6 +138,13 @@
       ]
     },
     {
+      "id": "arm.vfpV2",
+      "type": "boolean",
+      "default": true,
+      "name": "VFPv2 instructions",
+      "description": "Adds floating-point instructions from VFPv2."
+    },
+    {
       "id": "arm.unifiedSyntax",
       "type": "boolean",
       "default": false,
@@ -322,6 +329,7 @@
       "name": "ARM",
       "properties": [
         "arm.archVersion",
+        "arm.vfpV2",
         "arm.unifiedSyntax",
         "arm.avRegisters",
         "arm.r9Usage",
