@@ -5,6 +5,7 @@ use std::borrow::Cow;
 use anyhow::{Result, bail};
 use arm_attr::{BuildAttrs, enums::CpuArch, tag::Tag};
 use object::{Endian as _, Object as _, ObjectSection as _, ObjectSymbol as _, elf};
+use unarm::FormatValue as _;
 
 use crate::{
     arch::{Arch, OPCODE_DATA, OPCODE_INVALID, RelocationOverride, RelocationOverrideTarget},
@@ -469,6 +470,14 @@ impl ArgsFormatter<'_> {
     fn write(&mut self, part: InstructionPart) -> core::fmt::Result {
         (self.cb)(part).map_err(|_| core::fmt::Error)
     }
+
+    fn write_opaque<F>(&mut self, value: F) -> core::fmt::Result
+    where F: unarm::FormatValue {
+        let mut string_fmt = unarm::StringFormatter::new(self.options);
+        value.write(&mut string_fmt)?;
+        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
+        Ok(())
+    }
 }
 
 impl Write for ArgsFormatter<'_> {
@@ -517,82 +526,41 @@ impl unarm::FormatIns for ArgsFormatter<'_> {
         self.write(InstructionPart::branch_dest(branch_target.addr))
     }
 
-    fn write_reg(&mut self, reg: unarm::Reg) -> core::fmt::Result {
-        let mut string_fmt = unarm::StringFormatter::new(self.options);
-        reg.write(&mut string_fmt)?;
-        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
-        Ok(())
-    }
+    fn write_reg(&mut self, reg: unarm::Reg) -> core::fmt::Result { self.write_opaque(reg) }
 
     fn write_status_reg(&mut self, status_reg: unarm::StatusReg) -> core::fmt::Result {
-        let mut string_fmt = unarm::StringFormatter::new(self.options);
-        status_reg.write(&mut string_fmt)?;
-        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
-        Ok(())
+        self.write_opaque(status_reg)
     }
 
     fn write_status_fields(&mut self, status_fields: unarm::StatusFields) -> core::fmt::Result {
-        let mut string_fmt = unarm::StringFormatter::new(self.options);
-        status_fields.write(&mut string_fmt)?;
-        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
-        Ok(())
+        self.write_opaque(status_fields)
     }
 
     fn write_shift_op(&mut self, shift_op: unarm::ShiftOp) -> core::fmt::Result {
-        let mut string_fmt = unarm::StringFormatter::new(self.options);
-        shift_op.write(&mut string_fmt)?;
-        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
-        Ok(())
+        self.write_opaque(shift_op)
     }
 
     fn write_coproc(&mut self, coproc: unarm::Coproc) -> core::fmt::Result {
-        let mut string_fmt = unarm::StringFormatter::new(self.options);
-        coproc.write(&mut string_fmt)?;
-        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
-        Ok(())
+        self.write_opaque(coproc)
     }
 
     fn write_co_reg(&mut self, co_reg: unarm::CoReg) -> core::fmt::Result {
-        let mut string_fmt = unarm::StringFormatter::new(self.options);
-        co_reg.write(&mut string_fmt)?;
-        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
-        Ok(())
+        self.write_opaque(co_reg)
     }
 
     fn write_aif_flags(&mut self, aif_flags: unarm::AifFlags) -> core::fmt::Result {
-        let mut string_fmt = unarm::StringFormatter::new(self.options);
-        aif_flags.write(&mut string_fmt)?;
-        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
-        Ok(())
+        self.write_opaque(aif_flags)
     }
 
     fn write_endianness(&mut self, endianness: unarm::Endianness) -> core::fmt::Result {
-        let mut string_fmt = unarm::StringFormatter::new(self.options);
-        endianness.write(&mut string_fmt)?;
-        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
-        Ok(())
+        self.write_opaque(endianness)
     }
 
-    fn write_sreg(&mut self, sreg: unarm::Sreg) -> core::fmt::Result {
-        let mut string_fmt = unarm::StringFormatter::new(self.options);
-        sreg.write(&mut string_fmt)?;
-        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
-        Ok(())
-    }
+    fn write_sreg(&mut self, sreg: unarm::Sreg) -> core::fmt::Result { self.write_opaque(sreg) }
 
-    fn write_dreg(&mut self, dreg: unarm::Dreg) -> core::fmt::Result {
-        let mut string_fmt = unarm::StringFormatter::new(self.options);
-        dreg.write(&mut string_fmt)?;
-        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
-        Ok(())
-    }
+    fn write_dreg(&mut self, dreg: unarm::Dreg) -> core::fmt::Result { self.write_opaque(dreg) }
 
-    fn write_fpscr(&mut self, fpscr: unarm::Fpscr) -> core::fmt::Result {
-        let mut string_fmt = unarm::StringFormatter::new(self.options);
-        fpscr.write(&mut string_fmt)?;
-        self.write(InstructionPart::opaque(string_fmt.into_string()))?;
-        Ok(())
-    }
+    fn write_fpscr(&mut self, fpscr: unarm::Fpscr) -> core::fmt::Result { self.write_opaque(fpscr) }
 
     fn write_addr_ldr_str(&mut self, addr_ldr_str: unarm::AddrLdrStr) -> core::fmt::Result {
         addr_ldr_str.write(self)?;
