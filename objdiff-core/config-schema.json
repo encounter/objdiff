@@ -83,6 +83,27 @@
       "description": "Adds a space between arguments in the diff output."
     },
     {
+      "id": "showSymbolSizes",
+      "type": "choice",
+      "default": "off",
+      "name": "Show symbol sizes",
+      "description": "Shows symbol sizes in the symbol view.",
+      "items": [
+        {
+          "value": "off",
+          "name": "Off"
+        },
+        {
+          "value": "hex",
+          "name": "Hex"
+        },
+        {
+          "value": "decimal",
+          "name": "Decimal"
+        }
+      ]
+    },
+    {
       "id": "combineDataSections",
       "type": "boolean",
       "default": false,
@@ -319,6 +340,7 @@
       "properties": [
         "functionRelocDiffs",
         "demangler",
+        "showSymbolSizes",
         "spaceBetweenArgs",
         "combineDataSections",
         "combineTextSections"

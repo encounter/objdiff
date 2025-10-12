@@ -6,7 +6,7 @@ use egui::{
 };
 use objdiff_core::{
     diff::{
-        ObjectDiff, SymbolDiff,
+        DiffObjConfig, ObjectDiff, ShowSymbolSizes, SymbolDiff,
         display::{
             HighlightKind, SectionDisplay, SymbolFilter, SymbolNavigationKind, display_sections,
             symbol_context, symbol_hover,
@@ -525,6 +525,7 @@ fn symbol_ui(
     state: &SymbolViewState,
     appearance: &Appearance,
     column: usize,
+    diff_config: &DiffObjConfig,
 ) -> Option<DiffViewAction> {
     let mut ret = None;
     let mut job = LayoutJob::default();
@@ -572,6 +573,21 @@ fn symbol_ui(
         write_text(") ", appearance.text_color, &mut job, appearance.code_font.clone());
     }
     write_text(name, appearance.highlight_color, &mut job, appearance.code_font.clone());
+    if diff_config.show_symbol_sizes == ShowSymbolSizes::Decimal {
+        write_text(
+            &format!(" (size={})", symbol.size),
+            appearance.deemphasized_text_color,
+            &mut job,
+            appearance.code_font.clone(),
+        );
+    } else if diff_config.show_symbol_sizes == ShowSymbolSizes::Hex {
+        write_text(
+            &format!(" (size={:x})", symbol.size),
+            appearance.deemphasized_text_color,
+            &mut job,
+            appearance.code_font.clone(),
+        );
+    }
     let response = egui::Button::selectable(selected, job)
         .ui(ui)
         .on_hover_ui_at_pointer(|ui| symbol_hover_ui(ui, ctx, symbol_idx, appearance));
@@ -646,6 +662,7 @@ pub fn symbol_list_ui(
     appearance: &Appearance,
     column: usize,
     open_sections: Option<bool>,
+    diff_config: &DiffObjConfig,
 ) -> Option<DiffViewAction> {
     let mut ret = None;
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
@@ -770,6 +787,7 @@ pub fn symbol_list_ui(
                                 state,
                                 appearance,
                                 column,
+                                diff_config,
                             ) {
                                 ret = Some(result);
                             }

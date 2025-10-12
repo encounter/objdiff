@@ -6,7 +6,7 @@ use objdiff_core::{
     config::ScratchConfig,
     diff::{
         ArmArchVersion, ArmR9Usage, DiffObjConfig, FunctionRelocDiffs, MipsAbi, MipsInstrCategory,
-        X86Formatter,
+        ShowSymbolSizes, X86Formatter,
     },
 };
 use typed_path::{Utf8PlatformPathBuf, Utf8UnixPathBuf};
@@ -227,6 +227,7 @@ pub struct DiffObjConfigV1 {
     pub relax_reloc_diffs: bool,
     #[serde(default = "bool_true")]
     pub space_between_args: bool,
+    pub show_symbol_sizes: ShowSymbolSizes,
     pub combine_data_sections: bool,
     // x86
     pub x86_formatter: X86Formatter,
@@ -248,6 +249,7 @@ impl Default for DiffObjConfigV1 {
         Self {
             relax_reloc_diffs: false,
             space_between_args: true,
+            show_symbol_sizes: Default::default(),
             combine_data_sections: false,
             x86_formatter: Default::default(),
             mips_abi: Default::default(),
@@ -272,6 +274,7 @@ impl DiffObjConfigV1 {
                 FunctionRelocDiffs::default()
             },
             space_between_args: self.space_between_args,
+            show_symbol_sizes: self.show_symbol_sizes,
             combine_data_sections: self.combine_data_sections,
             x86_formatter: self.x86_formatter,
             mips_abi: self.mips_abi,
