@@ -5690,9 +5690,9 @@ dependencies = [
 
 [[package]]
 name = "unarm"
-version = "2.0.0"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "436d156704e29cfcb88868642869fe6c40cbaac98b819e4033dc75531e6ee261"
+checksum = "e6b878ddad69fe9e0a17830aa6854f4645a31769308559317cbf1da5022eff54"
 
 [[package]]
 name = "unicase"
