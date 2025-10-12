@@ -248,7 +248,12 @@ impl Arch for ArchArm {
                         u32::from_le_bytes([data[0], data[1], data[2], data[3]])
                     }
                     object::Endianness::Big => {
-                        u32::from_be_bytes([data[0], data[1], data[2], data[3]])
+                        if mode != unarm::ParseMode::Thumb {
+                            u32::from_be_bytes([data[0], data[1], data[2], data[3]])
+                        } else {
+                            // For 4-byte Thumb instructions, read two 16-bit halfwords in big endian
+                            u32::from_be_bytes([data[2], data[3], data[0], data[1]])
+                        }
                     }
                 },
                 2 => match self.endianness {
