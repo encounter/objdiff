@@ -320,7 +320,8 @@ impl Arch for ArchArm {
         let opcode = string_fmt.into_string();
         cb(InstructionPart::opcode(opcode, resolved.ins_ref.opcode))?;
 
-        let mut args_formatter = ArgsFormatter { options: &options, cb, resolved: &resolved };
+        let mut args_formatter =
+            ArgsFormatter { options: &options, cb, resolved: &resolved, skip_leading_space: true };
         ins.write_params(&mut args_formatter)?;
         Ok(())
     }
@@ -473,6 +474,7 @@ pub struct ArgsFormatter<'a> {
     options: &'a unarm::Options,
     cb: &'a mut dyn FnMut(InstructionPart) -> Result<()>,
     resolved: &'a ResolvedInstructionRef<'a>,
+    skip_leading_space: bool,
 }
 
 impl ArgsFormatter<'_> {
@@ -502,6 +504,15 @@ impl unarm::FormatIns for ArgsFormatter<'_> {
         let opcode = string_fmt.into_string();
         self.write(InstructionPart::Opcode(Cow::Owned(opcode), self.resolved.ins_ref.opcode))?;
         ins.write_params(self)
+    }
+
+    fn write_space(&mut self) -> core::fmt::Result {
+        if self.skip_leading_space {
+            self.skip_leading_space = false;
+            Ok(())
+        } else {
+            self.write_str(" ")
+        }
     }
 
     fn write_separator(&mut self) -> core::fmt::Result { self.write(InstructionPart::separator()) }
