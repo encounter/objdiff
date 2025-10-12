@@ -1,6 +1,5 @@
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::{borrow::Cow, collections::BTreeMap, vec::Vec};
 use core::fmt::Write;
-use std::borrow::Cow;
 
 use anyhow::{Result, bail};
 use arm_attr::{BuildAttrs, enums::CpuArch, tag::Tag};
