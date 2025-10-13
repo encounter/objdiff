@@ -8,7 +8,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 0,
                 size: 2,
-                opcode: 64,
+                opcode: 116,
                 branch_dest: None,
             },
         ),
@@ -22,7 +22,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 2,
                 size: 2,
-                opcode: 64,
+                opcode: 116,
                 branch_dest: None,
             },
         ),
@@ -36,7 +36,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 4,
                 size: 2,
-                opcode: 23,
+                opcode: 9,
                 branch_dest: None,
             },
         ),

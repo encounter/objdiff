@@ -2,6 +2,6 @@
 source: objdiff-core/tests/arch_arm.rs
 expression: output
 ---
-[(Address(0), Dim, 5), (Spacing(4), Normal, 0), (Opcode("str", 64), Normal, 10), (Argument(Opaque("r1")), Normal, 0), (Basic(", "), Normal, 0), (Basic("["), Normal, 0), (Argument(Opaque("r0")), Normal, 0), (Basic(", "), Normal, 0), (Basic("#"), Normal, 0), (Argument(Signed(36)), Normal, 0), (Basic("]"), Normal, 0), (Eol, Normal, 0)]
-[(Address(2), Dim, 5), (Spacing(4), Normal, 0), (Opcode("str", 64), Normal, 10), (Argument(Opaque("r2")), Normal, 0), (Basic(", "), Normal, 0), (Basic("["), Normal, 0), (Argument(Opaque("r0")), Normal, 0), (Basic(", "), Normal, 0), (Basic("#"), Normal, 0), (Argument(Signed(40)), Normal, 0), (Basic("]"), Normal, 0), (Eol, Normal, 0)]
-[(Address(4), Dim, 5), (Spacing(4), Normal, 0), (Opcode("bx", 23), Normal, 10), (Argument(Opaque("lr")), Normal, 0), (Eol, Normal, 0)]
+[(Address(0), Dim, 5), (Spacing(4), Normal, 0), (Opcode("str", 116), Normal, 10), (Argument(Opaque("r1")), Normal, 0), (Basic(", "), Normal, 0), (Basic("["), Normal, 0), (Argument(Opaque("r0")), Normal, 0), (Basic(", "), Normal, 0), (Basic("#"), Normal, 0), (Argument(Signed(36)), Normal, 0), (Basic("]"), Normal, 0), (Eol, Normal, 0)]
+[(Address(2), Dim, 5), (Spacing(4), Normal, 0), (Opcode("str", 116), Normal, 10), (Argument(Opaque("r2")), Normal, 0), (Basic(", "), Normal, 0), (Basic("["), Normal, 0), (Argument(Opaque("r0")), Normal, 0), (Basic(", "), Normal, 0), (Basic("#"), Normal, 0), (Argument(Signed(40)), Normal, 0), (Basic("]"), Normal, 0), (Eol, Normal, 0)]
+[(Address(4), Dim, 5), (Spacing(4), Normal, 0), (Opcode("bx", 9), Normal, 10), (Argument(Opaque("lr")), Normal, 0), (Eol, Normal, 0)]
