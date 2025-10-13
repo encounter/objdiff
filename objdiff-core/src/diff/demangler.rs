@@ -41,7 +41,7 @@ impl Demangler {
 
     fn demangle_gnu_legacy(name: &str) -> Option<String> {
         let name = name.trim_start_matches('.');
-        gnuv2_demangle::demangle(name, &gnuv2_demangle::DemangleConfig::new_no_cfilt_mimics()).ok()
+        gnuv2_demangle::demangle(name, &gnuv2_demangle::DemangleConfig::new()).ok()
     }
 }
 

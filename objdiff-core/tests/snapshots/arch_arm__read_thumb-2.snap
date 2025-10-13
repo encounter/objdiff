@@ -8,7 +8,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 0,
                 size: 2,
-                opcode: 56,
+                opcode: 59,
                 branch_dest: None,
             },
         ),
@@ -22,7 +22,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 2,
                 size: 2,
-                opcode: 74,
+                opcode: 126,
                 branch_dest: None,
             },
         ),
@@ -36,7 +36,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 4,
                 size: 2,
-                opcode: 47,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -50,7 +50,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 6,
                 size: 2,
-                opcode: 47,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -64,7 +64,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 8,
                 size: 2,
-                opcode: 47,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -78,7 +78,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 10,
                 size: 2,
-                opcode: 47,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -92,7 +92,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 12,
                 size: 2,
-                opcode: 66,
+                opcode: 116,
                 branch_dest: None,
             },
         ),
@@ -106,7 +106,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 14,
                 size: 4,
-                opcode: 19,
+                opcode: 7,
                 branch_dest: None,
             },
         ),
@@ -120,7 +120,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 18,
                 size: 2,
-                opcode: 25,
+                opcode: 16,
                 branch_dest: None,
             },
         ),
@@ -134,7 +134,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 20,
                 size: 2,
-                opcode: 15,
+                opcode: 4,
                 branch_dest: Some(
                     212,
                 ),
@@ -155,7 +155,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 22,
                 size: 2,
-                opcode: 38,
+                opcode: 32,
                 branch_dest: None,
             },
         ),
@@ -169,7 +169,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 24,
                 size: 2,
-                opcode: 25,
+                opcode: 16,
                 branch_dest: None,
             },
         ),
@@ -183,7 +183,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 26,
                 size: 2,
-                opcode: 15,
+                opcode: 4,
                 branch_dest: Some(
                     48,
                 ),
@@ -204,7 +204,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 28,
                 size: 2,
-                opcode: 34,
+                opcode: 24,
                 branch_dest: None,
             },
         ),
@@ -218,7 +218,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 30,
                 size: 2,
-                opcode: 26,
+                opcode: 16,
                 branch_dest: None,
             },
         ),
@@ -232,7 +232,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 32,
                 size: 2,
-                opcode: 15,
+                opcode: 4,
                 branch_dest: Some(
                     94,
                 ),
@@ -253,7 +253,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 34,
                 size: 2,
-                opcode: 35,
+                opcode: 24,
                 branch_dest: None,
             },
         ),
@@ -267,7 +267,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 36,
                 size: 2,
-                opcode: 47,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -281,7 +281,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 38,
                 size: 2,
-                opcode: 47,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -295,7 +295,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 40,
                 size: 4,
-                opcode: 19,
+                opcode: 7,
                 branch_dest: None,
             },
         ),
@@ -309,7 +309,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 44,
                 size: 2,
-                opcode: 7,
+                opcode: 1,
                 branch_dest: None,
             },
         ),
@@ -323,7 +323,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 46,
                 size: 2,
-                opcode: 55,
+                opcode: 58,
                 branch_dest: None,
             },
         ),
@@ -337,7 +337,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 48,
                 size: 2,
-                opcode: 47,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -358,7 +358,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 50,
                 size: 2,
-                opcode: 47,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -372,7 +372,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 52,
                 size: 4,
-                opcode: 19,
+                opcode: 7,
                 branch_dest: None,
             },
         ),
@@ -386,7 +386,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 56,
                 size: 2,
-                opcode: 25,
+                opcode: 16,
                 branch_dest: None,
             },
         ),
@@ -400,7 +400,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 58,
                 size: 2,
-                opcode: 15,
+                opcode: 4,
                 branch_dest: Some(
                     212,
                 ),
@@ -421,7 +421,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 60,
                 size: 2,
-                opcode: 34,
+                opcode: 24,
                 branch_dest: None,
             },
         ),
@@ -435,7 +435,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 62,
                 size: 2,
-                opcode: 33,
+                opcode: 24,
                 branch_dest: None,
             },
         ),
@@ -449,7 +449,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 64,
                 size: 2,
-                opcode: 36,
+                opcode: 25,
                 branch_dest: None,
             },
         ),
@@ -463,7 +463,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 66,
                 size: 2,
-                opcode: 42,
+                opcode: 36,
                 branch_dest: None,
             },
         ),
@@ -477,7 +477,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 68,
                 size: 2,
-                opcode: 44,
+                opcode: 37,
                 branch_dest: None,
             },
         ),
@@ -491,7 +491,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 70,
                 size: 2,
-                opcode: 15,
+                opcode: 4,
                 branch_dest: Some(
                     212,
                 ),
@@ -512,7 +512,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 72,
                 size: 2,
-                opcode: 46,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -526,7 +526,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 74,
                 size: 2,
-                opcode: 17,
+                opcode: 5,
                 branch_dest: None,
             },
         ),
@@ -540,7 +540,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 76,
                 size: 2,
-                opcode: 46,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -568,7 +568,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 80,
                 size: 2,
-                opcode: 67,
+                opcode: 117,
                 branch_dest: None,
             },
         ),
@@ -582,7 +582,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 82,
                 size: 2,
-                opcode: 36,
+                opcode: 25,
                 branch_dest: None,
             },
         ),
@@ -596,7 +596,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 84,
                 size: 2,
-                opcode: 46,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -610,7 +610,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 86,
                 size: 2,
-                opcode: 7,
+                opcode: 1,
                 branch_dest: None,
             },
         ),
@@ -638,7 +638,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 90,
                 size: 2,
-                opcode: 67,
+                opcode: 117,
                 branch_dest: None,
             },
         ),
@@ -652,7 +652,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 92,
                 size: 2,
-                opcode: 55,
+                opcode: 58,
                 branch_dest: None,
             },
         ),
@@ -666,7 +666,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 94,
                 size: 2,
-                opcode: 34,
+                opcode: 24,
                 branch_dest: None,
             },
         ),
@@ -687,7 +687,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 96,
                 size: 2,
-                opcode: 34,
+                opcode: 24,
                 branch_dest: None,
             },
         ),
@@ -701,7 +701,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 98,
                 size: 2,
-                opcode: 4,
+                opcode: 1,
                 branch_dest: None,
             },
         ),
@@ -715,7 +715,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 100,
                 size: 4,
-                opcode: 19,
+                opcode: 7,
                 branch_dest: None,
             },
         ),
@@ -729,7 +729,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 104,
                 size: 2,
-                opcode: 66,
+                opcode: 116,
                 branch_dest: None,
             },
         ),
@@ -743,7 +743,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 106,
                 size: 2,
-                opcode: 47,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -757,7 +757,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 108,
                 size: 4,
-                opcode: 19,
+                opcode: 7,
                 branch_dest: None,
             },
         ),
@@ -771,7 +771,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 112,
                 size: 2,
-                opcode: 47,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -785,7 +785,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 114,
                 size: 2,
-                opcode: 6,
+                opcode: 1,
                 branch_dest: None,
             },
         ),
@@ -799,7 +799,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 116,
                 size: 2,
-                opcode: 66,
+                opcode: 116,
                 branch_dest: None,
             },
         ),
@@ -813,7 +813,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 118,
                 size: 2,
-                opcode: 35,
+                opcode: 24,
                 branch_dest: None,
             },
         ),
@@ -827,7 +827,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 120,
                 size: 2,
-                opcode: 47,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -841,7 +841,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 122,
                 size: 2,
-                opcode: 47,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -855,7 +855,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 124,
                 size: 2,
-                opcode: 47,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -869,7 +869,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 126,
                 size: 4,
-                opcode: 19,
+                opcode: 7,
                 branch_dest: None,
             },
         ),
@@ -883,7 +883,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 130,
                 size: 2,
-                opcode: 25,
+                opcode: 16,
                 branch_dest: None,
             },
         ),
@@ -897,7 +897,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 132,
                 size: 2,
-                opcode: 15,
+                opcode: 4,
                 branch_dest: Some(
                     168,
                 ),
@@ -918,7 +918,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 134,
                 size: 2,
-                opcode: 47,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -932,7 +932,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 136,
                 size: 4,
-                opcode: 19,
+                opcode: 7,
                 branch_dest: None,
             },
         ),
@@ -946,7 +946,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 140,
                 size: 2,
-                opcode: 47,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -960,7 +960,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 142,
                 size: 2,
-                opcode: 25,
+                opcode: 16,
                 branch_dest: None,
             },
         ),
@@ -974,7 +974,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 144,
                 size: 2,
-                opcode: 15,
+                opcode: 4,
                 branch_dest: Some(
                     168,
                 ),
@@ -995,7 +995,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 146,
                 size: 2,
-                opcode: 34,
+                opcode: 24,
                 branch_dest: None,
             },
         ),
@@ -1009,7 +1009,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 148,
                 size: 2,
-                opcode: 33,
+                opcode: 24,
                 branch_dest: None,
             },
         ),
@@ -1023,7 +1023,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 150,
                 size: 2,
-                opcode: 36,
+                opcode: 25,
                 branch_dest: None,
             },
         ),
@@ -1037,7 +1037,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 152,
                 size: 2,
-                opcode: 42,
+                opcode: 36,
                 branch_dest: None,
             },
         ),
@@ -1051,7 +1051,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 154,
                 size: 2,
-                opcode: 44,
+                opcode: 37,
                 branch_dest: None,
             },
         ),
@@ -1065,7 +1065,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 156,
                 size: 2,
-                opcode: 15,
+                opcode: 4,
                 branch_dest: Some(
                     168,
                 ),
@@ -1086,7 +1086,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 158,
                 size: 2,
-                opcode: 46,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -1100,7 +1100,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 160,
                 size: 2,
-                opcode: 17,
+                opcode: 5,
                 branch_dest: None,
             },
         ),
@@ -1114,7 +1114,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 162,
                 size: 2,
-                opcode: 46,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -1142,7 +1142,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 166,
                 size: 2,
-                opcode: 67,
+                opcode: 117,
                 branch_dest: None,
             },
         ),
@@ -1156,7 +1156,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 168,
                 size: 2,
-                opcode: 25,
+                opcode: 16,
                 branch_dest: None,
             },
         ),
@@ -1179,7 +1179,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 170,
                 size: 2,
-                opcode: 15,
+                opcode: 4,
                 branch_dest: Some(
                     200,
                 ),
@@ -1200,7 +1200,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 172,
                 size: 2,
-                opcode: 35,
+                opcode: 24,
                 branch_dest: None,
             },
         ),
@@ -1214,7 +1214,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 174,
                 size: 2,
-                opcode: 25,
+                opcode: 16,
                 branch_dest: None,
             },
         ),
@@ -1228,7 +1228,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 176,
                 size: 2,
-                opcode: 15,
+                opcode: 4,
                 branch_dest: Some(
                     200,
                 ),
@@ -1249,7 +1249,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 178,
                 size: 2,
-                opcode: 34,
+                opcode: 24,
                 branch_dest: None,
             },
         ),
@@ -1263,7 +1263,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 180,
                 size: 2,
-                opcode: 37,
+                opcode: 25,
                 branch_dest: None,
             },
         ),
@@ -1277,7 +1277,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 182,
                 size: 2,
-                opcode: 42,
+                opcode: 36,
                 branch_dest: None,
             },
         ),
@@ -1291,7 +1291,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 184,
                 size: 2,
-                opcode: 44,
+                opcode: 37,
                 branch_dest: None,
             },
         ),
@@ -1305,7 +1305,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 186,
                 size: 2,
-                opcode: 15,
+                opcode: 4,
                 branch_dest: Some(
                     200,
                 ),
@@ -1326,7 +1326,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 188,
                 size: 2,
-                opcode: 32,
+                opcode: 24,
                 branch_dest: None,
             },
         ),
@@ -1340,7 +1340,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 190,
                 size: 2,
-                opcode: 34,
+                opcode: 24,
                 branch_dest: None,
             },
         ),
@@ -1354,7 +1354,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 192,
                 size: 2,
-                opcode: 46,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -1368,7 +1368,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 194,
                 size: 2,
-                opcode: 46,
+                opcode: 43,
                 branch_dest: None,
             },
         ),
@@ -1382,7 +1382,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 196,
                 size: 4,
-                opcode: 19,
+                opcode: 7,
                 branch_dest: None,
             },
         ),
@@ -1396,7 +1396,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 200,
                 size: 2,
-                opcode: 34,
+                opcode: 24,
                 branch_dest: None,
             },
         ),
@@ -1419,7 +1419,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 202,
                 size: 2,
-                opcode: 35,
+                opcode: 24,
                 branch_dest: None,
             },
         ),
@@ -1433,7 +1433,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 204,
                 size: 2,
-                opcode: 34,
+                opcode: 24,
                 branch_dest: None,
             },
         ),
@@ -1447,7 +1447,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 206,
                 size: 2,
-                opcode: 4,
+                opcode: 1,
                 branch_dest: None,
             },
         ),
@@ -1461,7 +1461,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 208,
                 size: 4,
-                opcode: 19,
+                opcode: 7,
                 branch_dest: None,
             },
         ),
@@ -1475,7 +1475,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 212,
                 size: 2,
-                opcode: 7,
+                opcode: 1,
                 branch_dest: None,
             },
         ),
@@ -1498,7 +1498,7 @@ expression: diff.instruction_rows
             InstructionRef {
                 address: 214,
                 size: 2,
-                opcode: 55,
+                opcode: 58,
                 branch_dest: None,
             },
         ),

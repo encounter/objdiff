@@ -2031,9 +2031,9 @@ dependencies = [
 
 [[package]]
 name = "gnuv2_demangle"
-version = "0.1.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73012a2b235359cdf9e71e153da760f7268a4ad1e2c86fa3a70dca2113015695"
+checksum = "e7d12082d0c6e6f34b51ee608cc7d882bc993304f2dde3a67cfdc9196ed2741d"
 
 [[package]]
 name = "gpu-alloc"
@@ -5690,9 +5690,9 @@ dependencies = [
 
 [[package]]
 name = "unarm"
-version = "1.9.2"
+version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ea856cd3ee3abd1b585bbcdc6f8a4b356f43558fae98d76e502be868dc40e90"
+checksum = "e6b878ddad69fe9e0a17830aa6854f4645a31769308559317cbf1da5022eff54"
 
 [[package]]
 name = "unicase"
