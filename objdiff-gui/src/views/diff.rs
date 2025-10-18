@@ -278,7 +278,7 @@ pub fn diff_view_ui(
                         && let Some((_, symbol_diff, symbol_idx)) = left_ctx.symbol
                         && let Some((obj, _)) = left_ctx.obj
                         && ui
-                            .button("Copy ASM")
+                            .button("📋 Copy ASM")
                             .on_hover_text_at_pointer("Copy assembly to clipboard")
                             .clicked()
                     {
@@ -447,7 +447,7 @@ pub fn diff_view_ui(
                         if let Some((_, symbol_diff, symbol_idx)) = right_ctx.symbol
                             && let Some((obj, _)) = right_ctx.obj
                             && ui
-                                .button("Copy ASM")
+                                .button("📋 Copy ASM")
                                 .on_hover_text_at_pointer("Copy assembly to clipboard")
                                 .clicked()
                         {
