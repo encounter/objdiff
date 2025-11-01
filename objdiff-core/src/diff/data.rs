@@ -38,12 +38,12 @@ pub fn diff_bss_symbol(
 pub fn symbol_name_matches(left_name: &str, right_name: &str) -> bool {
     // Match Metrowerks symbol$1234 against symbol$2345
     // and GCC symbol.1234 against symbol.2345
-    if let Some((prefix, suffix)) = left_name.split_once(&['$', '.']) {
+    if let Some((prefix, suffix)) = left_name.split_once(['$', '.']) {
         if !suffix.chars().all(char::is_numeric) {
             return false;
         }
         right_name
-            .split_once(&['$', '.'])
+            .split_once(['$', '.'])
             .is_some_and(|(p, s)| p == prefix && s.chars().all(char::is_numeric))
     } else {
         left_name == right_name
