@@ -1,12 +1,18 @@
+use std::cmp::Ordering;
+
 use egui::{Id, Layout, RichText, ScrollArea, TextEdit, Ui, Widget, text::LayoutJob};
 use objdiff_core::{
     build::BuildStatus,
     diff::{
         DiffObjConfig, ObjectDiff, SymbolDiff,
         data::BYTES_PER_ROW,
-        display::{ContextItem, HoverItem, HoverItemColor, SymbolFilter, SymbolNavigationKind},
+        display::{
+            ContextItem, DiffText, HoverItem, HoverItemColor, SymbolFilter, SymbolNavigationKind,
+            display_row,
+        },
     },
-    obj::{Object, Symbol},
+    obj::{InstructionArgValue, Object, Symbol},
+    util::ReallySigned,
 };
 use time::format_description;
 
@@ -62,6 +68,51 @@ impl<'a> DiffColumnContext<'a> {
 
     #[inline]
     pub fn id(&self) -> Option<&str> { self.symbol.map(|(symbol, _, _)| symbol.name.as_str()) }
+}
+
+/// Obtains the assembly text for a given symbol diff, suitable for copying to clipboard.
+fn get_asm_text(
+    obj: &Object,
+    symbol_diff: &SymbolDiff,
+    symbol_idx: usize,
+    diff_config: &DiffObjConfig,
+) -> String {
+    let mut asm_text = String::new();
+
+    for ins_row in &symbol_diff.instruction_rows {
+        let mut line = String::new();
+        let result = display_row(obj, symbol_idx, ins_row, diff_config, |segment| {
+            let text = match segment.text {
+                DiffText::Basic(text) => text.to_string(),
+                DiffText::Line(num) => format!("{num} "),
+                DiffText::Address(addr) => format!("{addr:x}:"),
+                DiffText::Opcode(mnemonic, _op) => format!("{mnemonic} "),
+                DiffText::Argument(arg) => match arg {
+                    InstructionArgValue::Signed(v) => format!("{:#x}", ReallySigned(v)),
+                    InstructionArgValue::Unsigned(v) => format!("{v:#x}"),
+                    InstructionArgValue::Opaque(v) => v.into_owned(),
+                },
+                DiffText::BranchDest(addr) => format!("{addr:x}"),
+                DiffText::Symbol(sym) => sym.demangled_name.as_ref().unwrap_or(&sym.name).clone(),
+                DiffText::Addend(addend) => match addend.cmp(&0i64) {
+                    Ordering::Greater => format!("+{addend:#x}"),
+                    Ordering::Less => format!("-{:#x}", -addend),
+                    _ => String::new(),
+                },
+                DiffText::Spacing(n) => " ".repeat(n.into()),
+                DiffText::Eol => "\n".to_string(),
+            };
+            line.push_str(&text);
+            Ok(())
+        });
+
+        if result.is_ok() {
+            asm_text.push_str(line.trim_end());
+            asm_text.push('\n');
+        }
+    }
+
+    asm_text
 }
 
 #[must_use]
@@ -208,16 +259,33 @@ pub fn diff_view_ui(
 
             // Third row
             if left_ctx.has_symbol() && right_ctx.has_symbol() {
-                if (state.current_view == View::FunctionDiff
-                    && ui
-                        .button("Change target")
-                        .on_hover_text_at_pointer("Choose a different symbol to use as the target")
-                        .clicked()
-                    || hotkeys::consume_change_target_shortcut(ui.ctx()))
-                    && let Some(symbol_ref) = state.symbol_state.right_symbol.as_ref()
-                {
-                    ret = Some(DiffViewAction::SelectingLeft(symbol_ref.clone()));
-                }
+                ui.horizontal(|ui| {
+                    if (state.current_view == View::FunctionDiff
+                        && ui
+                            .button("Change target")
+                            .on_hover_text_at_pointer(
+                                "Choose a different symbol to use as the target",
+                            )
+                            .clicked()
+                        || hotkeys::consume_change_target_shortcut(ui.ctx()))
+                        && let Some(symbol_ref) = state.symbol_state.right_symbol.as_ref()
+                    {
+                        ret = Some(DiffViewAction::SelectingLeft(symbol_ref.clone()));
+                    }
+
+                    // Copy target ASM button.
+                    if state.current_view == View::FunctionDiff
+                        && let Some((_, symbol_diff, symbol_idx)) = left_ctx.symbol
+                        && let Some((obj, _)) = left_ctx.obj
+                        && ui
+                            .button("📋 Copy ASM")
+                            .on_hover_text_at_pointer("Copy assembly to clipboard")
+                            .clicked()
+                    {
+                        let asm_text = get_asm_text(obj, symbol_diff, symbol_idx, diff_config);
+                        ui.ctx().copy_text(asm_text);
+                    }
+                });
             } else if left_ctx.status.success && !left_ctx.has_symbol() {
                 ui.horizontal(|ui| {
                     let mut search = state.search.clone();
@@ -373,6 +441,18 @@ pub fn diff_view_ui(
                             && let Some(symbol_ref) = state.symbol_state.left_symbol.as_ref()
                         {
                             ret = Some(DiffViewAction::SelectingRight(symbol_ref.clone()));
+                        }
+
+                        // Copy base ASM button.
+                        if let Some((_, symbol_diff, symbol_idx)) = right_ctx.symbol
+                            && let Some((obj, _)) = right_ctx.obj
+                            && ui
+                                .button("📋 Copy ASM")
+                                .on_hover_text_at_pointer("Copy assembly to clipboard")
+                                .clicked()
+                        {
+                            let asm_text = get_asm_text(obj, symbol_diff, symbol_idx, diff_config);
+                            ui.ctx().copy_text(asm_text);
                         }
                     }
                 } else if right_ctx.status.success && !right_ctx.has_symbol() {
