@@ -2031,9 +2031,9 @@ dependencies = [
 
 [[package]]
 name = "gnuv2_demangle"
-version = "0.3.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e7d12082d0c6e6f34b51ee608cc7d882bc993304f2dde3a67cfdc9196ed2741d"
+checksum = "3f4eda49d36ceaaaf3af38940a636b0514472cdba8b2158b20b58e91e50df4c7"
 
 [[package]]
 name = "gpu-alloc"
@@ -3484,7 +3484,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-cli"
-version = "3.3.1"
+version = "3.4.0"
 dependencies = [
  "anyhow",
  "argp",
@@ -3507,7 +3507,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-core"
-version = "3.3.1"
+version = "3.4.0"
 dependencies = [
  "anyhow",
  "arm-attr",
@@ -3563,7 +3563,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-gui"
-version = "3.3.1"
+version = "3.4.0"
 dependencies = [
  "anyhow",
  "argp",
@@ -3601,7 +3601,7 @@ dependencies = [
 
 [[package]]
 name = "objdiff-wasm"
-version = "3.3.1"
+version = "3.4.0"
 dependencies = [
  "log",
  "objdiff-core",
