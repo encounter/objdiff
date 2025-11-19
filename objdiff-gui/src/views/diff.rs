@@ -213,6 +213,17 @@ pub fn diff_view_ui(
                             ret = Some(DiffViewAction::CreateScratch(symbol.name.clone()));
                         }
                     }
+
+                    if state.current_view == View::FunctionDiff
+                        && let Some((_, symbol_diff, symbol_idx)) = left_ctx.symbol
+                        && let Some((obj, _)) = left_ctx.obj
+                        && ui
+                            .button("📋 Copy")
+                            .on_hover_text_at_pointer("Copy all rows to clipboard")
+                            .clicked()
+                    {
+                        ui.ctx().copy_text(get_asm_text(obj, symbol_diff, symbol_idx, diff_config));
+                    }
                 });
             }
 
@@ -271,19 +282,6 @@ pub fn diff_view_ui(
                         && let Some(symbol_ref) = state.symbol_state.right_symbol.as_ref()
                     {
                         ret = Some(DiffViewAction::SelectingLeft(symbol_ref.clone()));
-                    }
-
-                    // Copy target ASM button.
-                    if state.current_view == View::FunctionDiff
-                        && let Some((_, symbol_diff, symbol_idx)) = left_ctx.symbol
-                        && let Some((obj, _)) = left_ctx.obj
-                        && ui
-                            .button("📋 Copy ASM")
-                            .on_hover_text_at_pointer("Copy assembly to clipboard")
-                            .clicked()
-                    {
-                        let asm_text = get_asm_text(obj, symbol_diff, symbol_idx, diff_config);
-                        ui.ctx().copy_text(asm_text);
                     }
                 });
             } else if left_ctx.status.success && !left_ctx.has_symbol() {
@@ -358,6 +356,15 @@ pub fn diff_view_ui(
                     .clicked()
                 {
                     ret = Some(DiffViewAction::OpenSourcePath);
+                }
+                if let Some((_, symbol_diff, symbol_idx)) = right_ctx.symbol
+                    && let Some((obj, _)) = right_ctx.obj
+                    && ui
+                        .button("📋 Copy")
+                        .on_hover_text_at_pointer("Copy all rows to clipboard")
+                        .clicked()
+                {
+                    ui.ctx().copy_text(get_asm_text(obj, symbol_diff, symbol_idx, diff_config));
                 }
             });
 
@@ -441,18 +448,6 @@ pub fn diff_view_ui(
                             && let Some(symbol_ref) = state.symbol_state.left_symbol.as_ref()
                         {
                             ret = Some(DiffViewAction::SelectingRight(symbol_ref.clone()));
-                        }
-
-                        // Copy base ASM button.
-                        if let Some((_, symbol_diff, symbol_idx)) = right_ctx.symbol
-                            && let Some((obj, _)) = right_ctx.obj
-                            && ui
-                                .button("📋 Copy ASM")
-                                .on_hover_text_at_pointer("Copy assembly to clipboard")
-                                .clicked()
-                        {
-                            let asm_text = get_asm_text(obj, symbol_diff, symbol_idx, diff_config);
-                            ui.ctx().copy_text(asm_text);
                         }
                     }
                 } else if right_ctx.status.success && !right_ctx.has_symbol() {
