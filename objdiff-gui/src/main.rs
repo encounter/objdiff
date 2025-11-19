@@ -14,6 +14,7 @@ mod views;
 use std::{
     ffi::OsStr,
     fmt::Display,
+    io::Cursor,
     path::PathBuf,
     process::ExitCode,
     rc::Rc,
@@ -21,7 +22,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use argp::{FromArgValue, FromArgs};
 use cfg_if::cfg_if;
 use objdiff_core::config::path::check_path_buf;
@@ -90,9 +91,9 @@ struct TopLevel {
 }
 
 fn load_icon() -> Result<egui::IconData> {
-    let decoder = png::Decoder::new(include_bytes!("../assets/icon_64.png").as_ref());
+    let decoder = png::Decoder::new(Cursor::new(include_bytes!("../assets/icon_64.png").as_ref()));
     let mut reader = decoder.read_info()?;
-    let mut buf = vec![0; reader.output_buffer_size()];
+    let mut buf = vec![0; reader.output_buffer_size().context("Buffer too large")?];
     let info = reader.next_frame(&mut buf)?;
     ensure!(info.bit_depth == png::BitDepth::Eight);
     ensure!(info.color_type == png::ColorType::Rgba);

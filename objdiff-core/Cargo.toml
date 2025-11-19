@@ -135,10 +135,10 @@ num-traits = { version = "0.2", default-features = false, optional = true }
 object = { version = "0.37", default-features = false, features = ["read_core", "elf", "coff"] }
 pbjson = { version = "0.8", default-features = false, optional = true }
 prost = { version = "0.14", default-features = false, features = ["derive"], optional = true }
-regex = { version = "1.11", default-features = false, features = [], optional = true }
+regex = { version = "1.12", default-features = false, features = [], optional = true }
 serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
 similar = { git = "https://github.com/encounter/similar.git", branch = "no_std", default-features = false, features = ["hashbrown"], optional = true }
-typed-path = { version = "0.11", default-features = false, optional = true }
+typed-path = { version = "0.12", default-features = false, optional = true }
 
 # config
 globset = { version = "0.4", default-features = false, optional = true }
@@ -155,13 +155,13 @@ powerpc = { version = "0.4", optional = true }
 rlwinmdec = { version = "1.1", optional = true }
 
 # mips
-rabbitizer = { version = "2.0.0-alpha.4", default-features = false, features = ["all_extensions"], optional = true }
+rabbitizer = { version = "2.0.0-alpha.7", default-features = false, features = ["all_extensions"], optional = true }
 
 # x86
 iced-x86 = { version = "1.21", default-features = false, features = ["decoder", "intel", "gas", "masm", "nasm", "exhaustive_enums", "no_std"], optional = true }
 
 # arm
-unarm = { version = "2.0", optional = true }
+unarm = { version = "2.1", optional = true }
 arm-attr = { version = "0.2", optional = true }
 
 # arm64
@@ -169,15 +169,15 @@ yaxpeax-arch = { version = "0.3", default-features = false, optional = true }
 yaxpeax-arm = { version = "0.3", default-features = false, optional = true }
 
 # build
-notify = { version = "8.1.0", optional = true }
-notify-debouncer-full = { version = "0.5.0", optional = true }
+notify = { version = "8.2.0", optional = true }
+notify-debouncer-full = { version = "0.6.0", optional = true }
 shell-escape = { version = "0.1", optional = true }
-tempfile = { version = "3.20", optional = true }
+tempfile = { version = "3.23", optional = true }
 time = { version = "0.3", optional = true }
 encoding_rs = { version = "0.8.35", optional = true }
 
 # demangler
-cpp_demangle = { version = "0.4", optional = true, default-features = false, features = ["alloc"] }
+cpp_demangle = { version = "0.5", optional = true, default-features = false, features = ["alloc"] }
 cwdemangle = { version = "1.0", optional = true }
 gnuv2_demangle = { version = "0.4", optional = true }
 msvc-demangler = { version = "0.11", optional = true }

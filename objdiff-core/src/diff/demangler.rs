@@ -34,9 +34,7 @@ impl Demangler {
 
     fn demangle_itanium(name: &str) -> Option<String> {
         let name = name.trim_start_matches('.');
-        cpp_demangle::Symbol::new(name)
-            .ok()
-            .and_then(|s| s.demangle(&cpp_demangle::DemangleOptions::default()).ok())
+        cpp_demangle::Symbol::new(name).ok().and_then(|s| s.demangle().ok())
     }
 
     fn demangle_gnu_legacy(name: &str) -> Option<String> {

@@ -378,7 +378,6 @@ impl UiView for FunctionDiffUi {
                     }
                     // Reload
                     KeyCode::Char('r') => {
-                        result.redraw = true;
                         return EventControlFlow::Reload;
                     }
                     // Scroll right
@@ -400,7 +399,6 @@ impl UiView for FunctionDiffUi {
                                 FunctionRelocDiffs::DataValue => FunctionRelocDiffs::All,
                                 FunctionRelocDiffs::All => FunctionRelocDiffs::None,
                             };
-                        result.redraw = true;
                         return EventControlFlow::Reload;
                     }
                     // Toggle three-way diff

@@ -217,7 +217,7 @@ fn asm_row_ui(
     if ins_diff.kind != InstructionDiffKind::None {
         ui.painter().rect_filled(ui.available_rect_before_wrap(), 0.0, ui.visuals().faint_bg_color);
     }
-    let space_width = ui.fonts(|f| f.glyph_width(&appearance.code_font, ' '));
+    let space_width = ui.fonts_mut(|f| f.glyph_width(&appearance.code_font, ' '));
     display_row(obj, symbol_idx, ins_diff, diff_config, |segment| {
         if let Some(action) =
             diff_text_ui(ui, segment, appearance, ins_view_state, column, space_width, &response_cb)

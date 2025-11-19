@@ -30,9 +30,9 @@ cfg-if = "1.0"
 const_format = "0.2"
 cwdemangle = "1.0"
 dirs = "6.0"
-egui = "0.32"
-egui_extras = "0.32"
-egui-notify = "0.20"
+egui = "0.33"
+egui_extras = "0.33"
+egui-notify = "0.21"
 filetime = "0.2"
 float-ord = "0.3"
 font-kit = "0.14"
@@ -40,21 +40,21 @@ globset = { version = "0.4", features = ["serde1"] }
 log = "0.4"
 objdiff-core = { path = "../objdiff-core", features = ["all"] }
 open = "5.3"
-png = "0.17"
+png = "0.18"
 pollster = "0.4"
-regex = "1.11"
+regex = "1.12"
 rfd = { version = "0.15" } #, default-features = false, features = ['xdg-portal']
 rlwinmdec = "1.1"
-ron = "0.10"
+ron = "0.12"
 serde = { version = "1.0", features = ["derive"] }
 time = { version = "0.3", features = ["formatting", "local-offset"] }
-typed-path = "0.11"
+typed-path = "0.12"
 winit = { version = "0.30", features = ["default"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # Keep version in sync with egui
 [dependencies.eframe]
-version = "0.32"
+version = "0.33"
 features = [
     "default_fonts",
     "glow",
@@ -66,7 +66,7 @@ default-features = false
 
 # Keep version in sync with eframe
 [dependencies.wgpu]
-version = "25.0"
+version = "27.0"
 features = [
     "dx12",
     "metal",

@@ -469,16 +469,17 @@ impl From<obj::SymbolFlagSet> for SymbolFlags {
     fn from(flags: obj::SymbolFlagSet) -> SymbolFlags {
         let mut out = SymbolFlags::empty();
         for flag in flags {
-            out |= match flag {
-                obj::SymbolFlag::Global => SymbolFlags::GLOBAL,
-                obj::SymbolFlag::Local => SymbolFlags::LOCAL,
-                obj::SymbolFlag::Weak => SymbolFlags::WEAK,
-                obj::SymbolFlag::Common => SymbolFlags::COMMON,
-                obj::SymbolFlag::Hidden => SymbolFlags::HIDDEN,
-                obj::SymbolFlag::HasExtra => SymbolFlags::HAS_EXTRA,
-                obj::SymbolFlag::SizeInferred => SymbolFlags::SIZE_INFERRED,
-                obj::SymbolFlag::Ignored => SymbolFlags::IGNORED,
-            };
+            out = out
+                | match flag {
+                    obj::SymbolFlag::Global => SymbolFlags::GLOBAL,
+                    obj::SymbolFlag::Local => SymbolFlags::LOCAL,
+                    obj::SymbolFlag::Weak => SymbolFlags::WEAK,
+                    obj::SymbolFlag::Common => SymbolFlags::COMMON,
+                    obj::SymbolFlag::Hidden => SymbolFlags::HIDDEN,
+                    obj::SymbolFlag::HasExtra => SymbolFlags::HAS_EXTRA,
+                    obj::SymbolFlag::SizeInferred => SymbolFlags::SIZE_INFERRED,
+                    obj::SymbolFlag::Ignored => SymbolFlags::IGNORED,
+                };
         }
         out
     }
