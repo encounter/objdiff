@@ -224,12 +224,14 @@ impl Arch for ArchArm {
             }
 
             // Check how many bytes we can/should read
-            let num_code_bytes = if mode == unarm::ParseMode::Data {
-                // 32-bit .word value should be aligned on a 4-byte boundary, otherwise use .hword
-                if address & 3 == 0 { 4 } else { 2 }
-            } else if data.len() >= 4 {
-                // Read 4 bytes even for Thumb, as the parser will determine if it's a 2 or 4 byte instruction
-                4
+            let num_code_bytes = if data.len() >= 4 {
+                if mode == unarm::ParseMode::Data && address & 3 != 0 {
+                    // 32-bit .word value should be aligned on a 4-byte boundary, otherwise use .hword
+                    2
+                } else {
+                    // Read 4 bytes even for Thumb, as the parser will determine if it's a 2 or 4 byte instruction
+                    4
+                }
             } else if mode != unarm::ParseMode::Arm {
                 2
             } else {
