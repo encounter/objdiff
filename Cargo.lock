@@ -1000,9 +1000,9 @@ checksum = "c2e06f9bce634a3c898eb1e5cb949ff63133cbb218af93cc9b38b31d6f3ea285"
 
 [[package]]
 name = "cwextab"
-version = "1.1.6"
+version = "1.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d21b94648643c61e1b5cef71e8d3a9f89350397ac2b0fe42890edbc94757b18"
+checksum = "e23dadbc8945746c361e3967336075be7281a5455c06f5c5a17fddca4e7d2175"
 dependencies = [
  "thiserror 2.0.17",
 ]
