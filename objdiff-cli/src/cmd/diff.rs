@@ -66,15 +66,6 @@ pub struct Args {
     #[argp(option, short = 'c')]
     /// Configuration property (key=value)
     config: Vec<String>,
-    #[argp(option, short = 'm')]
-    /// Symbol mapping (target=base)
-    mapping: Vec<String>,
-    #[argp(option)]
-    /// Left symbol name for selection
-    selecting_left: Option<String>,
-    #[argp(option)]
-    /// Right symbol name for selection
-    selecting_right: Option<String>,
 }
 
 pub fn run(args: Args) -> Result<()> {
@@ -183,17 +174,7 @@ fn build_config_from_args(
         apply_project_options(&mut diff_config, options)?;
     }
     apply_config_args(&mut diff_config, &args.config)?;
-    let mut mapping_config = MappingConfig {
-        mappings: Default::default(),
-        selecting_left: args.selecting_left.clone(),
-        selecting_right: args.selecting_right.clone(),
-    };
-    for mapping in &args.mapping {
-        let (target, base) =
-            mapping.split_once('=').context("--mapping expects \"target=base\"")?;
-        mapping_config.mappings.insert(target.to_string(), base.to_string());
-    }
-    Ok((diff_config, mapping_config))
+    Ok((diff_config, MappingConfig::default()))
 }
 
 pub struct AppState {
