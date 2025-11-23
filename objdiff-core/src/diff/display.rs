@@ -668,7 +668,7 @@ pub fn instruction_hover(
                 for (literal, label_override) in literals {
                     out.push(HoverItem::Text {
                         label: label_override.unwrap_or_else(|| ty.to_string()),
-                        value: literal,
+                        value: format!("{literal:?}"),
                         color: HoverItemColor::Normal,
                     });
                 }

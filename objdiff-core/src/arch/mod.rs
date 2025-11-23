@@ -77,7 +77,7 @@ impl DataType {
         let mut strs = Vec::new();
         for (literal, label_override) in self.display_literals(endian, bytes) {
             let label = label_override.unwrap_or_else(|| self.to_string());
-            strs.push(format!("{label}: {literal}"))
+            strs.push(format!("{label}: {literal:?}"))
         }
         strs
     }
@@ -165,12 +165,12 @@ impl DataType {
             }
             DataType::String => {
                 if let Ok(cstr) = CStr::from_bytes_until_nul(bytes) {
-                    strs.push((format!("{cstr:?}"), None));
+                    strs.push((format!("{}", cstr.to_string_lossy()), None));
                 }
                 if let Some(nul_idx) = bytes.iter().position(|&c| c == b'\0') {
                     let (cow, _, had_errors) = SHIFT_JIS.decode(&bytes[..nul_idx]);
                     if !had_errors {
-                        let str = format!("{cow:?}");
+                        let str = format!("{cow}");
                         // Only add the Shift JIS string if it's different from the ASCII string.
                         if !strs.iter().any(|x| x.0 == str) {
                             strs.push((str, Some("Shift JIS".into())));

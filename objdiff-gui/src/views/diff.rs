@@ -871,19 +871,13 @@ pub fn context_menu_items_ui(
         match item {
             ContextItem::Copy { value, label } => {
                 let mut job = LayoutJob::default();
+                write_text("Copy ", appearance.text_color, &mut job, appearance.code_font.clone());
                 write_text(
-                    "Copy \"",
-                    appearance.text_color,
-                    &mut job,
-                    appearance.code_font.clone(),
-                );
-                write_text(
-                    &value,
+                    &format!("{value:?}"),
                     appearance.highlight_color,
                     &mut job,
                     appearance.code_font.clone(),
                 );
-                write_text("\"", appearance.text_color, &mut job, appearance.code_font.clone());
                 if let Some(label) = label {
                     write_text(" (", appearance.text_color, &mut job, appearance.code_font.clone());
                     write_text(
