@@ -7,12 +7,10 @@ use alloc::{
 };
 use core::{
     any::Any,
-    ffi::CStr,
     fmt::{self, Debug},
 };
 
 use anyhow::{Result, bail};
-use encoding_rs::SHIFT_JIS;
 use object::Endian as _;
 
 use crate::{
@@ -43,6 +41,16 @@ pub mod x86;
 
 pub const OPCODE_INVALID: u16 = u16::MAX;
 pub const OPCODE_DATA: u16 = u16::MAX - 1;
+
+const SUPPORTED_ENCODINGS: [(&encoding_rs::Encoding, &str); 7] = [
+    (encoding_rs::UTF_8, "UTF-8"),
+    (encoding_rs::SHIFT_JIS, "Shift JIS"),
+    (encoding_rs::UTF_16BE, "UTF-16BE"),
+    (encoding_rs::UTF_16LE, "UTF-16LE"),
+    (encoding_rs::WINDOWS_1252, "Windows-1252"),
+    (encoding_rs::EUC_JP, "EUC-JP"),
+    (encoding_rs::BIG5, "Big5"),
+];
 
 /// Represents the type of data associated with an instruction
 #[derive(PartialEq)]
@@ -164,16 +172,18 @@ impl DataType {
                 strs.push((format!("{bytes:#?}"), None));
             }
             DataType::String => {
-                if let Ok(cstr) = CStr::from_bytes_until_nul(bytes) {
-                    strs.push((format!("{}", cstr.to_string_lossy()), None));
-                }
                 if let Some(nul_idx) = bytes.iter().position(|&c| c == b'\0') {
-                    let (cow, _, had_errors) = SHIFT_JIS.decode(&bytes[..nul_idx]);
-                    if !had_errors {
-                        let str = format!("{cow}");
-                        // Only add the Shift JIS string if it's different from the ASCII string.
-                        if !strs.iter().any(|x| x.0 == str) {
-                            strs.push((str, Some("Shift JIS".into())));
+                    let str_bytes = &bytes[..nul_idx];
+                    // Special case to display (ASCII) as the label for ASCII-only strings.
+                    let (cow, _, had_errors) = encoding_rs::UTF_8.decode(str_bytes);
+                    if !had_errors && cow.is_ascii() {
+                        strs.push((format!("{cow}"), Some("ASCII".into())));
+                    }
+                    for (encoding, encoding_name) in SUPPORTED_ENCODINGS {
+                        let (cow, _, had_errors) = encoding.decode(str_bytes);
+                        // Avoid showing ASCII-only strings more than once if the encoding is ASCII-compatible.
+                        if !had_errors && (!encoding.is_ascii_compatible() || !cow.is_ascii()) {
+                            strs.push((format!("{cow}"), Some(encoding_name.into())));
                         }
                     }
                 }
