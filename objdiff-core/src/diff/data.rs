@@ -588,6 +588,7 @@ fn symbols_matching_section(
         s.section == Some(section_idx)
             && s.kind != SymbolKind::Section
             && s.size > 0
+            && !s.flags.contains(SymbolFlag::Hidden)
             && !s.flags.contains(SymbolFlag::Ignored)
     })
 }
