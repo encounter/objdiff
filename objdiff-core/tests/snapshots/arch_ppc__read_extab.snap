@@ -69,10 +69,10 @@ Object {
                                 action_param: 0,
                                 has_end_bit: true,
                                 bytes: [
-                                    130,
-                                    0,
                                     0,
                                     8,
+                                    0,
+                                    0,
                                     0,
                                     0,
                                 ],
@@ -80,8 +80,8 @@ Object {
                         ],
                         relocations: [
                             Relocation {
-                                offset: 18,
-                                address: 524288,
+                                offset: 20,
+                                address: 0,
                             },
                         ],
                     },
