@@ -2,7 +2,7 @@ use std::{sync::mpsc::Receiver, task::Waker};
 
 use anyhow::{Error, Result, bail};
 use time::OffsetDateTime;
-use typed_path::Utf8PlatformPathBuf;
+use typed_path::{Utf8PlatformPath, Utf8PlatformPathBuf, Utf8UnixPathBuf};
 
 use crate::{
     build::{BuildConfig, BuildStatus, run_make},
@@ -29,36 +29,37 @@ pub struct ObjDiffResult {
     pub time: OffsetDateTime,
 }
 
+fn build_relative_path(
+    project_dir: Option<&Utf8PlatformPath>,
+    path: Option<&Utf8PlatformPath>,
+    should_build: bool,
+    label: &str,
+) -> Result<Option<Utf8UnixPathBuf>> {
+    if !should_build {
+        return Ok(None);
+    }
+    let project_dir = project_dir.ok_or_else(|| Error::msg("Missing project dir"))?;
+    let Some(path) = path else { return Ok(None) };
+    match path.strip_prefix(project_dir) {
+        Ok(p) => Ok(Some(p.with_unix_encoding())),
+        Err(_) => bail!("{label} path '{path}' doesn't begin with '{project_dir}'"),
+    }
+}
+
 fn run_build(
     context: &JobContext,
     cancel: Receiver<()>,
     config: ObjDiffConfig,
 ) -> Result<Box<ObjDiffResult>> {
-    let mut target_path_rel = None;
-    let mut base_path_rel = None;
-    if config.build_target || config.build_base {
-        let project_dir = config
-            .build_config
-            .project_dir
-            .as_ref()
-            .ok_or_else(|| Error::msg("Missing project dir"))?;
-        if let Some(target_path) = &config.target_path {
-            target_path_rel = match target_path.strip_prefix(project_dir) {
-                Ok(p) => Some(p.with_unix_encoding()),
-                Err(_) => {
-                    bail!("Target path '{}' doesn't begin with '{}'", target_path, project_dir);
-                }
-            };
-        }
-        if let Some(base_path) = &config.base_path {
-            base_path_rel = match base_path.strip_prefix(project_dir) {
-                Ok(p) => Some(p.with_unix_encoding()),
-                Err(_) => {
-                    bail!("Base path '{}' doesn't begin with '{}'", base_path, project_dir);
-                }
-            };
-        };
-    }
+    let project_dir = config.build_config.project_dir.as_deref();
+    let target_path_rel = build_relative_path(
+        project_dir,
+        config.target_path.as_deref(),
+        config.build_target,
+        "Target",
+    )?;
+    let base_path_rel =
+        build_relative_path(project_dir, config.base_path.as_deref(), config.build_base, "Base")?;
 
     let mut total = 1;
     if config.build_target && target_path_rel.is_some() {
