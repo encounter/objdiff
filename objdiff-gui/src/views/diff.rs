@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, collections::BTreeSet};
 
 use egui::{Id, Layout, RichText, ScrollArea, TextEdit, Ui, Widget, text::LayoutJob};
 use objdiff_core::{
@@ -80,6 +80,55 @@ fn get_asm_text(
     let mut asm_text = String::new();
 
     for ins_row in &symbol_diff.instruction_rows {
+        let mut line = String::new();
+        let result = display_row(obj, symbol_idx, ins_row, diff_config, |segment| {
+            let text = match segment.text {
+                DiffText::Basic(text) => text.to_string(),
+                DiffText::Line(num) => format!("{num} "),
+                DiffText::Address(addr) => format!("{addr:x}:"),
+                DiffText::Opcode(mnemonic, _op) => format!("{mnemonic} "),
+                DiffText::Argument(arg) => match arg {
+                    InstructionArgValue::Signed(v) => format!("{:#x}", ReallySigned(v)),
+                    InstructionArgValue::Unsigned(v) => format!("{v:#x}"),
+                    InstructionArgValue::Opaque(v) => v.into_owned(),
+                },
+                DiffText::BranchDest(addr) => format!("{addr:x}"),
+                DiffText::Symbol(sym) => sym.demangled_name.as_ref().unwrap_or(&sym.name).clone(),
+                DiffText::Addend(addend) => match addend.cmp(&0i64) {
+                    Ordering::Greater => format!("+{addend:#x}"),
+                    Ordering::Less => format!("-{:#x}", -addend),
+                    _ => String::new(),
+                },
+                DiffText::Spacing(n) => " ".repeat(n.into()),
+                DiffText::Eol => "\n".to_string(),
+            };
+            line.push_str(&text);
+            Ok(())
+        });
+
+        if result.is_ok() {
+            asm_text.push_str(line.trim_end());
+            asm_text.push('\n');
+        }
+    }
+
+    asm_text
+}
+
+/// Obtains the assembly text for selected rows only, suitable for copying to clipboard.
+pub fn get_selected_asm_text(
+    obj: &Object,
+    symbol_diff: &SymbolDiff,
+    symbol_idx: usize,
+    diff_config: &DiffObjConfig,
+    selected_rows: &BTreeSet<usize>,
+) -> String {
+    let mut asm_text = String::new();
+
+    for (row_idx, ins_row) in symbol_diff.instruction_rows.iter().enumerate() {
+        if !selected_rows.contains(&row_idx) {
+            continue;
+        }
         let mut line = String::new();
         let result = display_row(obj, symbol_idx, ins_row, diff_config, |segment| {
             let text = match segment.text {
