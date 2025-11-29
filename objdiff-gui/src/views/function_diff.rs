@@ -369,7 +369,7 @@ pub(crate) fn asm_col_ui(
     let ins_row = &ctx.diff.symbols[symbol_ref].instruction_rows[row_index];
     let has_selection = ins_view_state.has_selected_rows(column);
 
-    let (_, response) = row.col(|ui| {
+    let (_, mut response) = row.col(|ui| {
         if let Some(action) = asm_row_ui(
             ui,
             ctx.obj,
@@ -388,19 +388,19 @@ pub(crate) fn asm_col_ui(
 
     // Handle context menu
     if let Some(ins_ref) = ins_row.ins_ref {
-        response.context_menu(|ui| {
+        response = response.context_menu(|ui| {
             if let Some(action) = ins_context_menu(
                 ui, ctx.obj, symbol_ref, ins_ref, column, diff_config, appearance, has_selection,
             ) {
                 ret = Some(action);
             }
         });
-        response.on_hover_ui_at_pointer(|ui| {
+        response = response.on_hover_ui_at_pointer(|ui| {
             ins_hover_ui(ui, ctx.obj, symbol_ref, ins_ref, diff_config, appearance)
         });
     } else if has_selection {
         // Even rows without instructions can have context menu for copy/clear selected
-        response.context_menu(|ui| {
+        response = response.context_menu(|ui| {
             if ui.button("📋 Copy selected rows").clicked() {
                 ret = Some(DiffViewAction::CopySelectedRows(column));
                 ui.close();
