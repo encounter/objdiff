@@ -388,7 +388,7 @@ pub(crate) fn asm_col_ui(
 
     // Handle context menu
     if let Some(ins_ref) = ins_row.ins_ref {
-        response = response.context_menu(|ui| {
+        response.context_menu(|ui| {
             if let Some(action) = ins_context_menu(
                 ui, ctx.obj, symbol_ref, ins_ref, column, diff_config, appearance, has_selection,
             ) {
@@ -400,7 +400,7 @@ pub(crate) fn asm_col_ui(
         });
     } else if has_selection {
         // Even rows without instructions can have context menu for copy/clear selected
-        response = response.context_menu(|ui| {
+        response.context_menu(|ui| {
             if ui.button("📋 Copy selected rows").clicked() {
                 ret = Some(DiffViewAction::CopySelectedRows(column));
                 ui.close();
