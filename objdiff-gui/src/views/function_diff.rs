@@ -147,12 +147,6 @@ impl FunctionViewState {
         }
     }
 
-    /// Clear all row selections for all columns
-    pub fn clear_all_row_selections(&mut self) {
-        self.left_selected_rows.clear();
-        self.right_selected_rows.clear();
-        self.last_selected_row = None;
-    }
 
     /// Check if any rows are selected in a column
     pub fn has_selected_rows(&self, column: usize) -> bool {
