@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, default::Default};
+use std::{cmp::Ordering, collections::BTreeSet, default::Default};
 
 use egui::{Label, Response, Sense, Widget, text::LayoutJob};
 use egui_extras::TableRow;
@@ -24,6 +24,12 @@ use crate::views::{
 pub struct FunctionViewState {
     left_highlight: HighlightKind,
     right_highlight: HighlightKind,
+    /// Selected row indices for the left column
+    pub left_selected_rows: BTreeSet<usize>,
+    /// Selected row indices for the right column
+    pub right_selected_rows: BTreeSet<usize>,
+    /// Last clicked row index for shift-click range selection
+    last_selected_row: Option<(usize, usize)>, // (column, row_index)
 }
 
 impl FunctionViewState {
@@ -69,6 +75,87 @@ impl FunctionViewState {
         self.left_highlight = HighlightKind::None;
         self.right_highlight = HighlightKind::None;
     }
+
+    /// Get selected rows for a column
+    pub fn selected_rows(&self, column: usize) -> &BTreeSet<usize> {
+        match column {
+            0 => &self.left_selected_rows,
+            1 => &self.right_selected_rows,
+            _ => &self.left_selected_rows, // fallback
+        }
+    }
+
+    /// Check if a row is selected in a column
+    pub fn is_row_selected(&self, column: usize, row_index: usize) -> bool {
+        match column {
+            0 => self.left_selected_rows.contains(&row_index),
+            1 => self.right_selected_rows.contains(&row_index),
+            _ => false,
+        }
+    }
+
+    /// Toggle selection of a single row
+    pub fn toggle_row_selection(&mut self, column: usize, row_index: usize, shift_held: bool) {
+        let selected_rows = match column {
+            0 => &mut self.left_selected_rows,
+            1 => &mut self.right_selected_rows,
+            _ => return,
+        };
+
+        if shift_held {
+            // Range selection: select all rows between last selected and current
+            if let Some((last_col, last_row)) = self.last_selected_row {
+                if last_col == column {
+                    let start = last_row.min(row_index);
+                    let end = last_row.max(row_index);
+                    for i in start..=end {
+                        selected_rows.insert(i);
+                    }
+                } else {
+                    // Different column, just toggle the current row
+                    if selected_rows.contains(&row_index) {
+                        selected_rows.remove(&row_index);
+                    } else {
+                        selected_rows.insert(row_index);
+                    }
+                }
+            } else {
+                // No previous selection, just select the current row
+                selected_rows.insert(row_index);
+            }
+        } else {
+            // Single toggle
+            if selected_rows.contains(&row_index) {
+                selected_rows.remove(&row_index);
+            } else {
+                selected_rows.insert(row_index);
+            }
+        }
+
+        self.last_selected_row = Some((column, row_index));
+    }
+
+    /// Clear all row selections for a column
+    pub fn clear_row_selection(&mut self, column: usize) {
+        match column {
+            0 => self.left_selected_rows.clear(),
+            1 => self.right_selected_rows.clear(),
+            _ => {}
+        }
+        if self.last_selected_row.map_or(false, |(col, _)| col == column) {
+            self.last_selected_row = None;
+        }
+    }
+
+
+    /// Check if any rows are selected in a column
+    pub fn has_selected_rows(&self, column: usize) -> bool {
+        match column {
+            0 => !self.left_selected_rows.is_empty(),
+            1 => !self.right_selected_rows.is_empty(),
+            _ => false,
+        }
+    }
 }
 
 fn ins_hover_ui(
@@ -109,10 +196,26 @@ fn ins_context_menu(
     column: usize,
     diff_config: &DiffObjConfig,
     appearance: &Appearance,
-) {
+    has_selection: bool,
+) -> Option<DiffViewAction> {
+    let mut ret = None;
+
+    // Add copy/clear selection options if there are selections
+    if has_selection {
+        if ui.button("📋 Copy selected rows").clicked() {
+            ret = Some(DiffViewAction::CopySelectedRows(column));
+            ui.close();
+        }
+        if ui.button("✖ Clear selection").clicked() {
+            ret = Some(DiffViewAction::ClearRowSelection(column));
+            ui.close();
+        }
+        ui.separator();
+    }
+
     let Some(resolved) = obj.resolve_instruction_ref(symbol_idx, ins_ref) else {
         ui.colored_label(appearance.delete_color, "Failed to resolve instruction");
-        return;
+        return ret;
     };
     let ins = match obj.arch.process_instruction(resolved, diff_config) {
         Ok(ins) => ins,
@@ -121,15 +224,19 @@ fn ins_context_menu(
                 appearance.delete_color,
                 format!("Failed to process instruction: {e}"),
             );
-            return;
+            return ret;
         }
     };
 
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
-        context_menu_items_ui(ui, instruction_context(obj, resolved, &ins), column, appearance);
+        if let Some(action) = context_menu_items_ui(ui, instruction_context(obj, resolved, &ins), column, appearance) {
+            ret = Some(action);
+        }
     });
+
+    ret
 }
 
 #[must_use]
@@ -209,14 +316,25 @@ fn asm_row_ui(
     ins_view_state: &FunctionViewState,
     diff_config: &DiffObjConfig,
     column: usize,
+    row_index: usize,
     response_cb: impl Fn(Response) -> Response,
 ) -> Option<DiffViewAction> {
     let mut ret = None;
     ui.spacing_mut().item_spacing.x = 0.0;
     ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
-    if ins_diff.kind != InstructionDiffKind::None {
+
+    // Show selection highlight
+    let is_selected = ins_view_state.is_row_selected(column, row_index);
+    if is_selected {
+        ui.painter().rect_filled(
+            ui.available_rect_before_wrap(),
+            0.0,
+            appearance.highlight_color.gamma_multiply(0.3),
+        );
+    } else if ins_diff.kind != InstructionDiffKind::None {
         ui.painter().rect_filled(ui.available_rect_before_wrap(), 0.0, ui.visuals().faint_bg_color);
     }
+
     let space_width = ui.fonts_mut(|f| f.glyph_width(&appearance.code_font, ' '));
     display_row(obj, symbol_idx, ins_diff, diff_config, |segment| {
         if let Some(action) =
@@ -241,20 +359,11 @@ pub(crate) fn asm_col_ui(
 ) -> Option<DiffViewAction> {
     let mut ret = None;
     let symbol_ref = ctx.symbol_ref?;
-    let ins_row = &ctx.diff.symbols[symbol_ref].instruction_rows[row.index()];
-    let response_cb = |response: Response| {
-        if let Some(ins_ref) = ins_row.ins_ref {
-            response.context_menu(|ui| {
-                ins_context_menu(ui, ctx.obj, symbol_ref, ins_ref, column, diff_config, appearance)
-            });
-            response.on_hover_ui_at_pointer(|ui| {
-                ins_hover_ui(ui, ctx.obj, symbol_ref, ins_ref, diff_config, appearance)
-            })
-        } else {
-            response
-        }
-    };
-    let (_, response) = row.col(|ui| {
+    let row_index = row.index();
+    let ins_row = &ctx.diff.symbols[symbol_ref].instruction_rows[row_index];
+    let has_selection = ins_view_state.has_selected_rows(column);
+
+    let (_, mut response) = row.col(|ui| {
         if let Some(action) = asm_row_ui(
             ui,
             ctx.obj,
@@ -264,12 +373,47 @@ pub(crate) fn asm_col_ui(
             ins_view_state,
             diff_config,
             column,
-            response_cb,
+            row_index,
+            |r| r, // Simple passthrough
         ) {
             ret = Some(action);
         }
     });
-    response_cb(response);
+
+    // Handle context menu
+    if let Some(ins_ref) = ins_row.ins_ref {
+        response.context_menu(|ui| {
+            if let Some(action) = ins_context_menu(
+                ui, ctx.obj, symbol_ref, ins_ref, column, diff_config, appearance, has_selection,
+            ) {
+                ret = Some(action);
+            }
+        });
+        response = response.on_hover_ui_at_pointer(|ui| {
+            ins_hover_ui(ui, ctx.obj, symbol_ref, ins_ref, diff_config, appearance)
+        });
+    } else if has_selection {
+        // Even rows without instructions can have context menu for copy/clear selected
+        response.context_menu(|ui| {
+            if ui.button("📋 Copy selected rows").clicked() {
+                ret = Some(DiffViewAction::CopySelectedRows(column));
+                ui.close();
+            }
+            if ui.button("✖ Clear selection").clicked() {
+                ret = Some(DiffViewAction::ClearRowSelection(column));
+                ui.close();
+            }
+        });
+    }
+
+    // Handle Ctrl+Click for row selection toggle
+    if response.clicked() {
+        let modifiers = response.ctx.input(|i| i.modifiers);
+        if modifiers.ctrl || modifiers.command {
+            ret = Some(DiffViewAction::ToggleRowSelection(column, row_index, modifiers.shift));
+        }
+    }
+
     ret
 }
 

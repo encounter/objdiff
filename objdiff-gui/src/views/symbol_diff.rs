@@ -23,7 +23,7 @@ use crate::{
     jobs::{is_create_scratch_available, start_create_scratch},
     views::{
         appearance::Appearance,
-        diff::{context_menu_items_ui, hover_items_ui},
+        diff::{context_menu_items_ui, get_selected_asm_text, hover_items_ui},
         function_diff::FunctionViewState,
         write_text,
     },
@@ -81,6 +81,12 @@ pub enum DiffViewAction {
     SetShowMappedSymbols(bool),
     /// Set the show_data_flow flag
     SetShowDataFlow(bool),
+    /// Toggle row selection for multi-select copy (column, row_index, shift_held)
+    ToggleRowSelection(usize, usize, bool),
+    /// Clear row selection for a column
+    ClearRowSelection(usize),
+    /// Copy selected rows to clipboard (column)
+    CopySelectedRows(usize),
 }
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -362,7 +368,56 @@ impl DiffViewState {
                 };
                 state.config.diff_obj_config.show_data_flow = value;
             }
+            DiffViewAction::ToggleRowSelection(column, row_index, shift_held) => {
+                self.function_state.toggle_row_selection(column, row_index, shift_held);
+            }
+            DiffViewAction::ClearRowSelection(column) => {
+                self.function_state.clear_row_selection(column);
+            }
+            DiffViewAction::CopySelectedRows(column) => {
+                let Ok(state) = state.read() else {
+                    return;
+                };
+                let selected_rows = self.function_state.selected_rows(column);
+                if selected_rows.is_empty() {
+                    return;
+                }
+                // Get the selected ASM text
+                if let Some(text) = self.get_selected_asm_text(column, &state.config.diff_obj_config)
+                {
+                    ctx.copy_text(text);
+                }
+                // Clear selection after copy
+                self.function_state.clear_row_selection(column);
+            }
         }
+    }
+
+    /// Get ASM text for selected rows in a column
+    fn get_selected_asm_text(&self, column: usize, diff_config: &DiffObjConfig) -> Option<String> {
+        let result = self.build.as_deref()?;
+        let selected_rows = self.function_state.selected_rows(column);
+        if selected_rows.is_empty() {
+            return None;
+        }
+
+        let (obj, diff) = match column {
+            0 => result.first_obj.as_ref()?,
+            1 => result.second_obj.as_ref()?,
+            _ => return None,
+        };
+
+        // Find the currently viewed symbol
+        let symbol_ref = match column {
+            0 => self.symbol_state.left_symbol.as_ref()?,
+            1 => self.symbol_state.right_symbol.as_ref()?,
+            _ => return None,
+        };
+
+        let symbol_idx = obj.symbol_by_name(&symbol_ref.symbol_name)?;
+        let symbol_diff = diff.symbols.get(symbol_idx)?;
+
+        Some(get_selected_asm_text(obj, symbol_diff, symbol_idx, diff_config, selected_rows))
     }
 
     fn resolve_symbol(
