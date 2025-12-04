@@ -345,7 +345,10 @@ impl Arch for ArchArm {
                     let address = address as usize;
                     let addend = match r_type {
                         // ARM calls
-                        elf::R_ARM_PC24 | elf::R_ARM_XPC25 | elf::R_ARM_CALL => {
+                        elf::R_ARM_PC24
+                        | elf::R_ARM_XPC25
+                        | elf::R_ARM_CALL
+                        | elf::R_ARM_JUMP24 => {
                             let data = section_data[address..address + 4].try_into()?;
                             let addend = self.endianness.read_i32_bytes(data);
                             let imm24 = addend & 0xffffff;
