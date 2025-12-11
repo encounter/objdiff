@@ -356,7 +356,10 @@ impl Arch for ArchArm {
                         }
 
                         // Thumb calls
-                        elf::R_ARM_THM_PC22 | elf::R_ARM_THM_XPC22 => {
+                        elf::R_ARM_THM_PC8
+                        | elf::R_ARM_THM_PC11
+                        | elf::R_ARM_THM_PC22
+                        | elf::R_ARM_THM_XPC22 => {
                             let data = section_data[address..address + 2].try_into()?;
                             let high = self.endianness.read_i16_bytes(data) as i32;
                             let data = section_data[address + 2..address + 4].try_into()?;
