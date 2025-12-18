@@ -34,12 +34,13 @@ pub fn render_table(
     num_columns: usize,
     row_height: f32,
     total_rows: usize,
+    scroll_to_row: Option<usize>,
     mut add_contents: impl FnMut(&mut TableRow, usize),
 ) {
     ui.style_mut().interaction.selectable_labels = false;
     let column_width = available_width / num_columns as f32;
     let available_height = ui.available_height();
-    let table = TableBuilder::new(ui)
+    let mut table = TableBuilder::new(ui)
         .striped(false)
         .cell_layout(Layout::left_to_right(Align::Min))
         .columns(Column::exact(column_width).clip(true), num_columns)
@@ -47,6 +48,9 @@ pub fn render_table(
         .auto_shrink([false, false])
         .min_scrolled_height(available_height)
         .sense(Sense::click());
+    if let Some(row) = scroll_to_row {
+        table = table.scroll_to_row(row, Some(Align::Center));
+    }
     table.body(|body| {
         body.rows(row_height, total_rows, |mut row| {
             row.set_hovered(false); // Disable hover effect
