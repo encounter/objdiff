@@ -824,19 +824,16 @@ fn combine_sections(
     config: &DiffObjConfig,
 ) -> Result<()> {
     let mut data_sections = BTreeMap::<String, Vec<usize>>::new();
-    let mut text_sections = Vec::<usize>::new();
+    let mut text_sections = BTreeMap::<String, Vec<usize>>::new();
     for (i, section) in sections.iter().enumerate() {
+        let base_name =
+            if let Some(i) = section.name.rfind('$') { &section.name[..i] } else { &section.name };
         match section.kind {
             SectionKind::Data | SectionKind::Bss => {
-                let base_name = if let Some(i) = section.name.rfind('$') {
-                    &section.name[..i]
-                } else {
-                    &section.name
-                };
                 data_sections.entry(base_name.to_string()).or_default().push(i);
             }
             SectionKind::Code => {
-                text_sections.push(i);
+                text_sections.entry(base_name.to_string()).or_default().push(i);
             }
             _ => {}
         }
@@ -847,7 +844,9 @@ fn combine_sections(
         }
     }
     if config.combine_text_sections {
-        do_combine_sections(sections, symbols, &mut text_sections, ".text".to_string())?;
+        for (combined_name, mut section_indices) in text_sections {
+            do_combine_sections(sections, symbols, &mut section_indices, combined_name)?;
+        }
     }
     Ok(())
 }
