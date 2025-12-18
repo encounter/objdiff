@@ -7,6 +7,7 @@ use alloc::{
 use core::{num::NonZeroU32, ops::Range};
 
 use anyhow::Result;
+use itertools::Itertools;
 
 use crate::{
     diff::{
@@ -766,11 +767,15 @@ fn find_symbol(
         return Some(symbol_idx);
     }
 
-    if let Some((symbol_idx, _)) = unmatched_symbols(obj, used).find(|&(_, symbol)| {
-        symbol_name_matches(&in_symbol.name, &symbol.name)
-            && symbol_section_kind(obj, symbol) == section_kind
-            && symbol_section(obj, symbol).is_some_and(|(name, _)| name == section_name)
-    }) {
+    if let Some((symbol_idx, _)) = unmatched_symbols(obj, used)
+        .filter(|&(_, symbol)| {
+            symbol_name_matches(&in_symbol.name, &symbol.name)
+                && symbol_section_kind(obj, symbol) == section_kind
+                && symbol_section(obj, symbol).is_some_and(|(name, _)| name == section_name)
+        })
+        .sorted_unstable_by_key(|&(_, symbol)| (symbol.section, symbol.address))
+        .next()
+    {
         return Some(symbol_idx);
     }
 
