@@ -500,6 +500,7 @@ impl From<diff::display::DiffText<'_>> for DiffText {
                 obj::InstructionArgValue::Opaque(v) => DiffText::Opaque(v.into_owned()),
             },
             diff::display::DiffText::BranchDest(v) => DiffText::BranchDest(v),
+            diff::display::DiffText::BranchArrow(v) => DiffText::BranchArrow(v),
             diff::display::DiffText::Symbol(s) => DiffText::Symbol(DiffTextSymbol {
                 name: s.name.clone(),
                 demangled_name: s.demangled_name.clone(),
