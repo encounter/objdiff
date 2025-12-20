@@ -760,13 +760,7 @@ fn find_symbol(
         return closest_match_symbol_idx;
     }
 
-    // Try to find an exact name match
-    if let Some((symbol_idx, _)) = unmatched_symbols(obj, used).find(|(_, symbol)| {
-        symbol.name == in_symbol.name && symbol_section_kind(obj, symbol) == section_kind
-    }) {
-        return Some(symbol_idx);
-    }
-
+    // Try to find a symbol with a matching name
     if let Some((symbol_idx, _)) = unmatched_symbols(obj, used)
         .filter(|&(_, symbol)| {
             symbol_name_matches(&in_symbol.name, &symbol.name)

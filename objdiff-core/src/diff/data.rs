@@ -50,12 +50,11 @@ pub fn symbol_name_matches(left_name: &str, right_name: &str) -> bool {
         } else {
             false
         }
-    } else if let Some((prefix, suffix)) = left_name.split_once(['$', '.']) {
+    } else if let Some((prefix, suffix)) = left_name.split_once(['$', '.'])
+        && suffix.chars().all(char::is_numeric)
+    {
         // Match Metrowerks symbol$1234 against symbol$2345
         // and GCC symbol.1234 against symbol.2345
-        if !suffix.chars().all(char::is_numeric) {
-            return false;
-        }
         right_name
             .split_once(['$', '.'])
             .is_some_and(|(p, s)| p == prefix && s.chars().all(char::is_numeric))
