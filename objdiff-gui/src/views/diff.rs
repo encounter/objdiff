@@ -93,6 +93,7 @@ fn get_asm_text(
                     InstructionArgValue::Opaque(v) => v.into_owned(),
                 },
                 DiffText::BranchDest(addr) => format!("{addr:x}"),
+                DiffText::BranchArrow(_) => " ~> ".to_string(),
                 DiffText::Symbol(sym) => sym.demangled_name.as_ref().unwrap_or(&sym.name).clone(),
                 DiffText::Addend(addend) => match addend.cmp(&0i64) {
                     Ordering::Greater => format!("+{addend:#x}"),
@@ -498,6 +499,7 @@ pub fn diff_view_ui(
                 2,
                 appearance.code_font.size,
                 instructions_len,
+                state.function_state.scroll_to_row,
                 |row, column| {
                     if column == 0 {
                         if let Some(action) = asm_col_ui(
@@ -560,6 +562,7 @@ pub fn diff_view_ui(
                 2,
                 appearance.code_font.size,
                 total_rows,
+                None,
                 |row, column| {
                     let i = row.index();
                     let row_offset = i as u64 * BYTES_PER_ROW as u64;
@@ -690,6 +693,7 @@ fn diff_col_ui(
                     1,
                     appearance.code_font.size,
                     total_rows,
+                    None,
                     |row, _column| {
                         let i = row.index();
                         let row_offset = i as u64 * BYTES_PER_ROW as u64;
@@ -713,6 +717,7 @@ fn diff_col_ui(
                     1,
                     appearance.code_font.size,
                     symbol_diff.instruction_rows.len(),
+                    state.function_state.scroll_to_row,
                     |row, column| {
                         if let Some(action) = asm_col_ui(
                             row,

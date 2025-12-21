@@ -81,6 +81,8 @@ pub enum DiffViewAction {
     SetShowMappedSymbols(bool),
     /// Set the show_data_flow flag
     SetShowDataFlow(bool),
+    // Scrolls a row of the function view table into view.
+    ScrollToRow(usize),
 }
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -193,8 +195,9 @@ impl DiffViewState {
             ctx.open_url(OpenUrl::new_tab(result.scratch_url));
         }
 
-        // Clear the autoscroll flag so that it doesn't scroll continuously.
+        // Clear the scroll flags to prevent it from scrolling continuously.
         self.symbol_state.autoscroll_to_highlighted_symbols = false;
+        self.function_state.scroll_to_row = None;
 
         let Some(action) = action else {
             return;
@@ -361,6 +364,9 @@ impl DiffViewState {
                     return;
                 };
                 state.config.diff_obj_config.show_data_flow = value;
+            }
+            DiffViewAction::ScrollToRow(row) => {
+                self.function_state.scroll_to_row = Some(row);
             }
         }
     }

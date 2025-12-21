@@ -539,6 +539,7 @@ impl FunctionDiffUi {
                     DiffText::Opcode(mnemonic, _op) => format!("{mnemonic} "),
                     DiffText::Argument(arg) => arg.to_string(),
                     DiffText::BranchDest(addr) => format!("{addr:x}"),
+                    DiffText::BranchArrow(_) => " ~> ".to_string(),
                     DiffText::Symbol(sym) => {
                         sym.demangled_name.as_ref().unwrap_or(&sym.name).clone()
                     }

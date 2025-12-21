@@ -24,6 +24,7 @@ use crate::views::{
 pub struct FunctionViewState {
     left_highlight: HighlightKind,
     right_highlight: HighlightKind,
+    pub scroll_to_row: Option<usize>,
 }
 
 impl FunctionViewState {
@@ -143,6 +144,7 @@ fn diff_text_ui(
     response_cb: impl Fn(Response) -> Response,
 ) -> Option<DiffViewAction> {
     let highlight_kind = HighlightKind::from(&segment.text);
+    let mut branch_to_ins_idx = None;
     let label_text = match segment.text {
         DiffText::Basic(text) => text.to_string(),
         DiffText::Line(num) => format!("{num} "),
@@ -154,6 +156,10 @@ fn diff_text_ui(
             InstructionArgValue::Opaque(v) => v.into_owned(),
         },
         DiffText::BranchDest(addr) => format!("{addr:x}"),
+        DiffText::BranchArrow(ins_idx) => {
+            branch_to_ins_idx = Some(ins_idx);
+            " ~> ".to_string()
+        }
         DiffText::Symbol(sym) => sym.demangled_name.as_ref().unwrap_or(&sym.name).clone(),
         DiffText::Addend(addend) => match addend.cmp(&0i64) {
             Ordering::Greater => format!("+{addend:#x}"),
@@ -191,7 +197,11 @@ fn diff_text_ui(
     response = response_cb(response);
     let mut ret = None;
     if response.clicked() {
-        ret = Some(DiffViewAction::SetDiffHighlight(column, highlight_kind));
+        if let Some(ins_idx) = branch_to_ins_idx {
+            ret = Some(DiffViewAction::ScrollToRow(ins_idx as usize));
+        } else {
+            ret = Some(DiffViewAction::SetDiffHighlight(column, highlight_kind));
+        }
     }
     if len < segment.pad_to as usize {
         ui.add_space((segment.pad_to as usize - len) as f32 * space_width);

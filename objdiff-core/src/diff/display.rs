@@ -37,6 +37,8 @@ pub enum DiffText<'a> {
     Argument(InstructionArgValue<'a>),
     /// Branch destination
     BranchDest(u64),
+    /// Branch source/destination arrow, scrolls to a specific row when clicked
+    BranchArrow(u32),
     /// Symbol name
     Symbol(&'a Symbol),
     /// Relocation addend
@@ -185,7 +187,13 @@ pub fn display_row(
         pad_to: 5,
     })?;
     if let Some(branch) = &ins_row.branch_from {
-        cb(DiffTextSegment::basic(" ~> ", DiffTextColor::Rotating(branch.branch_idx as u8)))?;
+        // Pick the first branch source if there are multiple.
+        let ins_idx = branch.ins_idx[0];
+        cb(DiffTextSegment {
+            text: DiffText::BranchArrow(ins_idx),
+            color: DiffTextColor::Rotating(branch.branch_idx as u8),
+            pad_to: 0,
+        })?;
     } else {
         cb(DiffTextSegment::spacing(4))?;
     }
@@ -307,7 +315,11 @@ pub fn display_row(
         cb(DiffTextSegment::basic(">", base_color))?;
     }
     if let Some(branch) = &ins_row.branch_to {
-        cb(DiffTextSegment::basic(" ~>", DiffTextColor::Rotating(branch.branch_idx as u8)))?;
+        cb(DiffTextSegment {
+            text: DiffText::BranchArrow(branch.ins_idx),
+            color: DiffTextColor::Rotating(branch.branch_idx as u8),
+            pad_to: 0,
+        })?;
     }
     cb(EOL_SEGMENT)?;
     Ok(())

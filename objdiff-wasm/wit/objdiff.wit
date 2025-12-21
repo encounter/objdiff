@@ -203,6 +203,8 @@ interface display {
     opaque(string),
     // Instruction argument (branch destination)
     branch-dest(u64),
+    // Branch source/destination arrow
+    branch-arrow(u32),
     // Relocation target name
     symbol(diff-text-symbol),
     // Relocation addend
