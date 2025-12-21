@@ -36,12 +36,25 @@ pub fn diff_bss_symbol(
 }
 
 pub fn symbol_name_matches(left_name: &str, right_name: &str) -> bool {
-    // Match Metrowerks symbol$1234 against symbol$2345
-    // and GCC symbol.1234 against symbol.2345
-    if let Some((prefix, suffix)) = left_name.split_once(['$', '.']) {
-        if !suffix.chars().all(char::is_numeric) {
-            return false;
+    if let Some((left_prefix, left_suffix)) = left_name.split_once("@class$")
+        && let Some((right_prefix, right_suffix)) = right_name.split_once("@class$")
+    {
+        // Match Metrowerks anonymous class symbol names, ignoring the unique ID.
+        // e.g. __dt__Q29dCamera_c23@class$3665d_camera_cppFv
+        if left_prefix == right_prefix
+            && let Some(left_idx) = left_suffix.chars().position(|c| !c.is_numeric())
+            && let Some(right_idx) = right_suffix.chars().position(|c| !c.is_numeric())
+        {
+            // e.g. d_camera_cppFv (after the unique ID)
+            left_suffix[left_idx..] == right_suffix[right_idx..]
+        } else {
+            false
         }
+    } else if let Some((prefix, suffix)) = left_name.split_once(['$', '.'])
+        && suffix.chars().all(char::is_numeric)
+    {
+        // Match Metrowerks symbol$1234 against symbol$2345
+        // and GCC symbol.1234 against symbol.2345
         right_name
             .split_once(['$', '.'])
             .is_some_and(|(p, s)| p == prefix && s.chars().all(char::is_numeric))
