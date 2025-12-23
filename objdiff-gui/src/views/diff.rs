@@ -892,7 +892,7 @@ pub fn context_menu_items_ui(
     let mut ret = None;
     for item in items {
         match item {
-            ContextItem::Copy { value, label } => {
+            ContextItem::Copy { value, label, escape_string } => {
                 let mut job = LayoutJob::default();
                 write_text("Copy ", appearance.text_color, &mut job, appearance.code_font.clone());
                 write_text(
@@ -912,8 +912,9 @@ pub fn context_menu_items_ui(
                     write_text(")", appearance.text_color, &mut job, appearance.code_font.clone());
                 }
                 if ui.button(job).clicked() {
-                    let escaped = escape_special_ascii_characters(value);
-                    ui.ctx().copy_text(escaped);
+                    let value =
+                        if escape_string { escape_special_ascii_characters(value) } else { value };
+                    ui.ctx().copy_text(value);
                     ui.close();
                 }
             }

@@ -273,6 +273,7 @@ impl GuestDisplay for Component {
             return vec![ContextItem::Copy(ContextItemCopy {
                 value: "Failed to resolve instruction".to_string(),
                 label: Some("error".to_string()),
+                escape_string: false,
             })];
         };
         let ins = match obj.arch.process_instruction(resolved, &diff_config) {
@@ -281,6 +282,7 @@ impl GuestDisplay for Component {
                 return vec![ContextItem::Copy(ContextItemCopy {
                     value: e.to_string(),
                     label: Some("error".to_string()),
+                    escape_string: false,
                 })];
             }
         };
@@ -707,8 +709,8 @@ impl From<diff::display::HoverItemColor> for HoverItemColor {
 impl From<diff::display::ContextItem> for ContextItem {
     fn from(item: diff::display::ContextItem) -> Self {
         match item {
-            diff::display::ContextItem::Copy { value, label } => {
-                ContextItem::Copy(ContextItemCopy { value, label })
+            diff::display::ContextItem::Copy { value, label, escape_string } => {
+                ContextItem::Copy(ContextItemCopy { value, label, escape_string })
             }
             diff::display::ContextItem::Navigate { label, symbol_index, kind } => {
                 ContextItem::Navigate(ContextItemNavigate {
