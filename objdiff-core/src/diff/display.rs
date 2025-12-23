@@ -366,7 +366,7 @@ impl From<&DiffText<'_>> for HighlightKind {
 }
 
 pub enum ContextItem {
-    Copy { value: String, label: Option<String> },
+    Copy { value: String, label: Option<String>, copy_string: Option<String> },
     Navigate { label: String, symbol_index: usize, kind: SymbolNavigationKind },
     Separator,
 }
@@ -398,9 +398,9 @@ pub fn symbol_context(obj: &Object, symbol_index: usize) -> Vec<ContextItem> {
         return Vec::new();
     };
     let mut out = Vec::new();
-    out.push(ContextItem::Copy { value: symbol.name.clone(), label: None });
+    out.push(ContextItem::Copy { value: symbol.name.clone(), label: None, copy_string: None });
     if let Some(name) = &symbol.demangled_name {
-        out.push(ContextItem::Copy { value: name.clone(), label: None });
+        out.push(ContextItem::Copy { value: name.clone(), label: None, copy_string: None });
     }
     if symbol.section.is_some()
         && let Some(address) = symbol.virtual_address
@@ -408,6 +408,7 @@ pub fn symbol_context(obj: &Object, symbol_index: usize) -> Vec<ContextItem> {
         out.push(ContextItem::Copy {
             value: format!("{address:x}"),
             label: Some("virtual address".to_string()),
+            copy_string: None,
         });
     }
     out.append(&mut obj.arch.symbol_context(obj, symbol_index));
@@ -501,8 +502,8 @@ pub fn relocation_context(
         let literals = display_ins_data_literals(obj, ins);
         if !literals.is_empty() {
             out.push(ContextItem::Separator);
-            for (literal, label_override) in literals {
-                out.push(ContextItem::Copy { value: literal, label: label_override });
+            for (literal, label_override, copy_string) in literals {
+                out.push(ContextItem::Copy { value: literal, label: label_override, copy_string });
             }
         }
     }
@@ -598,24 +599,37 @@ pub fn instruction_context(
     for byte in resolved.code {
         hex_string.push_str(&format!("{byte:02x}"));
     }
-    out.push(ContextItem::Copy { value: hex_string, label: Some("instruction bytes".to_string()) });
+    out.push(ContextItem::Copy {
+        value: hex_string,
+        label: Some("instruction bytes".to_string()),
+        copy_string: None,
+    });
     out.append(&mut obj.arch.instruction_context(obj, resolved));
     if let Some(virtual_address) = resolved.symbol.virtual_address {
         let offset = resolved.ins_ref.address - resolved.symbol.address;
         out.push(ContextItem::Copy {
             value: format!("{:x}", virtual_address + offset),
             label: Some("virtual address".to_string()),
+            copy_string: None,
         });
     }
     for arg in &ins.args {
         if let InstructionArg::Value(arg) = arg {
-            out.push(ContextItem::Copy { value: arg.to_string(), label: None });
+            out.push(ContextItem::Copy { value: arg.to_string(), label: None, copy_string: None });
             match arg {
                 InstructionArgValue::Signed(v) => {
-                    out.push(ContextItem::Copy { value: v.to_string(), label: None });
+                    out.push(ContextItem::Copy {
+                        value: v.to_string(),
+                        label: None,
+                        copy_string: None,
+                    });
                 }
                 InstructionArgValue::Unsigned(v) => {
-                    out.push(ContextItem::Copy { value: v.to_string(), label: None });
+                    out.push(ContextItem::Copy {
+                        value: v.to_string(),
+                        label: None,
+                        copy_string: None,
+                    });
                 }
                 _ => {}
             }
@@ -677,7 +691,7 @@ pub fn instruction_hover(
             let literals = display_ins_data_literals(obj, resolved);
             if !literals.is_empty() {
                 out.push(HoverItem::Separator);
-                for (literal, label_override) in literals {
+                for (literal, label_override, _) in literals {
                     out.push(HoverItem::Text {
                         label: label_override.unwrap_or_else(|| ty.to_string()),
                         value: format!("{literal:?}"),
@@ -871,7 +885,7 @@ pub fn display_ins_data_labels(obj: &Object, resolved: ResolvedInstructionRef) -
 pub fn display_ins_data_literals(
     obj: &Object,
     resolved: ResolvedInstructionRef,
-) -> Vec<(String, Option<String>)> {
+) -> Vec<(String, Option<String>, Option<String>)> {
     let Some(reloc) = resolved.relocation else {
         return Vec::new();
     };

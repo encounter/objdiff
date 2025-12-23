@@ -143,6 +143,7 @@ interface display {
   record context-item-copy {
     value: string,
     label: option<string>,
+    copy-string: option<string>,
   }
 
   record context-item-navigate {
