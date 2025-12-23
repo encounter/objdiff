@@ -440,12 +440,12 @@ impl Arch for ArchPpc {
         let simplified = ins.simplified().to_string();
         let show_orig = orig != simplified;
         let mut out = Vec::with_capacity(2);
-        out.push(ContextItem::Copy { value: simplified, label: None, escape_string: false });
+        out.push(ContextItem::Copy { value: simplified, label: None, copy_string: None });
         if show_orig {
             out.push(ContextItem::Copy {
                 value: orig,
                 label: Some("original".to_string()),
-                escape_string: false,
+                copy_string: None,
             });
         }
         out

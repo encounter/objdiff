@@ -83,7 +83,7 @@ impl fmt::Display for DataType {
 impl DataType {
     pub fn display_labels(&self, endian: object::Endianness, bytes: &[u8]) -> Vec<String> {
         let mut strs = Vec::new();
-        for (literal, label_override, _escape_string) in self.display_literals(endian, bytes) {
+        for (literal, label_override, _) in self.display_literals(endian, bytes) {
             let label = label_override.unwrap_or_else(|| self.to_string());
             strs.push(format!("{label}: {literal:?}"))
         }
@@ -94,7 +94,7 @@ impl DataType {
         &self,
         endian: object::Endianness,
         bytes: &[u8],
-    ) -> Vec<(String, Option<String>, bool)> {
+    ) -> Vec<(String, Option<String>, Option<String>)> {
         let mut strs = Vec::new();
         if self.required_len().is_some_and(|l| bytes.len() < l) {
             log::warn!(
@@ -118,34 +118,34 @@ impl DataType {
         match self {
             DataType::Int8 => {
                 let i = i8::from_ne_bytes(bytes.try_into().unwrap());
-                strs.push((format!("{i:#x}"), None, false));
+                strs.push((format!("{i:#x}"), None, None));
 
                 if i < 0 {
-                    strs.push((format!("{:#x}", ReallySigned(i)), None, false));
+                    strs.push((format!("{:#x}", ReallySigned(i)), None, None));
                 }
             }
             DataType::Int16 => {
                 let i = endian.read_i16_bytes(bytes.try_into().unwrap());
-                strs.push((format!("{i:#x}"), None, false));
+                strs.push((format!("{i:#x}"), None, None));
 
                 if i < 0 {
-                    strs.push((format!("{:#x}", ReallySigned(i)), None, false));
+                    strs.push((format!("{:#x}", ReallySigned(i)), None, None));
                 }
             }
             DataType::Int32 => {
                 let i = endian.read_i32_bytes(bytes.try_into().unwrap());
-                strs.push((format!("{i:#x}"), None, false));
+                strs.push((format!("{i:#x}"), None, None));
 
                 if i < 0 {
-                    strs.push((format!("{:#x}", ReallySigned(i)), None, false));
+                    strs.push((format!("{:#x}", ReallySigned(i)), None, None));
                 }
             }
             DataType::Int64 => {
                 let i = endian.read_i64_bytes(bytes.try_into().unwrap());
-                strs.push((format!("{i:#x}"), None, false));
+                strs.push((format!("{i:#x}"), None, None));
 
                 if i < 0 {
-                    strs.push((format!("{:#x}", ReallySigned(i)), None, false));
+                    strs.push((format!("{:#x}", ReallySigned(i)), None, None));
                 }
             }
             DataType::Float => {
@@ -156,7 +156,7 @@ impl DataType {
                         object::Endianness::Big => f32::from_be_bytes(bytes),
                     }),
                     None,
-                    false,
+                    None,
                 ));
             }
             DataType::Double => {
@@ -167,11 +167,11 @@ impl DataType {
                         object::Endianness::Big => f64::from_be_bytes(bytes),
                     }),
                     None,
-                    false,
+                    None,
                 ));
             }
             DataType::Bytes => {
-                strs.push((format!("{bytes:#?}"), None, false));
+                strs.push((format!("{bytes:#?}"), None, None));
             }
             DataType::String => {
                 if let Some(nul_idx) = bytes.iter().position(|&c| c == b'\0') {
@@ -179,13 +179,17 @@ impl DataType {
                     // Special case to display (ASCII) as the label for ASCII-only strings.
                     let (cow, _, had_errors) = encoding_rs::UTF_8.decode(str_bytes);
                     if !had_errors && cow.is_ascii() {
-                        strs.push((format!("{cow}"), Some("ASCII".into()), true));
+                        let string = format!("{cow}");
+                        let copy_string = escape_special_ascii_characters(string.clone());
+                        strs.push((string, Some("ASCII".into()), Some(copy_string)));
                     }
                     for (encoding, encoding_name) in SUPPORTED_ENCODINGS {
                         let (cow, _, had_errors) = encoding.decode(str_bytes);
                         // Avoid showing ASCII-only strings more than once if the encoding is ASCII-compatible.
                         if !had_errors && (!encoding.is_ascii_compatible() || !cow.is_ascii()) {
-                            strs.push((format!("{cow}"), Some(encoding_name.into()), true));
+                            let string = format!("{cow}");
+                            let copy_string = escape_special_ascii_characters(string.clone());
+                            strs.push((string, Some(encoding_name.into()), Some(copy_string)));
                         }
                     }
                 }
@@ -500,4 +504,22 @@ pub enum RelocationOverrideTarget {
 pub struct RelocationOverride {
     pub target: RelocationOverrideTarget,
     pub addend: i64,
+}
+
+/// Escape ASCII characters such as \n or \t, but not Unicode characters such as \u{3000}.
+/// Suitable for copying to clipboard.
+fn escape_special_ascii_characters(value: String) -> String {
+    let mut escaped = String::new();
+    escaped.push('"');
+    for c in value.chars() {
+        if c.is_ascii() {
+            for e in c.escape_default() {
+                escaped.push(e);
+            }
+        } else {
+            escaped.push(c);
+        }
+    }
+    escaped.push('"');
+    escaped
 }
