@@ -619,11 +619,20 @@ fn symbol_ui(
             column,
         )));
     } else if response.hovered() {
-        ret = Some(if column == 0 {
-            DiffViewAction::SetSymbolHighlight(Some(symbol_idx), symbol_diff.target_symbol, false)
+        let new_highlighted_symbol = if column == 0 {
+            (Some(symbol_idx), symbol_diff.target_symbol)
         } else {
-            DiffViewAction::SetSymbolHighlight(symbol_diff.target_symbol, Some(symbol_idx), false)
-        });
+            (symbol_diff.target_symbol, Some(symbol_idx))
+        };
+        // Only set the highlight if it changed from the previous frame.
+        // This prevents passive mouse hovers from overriding keyboard actions.
+        if new_highlighted_symbol != state.highlighted_symbol {
+            ret = Some(DiffViewAction::SetSymbolHighlight(
+                new_highlighted_symbol.0,
+                new_highlighted_symbol.1,
+                false,
+            ));
+        }
     }
     ret
 }
