@@ -116,6 +116,28 @@ fn get_asm_text(
     asm_text
 }
 
+fn try_scroll_to_line_number(
+    scroll_to_line_number: Option<u32>,
+    obj: &Object,
+    diff: &ObjectDiff,
+    symbol_idx: usize,
+) -> Option<DiffViewAction> {
+    let target_line = scroll_to_line_number?;
+    let symbol = obj.symbols.get(symbol_idx)?;
+    let section_index = symbol.section?;
+    let section = &obj.sections[section_index];
+    for (ins_idx, ins_row) in diff.symbols[symbol_idx].instruction_rows.iter().enumerate() {
+        if let Some(ins_ref) = ins_row.ins_ref
+            && let Some(current_line) =
+                section.line_info.range(..=ins_ref.address).last().map(|(_, &b)| b)
+            && current_line == target_line
+        {
+            return Some(DiffViewAction::ScrollToRow(ins_idx));
+        }
+    }
+    None
+}
+
 #[must_use]
 pub fn diff_view_ui(
     ui: &mut Ui,
@@ -450,6 +472,23 @@ pub fn diff_view_ui(
                         {
                             ret = Some(DiffViewAction::SelectingRight(symbol_ref.clone()));
                         }
+                        needs_separator = true;
+                    }
+                    if state.current_view == View::FunctionDiff {
+                        if needs_separator {
+                            ui.separator();
+                        }
+                        let mut goto_line_text = state.function_state.go_to_line_text.clone();
+                        let response = TextEdit::singleline(&mut goto_line_text)
+                            .hint_text("Go to line number")
+                            .desired_width(100.0)
+                            .ui(ui);
+                        if hotkeys::consume_go_to_shortcut(ui.ctx()) {
+                            response.request_focus();
+                        }
+                        if response.changed() {
+                            ret = Some(DiffViewAction::SetGoToText(goto_line_text));
+                        }
                     }
                 } else if right_ctx.status.success && !right_ctx.has_symbol() {
                     let mut search = state.search.clone();
@@ -491,6 +530,14 @@ pub fn diff_view_ui(
             if left_symbol_diff.instruction_rows.len() != right_symbol_diff.instruction_rows.len() {
                 ui.label("Instruction count mismatch");
                 return;
+            }
+            if let Some(action) = try_scroll_to_line_number(
+                state.function_state.scroll_to_line_number,
+                right_obj,
+                right_diff,
+                right_symbol_idx,
+            ) {
+                ret = Some(action);
             }
             let instructions_len = left_symbol_diff.instruction_rows.len();
             render_table(
@@ -711,6 +758,14 @@ fn diff_col_ui(
                     },
                 );
             } else {
+                if let Some(action) = try_scroll_to_line_number(
+                    state.function_state.scroll_to_line_number,
+                    obj,
+                    diff,
+                    symbol_idx,
+                ) {
+                    ret = Some(action);
+                }
                 render_table(
                     ui,
                     available_width / 2.0,

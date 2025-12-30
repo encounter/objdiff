@@ -106,3 +106,9 @@ const CHANGE_BASE_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::
 pub fn consume_change_base_shortcut(ctx: &Context) -> bool {
     ctx.input_mut(|i| i.consume_shortcut(&CHANGE_BASE_SHORTCUT))
 }
+
+const GO_TO_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::G);
+
+pub fn consume_go_to_shortcut(ctx: &Context) -> bool {
+    ctx.input_mut(|i| i.consume_shortcut(&GO_TO_SHORTCUT))
+}

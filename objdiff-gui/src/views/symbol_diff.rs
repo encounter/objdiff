@@ -83,6 +83,8 @@ pub enum DiffViewAction {
     SetShowDataFlow(bool),
     // Scrolls a row of the function view table into view.
     ScrollToRow(usize),
+    /// Sets the text of the line number jump field and try to scroll that line into view.
+    SetGoToText(String),
 }
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -198,6 +200,7 @@ impl DiffViewState {
         // Clear the scroll flags to prevent it from scrolling continuously.
         self.symbol_state.autoscroll_to_highlighted_symbols = false;
         self.function_state.scroll_to_row = None;
+        self.function_state.scroll_to_line_number = None;
 
         let Some(action) = action else {
             return;
@@ -367,6 +370,12 @@ impl DiffViewState {
             }
             DiffViewAction::ScrollToRow(row) => {
                 self.function_state.scroll_to_row = Some(row);
+            }
+            DiffViewAction::SetGoToText(text) => {
+                if let Ok(line_num) = text.trim().parse::<u32>() {
+                    self.function_state.scroll_to_line_number = Some(line_num);
+                }
+                self.function_state.go_to_line_text = text;
             }
         }
     }
