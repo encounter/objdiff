@@ -25,6 +25,8 @@ pub struct FunctionViewState {
     left_highlight: HighlightKind,
     right_highlight: HighlightKind,
     pub scroll_to_row: Option<usize>,
+    pub scroll_to_line_number: Option<u32>,
+    pub go_to_line_text: String,
 }
 
 impl FunctionViewState {
