@@ -118,6 +118,7 @@ pub struct DiffViewState {
     pub function_state: FunctionViewState,
     pub search: String,
     pub search_regex: Option<Regex>,
+    pub scroll_to_diff_row: Option<usize>,
     pub build_running: bool,
     pub scratch_available: bool,
     pub scratch_running: bool,
@@ -197,7 +198,7 @@ impl DiffViewState {
 
         // Clear the scroll flags to prevent it from scrolling continuously.
         self.symbol_state.autoscroll_to_highlighted_symbols = false;
-        self.function_state.scroll_to_row = None;
+        self.scroll_to_diff_row = None;
 
         let Some(action) = action else {
             return;
@@ -366,7 +367,7 @@ impl DiffViewState {
                 state.config.diff_obj_config.show_data_flow = value;
             }
             DiffViewAction::ScrollToRow(row) => {
-                self.function_state.scroll_to_row = Some(row);
+                self.scroll_to_diff_row = Some(row);
             }
         }
     }
