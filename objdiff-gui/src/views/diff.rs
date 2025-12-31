@@ -10,8 +10,8 @@ use objdiff_core::{
         DiffObjConfig, FunctionRelocDiffs, InstructionDiffRow, ObjectDiff, SymbolDiff,
         data::BYTES_PER_ROW,
         display::{
-            ContextItem, DiffText, DiffTextSegment, HoverItem, HoverItemColor, SymbolFilter,
-            SymbolNavigationKind, display_row,
+            ContextItem, DiffText, HoverItem, HoverItemColor, SymbolFilter, SymbolNavigationKind,
+            display_row,
         },
     },
     obj::{InstructionArgValue, Object, Symbol, SymbolKind},
@@ -123,23 +123,15 @@ fn extract_symbol_name(
     obj: &Object,
     symbol_idx: usize,
     row: &InstructionDiffRow,
-    diff_config: &DiffObjConfig,
 ) -> Option<String> {
-    let mut result = None;
-
-    let _ = display_row(obj, symbol_idx, row, diff_config, |segment| {
-        if let DiffTextSegment { text: DiffText::Symbol(sym), .. } = segment
-            && (sym.kind == SymbolKind::Function || sym.kind == SymbolKind::Object)
-        {
-            result = Some(sym.name.clone());
-        }
-        Ok(())
-    });
-
-    result
+    let symbol = obj.resolve_instruction_ref(symbol_idx, row.ins_ref?)?.relocation?.symbol;
+    match symbol.kind {
+        SymbolKind::Function | SymbolKind::Object => Some(symbol.name.clone()),
+        _ => None,
+    }
 }
 
-// Obtains all relocation pairs that match by color. Used to automatically pair them up using a symbol mapping.
+// Obtains all unambigious relocation pairs inside a function. Used to automatically pair them up using a symbol mapping.
 fn get_reloc_mappings(
     left_obj: &Object,
     right_obj: &Object,
@@ -147,21 +139,17 @@ fn get_reloc_mappings(
     left_symbol_idx: usize,
     right_symbol_diff: &SymbolDiff,
     right_symbol_idx: usize,
-    diff_config: &DiffObjConfig,
 ) -> Vec<(String, String)> {
     let mut mappings = Vec::new();
 
     for (left_row, right_row) in
         left_symbol_diff.instruction_rows.iter().zip(&right_symbol_diff.instruction_rows)
     {
-        let Some(left_name) = extract_symbol_name(left_obj, left_symbol_idx, left_row, diff_config)
-        else {
+        let Some(left_name) = extract_symbol_name(left_obj, left_symbol_idx, left_row) else {
             continue;
         };
 
-        let Some(right_name) =
-            extract_symbol_name(right_obj, right_symbol_idx, right_row, diff_config)
-        else {
+        let Some(right_name) = extract_symbol_name(right_obj, right_symbol_idx, right_row) else {
             continue;
         };
 
@@ -314,7 +302,6 @@ pub fn diff_view_ui(
                             left_symbol_idx,
                             right_symbol_diff,
                             right_symbol_idx,
-                            diff_config,
                         )));
                     }
 
