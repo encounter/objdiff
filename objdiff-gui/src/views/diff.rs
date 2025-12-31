@@ -1,4 +1,7 @@
-use std::{cmp::Ordering, collections::{HashMap, HashSet}};
+use std::{
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
+};
 
 use egui::{Id, Layout, RichText, ScrollArea, TextEdit, Ui, Widget, text::LayoutJob};
 use objdiff_core::{
@@ -174,17 +177,11 @@ fn get_reloc_mappings(
         right_to_left.entry(right).or_default().insert(left);
     }
 
-    let ambiguous_left: HashSet<&String> = left_to_right
-        .iter()
-        .filter(|(_, rights)| rights.len() > 1)
-        .map(|(l, _)| *l)
-        .collect();
+    let ambiguous_left: HashSet<&String> =
+        left_to_right.iter().filter(|(_, rights)| rights.len() > 1).map(|(l, _)| *l).collect();
 
-    let ambiguous_right: HashSet<&String> = right_to_left
-        .iter()
-        .filter(|(_, lefts)| lefts.len() > 1)
-        .map(|(r, _)| *r)
-        .collect();
+    let ambiguous_right: HashSet<&String> =
+        right_to_left.iter().filter(|(_, lefts)| lefts.len() > 1).map(|(r, _)| *r).collect();
 
     let unambiguous: Vec<(String, String)> = mappings
         .iter()

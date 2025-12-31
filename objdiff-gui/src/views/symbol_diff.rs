@@ -1,4 +1,4 @@
-use std::{mem::take};
+use std::mem::take;
 
 use egui::{
     CollapsingHeader, Color32, Id, OpenUrl, ScrollArea, Ui, Widget, style::ScrollAnimation,
