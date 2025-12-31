@@ -741,7 +741,7 @@ fn diff_col_ui(
                 ui,
                 SymbolDiffContext { obj, diff },
                 &state.symbol_state,
-                SymbolFilter::Mapping(other_symbol_idx, None),
+                SymbolFilter::Mapping(other_symbol_idx, state.search_regex.as_ref()),
                 appearance,
                 column,
                 open_sections,
