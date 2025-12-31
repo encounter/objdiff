@@ -50,9 +50,9 @@ pub fn end_pressed(ctx: &Context) -> bool { ctx.input_mut(|i| i.key_pressed(Key:
 
 pub fn check_scroll_hotkeys(ui: &mut egui::Ui, include_small_increments: bool) {
     let ui_height = ui.available_rect_before_wrap().height();
-    if up_pressed(ui.ctx()) && include_small_increments {
+    if include_small_increments && consume_up_key(ui.ctx()) {
         ui.scroll_with_delta_animation(vec2(0.0, ui_height / 10.0), ScrollAnimation::none());
-    } else if down_pressed(ui.ctx()) && include_small_increments {
+    } else if include_small_increments && consume_down_key(ui.ctx()) {
         ui.scroll_with_delta_animation(vec2(0.0, -ui_height / 10.0), ScrollAnimation::none());
     } else if page_up_pressed(ui.ctx()) {
         ui.scroll_with_delta_animation(vec2(0.0, ui_height), ScrollAnimation::none());
@@ -105,4 +105,16 @@ const CHANGE_BASE_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::
 
 pub fn consume_change_base_shortcut(ctx: &Context) -> bool {
     ctx.input_mut(|i| i.consume_shortcut(&CHANGE_BASE_SHORTCUT))
+}
+
+const PREV_DIFF_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::ArrowUp);
+
+pub fn consume_prev_diff_shortcut(ctx: &Context) -> bool {
+    ctx.input_mut(|i| i.consume_shortcut(&PREV_DIFF_SHORTCUT))
+}
+
+const NEXT_DIFF_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::ArrowDown);
+
+pub fn consume_next_diff_shortcut(ctx: &Context) -> bool {
+    ctx.input_mut(|i| i.consume_shortcut(&NEXT_DIFF_SHORTCUT))
 }

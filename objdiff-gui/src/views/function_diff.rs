@@ -24,7 +24,6 @@ use crate::views::{
 pub struct FunctionViewState {
     left_highlight: HighlightKind,
     right_highlight: HighlightKind,
-    pub scroll_to_row: Option<usize>,
 }
 
 impl FunctionViewState {
