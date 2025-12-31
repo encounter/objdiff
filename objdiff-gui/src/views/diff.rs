@@ -1,17 +1,17 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, collections::{HashMap, HashSet}};
 
 use egui::{Id, Layout, RichText, ScrollArea, TextEdit, Ui, Widget, text::LayoutJob};
 use objdiff_core::{
     build::BuildStatus,
     diff::{
-        DiffObjConfig, ObjectDiff, SymbolDiff,
+        DiffObjConfig, FunctionRelocDiffs, InstructionDiffRow, ObjectDiff, SymbolDiff,
         data::BYTES_PER_ROW,
         display::{
-            ContextItem, DiffText, HoverItem, HoverItemColor, SymbolFilter, SymbolNavigationKind,
-            display_row,
+            ContextItem, DiffText, DiffTextSegment, HoverItem, HoverItemColor, SymbolFilter,
+            SymbolNavigationKind, display_row,
         },
     },
-    obj::{InstructionArgValue, Object, Symbol},
+    obj::{InstructionArgValue, Object, Symbol, SymbolKind},
     util::ReallySigned,
 };
 use time::format_description;
@@ -116,6 +116,85 @@ fn get_asm_text(
     asm_text
 }
 
+fn extract_symbol_name(
+    obj: &Object,
+    symbol_idx: usize,
+    row: &InstructionDiffRow,
+    diff_config: &DiffObjConfig,
+) -> Option<String> {
+    let mut result = None;
+
+    let _ = display_row(obj, symbol_idx, row, diff_config, |segment| {
+        if let DiffTextSegment { text: DiffText::Symbol(sym), .. } = segment
+            && (sym.kind == SymbolKind::Function || sym.kind == SymbolKind::Object)
+        {
+            result = Some(sym.name.clone());
+        }
+        Ok(())
+    });
+
+    result
+}
+
+// Obtains all relocation pairs that match by color. Used to automatically pair them up using a symbol mapping.
+fn get_reloc_mappings(
+    left_obj: &Object,
+    right_obj: &Object,
+    left_symbol_diff: &SymbolDiff,
+    left_symbol_idx: usize,
+    right_symbol_diff: &SymbolDiff,
+    right_symbol_idx: usize,
+    diff_config: &DiffObjConfig,
+) -> Vec<(String, String)> {
+    let mut mappings = Vec::new();
+
+    for (left_row, right_row) in
+        left_symbol_diff.instruction_rows.iter().zip(&right_symbol_diff.instruction_rows)
+    {
+        let Some(left_name) = extract_symbol_name(left_obj, left_symbol_idx, left_row, diff_config)
+        else {
+            continue;
+        };
+
+        let Some(right_name) =
+            extract_symbol_name(right_obj, right_symbol_idx, right_row, diff_config)
+        else {
+            continue;
+        };
+
+        mappings.push((left_name, right_name));
+    }
+
+    // Remove "ambigous" matches (where the left or right side is used in multiple mappings)
+    let mut left_to_right: HashMap<&String, HashSet<&String>> = HashMap::new();
+    let mut right_to_left: HashMap<&String, HashSet<&String>> = HashMap::new();
+
+    for (left, right) in &mappings {
+        left_to_right.entry(left).or_default().insert(right);
+        right_to_left.entry(right).or_default().insert(left);
+    }
+
+    let ambiguous_left: HashSet<&String> = left_to_right
+        .iter()
+        .filter(|(_, rights)| rights.len() > 1)
+        .map(|(l, _)| *l)
+        .collect();
+
+    let ambiguous_right: HashSet<&String> = right_to_left
+        .iter()
+        .filter(|(_, lefts)| lefts.len() > 1)
+        .map(|(r, _)| *r)
+        .collect();
+
+    let unambiguous: Vec<(String, String)> = mappings
+        .iter()
+        .filter(|(l, r)| !ambiguous_left.contains(l) && !ambiguous_right.contains(r))
+        .map(|(l, r)| (l.clone(), r.clone()))
+        .collect();
+
+    unambiguous
+}
+
 #[must_use]
 pub fn diff_view_ui(
     ui: &mut Ui,
@@ -213,6 +292,33 @@ pub fn diff_view_ui(
                         {
                             ret = Some(DiffViewAction::CreateScratch(symbol.name.clone()));
                         }
+                    }
+
+                    if state.current_view == View::FunctionDiff
+                        && let Some((_, left_symbol_diff, left_symbol_idx)) = left_ctx.symbol
+                        && let Some((left_obj, _)) = left_ctx.obj
+                        && let Some((_, right_symbol_diff, right_symbol_idx)) = right_ctx.symbol
+                        && let Some((right_obj, _)) = right_ctx.obj
+                        && ui
+                            .add_enabled(
+                                diff_config.function_reloc_diffs != FunctionRelocDiffs::None
+                                    && diff_config.function_reloc_diffs
+                                        != FunctionRelocDiffs::DataValue,
+                                egui::Button::new("Pair up relocs"),
+                            )
+                            .on_hover_text_at_pointer("Automatically pair up symbol names")
+                            .on_disabled_hover_text("Name relocation diffs have to be enabled")
+                            .clicked()
+                    {
+                        ret = Some(DiffViewAction::SetRelocMappings(get_reloc_mappings(
+                            left_obj,
+                            right_obj,
+                            left_symbol_diff,
+                            left_symbol_idx,
+                            right_symbol_diff,
+                            right_symbol_idx,
+                            diff_config,
+                        )));
                     }
 
                     if state.current_view == View::FunctionDiff

@@ -1,4 +1,4 @@
-use std::mem::take;
+use std::{mem::take};
 
 use egui::{
     CollapsingHeader, Color32, Id, OpenUrl, ScrollArea, Ui, Widget, style::ScrollAnimation,
@@ -77,6 +77,8 @@ pub enum DiffViewAction {
     SelectingRight(SymbolRefByName),
     /// Set a symbol mapping.
     SetMapping(usize, usize),
+    /// Set a batch of relocation mappings.
+    SetRelocMappings(Vec<(String, String)>),
     /// Set the show_mapped_symbols flag
     SetShowMappedSymbols(bool),
     /// Set the show_data_flow flag
@@ -355,6 +357,14 @@ impl DiffViewState {
                     ResolvedNavigation::default()
                 };
                 self.post_build_nav = Some(resolved_nav);
+            }
+            DiffViewAction::SetRelocMappings(mappings) => {
+                let Ok(mut state) = state.write() else {
+                    return;
+                };
+                for (left_name, right_name) in mappings {
+                    state.set_symbol_mapping(left_name, right_name);
+                }
             }
             DiffViewAction::SetShowMappedSymbols(value) => {
                 self.symbol_state.show_mapped_symbols = value;
