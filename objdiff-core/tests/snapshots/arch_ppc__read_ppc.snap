@@ -14,6 +14,8 @@ Object {
         Symbol {
             name: "IObj.cpp",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -25,8 +27,40 @@ Object {
             ),
         },
         Symbol {
+            name: "__upper_map",
+            demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
+            address: 0,
+            size: 0,
+            kind: Unknown,
+            section: None,
+            flags: FlagSet(Global),
+            align: None,
+            virtual_address: Some(
+                0,
+            ),
+        },
+        Symbol {
+            name: "__ctype_map",
+            demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
+            address: 0,
+            size: 0,
+            kind: Unknown,
+            section: None,
+            flags: FlagSet(Global),
+            align: None,
+            virtual_address: Some(
+                0,
+            ),
+        },
+        Symbol {
             name: "[.text]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -40,8 +74,46 @@ Object {
             ),
         },
         Symbol {
+            name: "Type2Text__10SObjectTagFUi",
+            demangled_name: Some(
+                "SObjectTag::Type2Text(unsigned int)",
+            ),
+            normalized_name: None,
+            is_name_compiler_generated: false,
+            address: 0,
+            size: 264,
+            kind: Function,
+            section: Some(
+                0,
+            ),
+            flags: FlagSet(Global),
+            align: None,
+            virtual_address: Some(
+                2150895620,
+            ),
+        },
+        Symbol {
+            name: "__sinit_IObj_cpp",
+            demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
+            address: 264,
+            size: 20,
+            kind: Function,
+            section: Some(
+                0,
+            ),
+            flags: FlagSet(Local),
+            align: None,
+            virtual_address: Some(
+                2150895884,
+            ),
+        },
+        Symbol {
             name: "[.ctors]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -57,6 +129,8 @@ Object {
         Symbol {
             name: "[.sbss]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -70,55 +144,10 @@ Object {
             ),
         },
         Symbol {
-            name: "__sinit_IObj_cpp",
-            demangled_name: None,
-            address: 264,
-            size: 20,
-            kind: Function,
-            section: Some(
-                0,
-            ),
-            flags: FlagSet(Local),
-            align: None,
-            virtual_address: Some(
-                2150895884,
-            ),
-        },
-        Symbol {
-            name: "text$52",
-            demangled_name: None,
-            address: 8,
-            size: 5,
-            kind: Object,
-            section: Some(
-                2,
-            ),
-            flags: FlagSet(Local),
-            align: None,
-            virtual_address: Some(
-                2153420056,
-            ),
-        },
-        Symbol {
-            name: "Type2Text__10SObjectTagFUi",
-            demangled_name: Some(
-                "SObjectTag::Type2Text(unsigned int)",
-            ),
-            address: 0,
-            size: 264,
-            kind: Function,
-            section: Some(
-                0,
-            ),
-            flags: FlagSet(Global),
-            align: None,
-            virtual_address: Some(
-                2150895620,
-            ),
-        },
-        Symbol {
             name: "gkInvalidObjectTag",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 8,
             kind: Object,
@@ -132,34 +161,29 @@ Object {
             ),
         },
         Symbol {
-            name: "__upper_map",
+            name: "text$52",
             demangled_name: None,
-            address: 0,
-            size: 0,
-            kind: Unknown,
-            section: None,
-            flags: FlagSet(Global),
-            align: None,
-            virtual_address: Some(
-                0,
+            normalized_name: Some(
+                "text$0000",
             ),
-        },
-        Symbol {
-            name: "__ctype_map",
-            demangled_name: None,
-            address: 0,
-            size: 0,
-            kind: Unknown,
-            section: None,
-            flags: FlagSet(Global),
+            is_name_compiler_generated: false,
+            address: 8,
+            size: 5,
+            kind: Object,
+            section: Some(
+                2,
+            ),
+            flags: FlagSet(Local),
             align: None,
             virtual_address: Some(
-                0,
+                2153420056,
             ),
         },
         Symbol {
             name: "[.ctors-0]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 4,
             kind: Section,
@@ -191,7 +215,7 @@ Object {
                         6,
                     ),
                     address: 22,
-                    target_symbol: 8,
+                    target_symbol: 1,
                     addend: 0,
                 },
                 Relocation {
@@ -199,7 +223,7 @@ Object {
                         4,
                     ),
                     address: 26,
-                    target_symbol: 8,
+                    target_symbol: 1,
                     addend: 0,
                 },
                 Relocation {
@@ -207,7 +231,7 @@ Object {
                         0,
                     ),
                     address: 28,
-                    target_symbol: 8,
+                    target_symbol: 1,
                     addend: 0,
                 },
                 Relocation {
@@ -215,7 +239,7 @@ Object {
                         109,
                     ),
                     address: 36,
-                    target_symbol: 5,
+                    target_symbol: 9,
                     addend: 0,
                 },
                 Relocation {
@@ -223,7 +247,7 @@ Object {
                         6,
                     ),
                     address: 58,
-                    target_symbol: 8,
+                    target_symbol: 1,
                     addend: 0,
                 },
                 Relocation {
@@ -231,7 +255,7 @@ Object {
                         4,
                     ),
                     address: 62,
-                    target_symbol: 8,
+                    target_symbol: 1,
                     addend: 0,
                 },
                 Relocation {
@@ -239,7 +263,7 @@ Object {
                         0,
                     ),
                     address: 64,
-                    target_symbol: 8,
+                    target_symbol: 1,
                     addend: 0,
                 },
                 Relocation {
@@ -247,7 +271,7 @@ Object {
                         109,
                     ),
                     address: 72,
-                    target_symbol: 5,
+                    target_symbol: 9,
                     addend: 0,
                 },
                 Relocation {
@@ -255,7 +279,7 @@ Object {
                         6,
                     ),
                     address: 98,
-                    target_symbol: 8,
+                    target_symbol: 1,
                     addend: 0,
                 },
                 Relocation {
@@ -263,7 +287,7 @@ Object {
                         4,
                     ),
                     address: 102,
-                    target_symbol: 8,
+                    target_symbol: 1,
                     addend: 0,
                 },
                 Relocation {
@@ -271,7 +295,7 @@ Object {
                         0,
                     ),
                     address: 104,
-                    target_symbol: 8,
+                    target_symbol: 1,
                     addend: 0,
                 },
                 Relocation {
@@ -279,7 +303,7 @@ Object {
                         109,
                     ),
                     address: 112,
-                    target_symbol: 5,
+                    target_symbol: 9,
                     addend: 0,
                 },
                 Relocation {
@@ -287,7 +311,7 @@ Object {
                         6,
                     ),
                     address: 138,
-                    target_symbol: 8,
+                    target_symbol: 1,
                     addend: 0,
                 },
                 Relocation {
@@ -295,7 +319,7 @@ Object {
                         4,
                     ),
                     address: 142,
-                    target_symbol: 8,
+                    target_symbol: 1,
                     addend: 0,
                 },
                 Relocation {
@@ -303,7 +327,7 @@ Object {
                         0,
                     ),
                     address: 144,
-                    target_symbol: 8,
+                    target_symbol: 1,
                     addend: 0,
                 },
                 Relocation {
@@ -311,7 +335,7 @@ Object {
                         109,
                     ),
                     address: 148,
-                    target_symbol: 5,
+                    target_symbol: 9,
                     addend: 0,
                 },
                 Relocation {
@@ -319,7 +343,7 @@ Object {
                         6,
                     ),
                     address: 162,
-                    target_symbol: 9,
+                    target_symbol: 2,
                     addend: 0,
                 },
                 Relocation {
@@ -327,7 +351,7 @@ Object {
                         4,
                     ),
                     address: 166,
-                    target_symbol: 9,
+                    target_symbol: 2,
                     addend: 0,
                 },
                 Relocation {
@@ -335,7 +359,7 @@ Object {
                         109,
                     ),
                     address: 176,
-                    target_symbol: 5,
+                    target_symbol: 9,
                     addend: 0,
                 },
                 Relocation {
@@ -343,7 +367,7 @@ Object {
                         0,
                     ),
                     address: 180,
-                    target_symbol: 9,
+                    target_symbol: 2,
                     addend: 0,
                 },
                 Relocation {
@@ -351,7 +375,7 @@ Object {
                         0,
                     ),
                     address: 200,
-                    target_symbol: 9,
+                    target_symbol: 2,
                     addend: 0,
                 },
                 Relocation {
@@ -359,7 +383,7 @@ Object {
                         0,
                     ),
                     address: 220,
-                    target_symbol: 9,
+                    target_symbol: 2,
                     addend: 0,
                 },
                 Relocation {
@@ -367,7 +391,7 @@ Object {
                         0,
                     ),
                     address: 240,
-                    target_symbol: 9,
+                    target_symbol: 2,
                     addend: 0,
                 },
                 Relocation {
@@ -375,7 +399,7 @@ Object {
                         109,
                     ),
                     address: 256,
-                    target_symbol: 5,
+                    target_symbol: 9,
                     addend: 0,
                 },
                 Relocation {
@@ -383,7 +407,7 @@ Object {
                         109,
                     ),
                     address: 268,
-                    target_symbol: 7,
+                    target_symbol: 8,
                     addend: 0,
                 },
                 Relocation {
@@ -391,7 +415,7 @@ Object {
                         109,
                     ),
                     address: 272,
-                    target_symbol: 7,
+                    target_symbol: 8,
                     addend: 0,
                 },
             ],
@@ -419,7 +443,7 @@ Object {
                         1,
                     ),
                     address: 0,
-                    target_symbol: 4,
+                    target_symbol: 5,
                     addend: 0,
                 },
             ],
