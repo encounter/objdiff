@@ -14,6 +14,8 @@ Object {
         Symbol {
             name: "@comp.id",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Object,
@@ -25,6 +27,8 @@ Object {
         Symbol {
             name: "[.drectve]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 132,
             kind: Section,
@@ -38,6 +42,8 @@ Object {
         Symbol {
             name: "[.debug$S]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 3952,
             kind: Section,
@@ -51,6 +57,8 @@ Object {
         Symbol {
             name: "[.XBLD$W]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -64,6 +72,8 @@ Object {
         Symbol {
             name: "__C2_11886",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 16,
             kind: Object,
@@ -77,6 +87,8 @@ Object {
         Symbol {
             name: "[.XBLD$W]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -90,6 +102,8 @@ Object {
         Symbol {
             name: "__C1_11886",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 16,
             kind: Object,
@@ -103,6 +117,8 @@ Object {
         Symbol {
             name: "[.rdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -116,6 +132,8 @@ Object {
         Symbol {
             name: "$SG4415",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 32,
             kind: Object,
@@ -129,6 +147,8 @@ Object {
         Symbol {
             name: "$SG4433",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 32,
             size: 32,
             kind: Object,
@@ -142,6 +162,8 @@ Object {
         Symbol {
             name: "$SG4434",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 64,
             size: 8,
             kind: Object,
@@ -155,6 +177,8 @@ Object {
         Symbol {
             name: "$SG4435",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 72,
             size: 8,
             kind: Object,
@@ -168,6 +192,8 @@ Object {
         Symbol {
             name: "$SG4436",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 80,
             size: 12,
             kind: Object,
@@ -181,6 +207,8 @@ Object {
         Symbol {
             name: "$SG4437",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 92,
             size: 12,
             kind: Object,
@@ -194,6 +222,8 @@ Object {
         Symbol {
             name: "$SG4438",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 104,
             size: 4,
             kind: Object,
@@ -207,6 +237,8 @@ Object {
         Symbol {
             name: "$SG4456",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 108,
             size: 40,
             kind: Object,
@@ -220,6 +252,8 @@ Object {
         Symbol {
             name: "$SG4457",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 148,
             size: 8,
             kind: Object,
@@ -233,6 +267,8 @@ Object {
         Symbol {
             name: "$SG4458",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 156,
             size: 8,
             kind: Object,
@@ -246,6 +282,8 @@ Object {
         Symbol {
             name: "$SG4459",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 164,
             size: 24,
             kind: Object,
@@ -259,6 +297,8 @@ Object {
         Symbol {
             name: "$SG4460",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 188,
             size: 20,
             kind: Object,
@@ -272,6 +312,8 @@ Object {
         Symbol {
             name: "$SG4461",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 208,
             size: 24,
             kind: Object,
@@ -285,6 +327,8 @@ Object {
         Symbol {
             name: "$SG4462",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 232,
             size: 4,
             kind: Object,
@@ -298,6 +342,8 @@ Object {
         Symbol {
             name: "$SG4476",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 236,
             size: 36,
             kind: Object,
@@ -311,6 +357,8 @@ Object {
         Symbol {
             name: "$SG4477",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 272,
             size: 20,
             kind: Object,
@@ -324,6 +372,8 @@ Object {
         Symbol {
             name: "$SG4478",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 292,
             size: 4,
             kind: Object,
@@ -337,6 +387,8 @@ Object {
         Symbol {
             name: "$SG4481",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 296,
             size: 40,
             kind: Object,
@@ -350,6 +402,8 @@ Object {
         Symbol {
             name: "$SG4482",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 336,
             size: 20,
             kind: Object,
@@ -363,6 +417,8 @@ Object {
         Symbol {
             name: "[.text]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -378,6 +434,8 @@ Object {
             demangled_name: Some(
                 "void __cdecl PrintVector(char const *, struct __vector4)",
             ),
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 120,
             kind: Function,
@@ -391,6 +449,8 @@ Object {
         Symbol {
             name: "$M4492",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 120,
             size: 0,
             kind: Unknown,
@@ -404,6 +464,8 @@ Object {
         Symbol {
             name: "printf",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Function,
@@ -415,6 +477,8 @@ Object {
         Symbol {
             name: "$M4491",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 12,
             size: 0,
             kind: Unknown,
@@ -428,6 +492,8 @@ Object {
         Symbol {
             name: "[.pdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -441,6 +507,8 @@ Object {
         Symbol {
             name: "$T4493",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 8,
             kind: Object,
@@ -454,6 +522,8 @@ Object {
         Symbol {
             name: "_fltused",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Function,
@@ -467,6 +537,8 @@ Object {
             demangled_name: Some(
                 "void __cdecl FloatingPointExample(void)",
             ),
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 120,
             size: 520,
             kind: Function,
@@ -480,6 +552,8 @@ Object {
         Symbol {
             name: "$M4514",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 640,
             size: 0,
             kind: Unknown,
@@ -493,6 +567,8 @@ Object {
         Symbol {
             name: "[.rdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -504,6 +580,8 @@ Object {
         Symbol {
             name: "__real@3f000000",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 356,
             size: 4,
             kind: Object,
@@ -517,6 +595,8 @@ Object {
         Symbol {
             name: "[.rdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -528,6 +608,8 @@ Object {
         Symbol {
             name: "__real@41000000",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 360,
             size: 4,
             kind: Object,
@@ -541,6 +623,8 @@ Object {
         Symbol {
             name: "[.rdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -552,6 +636,8 @@ Object {
         Symbol {
             name: "__real@40e00000",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 364,
             size: 4,
             kind: Object,
@@ -565,6 +651,8 @@ Object {
         Symbol {
             name: "[.rdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -576,6 +664,8 @@ Object {
         Symbol {
             name: "__real@40c00000",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 368,
             size: 4,
             kind: Object,
@@ -589,6 +679,8 @@ Object {
         Symbol {
             name: "[.rdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -600,6 +692,8 @@ Object {
         Symbol {
             name: "__real@40a00000",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 372,
             size: 4,
             kind: Object,
@@ -613,6 +707,8 @@ Object {
         Symbol {
             name: "[.rdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -624,6 +720,8 @@ Object {
         Symbol {
             name: "__real@40800000",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 376,
             size: 4,
             kind: Object,
@@ -637,6 +735,8 @@ Object {
         Symbol {
             name: "[.rdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -648,6 +748,8 @@ Object {
         Symbol {
             name: "__real@40400000",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 380,
             size: 4,
             kind: Object,
@@ -661,6 +763,8 @@ Object {
         Symbol {
             name: "[.rdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -672,6 +776,8 @@ Object {
         Symbol {
             name: "__real@40000000",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 384,
             size: 4,
             kind: Object,
@@ -685,6 +791,8 @@ Object {
         Symbol {
             name: "[.rdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -696,6 +804,8 @@ Object {
         Symbol {
             name: "__real@3f800000",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 388,
             size: 4,
             kind: Object,
@@ -709,6 +819,8 @@ Object {
         Symbol {
             name: "$M4513",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 132,
             size: 0,
             kind: Unknown,
@@ -722,6 +834,8 @@ Object {
         Symbol {
             name: "$T4515",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 8,
             size: 8,
             kind: Object,
@@ -735,6 +849,8 @@ Object {
         Symbol {
             name: "__lvx",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 640,
             size: 24,
             kind: Function,
@@ -748,6 +864,8 @@ Object {
         Symbol {
             name: "__stvx",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 664,
             size: 40,
             kind: Function,
@@ -763,6 +881,8 @@ Object {
             demangled_name: Some(
                 "void __cdecl ControlAndDataFlowExample(void)",
             ),
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 704,
             size: 632,
             kind: Function,
@@ -776,6 +896,8 @@ Object {
         Symbol {
             name: "$M4532",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 1336,
             size: 0,
             kind: Unknown,
@@ -789,6 +911,8 @@ Object {
         Symbol {
             name: "[.rdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -800,6 +924,8 @@ Object {
         Symbol {
             name: "__real@c2480000",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 392,
             size: 4,
             kind: Object,
@@ -813,6 +939,8 @@ Object {
         Symbol {
             name: "[.rdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -824,6 +952,8 @@ Object {
         Symbol {
             name: "__real@41a00000",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 396,
             size: 4,
             kind: Object,
@@ -837,6 +967,8 @@ Object {
         Symbol {
             name: "[.rdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -848,6 +980,8 @@ Object {
         Symbol {
             name: "__real@00000000",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 400,
             size: 4,
             kind: Object,
@@ -861,6 +995,8 @@ Object {
         Symbol {
             name: "[.rdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -872,6 +1008,8 @@ Object {
         Symbol {
             name: "__real@42c80000",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 404,
             size: 4,
             kind: Object,
@@ -885,6 +1023,8 @@ Object {
         Symbol {
             name: "[.rdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -896,6 +1036,8 @@ Object {
         Symbol {
             name: "__real@c0a00000",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 408,
             size: 4,
             kind: Object,
@@ -909,6 +1051,8 @@ Object {
         Symbol {
             name: "[.rdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -920,6 +1064,8 @@ Object {
         Symbol {
             name: "__real@41200000",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 412,
             size: 4,
             kind: Object,
@@ -933,6 +1079,8 @@ Object {
         Symbol {
             name: "$M4531",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 716,
             size: 0,
             kind: Unknown,
@@ -946,6 +1094,8 @@ Object {
         Symbol {
             name: "$T4533",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 16,
             size: 8,
             kind: Object,
@@ -961,6 +1111,8 @@ Object {
             demangled_name: Some(
                 "void __cdecl ReservedRegisterExample(void)",
             ),
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 1336,
             size: 272,
             kind: Function,
@@ -974,6 +1126,8 @@ Object {
         Symbol {
             name: "$M4536",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 1608,
             size: 0,
             kind: Unknown,
@@ -987,6 +1141,8 @@ Object {
         Symbol {
             name: "$M4535",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 1348,
             size: 0,
             kind: Unknown,
@@ -1000,6 +1156,8 @@ Object {
         Symbol {
             name: "$T4537",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 24,
             size: 8,
             kind: Object,
@@ -1013,6 +1171,8 @@ Object {
         Symbol {
             name: "main",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 1608,
             size: 68,
             kind: Function,
@@ -1026,6 +1186,8 @@ Object {
         Symbol {
             name: "$M4540",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 1676,
             size: 0,
             kind: Unknown,
@@ -1039,6 +1201,8 @@ Object {
         Symbol {
             name: "$M4539",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 1620,
             size: 0,
             kind: Unknown,
@@ -1052,6 +1216,8 @@ Object {
         Symbol {
             name: "$T4541",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 32,
             size: 8,
             kind: Object,
@@ -1065,6 +1231,8 @@ Object {
         Symbol {
             name: "[.debug$S]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 40,
             kind: Section,
@@ -1078,6 +1246,8 @@ Object {
         Symbol {
             name: "[.debug$S]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 40,
             kind: Section,
@@ -1091,6 +1261,8 @@ Object {
         Symbol {
             name: "[.debug$T]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 48,
             kind: Section,
@@ -1104,6 +1276,8 @@ Object {
         Symbol {
             name: "[.XBLD$W-0]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 16,
             kind: Section,
@@ -1117,6 +1291,8 @@ Object {
         Symbol {
             name: "[.rdata-0]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 416,
             kind: Section,
@@ -1130,6 +1306,8 @@ Object {
         Symbol {
             name: "[.pdata-0]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 40,
             kind: Section,

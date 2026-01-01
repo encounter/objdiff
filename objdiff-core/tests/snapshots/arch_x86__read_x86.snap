@@ -12,6 +12,8 @@ Object {
         Symbol {
             name: "objdiffstaticdebug.cpp",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -23,6 +25,8 @@ Object {
         Symbol {
             name: "@comp.id",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Object,
@@ -34,6 +38,8 @@ Object {
         Symbol {
             name: "[.drectve]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 38,
             kind: Section,
@@ -47,6 +53,8 @@ Object {
         Symbol {
             name: "[.data]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -62,6 +70,8 @@ Object {
             demangled_name: Some(
                 "void *a",
             ),
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 4,
             kind: Object,
@@ -75,6 +85,8 @@ Object {
         Symbol {
             name: "[.text]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -90,6 +102,8 @@ Object {
             demangled_name: Some(
                 "void __cdecl PrintThing(void)",
             ),
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 18,
             kind: Function,
@@ -103,6 +117,8 @@ Object {
         Symbol {
             name: "_printf",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Function,
@@ -114,6 +130,8 @@ Object {
         Symbol {
             name: "$SG526",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 4,
             size: 6,
             kind: Object,
@@ -127,6 +145,8 @@ Object {
         Symbol {
             name: "[.data-0]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 10,
             kind: Section,

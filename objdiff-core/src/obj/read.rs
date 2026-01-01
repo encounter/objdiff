@@ -35,6 +35,46 @@ fn map_section_kind(section: &object::Section) -> SectionKind {
     }
 }
 
+/// Check if a symbol's name is partially compiler-generated, and if so normalize it for pairing.
+/// e.g. symbol$1234 and symbol$2345 will both be replaced with symbol$0000 internally.
+fn get_normalized_symbol_name(name: &str) -> Option<String> {
+    const DUMMY_UNIQUE_ID: &str = "0000";
+    if let Some((prefix, suffix)) = name.split_once("@class$")
+        && let Some(idx) = suffix.chars().position(|c| !c.is_numeric())
+        && idx > 0
+    {
+        // Match Metrowerks anonymous class symbol names, ignoring the unique ID.
+        // e.g. __dt__Q29dCamera_c23@class$3665d_camera_cppFv
+        // and: __dt__Q29dCamera_c23@class$1727d_camera_cppFv
+        let suffix = &suffix[idx..];
+        Some(format!("{prefix}@class${DUMMY_UNIQUE_ID}{suffix}"))
+    } else if let Some((prefix, suffix)) = name.split_once('$')
+        && suffix.chars().all(char::is_numeric)
+    {
+        // Match Metrowerks symbol$1234 against symbol$2345
+        Some(format!("{prefix}${DUMMY_UNIQUE_ID}"))
+    } else if let Some((prefix, suffix)) = name.split_once('.')
+        && suffix.chars().all(char::is_numeric)
+    {
+        // Match GCC symbol.1234 against symbol.2345
+        Some(format!("{prefix}.{DUMMY_UNIQUE_ID}"))
+    } else {
+        None
+    }
+}
+
+/// Check if a symbol's name is entirely compiler-generated, such as @1234 or _$E1234.
+/// This enables pairing these symbols up by their value instead of their name.
+fn is_symbol_name_compiler_generated(name: &str) -> bool {
+    if name.starts_with('@') && name[1..].chars().all(char::is_numeric) {
+        // Exclude @stringBase0, @GUARD@, etc.
+        return true;
+    } else if name.starts_with("_$E") && name[3..].chars().all(char::is_numeric) {
+        return true;
+    }
+    false
+}
+
 fn map_symbol(
     arch: &dyn Arch,
     file: &object::File,
@@ -97,10 +137,14 @@ fn map_symbol(
         .and_then(|m| m.virtual_addresses.as_ref())
         .and_then(|v| v.get(symbol.index().0).cloned());
     let section = symbol.section_index().and_then(|i| section_indices.get(i.0).copied());
+    let normalized_name = get_normalized_symbol_name(&name);
+    let is_name_compiler_generated = is_symbol_name_compiler_generated(&name);
 
     Ok(Symbol {
         name,
         demangled_name,
+        normalized_name,
+        is_name_compiler_generated,
         address,
         size,
         kind,
@@ -172,6 +216,8 @@ fn add_section_symbols(sections: &[Section], symbols: &mut Vec<Symbol>) {
         symbols.push(Symbol {
             name,
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size,
             kind: SymbolKind::Section,

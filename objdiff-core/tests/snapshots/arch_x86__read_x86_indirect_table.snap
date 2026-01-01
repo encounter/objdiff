@@ -12,6 +12,8 @@ Object {
         Symbol {
             name: "C:\\Dev\\Projects\\calineva-legacy\\src\\game\\control\\bridge.cpp",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -23,6 +25,8 @@ Object {
         Symbol {
             name: "@comp.id",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Object,
@@ -34,6 +38,8 @@ Object {
         Symbol {
             name: "[.drectve]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 44,
             kind: Section,
@@ -47,6 +53,8 @@ Object {
         Symbol {
             name: "[.debug$S]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 271,
             kind: Section,
@@ -60,6 +68,8 @@ Object {
         Symbol {
             name: "[.text]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -73,6 +83,8 @@ Object {
         Symbol {
             name: "[.debug$S]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 620,
             kind: Section,
@@ -86,6 +98,8 @@ Object {
         Symbol {
             name: "c:\\dev\\projects\\calineva-legacy\\src\\game\\control\\bridge.cpp",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -99,6 +113,8 @@ Object {
             demangled_name: Some(
                 "int __cdecl process(int, int, int)",
             ),
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 1329,
             kind: Function,
@@ -112,6 +128,8 @@ Object {
         Symbol {
             name: "$L296",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 418,
             size: 0,
             kind: Unknown,
@@ -125,6 +143,8 @@ Object {
         Symbol {
             name: "$L312",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 217,
             size: 0,
             kind: Unknown,
@@ -138,6 +158,8 @@ Object {
         Symbol {
             name: "$L294",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 406,
             size: 0,
             kind: Unknown,
@@ -151,6 +173,8 @@ Object {
         Symbol {
             name: "$L293",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 389,
             size: 0,
             kind: Unknown,
@@ -164,6 +188,8 @@ Object {
         Symbol {
             name: "$L292",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 369,
             size: 0,
             kind: Unknown,
@@ -177,6 +203,8 @@ Object {
         Symbol {
             name: "$L291",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 360,
             size: 0,
             kind: Unknown,
@@ -190,6 +218,8 @@ Object {
         Symbol {
             name: "$L332",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 1104,
             size: 0,
             kind: Object,
@@ -203,6 +233,8 @@ Object {
         Symbol {
             name: "$L327",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 1128,
             size: 0,
             kind: Object,
@@ -216,6 +248,8 @@ Object {
         Symbol {
             name: "$L289",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 311,
             size: 0,
             kind: Unknown,
@@ -229,6 +263,8 @@ Object {
         Symbol {
             name: "$L288",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 300,
             size: 0,
             kind: Unknown,
@@ -242,6 +278,8 @@ Object {
         Symbol {
             name: "$L287",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 291,
             size: 0,
             kind: Unknown,
@@ -255,6 +293,8 @@ Object {
         Symbol {
             name: "$L286",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 282,
             size: 0,
             kind: Unknown,
@@ -268,6 +308,8 @@ Object {
         Symbol {
             name: "$L285",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 273,
             size: 0,
             kind: Unknown,
@@ -281,6 +323,8 @@ Object {
         Symbol {
             name: "$L284",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 264,
             size: 0,
             kind: Unknown,
@@ -294,6 +338,8 @@ Object {
         Symbol {
             name: "$L331",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 824,
             size: 0,
             kind: Object,
@@ -307,6 +353,8 @@ Object {
         Symbol {
             name: "$L326",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 852,
             size: 0,
             kind: Object,
@@ -320,6 +368,8 @@ Object {
         Symbol {
             name: "$L311",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 205,
             size: 0,
             kind: Unknown,
@@ -333,6 +383,8 @@ Object {
         Symbol {
             name: "$L310",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 185,
             size: 0,
             kind: Unknown,
@@ -346,6 +398,8 @@ Object {
         Symbol {
             name: "$L309",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 175,
             size: 0,
             kind: Unknown,
@@ -359,6 +413,8 @@ Object {
         Symbol {
             name: "$L308",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 165,
             size: 0,
             kind: Unknown,
@@ -372,6 +428,8 @@ Object {
         Symbol {
             name: "$L330",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 652,
             size: 0,
             kind: Object,
@@ -385,6 +443,8 @@ Object {
         Symbol {
             name: "$L325",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 672,
             size: 0,
             kind: Object,
@@ -398,6 +458,8 @@ Object {
         Symbol {
             name: "$L306",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 102,
             size: 0,
             kind: Unknown,
@@ -411,6 +473,8 @@ Object {
         Symbol {
             name: "$L305",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 88,
             size: 0,
             kind: Unknown,
@@ -424,6 +488,8 @@ Object {
         Symbol {
             name: "$L304",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 79,
             size: 0,
             kind: Unknown,
@@ -437,6 +503,8 @@ Object {
         Symbol {
             name: "$L302",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 70,
             size: 0,
             kind: Unknown,
@@ -450,6 +518,8 @@ Object {
         Symbol {
             name: "$L329",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 424,
             size: 0,
             kind: Object,
@@ -463,6 +533,8 @@ Object {
         Symbol {
             name: "$L324",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 448,
             size: 0,
             kind: Object,
@@ -476,6 +548,8 @@ Object {
         Symbol {
             name: ".bf",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -489,6 +563,8 @@ Object {
         Symbol {
             name: ".lf",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -502,6 +578,8 @@ Object {
         Symbol {
             name: ".ef",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -515,6 +593,8 @@ Object {
         Symbol {
             name: "[.debug$F]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 16,
             kind: Section,
@@ -528,6 +608,8 @@ Object {
         Symbol {
             name: "[.debug$T]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 104,
             kind: Section,

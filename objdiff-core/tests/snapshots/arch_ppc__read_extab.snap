@@ -129,6 +129,8 @@ Object {
         Symbol {
             name: "NMWException.cpp",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -140,6 +142,8 @@ Object {
         Symbol {
             name: "[.text]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -153,6 +157,8 @@ Object {
         Symbol {
             name: "[extab]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -166,6 +172,8 @@ Object {
         Symbol {
             name: "[extabindex]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -179,6 +187,8 @@ Object {
         Symbol {
             name: "@30",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: true,
             address: 0,
             size: 8,
             kind: Object,
@@ -192,6 +202,8 @@ Object {
         Symbol {
             name: "@31",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: true,
             address: 0,
             size: 12,
             kind: Object,
@@ -205,6 +217,8 @@ Object {
         Symbol {
             name: "@51",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: true,
             address: 8,
             size: 24,
             kind: Object,
@@ -218,6 +232,8 @@ Object {
         Symbol {
             name: "@52",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: true,
             address: 12,
             size: 12,
             kind: Object,
@@ -231,6 +247,8 @@ Object {
         Symbol {
             name: "@59",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: true,
             address: 32,
             size: 8,
             kind: Object,
@@ -244,6 +262,8 @@ Object {
         Symbol {
             name: "@60",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: true,
             address: 24,
             size: 12,
             kind: Object,
@@ -257,6 +277,8 @@ Object {
         Symbol {
             name: "__destroy_arr",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 120,
             kind: Function,
@@ -270,6 +292,8 @@ Object {
         Symbol {
             name: "__construct_array",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 120,
             size: 248,
             kind: Function,
@@ -285,6 +309,8 @@ Object {
             demangled_name: Some(
                 "__partial_array_destructor::~__partial_array_destructor()",
             ),
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 368,
             size: 184,
             kind: Function,
@@ -300,6 +326,8 @@ Object {
             demangled_name: Some(
                 "operator delete(void*)",
             ),
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -311,6 +339,8 @@ Object {
         Symbol {
             name: "[extab-0]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 40,
             kind: Section,
@@ -324,6 +354,8 @@ Object {
         Symbol {
             name: "[extabindex-0]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 36,
             kind: Section,

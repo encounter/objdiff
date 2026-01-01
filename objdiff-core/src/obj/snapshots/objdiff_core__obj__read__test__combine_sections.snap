@@ -114,6 +114,8 @@ expression: "(sections, symbols)"
         Symbol {
             name: ".data",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -127,6 +129,8 @@ expression: "(sections, symbols)"
         Symbol {
             name: "symbol",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 4,
             size: 4,
             kind: Object,
@@ -140,6 +144,8 @@ expression: "(sections, symbols)"
         Symbol {
             name: "function",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 8,
             kind: Function,
@@ -153,6 +159,8 @@ expression: "(sections, symbols)"
         Symbol {
             name: ".data",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,

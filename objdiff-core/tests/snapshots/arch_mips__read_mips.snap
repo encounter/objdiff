@@ -1,6 +1,5 @@
 ---
 source: objdiff-core/tests/arch_mips.rs
-assertion_line: 12
 expression: obj
 ---
 Object {
@@ -59,6 +58,8 @@ Object {
         Symbol {
             name: "[.text]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -72,6 +73,8 @@ Object {
         Symbol {
             name: "[.data]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -85,6 +88,8 @@ Object {
         Symbol {
             name: "[.bss]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -98,6 +103,8 @@ Object {
         Symbol {
             name: "[.mdebug.eabi64]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -111,6 +118,8 @@ Object {
         Symbol {
             name: "[.sdata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -124,6 +133,8 @@ Object {
         Symbol {
             name: "[.rodata]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -137,6 +148,8 @@ Object {
         Symbol {
             name: "[.reginfo]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 24,
             kind: Section,
@@ -150,6 +163,8 @@ Object {
         Symbol {
             name: "[.mdebug]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 1932,
             kind: Section,
@@ -163,6 +178,10 @@ Object {
         Symbol {
             name: "gcc2_compiled.",
             demangled_name: None,
+            normalized_name: Some(
+                "gcc2_compiled.0000",
+            ),
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -176,6 +195,8 @@ Object {
         Symbol {
             name: "__gnu_compiled_c",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -189,6 +210,8 @@ Object {
         Symbol {
             name: "PacketBottomNewVu1DropMicroCode",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 12,
             kind: Object,
@@ -202,6 +225,8 @@ Object {
         Symbol {
             name: "ControlEntry",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 184,
             kind: Function,
@@ -215,6 +240,8 @@ Object {
         Symbol {
             name: "xglSleep",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -226,6 +253,8 @@ Object {
         Symbol {
             name: "WorkEnd",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 64,
             size: 4,
             kind: Object,
@@ -239,6 +268,8 @@ Object {
         Symbol {
             name: "xglSoundLoadEffect",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -250,6 +281,8 @@ Object {
         Symbol {
             name: "xglSoundLoadSwd",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -261,6 +294,8 @@ Object {
         Symbol {
             name: "SsdAddWaveData",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -272,6 +307,8 @@ Object {
         Symbol {
             name: "SsdSpuDmaCompleted",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -283,6 +320,8 @@ Object {
         Symbol {
             name: "xglRenderDispOn",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -294,6 +333,8 @@ Object {
         Symbol {
             name: "xglCdLoadOverlay",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -305,6 +346,8 @@ Object {
         Symbol {
             name: "LogoFirst",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -316,6 +359,8 @@ Object {
         Symbol {
             name: "Title",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -327,6 +372,8 @@ Object {
         Symbol {
             name: "InitializeSystem",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 184,
             size: 356,
             kind: Function,
@@ -340,6 +387,8 @@ Object {
         Symbol {
             name: "sceSifInitRpc",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -351,6 +400,8 @@ Object {
         Symbol {
             name: "sceCdInit",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -362,6 +413,8 @@ Object {
         Symbol {
             name: "sceSifRebootIop",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -373,6 +426,8 @@ Object {
         Symbol {
             name: "sceSifSyncIop",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -384,6 +439,8 @@ Object {
         Symbol {
             name: "sceSifInitIopHeap",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -395,6 +452,8 @@ Object {
         Symbol {
             name: "sceSifLoadFileReset",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -406,6 +465,8 @@ Object {
         Symbol {
             name: "sceCdMmode",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -417,6 +478,8 @@ Object {
         Symbol {
             name: "sceFsReset",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -428,6 +491,8 @@ Object {
         Symbol {
             name: "xglCdSifLoadModule",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -439,6 +504,8 @@ Object {
         Symbol {
             name: "xglCdPowerOffCB",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -450,6 +517,8 @@ Object {
         Symbol {
             name: "sceCdPOffCallback",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -461,6 +530,8 @@ Object {
         Symbol {
             name: "xglSoundInitial",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -472,6 +543,8 @@ Object {
         Symbol {
             name: "xglCdInitial",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -483,6 +556,8 @@ Object {
         Symbol {
             name: "xglPadInitial",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -494,6 +569,8 @@ Object {
         Symbol {
             name: "xglMcInitial",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -505,6 +582,8 @@ Object {
         Symbol {
             name: "xglTaskInitial",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -516,6 +595,8 @@ Object {
         Symbol {
             name: "xglDmaInitial",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -527,6 +608,8 @@ Object {
         Symbol {
             name: "xglGeometryInit",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -538,6 +621,8 @@ Object {
         Symbol {
             name: "xglPacketInit",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -549,6 +634,8 @@ Object {
         Symbol {
             name: "xglRenderInit",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -560,6 +647,8 @@ Object {
         Symbol {
             name: "xglFontInitial",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -571,6 +660,8 @@ Object {
         Symbol {
             name: "xglMovieInit",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -582,6 +673,8 @@ Object {
         Symbol {
             name: "xglMenuInitial",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -593,6 +686,8 @@ Object {
         Symbol {
             name: "main",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 544,
             size: 88,
             kind: Function,
@@ -606,6 +701,8 @@ Object {
         Symbol {
             name: "__main",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -617,6 +714,8 @@ Object {
         Symbol {
             name: "main_param_argc",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 68,
             size: 4,
             kind: Object,
@@ -630,6 +729,8 @@ Object {
         Symbol {
             name: "BootDisplay",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -641,6 +742,8 @@ Object {
         Symbol {
             name: "main_param_argv",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 72,
             size: 4,
             kind: Object,
@@ -654,6 +757,8 @@ Object {
         Symbol {
             name: "xglThreadInitial",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -665,6 +770,8 @@ Object {
         Symbol {
             name: "xglThreadRotate",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -676,6 +783,8 @@ Object {
         Symbol {
             name: "[.data-0]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -689,6 +798,8 @@ Object {
         Symbol {
             name: "[.rodata-0]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 12,
             kind: Section,
@@ -702,6 +813,8 @@ Object {
         Symbol {
             name: "[.sdata-0]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 76,
             kind: Section,

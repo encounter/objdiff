@@ -14,6 +14,8 @@ Object {
         Symbol {
             name: "IObj.cpp",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -27,6 +29,8 @@ Object {
         Symbol {
             name: "[.text]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -42,6 +46,8 @@ Object {
         Symbol {
             name: "[.ctors]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -57,6 +63,8 @@ Object {
         Symbol {
             name: "[.sbss]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Section,
@@ -72,6 +80,8 @@ Object {
         Symbol {
             name: "__sinit_IObj_cpp",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 264,
             size: 20,
             kind: Function,
@@ -87,6 +97,10 @@ Object {
         Symbol {
             name: "text$52",
             demangled_name: None,
+            normalized_name: Some(
+                "text$0000",
+            ),
+            is_name_compiler_generated: false,
             address: 8,
             size: 5,
             kind: Object,
@@ -104,6 +118,8 @@ Object {
             demangled_name: Some(
                 "SObjectTag::Type2Text(unsigned int)",
             ),
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 264,
             kind: Function,
@@ -119,6 +135,8 @@ Object {
         Symbol {
             name: "gkInvalidObjectTag",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 8,
             kind: Object,
@@ -134,6 +152,8 @@ Object {
         Symbol {
             name: "__upper_map",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -147,6 +167,8 @@ Object {
         Symbol {
             name: "__ctype_map",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -160,6 +182,8 @@ Object {
         Symbol {
             name: "[.ctors-0]",
             demangled_name: None,
+            normalized_name: None,
+            is_name_compiler_generated: false,
             address: 0,
             size: 4,
             kind: Section,
