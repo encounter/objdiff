@@ -748,14 +748,11 @@ fn find_symbol(
     }
 
     // Try to find a symbol with a matching name
-    if let Some((symbol_idx, _)) = unmatched_symbols(obj, used)
-        .filter(|&(_, symbol)| {
-            symbol_name_matches(in_symbol, symbol)
-                && symbol_section_kind(obj, symbol) == section_kind
-                && symbol_section(obj, symbol).is_some_and(|(name, _)| name == section_name)
-        })
-        .min_by_key(|&(_, symbol)| (symbol.section, symbol.address))
-    {
+    if let Some((symbol_idx, _)) = unmatched_symbols(obj, used).find(|&(_, symbol)| {
+        symbol_name_matches(in_symbol, symbol)
+            && symbol_section_kind(obj, symbol) == section_kind
+            && symbol_section(obj, symbol).is_some_and(|(name, _)| name == section_name)
+    }) {
         return Some(symbol_idx);
     }
 

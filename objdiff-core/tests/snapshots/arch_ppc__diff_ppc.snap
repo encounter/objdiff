@@ -10,19 +10,19 @@ expression: sections_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 11,
+                symbol: 2,
                 is_mapping_symbol: false,
             },
             SectionDisplaySymbol {
-                symbol: 12,
+                symbol: 3,
                 is_mapping_symbol: false,
             },
             SectionDisplaySymbol {
-                symbol: 13,
+                symbol: 4,
                 is_mapping_symbol: false,
             },
             SectionDisplaySymbol {
-                symbol: 14,
+                symbol: 5,
                 is_mapping_symbol: false,
             },
         ],
@@ -52,7 +52,19 @@ expression: sections_display
         ),
         symbols: [
             SectionDisplaySymbol {
-                symbol: 3,
+                symbol: 14,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 13,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 12,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 11,
                 is_mapping_symbol: false,
             },
             SectionDisplaySymbol {
@@ -69,18 +81,6 @@ expression: sections_display
             },
             SectionDisplaySymbol {
                 symbol: 7,
-                is_mapping_symbol: false,
-            },
-            SectionDisplaySymbol {
-                symbol: 6,
-                is_mapping_symbol: false,
-            },
-            SectionDisplaySymbol {
-                symbol: 5,
-                is_mapping_symbol: false,
-            },
-            SectionDisplaySymbol {
-                symbol: 4,
                 is_mapping_symbol: false,
             },
         ],

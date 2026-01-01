@@ -8,6 +8,7 @@ use alloc::{
 use core::{cmp::Ordering, num::NonZeroU64};
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
+use itertools::Itertools;
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
 
 use crate::{
@@ -166,7 +167,13 @@ fn map_symbols(
     let symbol_count = obj_file.symbols().count();
     let mut symbols = Vec::<Symbol>::with_capacity(symbol_count + obj_file.sections().count());
     let mut symbol_indices = Vec::<usize>::with_capacity(symbol_count + 1);
-    for obj_symbol in obj_file.symbols() {
+    let obj_symbols = obj_file.symbols();
+    // symbols() is not guaranteed to be sorted by address.
+    // We sort it here to fix pairing bugs with diff algorithms that assume the symbols are ordered.
+    // Sorting everything here once is less expensive than sorting subsets later in expensive loops.
+    let obj_symbols =
+        obj_symbols.sorted_by_key(|symbol| (symbol.section_index().map(|i| i.0), symbol.address()));
+    for obj_symbol in obj_symbols {
         if symbol_indices.len() <= obj_symbol.index().0 {
             symbol_indices.resize(obj_symbol.index().0 + 1, usize::MAX);
         }
