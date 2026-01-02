@@ -287,7 +287,7 @@ pub fn diff_view_ui(
                 });
             } else if left_ctx.status.success && !left_ctx.has_symbol() {
                 ui.horizontal(|ui| {
-                    let mut search = state.search.clone();
+                    let mut search = state.get_current_search();
                     let response =
                         TextEdit::singleline(&mut search).hint_text("Filter symbols").ui(ui);
                     if hotkeys::consume_symbol_filter_shortcut(ui.ctx()) {
@@ -452,7 +452,7 @@ pub fn diff_view_ui(
                         }
                     }
                 } else if right_ctx.status.success && !right_ctx.has_symbol() {
-                    let mut search = state.search.clone();
+                    let mut search = state.get_current_search();
                     let response =
                         TextEdit::singleline(&mut search).hint_text("Filter symbols").ui(ui);
                     if hotkeys::consume_symbol_filter_shortcut(ui.ctx()) {
@@ -741,7 +741,7 @@ fn diff_col_ui(
                 ui,
                 SymbolDiffContext { obj, diff },
                 &state.symbol_state,
-                SymbolFilter::Mapping(other_symbol_idx, state.search_regex.as_ref()),
+                SymbolFilter::Mapping(other_symbol_idx, state.mapping_search_regex.as_ref()),
                 appearance,
                 column,
                 open_sections,
