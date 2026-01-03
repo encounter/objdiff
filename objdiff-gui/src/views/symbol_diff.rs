@@ -273,7 +273,7 @@ impl DiffViewState {
                 self.symbol_state.autoscroll_to_highlighted_symbols = autoscroll;
             }
             DiffViewAction::SetSearch(search) => {
-                self.set_search(search);
+                self.set_current_search(search);
             }
             DiffViewAction::CreateScratch(function_name) => {
                 let Ok(state) = state.read() else {
@@ -403,7 +403,7 @@ impl DiffViewState {
         }
     }
 
-    fn set_search(&mut self, search: String) {
+    fn set_current_search(&mut self, search: String) {
         let search_regex = if search.is_empty() {
             None
         } else {
