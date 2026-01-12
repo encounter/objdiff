@@ -68,7 +68,12 @@ impl ArchX86 {
                     _ => None,
                 },
                 RelocationFlags::Elf(typ) => match typ {
-                    elf::R_386_32 | elf::R_386_PC32 => Some(4),
+                    elf::R_386_32
+                    | elf::R_386_PC32
+                    | elf::R_386_GOT32
+                    | elf::R_386_PLT32
+                    | elf::R_386_GOTOFF
+                    | elf::R_386_GOTPC => Some(4),
                     elf::R_386_16 => Some(2),
                     _ => None,
                 },
@@ -272,7 +277,15 @@ impl Arch for ArchX86 {
                 object::RelocationFlags::Coff {
                     typ: pe::IMAGE_REL_I386_DIR32 | pe::IMAGE_REL_I386_REL32,
                 }
-                | object::RelocationFlags::Elf { r_type: elf::R_386_32 | elf::R_386_PC32 } => {
+                | object::RelocationFlags::Elf {
+                    r_type:
+                        elf::R_386_32
+                        | elf::R_386_PC32
+                        | elf::R_386_GOT32
+                        | elf::R_386_PLT32
+                        | elf::R_386_GOTOFF
+                        | elf::R_386_GOTPC,
+                } => {
                     let data =
                         section.data()?[address as usize..address as usize + 4].try_into()?;
                     self.endianness.read_i32_bytes(data) as i64
@@ -308,7 +321,16 @@ impl Arch for ArchX86 {
                     pe::IMAGE_REL_I386_REL32 => Some("IMAGE_REL_I386_REL32"),
                     _ => None,
                 },
-                _ => None,
+                RelocationFlags::Elf(typ) => match typ {
+                    elf::R_386_32 => Some("R_386_32"),
+                    elf::R_386_PC32 => Some("R_386_PC32"),
+                    elf::R_386_GOT32 => Some("R_386_GOT32"),
+                    elf::R_386_PLT32 => Some("R_386_PLT32"),
+                    elf::R_386_GOTOFF => Some("R_386_GOTOFF"),
+                    elf::R_386_GOTPC => Some("R_386_GOTPC"),
+                    elf::R_386_16 => Some("R_386_16"),
+                    _ => None,
+                },
             },
             Architecture::X86_64 => match flags {
                 RelocationFlags::Coff(typ) => match typ {
