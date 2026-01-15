@@ -345,7 +345,7 @@ impl Arch for ArchPpc {
             RelocationFlags::Coff(r_type) => match r_type {
                 pe::IMAGE_REL_PPC_ADDR32 => 4,
                 _ => 1,
-            }
+            },
         }
     }
 
