@@ -342,6 +342,10 @@ impl Arch for ArchPpc {
                 elf::R_PPC_UADDR32 => 4,
                 _ => 1,
             },
+            RelocationFlags::Coff(r_type) => match r_type {
+                pe::IMAGE_REL_PPC_ADDR32 => 4,
+                _ => 1,
+            },
             _ => 1,
         }
     }
