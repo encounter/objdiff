@@ -185,7 +185,7 @@ impl DataType {
                     }
 
                     for (encoding, encoding_name) in SUPPORTED_ENCODINGS {
-                        let (cow, _, had_errors) = encoding.decode(&bytes);
+                        let (cow, _, had_errors) = encoding.decode(bytes);
                         // Avoid showing ASCII-only strings more than once if the encoding is ASCII-compatible.
                         if !had_errors && (!encoding.is_ascii_compatible() || !cow.is_ascii()) {
                             let mut string = format!("{cow}");
