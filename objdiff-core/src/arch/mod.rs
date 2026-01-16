@@ -175,19 +175,26 @@ impl DataType {
             }
             DataType::String => {
                 if let Some(nul_idx) = bytes.iter().position(|&c| c == b'\0') {
-                    let str_bytes = &bytes[..nul_idx];
+                    let ascii_str_bytes = &bytes[..nul_idx];
                     // Special case to display (ASCII) as the label for ASCII-only strings.
-                    let (cow, _, had_errors) = encoding_rs::UTF_8.decode(str_bytes);
+                    let (cow, _, had_errors) = encoding_rs::UTF_8.decode(ascii_str_bytes);
                     if !had_errors && cow.is_ascii() {
                         let string = format!("{cow}");
                         let copy_string = escape_special_ascii_characters(string.clone());
                         strs.push((string, Some("ASCII".into()), Some(copy_string)));
                     }
+
                     for (encoding, encoding_name) in SUPPORTED_ENCODINGS {
-                        let (cow, _, had_errors) = encoding.decode(str_bytes);
+                        let (cow, _, had_errors) = encoding.decode(&bytes);
                         // Avoid showing ASCII-only strings more than once if the encoding is ASCII-compatible.
                         if !had_errors && (!encoding.is_ascii_compatible() || !cow.is_ascii()) {
-                            let string = format!("{cow}");
+                            let mut string = format!("{cow}");
+
+                            // Inline loop to strip all trailing "\0"
+                            while let Some(stripped) = string.strip_suffix('\0') {
+                                string = stripped.to_string();
+                            }
+
                             let copy_string = escape_special_ascii_characters(string.clone());
                             strs.push((string, Some(encoding_name.into()), Some(copy_string)));
                         }

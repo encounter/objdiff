@@ -355,7 +355,7 @@ impl Arch for ArchPpc {
     }
 
     fn guess_data_type(&self, resolved: ResolvedInstructionRef, bytes: &[u8]) -> Option<DataType> {
-        if resolved.relocation.is_some_and(|r| r.symbol.name.starts_with("@stringBase")) {
+        if resolved.relocation.is_some_and(|r| r.symbol.name.starts_with("@stringBase") || r.symbol.name.starts_with("$SG")) {
             // Pooled string.
             return Some(DataType::String);
         }
