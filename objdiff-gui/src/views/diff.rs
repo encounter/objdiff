@@ -4,7 +4,7 @@ use egui::{Id, Layout, RichText, ScrollArea, TextEdit, Ui, Widget, text::LayoutJ
 use objdiff_core::{
     build::BuildStatus,
     diff::{
-        DiffObjConfig, ObjectDiff, SymbolDiff,
+        DataDiffKind, DiffObjConfig, InstructionDiffKind, ObjectDiff, SymbolDiff,
         data::BYTES_PER_ROW,
         display::{
             ContextItem, DiffText, HoverItem, HoverItemColor, SymbolFilter, SymbolNavigationKind,
@@ -184,6 +184,9 @@ pub fn diff_view_ui(
 
     let available_width = ui.available_width();
     let mut open_sections = (None, None);
+
+    let mut scroll_to_prev_diff = false;
+    let mut scroll_to_next_diff = false;
 
     render_header(ui, available_width, 2, |ui, column| {
         if column == 0 {
@@ -450,6 +453,31 @@ pub fn diff_view_ui(
                         {
                             ret = Some(DiffViewAction::SelectingRight(symbol_ref.clone()));
                         }
+                        needs_separator = true;
+                    }
+
+                    if state.current_view == View::FunctionDiff
+                        || state.current_view == View::DataDiff
+                    {
+                        if needs_separator {
+                            ui.separator();
+                        }
+                        if ui
+                            .button("⏴ Prev diff")
+                            .on_hover_text_at_pointer("Scroll to the previous difference (Ctrl+Up)")
+                            .clicked()
+                            || hotkeys::consume_prev_diff_shortcut(ui.ctx())
+                        {
+                            scroll_to_prev_diff = true;
+                        }
+                        if ui
+                            .button("Next diff ⏵")
+                            .on_hover_text_at_pointer("Scroll to the next difference (Ctrl+Down)")
+                            .clicked()
+                            || hotkeys::consume_next_diff_shortcut(ui.ctx())
+                        {
+                            scroll_to_next_diff = true;
+                        }
                     }
                 } else if right_ctx.status.success && !right_ctx.has_symbol() {
                     let mut search = state.get_current_search();
@@ -493,14 +521,21 @@ pub fn diff_view_ui(
                 return;
             }
             let instructions_len = left_symbol_diff.instruction_rows.len();
+            let mut min_row = None;
+            let mut max_row = None;
             render_table(
                 ui,
                 available_width,
                 2,
                 appearance.code_font.size,
                 instructions_len,
-                state.function_state.scroll_to_row,
+                state.scroll_to_diff_row,
                 |row, column| {
+                    if min_row.is_none() {
+                        min_row = Some(row.index());
+                    }
+                    max_row = Some(row.index());
+
                     if column == 0 {
                         if let Some(action) = asm_col_ui(
                             row,
@@ -537,6 +572,27 @@ pub fn diff_view_ui(
                     }
                 },
             );
+
+            if scroll_to_prev_diff && let Some(min_row) = min_row {
+                for (ins_idx, ins_diff) in
+                    right_diff.symbols[right_symbol_idx].instruction_rows.iter().enumerate().rev()
+                {
+                    if ins_idx <= min_row && ins_diff.kind != InstructionDiffKind::None {
+                        ret = Some(DiffViewAction::ScrollToRow(ins_idx));
+                        break;
+                    }
+                }
+            }
+            if scroll_to_next_diff && let Some(max_row) = max_row {
+                for (ins_idx, ins_diff) in
+                    right_diff.symbols[right_symbol_idx].instruction_rows.iter().enumerate()
+                {
+                    if ins_idx >= max_row - 1 && ins_diff.kind != InstructionDiffKind::None {
+                        ret = Some(DiffViewAction::ScrollToRow(ins_idx));
+                        break;
+                    }
+                }
+            }
         } else if let (
             View::DataDiff,
             Some((left_obj, _left_diff)),
@@ -556,14 +612,21 @@ pub fn diff_view_ui(
             if total_rows == 0 {
                 return;
             }
+            let mut min_row = None;
+            let mut max_row = None;
             render_table(
                 ui,
                 available_width,
                 2,
                 appearance.code_font.size,
                 total_rows,
-                None,
+                state.scroll_to_diff_row,
                 |row, column| {
+                    if min_row.is_none() {
+                        min_row = Some(row.index());
+                    }
+                    max_row = Some(row.index());
+
                     let i = row.index();
                     let row_offset = i as u64 * BYTES_PER_ROW as u64;
                     row.col(|ui| {
@@ -591,6 +654,29 @@ pub fn diff_view_ui(
                     });
                 },
             );
+
+            if scroll_to_prev_diff && let Some(min_row) = min_row {
+                for (row_idx, diff_row) in right_symbol_diff.data_rows.iter().enumerate().rev() {
+                    if row_idx <= min_row
+                        && (diff_row.segments.iter().any(|dd| dd.kind != DataDiffKind::None)
+                            || diff_row.relocations.iter().any(|rd| rd.kind != DataDiffKind::None))
+                    {
+                        ret = Some(DiffViewAction::ScrollToRow(row_idx));
+                        break;
+                    }
+                }
+            }
+            if scroll_to_next_diff && let Some(max_row) = max_row {
+                for (row_idx, diff_row) in right_symbol_diff.data_rows.iter().enumerate() {
+                    if row_idx >= max_row - 1
+                        && (diff_row.segments.iter().any(|dd| dd.kind != DataDiffKind::None)
+                            || diff_row.relocations.iter().any(|rd| rd.kind != DataDiffKind::None))
+                    {
+                        ret = Some(DiffViewAction::ScrollToRow(row_idx));
+                        break;
+                    }
+                }
+            }
         } else {
             // Split view
             render_strips(ui, available_width, 2, |ui, column| {
@@ -693,7 +779,7 @@ fn diff_col_ui(
                     1,
                     appearance.code_font.size,
                     total_rows,
-                    None,
+                    state.scroll_to_diff_row,
                     |row, _column| {
                         let i = row.index();
                         let row_offset = i as u64 * BYTES_PER_ROW as u64;
@@ -717,7 +803,7 @@ fn diff_col_ui(
                     1,
                     appearance.code_font.size,
                     symbol_diff.instruction_rows.len(),
-                    state.function_state.scroll_to_row,
+                    state.scroll_to_diff_row,
                     |row, column| {
                         if let Some(action) = asm_col_ui(
                             row,
