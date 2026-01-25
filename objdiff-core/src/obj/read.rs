@@ -6,10 +6,10 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use core::{cmp::Ordering, num::NonZeroU64};
-
 use anyhow::{Context, Result, anyhow, bail, ensure};
+use core::{cmp::Ordering, num::NonZeroU64};
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
+use regex::Regex;
 
 use crate::{
     arch::{Arch, RelocationOverride, RelocationOverrideTarget, new_arch},
@@ -40,6 +40,7 @@ fn map_section_kind(section: &object::Section) -> SectionKind {
 /// e.g. symbol$1234 and symbol$2345 will both be replaced with symbol$0000 internally.
 fn get_normalized_symbol_name(name: &str) -> Option<String> {
     const DUMMY_UNIQUE_ID: &str = "0000";
+    const DUMMY_UNIQUE_MSVC_ID: &str = "00000000";
     if let Some((prefix, suffix)) = name.split_once("@class$")
         && let Some(idx) = suffix.chars().position(|c| !c.is_numeric())
         && idx > 0
@@ -59,6 +60,14 @@ fn get_normalized_symbol_name(name: &str) -> Option<String> {
     {
         // Match GCC symbol.1234 against symbol.2345
         Some(format!("{prefix}.{DUMMY_UNIQUE_ID}"))
+    } else if name.starts_with('?') {
+        // We're likely working with an MSVC symbol, so check for anonymous namespaces and zero out the hashes
+        Some(
+            Regex::new(r"\?A0x[0-9A-Fa-f]{8}@@")
+                .unwrap()
+                .replace_all(name, format!("?Ax{DUMMY_UNIQUE_MSVC_ID}@@"))
+                .to_string(),
+        )
     } else {
         None
     }
