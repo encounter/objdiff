@@ -298,9 +298,8 @@ pub fn display_row(
         }
     })?;
     // Fallback for relocation that wasn't displayed
-    if resolved.relocation.is_some() && !displayed_relocation {
+    if !displayed_relocation && let Some(resolved) = resolved.relocation {
         cb(DiffTextSegment::basic(" <", base_color))?;
-        let resolved = resolved.relocation.unwrap();
         let diff_index = ins_row.arg_diff.get(arg_idx).copied().unwrap_or_default();
         let color =
             diff_index.get().map_or(DiffTextColor::Bright, |i| DiffTextColor::Rotating(i as u8));
