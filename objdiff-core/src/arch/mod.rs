@@ -174,30 +174,36 @@ impl DataType {
                 strs.push((format!("{bytes:#?}"), None, None));
             }
             DataType::String => {
-                if let Some(nul_idx) = bytes.iter().position(|&c| c == b'\0') {
-                    let ascii_str_bytes = &bytes[..nul_idx];
-                    // Special case to display (ASCII) as the label for ASCII-only strings.
-                    let (cow, _, had_errors) = encoding_rs::UTF_8.decode(ascii_str_bytes);
-                    if !had_errors && cow.is_ascii() {
-                        let string = format!("{cow}");
-                        let copy_string = escape_special_ascii_characters(string.clone());
-                        strs.push((string, Some("ASCII".into()), Some(copy_string)));
+                // Special case to display (ASCII) as the label for ASCII-only strings.
+                let mut is_ascii = false;
+                if bytes.is_ascii()
+                    && let Ok(str) = str::from_utf8(bytes)
+                {
+                    let trimmed = str.trim_end_matches('\0');
+                    if !trimmed.is_empty() {
+                        let copy_string = escape_special_ascii_characters(trimmed);
+                        strs.push((trimmed.to_string(), Some("ASCII".into()), Some(copy_string)));
+                        is_ascii = true;
                     }
+                }
 
-                    for (encoding, encoding_name) in SUPPORTED_ENCODINGS {
-                        let (cow, _, had_errors) = encoding.decode(bytes);
-                        // Avoid showing ASCII-only strings more than once if the encoding is ASCII-compatible.
-                        if !had_errors && (!encoding.is_ascii_compatible() || !cow.is_ascii()) {
-                            let mut string = format!("{cow}");
-
-                            // Inline loop to strip all trailing "\0"
-                            while let Some(stripped) = string.strip_suffix('\0') {
-                                string = stripped.to_string();
-                            }
-
-                            let copy_string = escape_special_ascii_characters(string.clone());
-                            strs.push((string, Some(encoding_name.into()), Some(copy_string)));
-                        }
+                for (encoding, encoding_name) in SUPPORTED_ENCODINGS {
+                    // Avoid showing ASCII-only strings more than once if the encoding is ASCII-compatible.
+                    if is_ascii && encoding.is_ascii_compatible() {
+                        continue;
+                    }
+                    let (cow, _, had_errors) = encoding.decode(bytes);
+                    if had_errors {
+                        continue;
+                    }
+                    let trimmed = cow.trim_end_matches('\0');
+                    if !trimmed.is_empty() {
+                        let copy_string = escape_special_ascii_characters(trimmed);
+                        strs.push((
+                            trimmed.to_string(),
+                            Some(encoding_name.into()),
+                            Some(copy_string),
+                        ));
                     }
                 }
             }
@@ -515,7 +521,7 @@ pub struct RelocationOverride {
 
 /// Escape ASCII characters such as \n or \t, but not Unicode characters such as \u{3000}.
 /// Suitable for copying to clipboard.
-fn escape_special_ascii_characters(value: String) -> String {
+fn escape_special_ascii_characters(value: &str) -> String {
     let mut escaped = String::new();
     escaped.push('"');
     for c in value.chars() {
