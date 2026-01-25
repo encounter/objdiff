@@ -118,6 +118,8 @@ pub struct DiffViewState {
     pub function_state: FunctionViewState,
     pub search: String,
     pub search_regex: Option<Regex>,
+    pub mapping_search: String,
+    pub mapping_search_regex: Option<Regex>,
     pub scroll_to_diff_row: Option<usize>,
     pub build_running: bool,
     pub scratch_available: bool,
@@ -155,6 +157,9 @@ impl DiffViewState {
                     self.current_view = result.view;
                     self.symbol_state.left_symbol = result.left_symbol;
                     self.symbol_state.right_symbol = result.right_symbol;
+                    // Clear the mapping filter so it's not saved between mapping different symbols.
+                    self.mapping_search = "".to_string();
+                    self.mapping_search_regex = None;
                 }
 
                 false
@@ -269,12 +274,7 @@ impl DiffViewState {
                 self.symbol_state.autoscroll_to_highlighted_symbols = autoscroll;
             }
             DiffViewAction::SetSearch(search) => {
-                self.search_regex = if search.is_empty() {
-                    None
-                } else {
-                    RegexBuilder::new(&search).case_insensitive(true).build().ok()
-                };
-                self.search = search;
+                self.set_current_search(search);
             }
             DiffViewAction::CreateScratch(function_name) => {
                 let Ok(state) = state.read() else {
@@ -394,6 +394,29 @@ impl DiffViewState {
             section,
             target_symbol: symbol_diff.target_symbol,
         })
+    }
+
+    pub fn get_current_search(&self) -> String {
+        if self.current_view == View::FunctionDiff {
+            self.mapping_search.clone()
+        } else {
+            self.search.clone()
+        }
+    }
+
+    fn set_current_search(&mut self, search: String) {
+        let search_regex = if search.is_empty() {
+            None
+        } else {
+            RegexBuilder::new(&search).case_insensitive(true).build().ok()
+        };
+        if self.current_view == View::FunctionDiff {
+            self.mapping_search = search;
+            self.mapping_search_regex = search_regex;
+        } else {
+            self.search = search;
+            self.search_regex = search_regex;
+        }
     }
 }
 
