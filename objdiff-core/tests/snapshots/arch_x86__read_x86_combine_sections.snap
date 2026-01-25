@@ -107,7 +107,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 0,
-                target_symbol: 4,
+                target_symbol: 71,
                 addend: 0,
             },
             Relocation {
@@ -115,7 +115,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 16,
-                target_symbol: 4,
+                target_symbol: 71,
                 addend: 0,
             },
             Relocation {
@@ -123,7 +123,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 32,
-                target_symbol: 4,
+                target_symbol: 71,
                 addend: 0,
             },
             Relocation {
@@ -131,7 +131,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 48,
-                target_symbol: 12,
+                target_symbol: 3,
                 addend: 0,
             },
             Relocation {
@@ -139,7 +139,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 52,
-                target_symbol: 14,
+                target_symbol: 5,
                 addend: 0,
             },
         ],
@@ -165,7 +165,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 12,
-                target_symbol: 22,
+                target_symbol: 13,
                 addend: 0,
             },
             Relocation {
@@ -173,7 +173,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 16,
-                target_symbol: 24,
+                target_symbol: 15,
                 addend: 0,
             },
             Relocation {
@@ -181,7 +181,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 24,
-                target_symbol: 18,
+                target_symbol: 9,
                 addend: 0,
             },
             Relocation {
@@ -189,7 +189,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 48,
-                target_symbol: 20,
+                target_symbol: 11,
                 addend: 0,
             },
             Relocation {
@@ -197,7 +197,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 64,
-                target_symbol: 30,
+                target_symbol: 21,
                 addend: 0,
             },
             Relocation {
@@ -205,7 +205,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 68,
-                target_symbol: 32,
+                target_symbol: 23,
                 addend: 0,
             },
             Relocation {
@@ -213,7 +213,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 76,
-                target_symbol: 26,
+                target_symbol: 17,
                 addend: 0,
             },
             Relocation {
@@ -221,7 +221,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 100,
-                target_symbol: 28,
+                target_symbol: 19,
                 addend: 0,
             },
             Relocation {
@@ -229,7 +229,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 116,
-                target_symbol: 36,
+                target_symbol: 27,
                 addend: 0,
             },
             Relocation {
@@ -237,7 +237,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 120,
-                target_symbol: 38,
+                target_symbol: 29,
                 addend: 0,
             },
             Relocation {
@@ -245,7 +245,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 136,
-                target_symbol: 40,
+                target_symbol: 31,
                 addend: 0,
             },
             Relocation {
@@ -253,7 +253,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 140,
-                target_symbol: 42,
+                target_symbol: 33,
                 addend: 0,
             },
             Relocation {
@@ -261,7 +261,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 144,
-                target_symbol: 24,
+                target_symbol: 15,
                 addend: 0,
             },
             Relocation {
@@ -269,7 +269,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 148,
-                target_symbol: 44,
+                target_symbol: 35,
                 addend: 0,
             },
             Relocation {
@@ -277,7 +277,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 156,
-                target_symbol: 36,
+                target_symbol: 27,
                 addend: 0,
             },
             Relocation {
@@ -285,7 +285,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 180,
-                target_symbol: 38,
+                target_symbol: 29,
                 addend: 0,
             },
             Relocation {
@@ -293,7 +293,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 184,
-                target_symbol: 26,
+                target_symbol: 17,
                 addend: 0,
             },
             Relocation {
@@ -301,7 +301,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 208,
-                target_symbol: 28,
+                target_symbol: 19,
                 addend: 0,
             },
             Relocation {
@@ -309,7 +309,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 224,
-                target_symbol: 36,
+                target_symbol: 27,
                 addend: 0,
             },
             Relocation {
@@ -317,7 +317,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 228,
-                target_symbol: 38,
+                target_symbol: 29,
                 addend: 0,
             },
             Relocation {
@@ -325,7 +325,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 244,
-                target_symbol: 18,
+                target_symbol: 9,
                 addend: 0,
             },
             Relocation {
@@ -333,7 +333,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 248,
-                target_symbol: 20,
+                target_symbol: 11,
                 addend: 0,
             },
             Relocation {
@@ -341,7 +341,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 264,
-                target_symbol: 26,
+                target_symbol: 17,
                 addend: 0,
             },
             Relocation {
@@ -349,7 +349,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 268,
-                target_symbol: 28,
+                target_symbol: 19,
                 addend: 0,
             },
             Relocation {
@@ -357,7 +357,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 272,
-                target_symbol: 34,
+                target_symbol: 25,
                 addend: 0,
             },
             Relocation {
@@ -365,30 +365,6 @@ expression: obj.sections
                     6,
                 ),
                 address: 276,
-                target_symbol: 3,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 280,
-                target_symbol: 48,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 284,
-                target_symbol: 46,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 288,
                 target_symbol: 70,
                 addend: 0,
             },
@@ -396,8 +372,32 @@ expression: obj.sections
                 flags: Coff(
                     6,
                 ),
+                address: 280,
+                target_symbol: 39,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 284,
+                target_symbol: 37,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 288,
+                target_symbol: 61,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
                 address: 292,
-                target_symbol: 7,
+                target_symbol: 74,
                 addend: 0,
             },
             Relocation {
@@ -405,7 +405,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 296,
-                target_symbol: 72,
+                target_symbol: 63,
                 addend: 0,
             },
             Relocation {
@@ -413,7 +413,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 300,
-                target_symbol: 8,
+                target_symbol: 75,
                 addend: 0,
             },
         ],
@@ -762,7 +762,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 4,
-                target_symbol: 62,
+                target_symbol: 53,
                 addend: 0,
             },
             Relocation {
@@ -770,7 +770,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 9,
-                target_symbol: 6,
+                target_symbol: 73,
                 addend: 0,
             },
             Relocation {
@@ -778,7 +778,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 43,
-                target_symbol: 54,
+                target_symbol: 45,
                 addend: 0,
             },
             Relocation {
@@ -786,7 +786,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 62,
-                target_symbol: 5,
+                target_symbol: 72,
                 addend: 0,
             },
             Relocation {
@@ -794,7 +794,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 84,
-                target_symbol: 3,
+                target_symbol: 70,
                 addend: 0,
             },
             Relocation {
@@ -802,7 +802,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 100,
-                target_symbol: 64,
+                target_symbol: 55,
                 addend: 0,
             },
             Relocation {
@@ -810,7 +810,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 124,
-                target_symbol: 66,
+                target_symbol: 57,
                 addend: 0,
             },
             Relocation {
@@ -818,7 +818,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 156,
-                target_symbol: 12,
+                target_symbol: 3,
                 addend: 0,
             },
             Relocation {
@@ -826,7 +826,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 166,
-                target_symbol: 14,
+                target_symbol: 5,
                 addend: 0,
             },
             Relocation {
@@ -834,7 +834,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 177,
-                target_symbol: 52,
+                target_symbol: 43,
                 addend: 0,
             },
             Relocation {
@@ -842,7 +842,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 185,
-                target_symbol: 50,
+                target_symbol: 41,
                 addend: 0,
             },
             Relocation {
@@ -850,7 +850,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 219,
-                target_symbol: 50,
+                target_symbol: 41,
                 addend: 0,
             },
             Relocation {
@@ -858,7 +858,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 238,
-                target_symbol: 5,
+                target_symbol: 72,
                 addend: 0,
             },
             Relocation {
@@ -866,7 +866,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 267,
-                target_symbol: 52,
+                target_symbol: 43,
                 addend: 0,
             },
             Relocation {
@@ -874,7 +874,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 286,
-                target_symbol: 5,
+                target_symbol: 72,
                 addend: 0,
             },
             Relocation {
@@ -882,7 +882,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 308,
-                target_symbol: 68,
+                target_symbol: 59,
                 addend: 0,
             },
             Relocation {
@@ -890,7 +890,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 313,
-                target_symbol: 54,
+                target_symbol: 45,
                 addend: 0,
             },
         ],
@@ -1018,7 +1018,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 0,
-                target_symbol: 60,
+                target_symbol: 51,
                 addend: 0,
             },
         ],

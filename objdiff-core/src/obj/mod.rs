@@ -37,7 +37,7 @@ pub enum SectionKind {
 
 flags! {
     #[derive(Hash)]
-    pub enum SymbolFlag: u8 {
+    pub enum SymbolFlag: u16 {
         Global,
         Local,
         Weak,
@@ -50,6 +50,8 @@ flags! {
         SizeInferred,
         /// Symbol should be ignored by any diffing
         Ignored,
+        /// Symbol name is compiler-generated; compare by value instead of name
+        CompilerGenerated,
     }
 }
 
@@ -265,7 +267,6 @@ pub struct Symbol {
     pub name: String,
     pub demangled_name: Option<String>,
     pub normalized_name: Option<String>,
-    pub is_name_compiler_generated: bool,
     pub address: u64,
     pub size: u64,
     pub kind: SymbolKind,
@@ -406,7 +407,6 @@ static DUMMY_SYMBOL: Symbol = Symbol {
     name: String::new(),
     demangled_name: None,
     normalized_name: None,
-    is_name_compiler_generated: false,
     address: 0,
     size: 0,
     kind: SymbolKind::Unknown,

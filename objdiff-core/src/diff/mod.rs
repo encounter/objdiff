@@ -699,7 +699,7 @@ fn find_symbol(
 
     // Match compiler-generated symbols against each other (e.g. @251 -> @60)
     // If they are in the same section and have the same value
-    if in_symbol.is_name_compiler_generated
+    if in_symbol.flags.contains(SymbolFlag::CompilerGenerated)
         && matches!(section_kind, SectionKind::Code | SectionKind::Data | SectionKind::Bss)
     {
         let mut closest_match_symbol_idx = None;
@@ -711,7 +711,7 @@ fn find_symbol(
             if obj.sections[section_index].name != section_name {
                 continue;
             }
-            if !symbol.is_name_compiler_generated {
+            if !symbol.flags.contains(SymbolFlag::CompilerGenerated) {
                 continue;
             }
             match section_kind {

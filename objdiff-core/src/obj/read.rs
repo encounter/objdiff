@@ -3,6 +3,7 @@ use alloc::{
     collections::BTreeMap,
     format,
     string::{String, ToString},
+    vec,
     vec::Vec,
 };
 use core::{cmp::Ordering, num::NonZeroU64};
@@ -138,13 +139,14 @@ fn map_symbol(
         .and_then(|v| v.get(symbol.index().0).cloned());
     let section = symbol.section_index().and_then(|i| section_indices.get(i.0).copied());
     let normalized_name = get_normalized_symbol_name(&name);
-    let is_name_compiler_generated = is_symbol_name_compiler_generated(&name);
+    if is_symbol_name_compiler_generated(&name) {
+        flags |= SymbolFlag::CompilerGenerated;
+    }
 
     Ok(Symbol {
         name,
         demangled_name,
         normalized_name,
-        is_name_compiler_generated,
         address,
         size,
         kind,
@@ -169,6 +171,7 @@ fn map_symbols(
     let mut max_index = 0;
     let mut obj_symbols = obj_file
         .symbols()
+        .filter(|s| s.kind() != object::SymbolKind::File)
         .inspect(|sym| max_index = max_index.max(sym.index().0))
         .collect::<Vec<_>>();
     obj_symbols.sort_by(|a, b| {
@@ -241,7 +244,6 @@ fn add_section_symbols(sections: &[Section], symbols: &mut Vec<Symbol>) {
             name,
             demangled_name: None,
             normalized_name: None,
-            is_name_compiler_generated: false,
             address: 0,
             size,
             kind: SymbolKind::Section,

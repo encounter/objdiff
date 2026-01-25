@@ -481,6 +481,7 @@ impl From<obj::SymbolFlagSet> for SymbolFlags {
                     obj::SymbolFlag::HasExtra => SymbolFlags::HAS_EXTRA,
                     obj::SymbolFlag::SizeInferred => SymbolFlags::SIZE_INFERRED,
                     obj::SymbolFlag::Ignored => SymbolFlags::IGNORED,
+                    obj::SymbolFlag::CompilerGenerated => SymbolFlags::COMPILER_GENERATED,
                 };
         }
         out
