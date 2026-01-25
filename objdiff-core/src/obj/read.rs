@@ -61,16 +61,18 @@ fn get_normalized_symbol_name(name: &str) -> Option<String> {
     {
         // Match GCC symbol.1234 against symbol.2345
         Some(format!("{prefix}.{DUMMY_UNIQUE_ID}"))
-    } else {
-        let re = Regex::new(r"\?A0x[0-9A-Fa-f]{8}@@").unwrap();
+    } else if name.starts_with('?') {
         // Match MSVC anonymous class symbol names, ignoring the unique ID.
         // e.g. ?CheckContextOr@?A0x24773155@@YA_NPBVDataArray@@@Z
         // and: ?CheckContextOr@?A0xddf6240c@@YA_NPBVDataArray@@@Z
-        if name.starts_with('?') && re.is_match(name) {
-            Some(re.replace_all(name, format!("?Ax{DUMMY_UNIQUE_MSVC_ID}@@")).to_string())
+        let re = Regex::new(r"\?A0x[0-9A-Fa-f]{8}@@").unwrap();
+        if re.is_match(name) {
+            Some(re.replace_all(name, format!("?A0x{DUMMY_UNIQUE_MSVC_ID}@@")).to_string())
         } else {
             None
         }
+    } else {
+        None
     }
 }
 
