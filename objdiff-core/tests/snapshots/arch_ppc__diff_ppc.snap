@@ -37,7 +37,7 @@ expression: sections_display
         ),
         symbols: [
             SectionDisplaySymbol {
-                symbol: 16,
+                symbol: 15,
                 is_mapping_symbol: false,
             },
         ],
@@ -51,18 +51,6 @@ expression: sections_display
             58.662746,
         ),
         symbols: [
-            SectionDisplaySymbol {
-                symbol: 3,
-                is_mapping_symbol: false,
-            },
-            SectionDisplaySymbol {
-                symbol: 10,
-                is_mapping_symbol: false,
-            },
-            SectionDisplaySymbol {
-                symbol: 9,
-                is_mapping_symbol: false,
-            },
             SectionDisplaySymbol {
                 symbol: 8,
                 is_mapping_symbol: false,
@@ -81,6 +69,18 @@ expression: sections_display
             },
             SectionDisplaySymbol {
                 symbol: 4,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 3,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 2,
+                is_mapping_symbol: false,
+            },
+            SectionDisplaySymbol {
+                symbol: 1,
                 is_mapping_symbol: false,
             },
         ],

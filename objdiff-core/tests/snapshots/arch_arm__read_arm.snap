@@ -148,6 +148,7 @@ Object {
         Symbol {
             name: ".text",
             demangled_name: None,
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -161,6 +162,7 @@ Object {
         Symbol {
             name: "$t",
             demangled_name: None,
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -172,8 +174,25 @@ Object {
             virtual_address: None,
         },
         Symbol {
+            name: "_ZN13LinkStateItem8vfunc_00Ev",
+            demangled_name: Some(
+                "LinkStateItem::vfunc_00()",
+            ),
+            normalized_name: None,
+            address: 0,
+            size: 4,
+            kind: Function,
+            section: Some(
+                0,
+            ),
+            flags: FlagSet(Global),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 4,
             size: 0,
             kind: Unknown,
@@ -185,8 +204,25 @@ Object {
             virtual_address: None,
         },
         Symbol {
+            name: "_ZN13LinkStateItem5GetIdEv",
+            demangled_name: Some(
+                "LinkStateItem::GetId()",
+            ),
+            normalized_name: None,
+            address: 4,
+            size: 8,
+            kind: Function,
+            section: Some(
+                0,
+            ),
+            flags: FlagSet(Global),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 12,
             size: 0,
             kind: Unknown,
@@ -198,8 +234,25 @@ Object {
             virtual_address: None,
         },
         Symbol {
+            name: "_ZN13LinkStateItem16IsHammerEquippedEv",
+            demangled_name: Some(
+                "LinkStateItem::IsHammerEquipped()",
+            ),
+            normalized_name: None,
+            address: 12,
+            size: 28,
+            kind: Function,
+            section: Some(
+                0,
+            ),
+            flags: FlagSet(Global),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
             name: "_020abd38",
             demangled_name: None,
+            normalized_name: None,
             address: 32,
             size: 0,
             kind: Unknown,
@@ -213,6 +266,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 32,
             size: 0,
             kind: Unknown,
@@ -226,6 +280,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 40,
             size: 0,
             kind: Unknown,
@@ -237,8 +292,25 @@ Object {
             virtual_address: None,
         },
         Symbol {
+            name: "_ZN13LinkStateItem12OnStateLeaveEi",
+            demangled_name: Some(
+                "LinkStateItem::OnStateLeave(int)",
+            ),
+            normalized_name: None,
+            address: 40,
+            size: 432,
+            kind: Function,
+            section: Some(
+                0,
+            ),
+            flags: FlagSet(Global),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
             name: "_020abd60",
             demangled_name: None,
+            normalized_name: None,
             address: 72,
             size: 0,
             kind: Unknown,
@@ -252,6 +324,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 72,
             size: 0,
             kind: Unknown,
@@ -265,6 +338,7 @@ Object {
         Symbol {
             name: "_020abd8c",
             demangled_name: None,
+            normalized_name: None,
             address: 116,
             size: 0,
             kind: Unknown,
@@ -278,6 +352,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 116,
             size: 0,
             kind: Unknown,
@@ -291,6 +366,7 @@ Object {
         Symbol {
             name: "_020abdac",
             demangled_name: None,
+            normalized_name: None,
             address: 148,
             size: 0,
             kind: Unknown,
@@ -304,6 +380,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 148,
             size: 0,
             kind: Unknown,
@@ -317,6 +394,7 @@ Object {
         Symbol {
             name: "_020abdbc",
             demangled_name: None,
+            normalized_name: None,
             address: 164,
             size: 0,
             kind: Unknown,
@@ -330,6 +408,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 164,
             size: 0,
             kind: Unknown,
@@ -343,6 +422,7 @@ Object {
         Symbol {
             name: "_020abdcc",
             demangled_name: None,
+            normalized_name: None,
             address: 180,
             size: 0,
             kind: Unknown,
@@ -356,6 +436,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 180,
             size: 0,
             kind: Unknown,
@@ -369,6 +450,7 @@ Object {
         Symbol {
             name: "_020abdd8",
             demangled_name: None,
+            normalized_name: None,
             address: 192,
             size: 0,
             kind: Unknown,
@@ -382,6 +464,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 192,
             size: 0,
             kind: Unknown,
@@ -395,6 +478,7 @@ Object {
         Symbol {
             name: "_020abde4",
             demangled_name: None,
+            normalized_name: None,
             address: 204,
             size: 0,
             kind: Unknown,
@@ -408,6 +492,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 204,
             size: 0,
             kind: Unknown,
@@ -421,6 +506,7 @@ Object {
         Symbol {
             name: "_020abe00",
             demangled_name: None,
+            normalized_name: None,
             address: 232,
             size: 0,
             kind: Unknown,
@@ -434,6 +520,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 232,
             size: 0,
             kind: Unknown,
@@ -447,6 +534,7 @@ Object {
         Symbol {
             name: "_020abe08",
             demangled_name: None,
+            normalized_name: None,
             address: 240,
             size: 0,
             kind: Unknown,
@@ -460,6 +548,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 240,
             size: 0,
             kind: Unknown,
@@ -473,6 +562,7 @@ Object {
         Symbol {
             name: "_020abe2c",
             demangled_name: None,
+            normalized_name: None,
             address: 276,
             size: 0,
             kind: Unknown,
@@ -486,6 +576,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 276,
             size: 0,
             kind: Unknown,
@@ -499,6 +590,7 @@ Object {
         Symbol {
             name: "_020abe60",
             demangled_name: None,
+            normalized_name: None,
             address: 328,
             size: 0,
             kind: Unknown,
@@ -512,6 +604,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 328,
             size: 0,
             kind: Unknown,
@@ -525,6 +618,7 @@ Object {
         Symbol {
             name: "_020abe68",
             demangled_name: None,
+            normalized_name: None,
             address: 336,
             size: 0,
             kind: Unknown,
@@ -538,6 +632,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 336,
             size: 0,
             kind: Unknown,
@@ -551,6 +646,7 @@ Object {
         Symbol {
             name: "_020abe74",
             demangled_name: None,
+            normalized_name: None,
             address: 348,
             size: 0,
             kind: Unknown,
@@ -564,6 +660,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 348,
             size: 0,
             kind: Unknown,
@@ -577,6 +674,7 @@ Object {
         Symbol {
             name: "_020abe94",
             demangled_name: None,
+            normalized_name: None,
             address: 380,
             size: 0,
             kind: Unknown,
@@ -590,6 +688,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 380,
             size: 0,
             kind: Unknown,
@@ -603,6 +702,7 @@ Object {
         Symbol {
             name: "_020abeac",
             demangled_name: None,
+            normalized_name: None,
             address: 404,
             size: 0,
             kind: Unknown,
@@ -616,6 +716,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 404,
             size: 0,
             kind: Unknown,
@@ -629,6 +730,7 @@ Object {
         Symbol {
             name: "_020abec0",
             demangled_name: None,
+            normalized_name: None,
             address: 424,
             size: 0,
             kind: Unknown,
@@ -642,6 +744,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 424,
             size: 0,
             kind: Unknown,
@@ -655,6 +758,7 @@ Object {
         Symbol {
             name: "_020abed8",
             demangled_name: None,
+            normalized_name: None,
             address: 448,
             size: 0,
             kind: Unknown,
@@ -668,6 +772,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 448,
             size: 0,
             kind: Unknown,
@@ -681,6 +786,7 @@ Object {
         Symbol {
             name: "_020abee4",
             demangled_name: None,
+            normalized_name: None,
             address: 460,
             size: 0,
             kind: Object,
@@ -694,6 +800,7 @@ Object {
         Symbol {
             name: "$d",
             demangled_name: None,
+            normalized_name: None,
             address: 460,
             size: 0,
             kind: Unknown,
@@ -707,6 +814,7 @@ Object {
         Symbol {
             name: "_020abee8",
             demangled_name: None,
+            normalized_name: None,
             address: 464,
             size: 0,
             kind: Object,
@@ -720,6 +828,7 @@ Object {
         Symbol {
             name: "$d",
             demangled_name: None,
+            normalized_name: None,
             address: 464,
             size: 0,
             kind: Unknown,
@@ -733,6 +842,7 @@ Object {
         Symbol {
             name: "_020abeec",
             demangled_name: None,
+            normalized_name: None,
             address: 468,
             size: 0,
             kind: Object,
@@ -746,6 +856,7 @@ Object {
         Symbol {
             name: "$d",
             demangled_name: None,
+            normalized_name: None,
             address: 468,
             size: 0,
             kind: Unknown,
@@ -759,6 +870,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 472,
             size: 0,
             kind: Unknown,
@@ -770,8 +882,25 @@ Object {
             virtual_address: None,
         },
         Symbol {
+            name: "_ZN13LinkStateItem15GetEquipBombchuEv",
+            demangled_name: Some(
+                "LinkStateItem::GetEquipBombchu()",
+            ),
+            normalized_name: None,
+            address: 472,
+            size: 16,
+            kind: Function,
+            section: Some(
+                0,
+            ),
+            flags: FlagSet(Global),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
             name: "_020abefc",
             demangled_name: None,
+            normalized_name: None,
             address: 484,
             size: 0,
             kind: Object,
@@ -785,6 +914,7 @@ Object {
         Symbol {
             name: "$d",
             demangled_name: None,
+            normalized_name: None,
             address: 484,
             size: 0,
             kind: Unknown,
@@ -798,6 +928,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 488,
             size: 0,
             kind: Unknown,
@@ -809,8 +940,25 @@ Object {
             virtual_address: None,
         },
         Symbol {
+            name: "_ZN13LinkStateItem16GetLinkStateMoveEv",
+            demangled_name: Some(
+                "LinkStateItem::GetLinkStateMove()",
+            ),
+            normalized_name: None,
+            address: 488,
+            size: 16,
+            kind: Function,
+            section: Some(
+                0,
+            ),
+            flags: FlagSet(Global),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
             name: "_020abf0c",
             demangled_name: None,
+            normalized_name: None,
             address: 500,
             size: 0,
             kind: Object,
@@ -824,6 +972,7 @@ Object {
         Symbol {
             name: "$d",
             demangled_name: None,
+            normalized_name: None,
             address: 500,
             size: 0,
             kind: Unknown,
@@ -837,6 +986,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 504,
             size: 0,
             kind: Unknown,
@@ -848,8 +998,25 @@ Object {
             virtual_address: None,
         },
         Symbol {
+            name: "_ZN13LinkStateItem18func_ov00_020abf70Ev",
+            demangled_name: Some(
+                "LinkStateItem::func_ov00_020abf70()",
+            ),
+            normalized_name: None,
+            address: 504,
+            size: 32,
+            kind: Function,
+            section: Some(
+                0,
+            ),
+            flags: FlagSet(Global),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
             name: "_020abf28",
             demangled_name: None,
+            normalized_name: None,
             address: 528,
             size: 0,
             kind: Object,
@@ -863,6 +1030,7 @@ Object {
         Symbol {
             name: "$d",
             demangled_name: None,
+            normalized_name: None,
             address: 528,
             size: 0,
             kind: Unknown,
@@ -876,6 +1044,7 @@ Object {
         Symbol {
             name: "_020abf2c",
             demangled_name: None,
+            normalized_name: None,
             address: 532,
             size: 0,
             kind: Object,
@@ -889,6 +1058,7 @@ Object {
         Symbol {
             name: "$d",
             demangled_name: None,
+            normalized_name: None,
             address: 532,
             size: 0,
             kind: Unknown,
@@ -902,6 +1072,7 @@ Object {
         Symbol {
             name: "$a",
             demangled_name: None,
+            normalized_name: None,
             address: 536,
             size: 0,
             kind: Unknown,
@@ -913,8 +1084,25 @@ Object {
             virtual_address: None,
         },
         Symbol {
+            name: "_ZN13LinkStateItem8vfunc_28Ev",
+            demangled_name: Some(
+                "LinkStateItem::vfunc_28()",
+            ),
+            normalized_name: None,
+            address: 536,
+            size: 20,
+            kind: Function,
+            section: Some(
+                0,
+            ),
+            flags: FlagSet(Global),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
             name: ".data",
             demangled_name: None,
+            normalized_name: None,
             address: 0,
             size: 8,
             kind: Object,
@@ -928,6 +1116,7 @@ Object {
         Symbol {
             name: "$d",
             demangled_name: None,
+            normalized_name: None,
             address: 8,
             size: 0,
             kind: Unknown,
@@ -939,10 +1128,27 @@ Object {
             virtual_address: None,
         },
         Symbol {
+            name: "_ZTV13LinkStateItem",
+            demangled_name: Some(
+                "{vtable(LinkStateItem)}",
+            ),
+            normalized_name: None,
+            address: 8,
+            size: 68,
+            kind: Object,
+            section: Some(
+                2,
+            ),
+            flags: FlagSet(Global),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
             name: "_ZN13LinkStateBase12OnStateLeaveEi",
             demangled_name: Some(
                 "LinkStateBase::OnStateLeave(int)",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -956,6 +1162,7 @@ Object {
             demangled_name: Some(
                 "UnkStruct_027e103c::func_ov000_020cf01c()",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -969,6 +1176,7 @@ Object {
             demangled_name: Some(
                 "EquipBombchu::func_ov014_0213ec64()",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -982,6 +1190,7 @@ Object {
             demangled_name: Some(
                 "func_ov014_0211fd04(int*)",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -995,6 +1204,7 @@ Object {
             demangled_name: Some(
                 "LinkStateItem::StopUsingBomb(int)",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1008,6 +1218,7 @@ Object {
             demangled_name: Some(
                 "LinkStateItem::StopUsingRope()",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1021,6 +1232,7 @@ Object {
             demangled_name: Some(
                 "LinkStateItem::StopUsingHammer()",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1034,6 +1246,7 @@ Object {
             demangled_name: Some(
                 "UnkStruct_027e103c::func_ov000_020cf9dc(int, int)",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1047,6 +1260,7 @@ Object {
             demangled_name: Some(
                 "LinkStateItem::StopUsingScoop()",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1060,6 +1274,7 @@ Object {
             demangled_name: Some(
                 "LinkStateBase::GetEquipItem(int)",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1073,6 +1288,7 @@ Object {
             demangled_name: Some(
                 "LinkStateBase::EquipItem_vfunc_28()",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1086,6 +1302,7 @@ Object {
             demangled_name: Some(
                 "func_ov000_020b7e6c(int*)",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1099,6 +1316,7 @@ Object {
             demangled_name: Some(
                 "PlayerControl::StopFollowing()",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1110,6 +1328,7 @@ Object {
         Symbol {
             name: "data_027e103c",
             demangled_name: None,
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1121,6 +1340,7 @@ Object {
         Symbol {
             name: "data_027e1098",
             demangled_name: None,
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1132,6 +1352,7 @@ Object {
         Symbol {
             name: "gPlayerControl",
             demangled_name: None,
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1145,6 +1366,7 @@ Object {
             demangled_name: Some(
                 "ItemManager::GetEquipItemUnchecked(int)",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1158,6 +1380,7 @@ Object {
             demangled_name: Some(
                 "GetLinkState(int)",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1169,6 +1392,7 @@ Object {
         Symbol {
             name: "gAdventureFlags",
             demangled_name: None,
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1182,6 +1406,7 @@ Object {
             demangled_name: Some(
                 "AdventureFlags::func_ov00_02097b9c(int)",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1195,6 +1420,7 @@ Object {
             demangled_name: Some(
                 "LinkStateItem::vfunc_00()",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1208,6 +1434,7 @@ Object {
             demangled_name: Some(
                 "LinkStateItem::~LinkStateItem()",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1221,6 +1448,7 @@ Object {
             demangled_name: Some(
                 "LinkStateItem::~LinkStateItem()",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1234,6 +1462,7 @@ Object {
             demangled_name: Some(
                 "LinkStateBase::CreateDebugHierarchy()",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1247,6 +1476,7 @@ Object {
             demangled_name: Some(
                 "LinkStateItem::OnStateEnter()",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1260,6 +1490,7 @@ Object {
             demangled_name: Some(
                 "LinkStateItem::vfunc_1c()",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1273,6 +1504,7 @@ Object {
             demangled_name: Some(
                 "LinkStateItem::vfunc_20(int)",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1286,6 +1518,7 @@ Object {
             demangled_name: Some(
                 "LinkStateItem::vfunc_24(int)",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1299,6 +1532,7 @@ Object {
             demangled_name: Some(
                 "LinkStateBase::vfunc_2c(unsigned short*)",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1312,6 +1546,7 @@ Object {
             demangled_name: Some(
                 "LinkStateBase::vfunc_30(int)",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1325,6 +1560,7 @@ Object {
             demangled_name: Some(
                 "LinkStateBase::vfunc_34(Vec3p*)",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1338,6 +1574,7 @@ Object {
             demangled_name: Some(
                 "LinkStateBase::vfunc_38()",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1351,6 +1588,7 @@ Object {
             demangled_name: Some(
                 "LinkStateBase::vfunc_3c()",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1364,6 +1602,7 @@ Object {
             demangled_name: Some(
                 "LinkStateBase::vfunc_40()",
             ),
+            normalized_name: None,
             address: 0,
             size: 0,
             kind: Unknown,
@@ -1373,143 +1612,9 @@ Object {
             virtual_address: None,
         },
         Symbol {
-            name: "_ZN13LinkStateItem8vfunc_00Ev",
-            demangled_name: Some(
-                "LinkStateItem::vfunc_00()",
-            ),
-            address: 0,
-            size: 4,
-            kind: Function,
-            section: Some(
-                0,
-            ),
-            flags: FlagSet(Global),
-            align: None,
-            virtual_address: None,
-        },
-        Symbol {
-            name: "_ZN13LinkStateItem5GetIdEv",
-            demangled_name: Some(
-                "LinkStateItem::GetId()",
-            ),
-            address: 4,
-            size: 8,
-            kind: Function,
-            section: Some(
-                0,
-            ),
-            flags: FlagSet(Global),
-            align: None,
-            virtual_address: None,
-        },
-        Symbol {
-            name: "_ZN13LinkStateItem16IsHammerEquippedEv",
-            demangled_name: Some(
-                "LinkStateItem::IsHammerEquipped()",
-            ),
-            address: 12,
-            size: 28,
-            kind: Function,
-            section: Some(
-                0,
-            ),
-            flags: FlagSet(Global),
-            align: None,
-            virtual_address: None,
-        },
-        Symbol {
-            name: "_ZN13LinkStateItem12OnStateLeaveEi",
-            demangled_name: Some(
-                "LinkStateItem::OnStateLeave(int)",
-            ),
-            address: 40,
-            size: 432,
-            kind: Function,
-            section: Some(
-                0,
-            ),
-            flags: FlagSet(Global),
-            align: None,
-            virtual_address: None,
-        },
-        Symbol {
-            name: "_ZN13LinkStateItem15GetEquipBombchuEv",
-            demangled_name: Some(
-                "LinkStateItem::GetEquipBombchu()",
-            ),
-            address: 472,
-            size: 16,
-            kind: Function,
-            section: Some(
-                0,
-            ),
-            flags: FlagSet(Global),
-            align: None,
-            virtual_address: None,
-        },
-        Symbol {
-            name: "_ZN13LinkStateItem16GetLinkStateMoveEv",
-            demangled_name: Some(
-                "LinkStateItem::GetLinkStateMove()",
-            ),
-            address: 488,
-            size: 16,
-            kind: Function,
-            section: Some(
-                0,
-            ),
-            flags: FlagSet(Global),
-            align: None,
-            virtual_address: None,
-        },
-        Symbol {
-            name: "_ZN13LinkStateItem18func_ov00_020abf70Ev",
-            demangled_name: Some(
-                "LinkStateItem::func_ov00_020abf70()",
-            ),
-            address: 504,
-            size: 32,
-            kind: Function,
-            section: Some(
-                0,
-            ),
-            flags: FlagSet(Global),
-            align: None,
-            virtual_address: None,
-        },
-        Symbol {
-            name: "_ZN13LinkStateItem8vfunc_28Ev",
-            demangled_name: Some(
-                "LinkStateItem::vfunc_28()",
-            ),
-            address: 536,
-            size: 20,
-            kind: Function,
-            section: Some(
-                0,
-            ),
-            flags: FlagSet(Global),
-            align: None,
-            virtual_address: None,
-        },
-        Symbol {
-            name: "_ZTV13LinkStateItem",
-            demangled_name: Some(
-                "{vtable(LinkStateItem)}",
-            ),
-            address: 8,
-            size: 68,
-            kind: Object,
-            section: Some(
-                2,
-            ),
-            flags: FlagSet(Global),
-            align: None,
-            virtual_address: None,
-        },
-        Symbol {
             name: "[.data-0]",
             demangled_name: None,
+            normalized_name: None,
             address: 0,
             size: 76,
             kind: Section,
@@ -1541,86 +1646,6 @@ Object {
                         1,
                     ),
                     address: 52,
-                    target_symbol: 61,
-                    addend: -8,
-                },
-                Relocation {
-                    flags: Elf(
-                        1,
-                    ),
-                    address: 124,
-                    target_symbol: 62,
-                    addend: -8,
-                },
-                Relocation {
-                    flags: Elf(
-                        1,
-                    ),
-                    address: 140,
-                    target_symbol: 99,
-                    addend: -8,
-                },
-                Relocation {
-                    flags: Elf(
-                        1,
-                    ),
-                    address: 144,
-                    target_symbol: 63,
-                    addend: -8,
-                },
-                Relocation {
-                    flags: Elf(
-                        15,
-                    ),
-                    address: 156,
-                    target_symbol: 64,
-                    addend: -8,
-                },
-                Relocation {
-                    flags: Elf(
-                        1,
-                    ),
-                    address: 172,
-                    target_symbol: 65,
-                    addend: -8,
-                },
-                Relocation {
-                    flags: Elf(
-                        1,
-                    ),
-                    address: 184,
-                    target_symbol: 66,
-                    addend: -8,
-                },
-                Relocation {
-                    flags: Elf(
-                        1,
-                    ),
-                    address: 196,
-                    target_symbol: 67,
-                    addend: -8,
-                },
-                Relocation {
-                    flags: Elf(
-                        1,
-                    ),
-                    address: 224,
-                    target_symbol: 68,
-                    addend: -8,
-                },
-                Relocation {
-                    flags: Elf(
-                        1,
-                    ),
-                    address: 236,
-                    target_symbol: 69,
-                    addend: -8,
-                },
-                Relocation {
-                    flags: Elf(
-                        1,
-                    ),
-                    address: 260,
                     target_symbol: 70,
                     addend: -8,
                 },
@@ -1628,8 +1653,88 @@ Object {
                     flags: Elf(
                         1,
                     ),
-                    address: 340,
+                    address: 124,
                     target_symbol: 71,
+                    addend: -8,
+                },
+                Relocation {
+                    flags: Elf(
+                        1,
+                    ),
+                    address: 140,
+                    target_symbol: 52,
+                    addend: -8,
+                },
+                Relocation {
+                    flags: Elf(
+                        1,
+                    ),
+                    address: 144,
+                    target_symbol: 72,
+                    addend: -8,
+                },
+                Relocation {
+                    flags: Elf(
+                        15,
+                    ),
+                    address: 156,
+                    target_symbol: 73,
+                    addend: -8,
+                },
+                Relocation {
+                    flags: Elf(
+                        1,
+                    ),
+                    address: 172,
+                    target_symbol: 74,
+                    addend: -8,
+                },
+                Relocation {
+                    flags: Elf(
+                        1,
+                    ),
+                    address: 184,
+                    target_symbol: 75,
+                    addend: -8,
+                },
+                Relocation {
+                    flags: Elf(
+                        1,
+                    ),
+                    address: 196,
+                    target_symbol: 76,
+                    addend: -8,
+                },
+                Relocation {
+                    flags: Elf(
+                        1,
+                    ),
+                    address: 224,
+                    target_symbol: 77,
+                    addend: -8,
+                },
+                Relocation {
+                    flags: Elf(
+                        1,
+                    ),
+                    address: 236,
+                    target_symbol: 78,
+                    addend: -8,
+                },
+                Relocation {
+                    flags: Elf(
+                        1,
+                    ),
+                    address: 260,
+                    target_symbol: 79,
+                    addend: -8,
+                },
+                Relocation {
+                    flags: Elf(
+                        1,
+                    ),
+                    address: 340,
+                    target_symbol: 80,
                     addend: -8,
                 },
                 Relocation {
@@ -1637,7 +1742,7 @@ Object {
                         1,
                     ),
                     address: 352,
-                    target_symbol: 71,
+                    target_symbol: 80,
                     addend: -8,
                 },
                 Relocation {
@@ -1645,7 +1750,7 @@ Object {
                         1,
                     ),
                     address: 368,
-                    target_symbol: 100,
+                    target_symbol: 56,
                     addend: -8,
                 },
                 Relocation {
@@ -1653,7 +1758,7 @@ Object {
                         1,
                     ),
                     address: 408,
-                    target_symbol: 72,
+                    target_symbol: 81,
                     addend: -8,
                 },
                 Relocation {
@@ -1661,7 +1766,7 @@ Object {
                         1,
                     ),
                     address: 444,
-                    target_symbol: 73,
+                    target_symbol: 82,
                     addend: -8,
                 },
                 Relocation {
@@ -1669,7 +1774,7 @@ Object {
                         2,
                     ),
                     address: 460,
-                    target_symbol: 74,
+                    target_symbol: 83,
                     addend: 0,
                 },
                 Relocation {
@@ -1677,7 +1782,7 @@ Object {
                         2,
                     ),
                     address: 464,
-                    target_symbol: 75,
+                    target_symbol: 84,
                     addend: 0,
                 },
                 Relocation {
@@ -1685,7 +1790,7 @@ Object {
                         2,
                     ),
                     address: 468,
-                    target_symbol: 76,
+                    target_symbol: 85,
                     addend: 0,
                 },
                 Relocation {
@@ -1693,7 +1798,7 @@ Object {
                         2,
                     ),
                     address: 484,
-                    target_symbol: 77,
+                    target_symbol: 86,
                     addend: 0,
                 },
                 Relocation {
@@ -1701,7 +1806,7 @@ Object {
                         2,
                     ),
                     address: 500,
-                    target_symbol: 78,
+                    target_symbol: 87,
                     addend: 0,
                 },
                 Relocation {
@@ -1709,7 +1814,7 @@ Object {
                         2,
                     ),
                     address: 528,
-                    target_symbol: 79,
+                    target_symbol: 88,
                     addend: 0,
                 },
                 Relocation {
@@ -1717,7 +1822,7 @@ Object {
                         2,
                     ),
                     address: 532,
-                    target_symbol: 80,
+                    target_symbol: 89,
                     addend: 0,
                 },
             ],
@@ -1760,102 +1865,6 @@ Object {
                         2,
                     ),
                     address: 8,
-                    target_symbol: 81,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Elf(
-                        2,
-                    ),
-                    address: 12,
-                    target_symbol: 82,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Elf(
-                        2,
-                    ),
-                    address: 16,
-                    target_symbol: 83,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Elf(
-                        2,
-                    ),
-                    address: 20,
-                    target_symbol: 96,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Elf(
-                        2,
-                    ),
-                    address: 24,
-                    target_symbol: 84,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Elf(
-                        2,
-                    ),
-                    address: 28,
-                    target_symbol: 85,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Elf(
-                        2,
-                    ),
-                    address: 32,
-                    target_symbol: 98,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Elf(
-                        2,
-                    ),
-                    address: 36,
-                    target_symbol: 86,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Elf(
-                        2,
-                    ),
-                    address: 40,
-                    target_symbol: 87,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Elf(
-                        2,
-                    ),
-                    address: 44,
-                    target_symbol: 88,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Elf(
-                        2,
-                    ),
-                    address: 48,
-                    target_symbol: 102,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Elf(
-                        2,
-                    ),
-                    address: 52,
-                    target_symbol: 89,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Elf(
-                        2,
-                    ),
-                    address: 56,
                     target_symbol: 90,
                     addend: 0,
                 },
@@ -1863,7 +1872,7 @@ Object {
                     flags: Elf(
                         2,
                     ),
-                    address: 60,
+                    address: 12,
                     target_symbol: 91,
                     addend: 0,
                 },
@@ -1871,7 +1880,7 @@ Object {
                     flags: Elf(
                         2,
                     ),
-                    address: 64,
+                    address: 16,
                     target_symbol: 92,
                     addend: 0,
                 },
@@ -1879,7 +1888,15 @@ Object {
                     flags: Elf(
                         2,
                     ),
-                    address: 68,
+                    address: 20,
+                    target_symbol: 4,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        2,
+                    ),
+                    address: 24,
                     target_symbol: 93,
                     addend: 0,
                 },
@@ -1887,8 +1904,96 @@ Object {
                     flags: Elf(
                         2,
                     ),
-                    address: 72,
+                    address: 28,
                     target_symbol: 94,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        2,
+                    ),
+                    address: 32,
+                    target_symbol: 10,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        2,
+                    ),
+                    address: 36,
+                    target_symbol: 95,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        2,
+                    ),
+                    address: 40,
+                    target_symbol: 96,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        2,
+                    ),
+                    address: 44,
+                    target_symbol: 97,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        2,
+                    ),
+                    address: 48,
+                    target_symbol: 66,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        2,
+                    ),
+                    address: 52,
+                    target_symbol: 98,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        2,
+                    ),
+                    address: 56,
+                    target_symbol: 99,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        2,
+                    ),
+                    address: 60,
+                    target_symbol: 100,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        2,
+                    ),
+                    address: 64,
+                    target_symbol: 101,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        2,
+                    ),
+                    address: 68,
+                    target_symbol: 102,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Elf(
+                        2,
+                    ),
+                    address: 72,
+                    target_symbol: 103,
                     addend: 0,
                 },
             ],

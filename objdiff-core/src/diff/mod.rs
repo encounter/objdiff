@@ -7,7 +7,6 @@ use alloc::{
 use core::{num::NonZeroU32, ops::Range};
 
 use anyhow::Result;
-use itertools::Itertools;
 
 use crate::{
     diff::{
@@ -687,18 +686,6 @@ fn symbol_section_kind(obj: &Object, symbol: &Symbol) -> SectionKind {
     }
 }
 
-/// Check if a symbol is a compiler-generated like @1234 or _$E1234.
-fn is_symbol_compiler_generated(symbol: &Symbol) -> bool {
-    if symbol.name.starts_with('@') && symbol.name[1..].chars().all(char::is_numeric) {
-        // Exclude @stringBase0, @GUARD@, etc.
-        return true;
-    }
-    if symbol.name.starts_with("_$E") && symbol.name[3..].chars().all(char::is_numeric) {
-        return true;
-    }
-    false
-}
-
 fn find_symbol(
     obj: Option<&Object>,
     in_obj: &Object,
@@ -712,7 +699,7 @@ fn find_symbol(
 
     // Match compiler-generated symbols against each other (e.g. @251 -> @60)
     // If they are in the same section and have the same value
-    if is_symbol_compiler_generated(in_symbol)
+    if in_symbol.flags.contains(SymbolFlag::CompilerGenerated)
         && matches!(section_kind, SectionKind::Code | SectionKind::Data | SectionKind::Bss)
     {
         let mut closest_match_symbol_idx = None;
@@ -724,7 +711,7 @@ fn find_symbol(
             if obj.sections[section_index].name != section_name {
                 continue;
             }
-            if !is_symbol_compiler_generated(symbol) {
+            if !symbol.flags.contains(SymbolFlag::CompilerGenerated) {
                 continue;
             }
             match section_kind {
@@ -761,15 +748,11 @@ fn find_symbol(
     }
 
     // Try to find a symbol with a matching name
-    if let Some((symbol_idx, _)) = unmatched_symbols(obj, used)
-        .filter(|&(_, symbol)| {
-            symbol_name_matches(&in_symbol.name, &symbol.name)
-                && symbol_section_kind(obj, symbol) == section_kind
-                && symbol_section(obj, symbol).is_some_and(|(name, _)| name == section_name)
-        })
-        .sorted_unstable_by_key(|&(_, symbol)| (symbol.section, symbol.address))
-        .next()
-    {
+    if let Some((symbol_idx, _)) = unmatched_symbols(obj, used).find(|&(_, symbol)| {
+        symbol_name_matches(in_symbol, symbol)
+            && symbol_section_kind(obj, symbol) == section_kind
+            && symbol_section(obj, symbol).is_some_and(|(name, _)| name == section_name)
+    }) {
         return Some(symbol_idx);
     }
 

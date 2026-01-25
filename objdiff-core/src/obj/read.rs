@@ -3,6 +3,7 @@ use alloc::{
     collections::BTreeMap,
     format,
     string::{String, ToString},
+    vec,
     vec::Vec,
 };
 use core::{cmp::Ordering, num::NonZeroU64};
@@ -33,6 +34,46 @@ fn map_section_kind(section: &object::Section) -> SectionKind {
         | object::SectionKind::Common => SectionKind::Bss,
         _ => SectionKind::Unknown,
     }
+}
+
+/// Check if a symbol's name is partially compiler-generated, and if so normalize it for pairing.
+/// e.g. symbol$1234 and symbol$2345 will both be replaced with symbol$0000 internally.
+fn get_normalized_symbol_name(name: &str) -> Option<String> {
+    const DUMMY_UNIQUE_ID: &str = "0000";
+    if let Some((prefix, suffix)) = name.split_once("@class$")
+        && let Some(idx) = suffix.chars().position(|c| !c.is_numeric())
+        && idx > 0
+    {
+        // Match Metrowerks anonymous class symbol names, ignoring the unique ID.
+        // e.g. __dt__Q29dCamera_c23@class$3665d_camera_cppFv
+        // and: __dt__Q29dCamera_c23@class$1727d_camera_cppFv
+        let suffix = &suffix[idx..];
+        Some(format!("{prefix}@class${DUMMY_UNIQUE_ID}{suffix}"))
+    } else if let Some((prefix, suffix)) = name.split_once('$')
+        && suffix.chars().all(char::is_numeric)
+    {
+        // Match Metrowerks symbol$1234 against symbol$2345
+        Some(format!("{prefix}${DUMMY_UNIQUE_ID}"))
+    } else if let Some((prefix, suffix)) = name.split_once('.')
+        && suffix.chars().all(char::is_numeric)
+    {
+        // Match GCC symbol.1234 against symbol.2345
+        Some(format!("{prefix}.{DUMMY_UNIQUE_ID}"))
+    } else {
+        None
+    }
+}
+
+/// Check if a symbol's name is entirely compiler-generated, such as @1234 or _$E1234.
+/// This enables pairing these symbols up by their value instead of their name.
+fn is_symbol_name_compiler_generated(name: &str) -> bool {
+    if name.starts_with('@') && name[1..].chars().all(char::is_numeric) {
+        // Exclude @stringBase0, @GUARD@, etc.
+        return true;
+    } else if name.starts_with("_$E") && name[3..].chars().all(char::is_numeric) {
+        return true;
+    }
+    false
 }
 
 fn map_symbol(
@@ -97,10 +138,15 @@ fn map_symbol(
         .and_then(|m| m.virtual_addresses.as_ref())
         .and_then(|v| v.get(symbol.index().0).cloned());
     let section = symbol.section_index().and_then(|i| section_indices.get(i.0).copied());
+    let normalized_name = get_normalized_symbol_name(&name);
+    if is_symbol_name_compiler_generated(&name) {
+        flags |= SymbolFlag::CompilerGenerated;
+    }
 
     Ok(Symbol {
         name,
         demangled_name,
+        normalized_name,
         address,
         size,
         kind,
@@ -119,13 +165,38 @@ fn map_symbols(
     split_meta: Option<&SplitMeta>,
     config: &DiffObjConfig,
 ) -> Result<(Vec<Symbol>, Vec<usize>)> {
-    let symbol_count = obj_file.symbols().count();
-    let mut symbols = Vec::<Symbol>::with_capacity(symbol_count + obj_file.sections().count());
-    let mut symbol_indices = Vec::<usize>::with_capacity(symbol_count + 1);
-    for obj_symbol in obj_file.symbols() {
-        if symbol_indices.len() <= obj_symbol.index().0 {
-            symbol_indices.resize(obj_symbol.index().0 + 1, usize::MAX);
-        }
+    // symbols() is not guaranteed to be sorted by address.
+    // We sort it here to fix pairing bugs with diff algorithms that assume the symbols are ordered.
+    // Sorting everything here once is less expensive than sorting subsets later in expensive loops.
+    let mut max_index = 0;
+    let mut obj_symbols = obj_file
+        .symbols()
+        .filter(|s| s.kind() != object::SymbolKind::File)
+        .inspect(|sym| max_index = max_index.max(sym.index().0))
+        .collect::<Vec<_>>();
+    obj_symbols.sort_by(|a, b| {
+        // Sort symbols by section index, placing absolute symbols last
+        a.section_index()
+            .map_or(usize::MAX, |s| s.0)
+            .cmp(&b.section_index().map_or(usize::MAX, |s| s.0))
+            .then_with(|| {
+                // Sort section symbols first in a section
+                if a.kind() == object::SymbolKind::Section {
+                    Ordering::Less
+                } else if b.kind() == object::SymbolKind::Section {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            })
+            // Sort by address within section
+            .then_with(|| a.address().cmp(&b.address()))
+            // If there are multiple symbols with the same address, smaller symbol first
+            .then_with(|| a.size().cmp(&b.size()))
+    });
+    let mut symbols = Vec::<Symbol>::with_capacity(obj_symbols.len() + obj_file.sections().count());
+    let mut symbol_indices = vec![usize::MAX; max_index + 1];
+    for obj_symbol in obj_symbols {
         let symbol = map_symbol(arch, obj_file, &obj_symbol, section_indices, split_meta, config)?;
         symbol_indices[obj_symbol.index().0] = symbols.len();
         symbols.push(symbol);
@@ -172,6 +243,7 @@ fn add_section_symbols(sections: &[Section], symbols: &mut Vec<Symbol>) {
         symbols.push(Symbol {
             name,
             demangled_name: None,
+            normalized_name: None,
             address: 0,
             size,
             kind: SymbolKind::Section,
@@ -193,40 +265,18 @@ fn is_local_label(symbol: &Symbol) -> bool {
 }
 
 fn infer_symbol_sizes(arch: &dyn Arch, symbols: &mut [Symbol], sections: &[Section]) -> Result<()> {
-    // Create a sorted list of symbol indices by section
-    let mut symbols_with_section = Vec::<usize>::with_capacity(symbols.len());
-    for (i, symbol) in symbols.iter().enumerate() {
-        if symbol.section.is_some() {
-            symbols_with_section.push(i);
-        }
-    }
-    symbols_with_section.sort_by(|a, b| {
-        let a = &symbols[*a];
-        let b = &symbols[*b];
-        a.section
-            .unwrap_or(usize::MAX)
-            .cmp(&b.section.unwrap_or(usize::MAX))
-            .then_with(|| {
-                // Sort section symbols first
-                if a.kind == SymbolKind::Section {
-                    Ordering::Less
-                } else if b.kind == SymbolKind::Section {
-                    Ordering::Greater
-                } else {
-                    Ordering::Equal
-                }
-            })
-            .then_with(|| a.address.cmp(&b.address))
-            .then_with(|| a.size.cmp(&b.size))
-    });
+    // Above, we've sorted the symbols by section and then by address.
 
     // Set symbol sizes based on the next symbol's address
     let mut iter_idx = 0;
     let mut last_end = (0, 0);
-    while iter_idx < symbols_with_section.len() {
-        let symbol_idx = symbols_with_section[iter_idx];
+    while iter_idx < symbols.len() {
+        let symbol_idx = iter_idx;
         let symbol = &symbols[symbol_idx];
-        let section_idx = symbol.section.unwrap();
+        let Some(section_idx) = symbol.section else {
+            // Start of absolute symbols
+            break;
+        };
         iter_idx += 1;
         if symbol.size != 0 {
             if symbol.kind != SymbolKind::Section {
@@ -239,10 +289,9 @@ fn infer_symbol_sizes(arch: &dyn Arch, symbols: &mut [Symbol], sections: &[Secti
             continue;
         }
         let next_symbol = loop {
-            if iter_idx >= symbols_with_section.len() {
+            let Some(next_symbol) = symbols.get(iter_idx) else {
                 break None;
-            }
-            let next_symbol = &symbols[symbols_with_section[iter_idx]];
+            };
             if next_symbol.section != Some(section_idx) {
                 break None;
             }
@@ -298,9 +347,11 @@ fn map_sections(
     split_meta: Option<&SplitMeta>,
 ) -> Result<(Vec<Section>, Vec<usize>)> {
     let mut section_names = BTreeMap::<String, usize>::new();
-    let section_count = obj_file.sections().count();
+    let mut max_index = 0;
+    let section_count =
+        obj_file.sections().inspect(|s| max_index = max_index.max(s.index().0)).count();
     let mut result = Vec::<Section>::with_capacity(section_count);
-    let mut section_indices = Vec::<usize>::with_capacity(section_count + 1);
+    let mut section_indices = vec![usize::MAX; max_index + 1];
     for section in obj_file.sections() {
         let name = section.name().context("Failed to process section name")?;
         let kind = map_section_kind(&section);
@@ -325,9 +376,6 @@ fn map_sections(
         let id = format!("{name}-{unique_id}");
         *unique_id += 1;
 
-        if section_indices.len() <= section.index().0 {
-            section_indices.resize(section.index().0 + 1, usize::MAX);
-        }
         section_indices[section.index().0] = result.len();
         result.push(Section {
             id,
