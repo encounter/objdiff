@@ -8,7 +8,6 @@ use alloc::{
 use core::{cmp::Ordering, num::NonZeroU64};
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use itertools::Itertools;
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
 
 use crate::{
@@ -164,19 +163,37 @@ fn map_symbols(
     split_meta: Option<&SplitMeta>,
     config: &DiffObjConfig,
 ) -> Result<(Vec<Symbol>, Vec<usize>)> {
-    let symbol_count = obj_file.symbols().count();
-    let mut symbols = Vec::<Symbol>::with_capacity(symbol_count + obj_file.sections().count());
-    let mut symbol_indices = Vec::<usize>::with_capacity(symbol_count + 1);
-    let obj_symbols = obj_file.symbols();
     // symbols() is not guaranteed to be sorted by address.
     // We sort it here to fix pairing bugs with diff algorithms that assume the symbols are ordered.
     // Sorting everything here once is less expensive than sorting subsets later in expensive loops.
-    let obj_symbols =
-        obj_symbols.sorted_by_key(|symbol| (symbol.section_index().map(|i| i.0), symbol.address()));
+    let mut max_index = 0;
+    let mut obj_symbols = obj_file
+        .symbols()
+        .inspect(|sym| max_index = max_index.max(sym.index().0))
+        .collect::<Vec<_>>();
+    obj_symbols.sort_by(|a, b| {
+        // Sort symbols by section index, placing absolute symbols last
+        a.section_index()
+            .map_or(usize::MAX, |s| s.0)
+            .cmp(&b.section_index().map_or(usize::MAX, |s| s.0))
+            .then_with(|| {
+                // Sort section symbols first in a section
+                if a.kind() == object::SymbolKind::Section {
+                    Ordering::Less
+                } else if b.kind() == object::SymbolKind::Section {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            })
+            // Sort by address within section
+            .then_with(|| a.address().cmp(&b.address()))
+            // If there are multiple symbols with the same address, smaller symbol first
+            .then_with(|| a.size().cmp(&b.size()))
+    });
+    let mut symbols = Vec::<Symbol>::with_capacity(obj_symbols.len() + obj_file.sections().count());
+    let mut symbol_indices = vec![usize::MAX; max_index + 1];
     for obj_symbol in obj_symbols {
-        if symbol_indices.len() <= obj_symbol.index().0 {
-            symbol_indices.resize(obj_symbol.index().0 + 1, usize::MAX);
-        }
         let symbol = map_symbol(arch, obj_file, &obj_symbol, section_indices, split_meta, config)?;
         symbol_indices[obj_symbol.index().0] = symbols.len();
         symbols.push(symbol);
@@ -246,40 +263,18 @@ fn is_local_label(symbol: &Symbol) -> bool {
 }
 
 fn infer_symbol_sizes(arch: &dyn Arch, symbols: &mut [Symbol], sections: &[Section]) -> Result<()> {
-    // Create a sorted list of symbol indices by section
-    let mut symbols_with_section = Vec::<usize>::with_capacity(symbols.len());
-    for (i, symbol) in symbols.iter().enumerate() {
-        if symbol.section.is_some() {
-            symbols_with_section.push(i);
-        }
-    }
-    symbols_with_section.sort_by(|a, b| {
-        let a = &symbols[*a];
-        let b = &symbols[*b];
-        a.section
-            .unwrap_or(usize::MAX)
-            .cmp(&b.section.unwrap_or(usize::MAX))
-            .then_with(|| {
-                // Sort section symbols first
-                if a.kind == SymbolKind::Section {
-                    Ordering::Less
-                } else if b.kind == SymbolKind::Section {
-                    Ordering::Greater
-                } else {
-                    Ordering::Equal
-                }
-            })
-            .then_with(|| a.address.cmp(&b.address))
-            .then_with(|| a.size.cmp(&b.size))
-    });
+    // Above, we've sorted the symbols by section and then by address.
 
     // Set symbol sizes based on the next symbol's address
     let mut iter_idx = 0;
     let mut last_end = (0, 0);
-    while iter_idx < symbols_with_section.len() {
-        let symbol_idx = symbols_with_section[iter_idx];
+    while iter_idx < symbols.len() {
+        let symbol_idx = iter_idx;
         let symbol = &symbols[symbol_idx];
-        let section_idx = symbol.section.unwrap();
+        let Some(section_idx) = symbol.section else {
+            // Start of absolute symbols
+            break;
+        };
         iter_idx += 1;
         if symbol.size != 0 {
             if symbol.kind != SymbolKind::Section {
@@ -292,10 +287,9 @@ fn infer_symbol_sizes(arch: &dyn Arch, symbols: &mut [Symbol], sections: &[Secti
             continue;
         }
         let next_symbol = loop {
-            if iter_idx >= symbols_with_section.len() {
+            let Some(next_symbol) = symbols.get(iter_idx) else {
                 break None;
-            }
-            let next_symbol = &symbols[symbols_with_section[iter_idx]];
+            };
             if next_symbol.section != Some(section_idx) {
                 break None;
             }
@@ -351,9 +345,11 @@ fn map_sections(
     split_meta: Option<&SplitMeta>,
 ) -> Result<(Vec<Section>, Vec<usize>)> {
     let mut section_names = BTreeMap::<String, usize>::new();
-    let section_count = obj_file.sections().count();
+    let mut max_index = 0;
+    let section_count =
+        obj_file.sections().inspect(|s| max_index = max_index.max(s.index().0)).count();
     let mut result = Vec::<Section>::with_capacity(section_count);
-    let mut section_indices = Vec::<usize>::with_capacity(section_count + 1);
+    let mut section_indices = vec![usize::MAX; max_index + 1];
     for section in obj_file.sections() {
         let name = section.name().context("Failed to process section name")?;
         let kind = map_section_kind(&section);
@@ -378,9 +374,6 @@ fn map_sections(
         let id = format!("{name}-{unique_id}");
         *unique_id += 1;
 
-        if section_indices.len() <= section.index().0 {
-            section_indices.resize(section.index().0 + 1, usize::MAX);
-        }
         section_indices[section.index().0] = result.len();
         result.push(Section {
             id,
