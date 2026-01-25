@@ -1,0 +1,162 @@
+syntax = "proto3";
+
+package objdiff.diff;
+
+// Top-level diff result containing left and right object diffs
+message DiffResult {
+  optional DiffObject left = 1;
+  optional DiffObject right = 2;
+}
+
+// Diff information for a single object file
+message DiffObject {
+  repeated DiffSection sections = 1;
+  repeated DiffSymbol symbols = 2;
+}
+
+// Diff information for a section
+message DiffSection {
+  string name = 1;
+  DiffSectionKind kind = 2;
+  uint64 size = 3;
+  uint64 address = 4;
+  optional float match_percent = 5;
+  repeated DiffDataSegment data_diff = 6;
+  repeated DiffDataRelocation reloc_diff = 7;
+}
+
+enum DiffSectionKind {
+  SECTION_UNKNOWN = 0;
+  SECTION_CODE = 1;
+  SECTION_DATA = 2;
+  SECTION_BSS = 3;
+  SECTION_COMMON = 4;
+}
+
+// Symbol with diff information
+message DiffSymbol {
+  string name = 1;
+  optional string demangled_name = 2;
+  uint64 address = 3;
+  uint64 size = 4;
+  uint32 flags = 5;
+  // The symbol index in the _other_ object that this symbol was diffed against
+  optional uint32 target_symbol = 6;
+  optional float match_percent = 7;
+  // Instruction diff rows (for code symbols)
+  repeated DiffInstructionRow instructions = 8;
+  // Data diff (for data symbols)
+  repeated DiffDataSegment data_diff = 9;
+}
+
+// Symbol visibility flags (bitmask)
+enum DiffSymbolFlag {
+  SYMBOL_NONE = 0;
+  SYMBOL_GLOBAL = 1;
+  SYMBOL_LOCAL = 2;
+  SYMBOL_WEAK = 4;
+  SYMBOL_COMMON = 8;
+  SYMBOL_HIDDEN = 16;
+}
+
+// A single instruction diff row
+message DiffInstructionRow {
+  DiffKind diff_kind = 1;
+  optional DiffInstruction instruction = 2;
+  repeated DiffInstructionArgDiff arg_diff = 3;
+}
+
+// Parsed instruction information
+message DiffInstruction {
+  uint64 address = 1;
+  uint32 size = 2;
+  // Formatted instruction string
+  string formatted = 3;
+  // Formatted instruction parts
+  repeated DiffInstructionPart parts = 4;
+  // Relocation information (if present)
+  optional DiffRelocation relocation = 5;
+  // Branch destination address
+  optional uint64 branch_dest = 6;
+  // Source line number (if present)
+  optional uint32 line_number = 7;
+}
+
+// An instruction part
+message DiffInstructionPart {
+  oneof part {
+    // Basic text (whitespace, punctuation, etc.)
+    string basic = 1;
+    // Opcode/mnemonic
+    DiffOpcode opcode = 2;
+    // Argument
+    DiffInstructionArg arg = 3;
+    // Separator between arguments (comma)
+    bool separator = 4;
+  }
+}
+
+message DiffOpcode {
+  // Mnemonic string
+  string mnemonic = 1;
+  // Base opcode ID
+  uint32 opcode = 2;
+}
+
+// An instruction argument
+message DiffInstructionArg {
+  oneof arg {
+    // Signed immediate value
+    sint64 signed = 1;
+    // Unsigned immediate value
+    uint64 unsigned = 2;
+    // Opaque string value (register names, etc.)
+    string opaque = 3;
+    // Relocation
+    bool reloc = 4;
+    // Branch destination address
+    uint64 branch_dest = 5;
+  }
+}
+
+// Relocation information
+message DiffRelocation {
+  uint32 type = 1;
+  string type_name = 2;
+  uint32 target_symbol = 3;
+  int64 addend = 4;
+}
+
+// Argument diff information
+message DiffInstructionArgDiff {
+  // If set, this argument differs from the other side.
+  // The value is a rotating index for coloring.
+  optional uint32 diff_index = 1;
+}
+
+// Diff kind for instructions and data
+enum DiffKind {
+  DIFF_NONE = 0;
+  DIFF_REPLACE = 1;
+  DIFF_DELETE = 2;
+  DIFF_INSERT = 3;
+  DIFF_OP_MISMATCH = 4;
+  DIFF_ARG_MISMATCH = 5;
+}
+
+// Data diff segment
+message DiffDataSegment {
+  DiffKind kind = 1;
+  bytes data = 2;
+  // Size may be larger than data length for BSS
+  uint64 size = 3;
+}
+
+// Data relocation diff
+message DiffDataRelocation {
+  DiffRelocation relocation = 1;
+  DiffKind kind = 2;
+  // Address range this relocation covers
+  uint64 start = 3;
+  uint64 end = 4;
+}

@@ -19,6 +19,7 @@ use crossterm::{
     },
 };
 use objdiff_core::{
+    bindings::diff::DiffResult,
     build::{
         BuildConfig, BuildStatus,
         watcher::{Watcher, create_watcher},
@@ -28,7 +29,7 @@ use objdiff_core::{
         build_globset,
         path::{check_path_buf, platform_path, platform_path_serde_option},
     },
-    diff::{DiffObjConfig, MappingConfig, ObjectDiff},
+    diff::{self, DiffObjConfig, DiffSide, MappingConfig, ObjectDiff},
     jobs::{
         Job, JobQueue, JobResult,
         objdiff::{ObjDiffConfig, start_build},
@@ -40,7 +41,10 @@ use typed_path::{Utf8PlatformPath, Utf8PlatformPathBuf};
 
 use crate::{
     cmd::apply_config_args,
-    util::term::crossterm_panic_handler,
+    util::{
+        output::{OutputFormat, write_output},
+        term::crossterm_panic_handler,
+    },
     views::{EventControlFlow, EventResult, UiView, function_diff::FunctionDiffUi},
 };
 
@@ -60,6 +64,12 @@ pub struct Args {
     #[argp(option, short = 'u')]
     /// Unit name within project
     unit: Option<String>,
+    #[argp(option, short = 'o', from_str_fn(platform_path))]
+    /// Output file (one-shot mode) ("-" for stdout)
+    output: Option<Utf8PlatformPathBuf>,
+    #[argp(option)]
+    /// Output format (json, json-pretty, proto) (default: json)
+    format: Option<String>,
     #[argp(positional)]
     /// Function symbol to diff
     symbol: Option<String>,
@@ -158,7 +168,41 @@ pub fn run(args: Args) -> Result<()> {
             _ => bail!("Either target and base or project and unit must be specified"),
         };
 
-    run_interactive(args, target_path, base_path, project_config, unit_options)
+    if let Some(output) = &args.output {
+        run_oneshot(&args, output, target_path.as_deref(), base_path.as_deref(), unit_options)
+    } else {
+        run_interactive(args, target_path, base_path, project_config, unit_options)
+    }
+}
+
+fn run_oneshot(
+    args: &Args,
+    output: &Utf8PlatformPath,
+    target_path: Option<&Utf8PlatformPath>,
+    base_path: Option<&Utf8PlatformPath>,
+    unit_options: Option<ProjectOptions>,
+) -> Result<()> {
+    let output_format = OutputFormat::from_option(args.format.as_deref())?;
+    let (diff_config, mapping_config) = build_config_from_args(args, None, unit_options.as_ref())?;
+    let target = target_path
+        .map(|p| {
+            obj::read::read(p.as_ref(), &diff_config, DiffSide::Target)
+                .with_context(|| format!("Loading {p}"))
+        })
+        .transpose()?;
+    let base = base_path
+        .map(|p| {
+            obj::read::read(p.as_ref(), &diff_config, DiffSide::Base)
+                .with_context(|| format!("Loading {p}"))
+        })
+        .transpose()?;
+    let result =
+        diff::diff_objs(target.as_ref(), base.as_ref(), None, &diff_config, &mapping_config)?;
+    let left = target.as_ref().and_then(|o| result.left.as_ref().map(|d| (o, d)));
+    let right = base.as_ref().and_then(|o| result.right.as_ref().map(|d| (o, d)));
+    let diff_result = DiffResult::new(left, right, &diff_config)?;
+    write_output(&diff_result, Some(output), output_format)?;
+    Ok(())
 }
 
 fn build_config_from_args(
