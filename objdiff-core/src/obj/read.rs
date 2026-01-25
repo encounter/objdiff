@@ -6,8 +6,9 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use anyhow::{Context, Result, anyhow, bail, ensure};
 use core::{cmp::Ordering, num::NonZeroU64};
+
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
 use regex::Regex;
 
