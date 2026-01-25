@@ -812,19 +812,15 @@ pub fn display_sections(
             }
             let section_diff = &diff.sections[section_idx];
             let reverse_fn_order = section.kind == SectionKind::Code && reverse_fn_order;
-            symbols.sort_by(|a, b| {
-                let a = &obj.symbols[a.symbol];
-                let b = &obj.symbols[b.symbol];
-                section_symbol_sort(a, b)
-                    .then_with(|| {
-                        if reverse_fn_order {
-                            b.address.cmp(&a.address)
-                        } else {
-                            a.address.cmp(&b.address)
-                        }
-                    })
-                    .then_with(|| a.size.cmp(&b.size))
-            });
+            if reverse_fn_order {
+                symbols.sort_by(|a, b| {
+                    let a = &obj.symbols[a.symbol];
+                    let b = &obj.symbols[b.symbol];
+                    section_symbol_sort(a, b)
+                        .then_with(|| b.address.cmp(&a.address))
+                        .then_with(|| a.size.cmp(&b.size))
+                });
+            }
             sections.push(SectionDisplay {
                 id: section.id.clone(),
                 name: if section.flags.contains(SectionFlag::Combined) {

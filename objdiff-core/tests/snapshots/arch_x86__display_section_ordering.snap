@@ -10,7 +10,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 28,
+                symbol: 2,
                 is_mapping_symbol: false,
             },
         ],
@@ -23,7 +23,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 29,
+                symbol: 4,
                 is_mapping_symbol: false,
             },
         ],
@@ -36,7 +36,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 30,
+                symbol: 6,
                 is_mapping_symbol: false,
             },
         ],
@@ -49,7 +49,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 31,
+                symbol: 8,
                 is_mapping_symbol: false,
             },
         ],
@@ -62,7 +62,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 34,
+                symbol: 10,
                 is_mapping_symbol: false,
             },
         ],
@@ -75,7 +75,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 37,
+                symbol: 12,
                 is_mapping_symbol: false,
             },
         ],
@@ -88,7 +88,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 38,
+                symbol: 14,
                 is_mapping_symbol: false,
             },
         ],
@@ -101,7 +101,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 39,
+                symbol: 16,
                 is_mapping_symbol: false,
             },
         ],
@@ -114,7 +114,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 40,
+                symbol: 18,
                 is_mapping_symbol: false,
             },
         ],
@@ -127,7 +127,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 41,
+                symbol: 20,
                 is_mapping_symbol: false,
             },
         ],
@@ -140,7 +140,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 42,
+                symbol: 22,
                 is_mapping_symbol: false,
             },
         ],
@@ -153,7 +153,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 43,
+                symbol: 24,
                 is_mapping_symbol: false,
             },
         ],
@@ -166,7 +166,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 50,
+                symbol: 26,
                 is_mapping_symbol: false,
             },
         ],
@@ -179,7 +179,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 53,
+                symbol: 28,
                 is_mapping_symbol: false,
             },
         ],
@@ -192,7 +192,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 56,
+                symbol: 30,
                 is_mapping_symbol: false,
             },
         ],
@@ -205,7 +205,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 57,
+                symbol: 32,
                 is_mapping_symbol: false,
             },
         ],
@@ -218,7 +218,7 @@ expression: section_display
         match_percent: None,
         symbols: [
             SectionDisplaySymbol {
-                symbol: 60,
+                symbol: 34,
                 is_mapping_symbol: false,
             },
         ],

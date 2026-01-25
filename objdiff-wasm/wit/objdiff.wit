@@ -43,6 +43,7 @@ interface diff {
     has-extra,
     size-inferred,
     ignored,
+    compiler-generated,
   }
 
   record symbol-info {

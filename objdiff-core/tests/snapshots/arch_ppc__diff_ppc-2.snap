@@ -5,7 +5,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
 (
     SymbolDiff {
         target_symbol: Some(
-            17,
+            4,
         ),
         match_percent: Some(
             98.92086,
@@ -2649,7 +2649,7 @@ expression: "(target_symbol_diff, base_symbol_diff)"
     },
     SymbolDiff {
         target_symbol: Some(
-            7,
+            4,
         ),
         match_percent: Some(
             98.92086,
