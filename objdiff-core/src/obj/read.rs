@@ -874,11 +874,12 @@ fn combine_sections(
     let mut data_sections = BTreeMap::<String, Vec<usize>>::new();
     let mut text_sections = BTreeMap::<String, Vec<usize>>::new();
     for (i, section) in sections.iter().enumerate() {
-        let base_name = if let Some(i) = section.name[1..].rfind(|c| c == '$' || c == '.') {
-            &section.name[..i + 1]
-        } else {
-            &section.name
-        };
+        let base_name = section
+            .name
+            .get(1..)
+            .and_then(|s| s.rfind(|c| c == '$' || c == '.'))
+            .and_then(|i| section.name.get(..i + 1))
+            .unwrap_or(&section.name);
         match section.kind {
             SectionKind::Data | SectionKind::Bss => {
                 data_sections.entry(base_name.to_string()).or_default().push(i);
