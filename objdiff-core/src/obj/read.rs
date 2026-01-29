@@ -877,7 +877,7 @@ fn combine_sections(
         let base_name = section
             .name
             .get(1..)
-            .and_then(|s| s.rfind(|c| c == '$' || c == '.'))
+            .and_then(|s| s.rfind(['$', '.']))
             .and_then(|i| section.name.get(..i + 1))
             .unwrap_or(&section.name);
         match section.kind {
