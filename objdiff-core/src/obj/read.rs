@@ -11,6 +11,7 @@ use core::{cmp::Ordering, num::NonZeroU64};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
 use regex::Regex;
+use std::sync::LazyLock;
 
 use crate::{
     arch::{Arch, RelocationOverride, RelocationOverrideTarget, new_arch},
@@ -65,9 +66,10 @@ fn get_normalized_symbol_name(name: &str) -> Option<String> {
         // Match MSVC anonymous class symbol names, ignoring the unique ID.
         // e.g. ?CheckContextOr@?A0x24773155@@YA_NPBVDataArray@@@Z
         // and: ?CheckContextOr@?A0xddf6240c@@YA_NPBVDataArray@@@Z
-        let re = Regex::new(r"\?A0x[0-9A-Fa-f]{8}@@").unwrap();
-        if re.is_match(name) {
-            Some(re.replace_all(name, format!("?A0x{DUMMY_UNIQUE_MSVC_ID}@@")).to_string())
+        static RE: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"\?A0x[0-9A-Fa-f]{8}@@").unwrap());
+        if RE.is_match(name) {
+            Some(RE.replace_all(name, format!("?A0x{DUMMY_UNIQUE_MSVC_ID}@@")).to_string())
         } else {
             None
         }
