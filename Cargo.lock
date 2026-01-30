@@ -3539,6 +3539,7 @@ dependencies = [
  "num-traits",
  "objdiff-core",
  "object",
+ "once_cell",
  "pbjson",
  "pbjson-build",
  "powerpc",
