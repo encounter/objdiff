@@ -10,8 +10,6 @@ use core::{cmp::Ordering, num::NonZeroU64};
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
-use once_cell::sync::Lazy;
-use regex::Regex;
 
 use crate::{
     arch::{Arch, RelocationOverride, RelocationOverrideTarget, new_arch},
@@ -66,9 +64,19 @@ fn get_normalized_symbol_name(name: &str) -> Option<String> {
         // Match MSVC anonymous class symbol names, ignoring the unique ID.
         // e.g. ?CheckContextOr@?A0x24773155@@YA_NPBVDataArray@@@Z
         // and: ?CheckContextOr@?A0xddf6240c@@YA_NPBVDataArray@@@Z
-        static RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\?A0x[0-9A-Fa-f]{8}@@").unwrap());
-        if RE.is_match(name) {
-            Some(RE.replace_all(name, format!("?A0x{DUMMY_UNIQUE_MSVC_ID}@@")).to_string())
+        let mut name_str = String::from(name);
+        let anon_indices: Vec<usize> = name_str.match_indices("?A0x").map(|(idx, _)| idx).collect();
+        if !anon_indices.is_empty() {
+            for idx in anon_indices {
+                // the str sequence we're looking for is: ?A0xXXXXXXXX@@
+                if u32::from_str_radix(&name_str[idx + 4..idx + 12], 16).is_ok()
+                    && &name_str[idx + 12..idx + 14] == "@@"
+                {
+                    // if the two above checks passed, we're good to replace the hash
+                    name_str.replace_range(idx + 4..idx + 12, DUMMY_UNIQUE_MSVC_ID);
+                }
+            }
+            Some(name_str)
         } else {
             None
         }
