@@ -7,10 +7,10 @@ use alloc::{
     vec::Vec,
 };
 use core::{cmp::Ordering, num::NonZeroU64};
-use once_cell::sync::Lazy;
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::{
