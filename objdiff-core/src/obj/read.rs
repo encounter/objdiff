@@ -40,6 +40,7 @@ fn map_section_kind(section: &object::Section) -> SectionKind {
 /// e.g. symbol$1234 and symbol$2345 will both be replaced with symbol$0000 internally.
 fn get_normalized_symbol_name(name: &str) -> Option<String> {
     const DUMMY_UNIQUE_ID: &str = "0000";
+    const DUMMY_UNIQUE_MSVC_ID: &str = "00000000";
     if let Some((prefix, suffix)) = name.split_once("@class$")
         && let Some(idx) = suffix.chars().position(|c| !c.is_numeric())
         && idx > 0
@@ -59,6 +60,26 @@ fn get_normalized_symbol_name(name: &str) -> Option<String> {
     {
         // Match GCC symbol.1234 against symbol.2345
         Some(format!("{prefix}.{DUMMY_UNIQUE_ID}"))
+    } else if name.starts_with('?') {
+        // Match MSVC anonymous class symbol names, ignoring the unique ID.
+        // e.g. ?CheckContextOr@?A0x24773155@@YA_NPBVDataArray@@@Z
+        // and: ?CheckContextOr@?A0xddf6240c@@YA_NPBVDataArray@@@Z
+        let mut name_str = String::from(name);
+        let anon_indices: Vec<usize> = name_str.match_indices("?A0x").map(|(idx, _)| idx).collect();
+        if !anon_indices.is_empty() {
+            for idx in anon_indices {
+                // the str sequence we're looking for is: ?A0xXXXXXXXX@@
+                if u32::from_str_radix(&name_str[idx + 4..idx + 12], 16).is_ok()
+                    && &name_str[idx + 12..idx + 14] == "@@"
+                {
+                    // if the two above checks passed, we're good to replace the hash
+                    name_str.replace_range(idx + 4..idx + 12, DUMMY_UNIQUE_MSVC_ID);
+                }
+            }
+            Some(name_str)
+        } else {
+            None
+        }
     } else {
         None
     }
