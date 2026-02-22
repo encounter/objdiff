@@ -238,9 +238,9 @@ impl Arch for ArchPpc {
                         addend: 0,
                     })),
                     |(_, reloc)| match reloc.target() {
-                        object::RelocationTarget::Symbol(index) => Ok(Some(RelocationOverride {
+                        object::RelocationTarget::Symbol(_) => Ok(Some(RelocationOverride {
                             target: RelocationOverrideTarget::Keep,
-                            addend: index.0 as u16 as i16 as i64,
+                            addend: 0,
                         })),
                         target => Err(anyhow!("Unsupported IMAGE_REL_PPC_PAIR target {target:?}")),
                     },
