@@ -40,6 +40,7 @@ message DiffSymbol {
   uint64 address = 3;
   uint64 size = 4;
   uint32 flags = 5;
+  DiffSymbolKind kind = 10;
   // The symbol index in the _other_ object that this symbol was diffed against
   optional uint32 target_symbol = 6;
   optional float match_percent = 7;
@@ -47,6 +48,13 @@ message DiffSymbol {
   repeated DiffInstructionRow instructions = 8;
   // Data diff (for data symbols)
   repeated DiffDataSegment data_diff = 9;
+}
+
+enum DiffSymbolKind {
+  SYMBOL_UNKNOWN = 0;
+  SYMBOL_FUNCTION = 1;
+  SYMBOL_OBJECT = 2;
+  SYMBOL_SECTION = 3;
 }
 
 // Symbol visibility flags (bitmask)

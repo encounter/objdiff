@@ -112,12 +112,24 @@ impl DiffSymbol {
             address: symbol.address,
             size: symbol.size,
             flags: symbol_flags(&symbol.flags),
+            kind: DiffSymbolKind::from(symbol.kind) as i32,
             // Diff information
             target_symbol: symbol_diff.target_symbol.map(|i| i as u32),
             match_percent: symbol_diff.match_percent,
             instructions,
             data_diff,
         })
+    }
+}
+
+impl From<obj::SymbolKind> for DiffSymbolKind {
+    fn from(value: obj::SymbolKind) -> Self {
+        match value {
+            obj::SymbolKind::Unknown => DiffSymbolKind::SymbolUnknown,
+            obj::SymbolKind::Function => DiffSymbolKind::SymbolFunction,
+            obj::SymbolKind::Object => DiffSymbolKind::SymbolObject,
+            obj::SymbolKind::Section => DiffSymbolKind::SymbolSection,
+        }
     }
 }
 
