@@ -39,7 +39,7 @@ message DiffSymbol {
   optional string demangled_name = 2;
   uint64 address = 3;
   uint64 size = 4;
-  uint32 flags = 5;
+  DiffSymbolFlags flags = 5;
   DiffSymbolKind kind = 10;
   // The symbol index in the _other_ object that this symbol was diffed against
   optional uint32 target_symbol = 6;
@@ -57,14 +57,15 @@ enum DiffSymbolKind {
   SYMBOL_SECTION = 3;
 }
 
-// Symbol visibility flags (bitmask)
-enum DiffSymbolFlag {
-  SYMBOL_NONE = 0;
-  SYMBOL_GLOBAL = 1;
-  SYMBOL_LOCAL = 2;
-  SYMBOL_WEAK = 4;
-  SYMBOL_COMMON = 8;
-  SYMBOL_HIDDEN = 16;
+// Symbol flags
+message DiffSymbolFlags {
+  bool global = 1;
+  bool local = 2;
+  bool weak = 3;
+  bool common = 4;
+  bool hidden = 5;
+  bool ignored = 6;
+  bool size_inferred = 7;
 }
 
 // A single instruction diff row

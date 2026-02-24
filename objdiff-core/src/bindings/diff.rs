@@ -43,9 +43,6 @@ impl DiffObject {
         let mut symbols = Vec::with_capacity(obj.symbols.len());
         for (symbol_idx, symbol) in obj.symbols.iter().enumerate() {
             let symbol_diff = &diff.symbols[symbol_idx];
-            if symbol.size == 0 || symbol.flags.contains(SymbolFlag::Ignored) {
-                continue;
-            }
             symbols.push(DiffSymbol::new(obj, symbol_idx, symbol, symbol_diff, diff_config)?);
         }
 
@@ -133,24 +130,16 @@ impl From<obj::SymbolKind> for DiffSymbolKind {
     }
 }
 
-fn symbol_flags(flags: &obj::SymbolFlagSet) -> u32 {
-    let mut result = 0u32;
-    if flags.contains(SymbolFlag::Global) {
-        result |= DiffSymbolFlag::SymbolGlobal as u32;
-    }
-    if flags.contains(SymbolFlag::Local) {
-        result |= DiffSymbolFlag::SymbolLocal as u32;
-    }
-    if flags.contains(SymbolFlag::Weak) {
-        result |= DiffSymbolFlag::SymbolWeak as u32;
-    }
-    if flags.contains(SymbolFlag::Common) {
-        result |= DiffSymbolFlag::SymbolCommon as u32;
-    }
-    if flags.contains(SymbolFlag::Hidden) {
-        result |= DiffSymbolFlag::SymbolHidden as u32;
-    }
-    result
+fn symbol_flags(flags: &obj::SymbolFlagSet) -> Option<DiffSymbolFlags> {
+    Some(DiffSymbolFlags {
+        global: flags.contains(SymbolFlag::Global),
+        local: flags.contains(SymbolFlag::Local),
+        weak: flags.contains(SymbolFlag::Weak),
+        common: flags.contains(SymbolFlag::Common),
+        hidden: flags.contains(SymbolFlag::Hidden),
+        ignored: flags.contains(SymbolFlag::Ignored),
+        size_inferred: flags.contains(SymbolFlag::SizeInferred),
+    })
 }
 
 impl DiffInstructionRow {
