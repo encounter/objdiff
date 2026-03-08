@@ -5,6 +5,7 @@ use typed_path::{Utf8PlatformPathBuf, Utf8UnixPathBuf};
 
 use crate::{
     build::{BuildConfig, BuildStatus, run_make},
+    diff::Demangler,
     jobs::{Job, JobContext, JobResult, JobState, start_job, update_status},
 };
 
@@ -21,6 +22,7 @@ pub struct CreateScratchConfig {
     pub function_name: String,
     pub target_obj: Utf8PlatformPathBuf,
     pub preset_id: Option<u32>,
+    pub demangler: Demangler,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -74,7 +76,14 @@ fn run_create_scratch(
         .text("diff_label", config.function_name.clone())
         .text("diff_flags", diff_flags)
         .text("context", context.unwrap_or_default())
-        .text("source_code", "// Move related code from Context tab to here");
+        .text("source_code", "// Move related code from Context tab to here")
+        .text(
+            "name",
+            config
+                .demangler
+                .demangle(&config.function_name)
+                .unwrap_or_else(|| config.function_name.clone()),
+        );
     if let Some(preset) = config.preset_id {
         form = form.text("preset", preset.to_string());
     }

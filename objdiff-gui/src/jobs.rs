@@ -75,6 +75,7 @@ fn create_scratch_config(
         function_name,
         target_obj: target_path.clone(),
         preset_id: scratch_config.preset_id,
+        demangler: state.effective_diff_config().demangler,
     })
 }
 
