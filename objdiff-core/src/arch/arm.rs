@@ -366,6 +366,22 @@ impl Arch for ArchArm {
                             (imm22 << 1) << 9 >> 9
                         }
 
+                        // Thumb unconditional branch (B, 11-bit offset)
+                        elf::R_ARM_THM_PC11 => {
+                            let data = section_data[address..address + 2].try_into()?;
+                            let insn = self.endianness.read_u16_bytes(data) as i32;
+                            let imm11 = insn & 0x7ff;
+                            (imm11 << 1) << 20 >> 20
+                        }
+
+                        // Thumb conditional branch (B<cond>, 8-bit offset)
+                        elf::R_ARM_THM_PC9 => {
+                            let data = section_data[address..address + 2].try_into()?;
+                            let insn = self.endianness.read_u16_bytes(data) as i32;
+                            let imm8 = insn & 0xff;
+                            (imm8 << 1) << 23 >> 23
+                        }
+
                         // Data
                         elf::R_ARM_ABS32 => {
                             let data = section_data[address..address + 4].try_into()?;
@@ -399,6 +415,8 @@ impl Arch for ArchArm {
                 elf::R_ARM_PC24 => Some("R_ARM_PC24"),
                 elf::R_ARM_XPC25 => Some("R_ARM_XPC25"),
                 elf::R_ARM_CALL => Some("R_ARM_CALL"),
+                elf::R_ARM_THM_PC11 => Some("R_ARM_THM_PC11"),
+                elf::R_ARM_THM_PC9 => Some("R_ARM_THM_PC9"),
                 _ => None,
             },
             _ => None,
@@ -418,6 +436,8 @@ impl Arch for ArchArm {
                 elf::R_ARM_PC24 => 4,
                 elf::R_ARM_XPC25 => 4,
                 elf::R_ARM_CALL => 4,
+                elf::R_ARM_THM_PC11 => 2,
+                elf::R_ARM_THM_PC9 => 2,
                 _ => 1,
             },
             _ => 1,
@@ -544,7 +564,9 @@ impl unarm::FormatIns for ArgsFormatter<'_> {
                 | RelocationFlags::Elf(elf::R_ARM_THM_PC22)
                 | RelocationFlags::Elf(elf::R_ARM_PC24)
                 | RelocationFlags::Elf(elf::R_ARM_XPC25)
-                | RelocationFlags::Elf(elf::R_ARM_CALL) => {
+                | RelocationFlags::Elf(elf::R_ARM_CALL)
+                | RelocationFlags::Elf(elf::R_ARM_THM_PC11)
+                | RelocationFlags::Elf(elf::R_ARM_THM_PC9) => {
                     return self.write(InstructionPart::reloc());
                 }
                 _ => {}
