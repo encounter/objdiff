@@ -572,7 +572,7 @@ impl GuestDiffConfig for ResourceDiffConfig {
     }
 }
 
-struct CachedObject(Weak<obj::Object>, u64);
+struct CachedObject(Weak<obj::Object>, u64, diff::DiffSide);
 
 struct ObjectCache(RefCell<Vec<CachedObject>>);
 
@@ -608,12 +608,13 @@ impl GuestObject for ResourceObject {
         diff_side: DiffSide,
     ) -> Result<Object, String> {
         let hash = xxh3_64(&data);
+        let core_diff_side: objdiff_core::diff::DiffSide = diff_side.into();
         let mut cached = None;
         OBJECT_CACHE.borrow_mut().retain(|c| {
             if c.0.strong_count() == 0 {
                 return false;
             }
-            if c.1 == hash {
+            if c.1 == hash && c.2 == core_diff_side {
                 cached = c.0.upgrade();
             }
             true
@@ -623,9 +624,9 @@ impl GuestObject for ResourceObject {
         }
         let diff_config = diff_config.get::<ResourceDiffConfig>().0.borrow();
         let obj = Rc::new(
-            obj::read::parse(&data, &diff_config, diff_side.into()).map_err(|e| e.to_string())?,
+            obj::read::parse(&data, &diff_config, core_diff_side).map_err(|e| e.to_string())?,
         );
-        OBJECT_CACHE.borrow_mut().push(CachedObject(Rc::downgrade(&obj), hash));
+        OBJECT_CACHE.borrow_mut().push(CachedObject(Rc::downgrade(&obj), hash, core_diff_side));
         Ok(Object::new(ResourceObject(obj, hash)))
     }
 
