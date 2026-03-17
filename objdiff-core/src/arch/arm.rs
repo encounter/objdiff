@@ -224,7 +224,9 @@ impl Arch for ArchArm {
             }
 
             // Check how many bytes we can/should read
-            let num_code_bytes = if data.len() >= 4 {
+            let bytes_until_next_mapping =
+                next_mapping.map(|m| (m.address - address) as usize).unwrap_or(usize::MAX);
+            let num_code_bytes = if data.len() >= 4 && bytes_until_next_mapping >= 4 {
                 if mode == unarm::ParseMode::Data && address & 3 != 0 {
                     // 32-bit .word value should be aligned on a 4-byte boundary, otherwise use .hword
                     2
