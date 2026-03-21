@@ -475,9 +475,7 @@ impl Arch for ArchPpc {
 
     fn post_init(&mut self, _sections: &[Section], _symbols: &[Symbol], symbol_indices: &[usize]) {
         // Change the indices used as keys from the original symbol indices to the new symbol array indices
-        if let Some(new_map) = Self::convert_extab_map_indices(self, symbol_indices) {
-            self.extab.replace(new_map);
-        }
+        self.extab = Self::convert_extab_map_indices(self, symbol_indices);
     }
 }
 
@@ -488,7 +486,7 @@ impl ArchPpc {
 
     pub fn convert_extab_map_indices(
         &self,
-        symbol_indices: &[usize]
+        symbol_indices: &[usize],
     ) -> Option<BTreeMap<usize, ExceptionInfo>> {
         let new_map: BTreeMap<usize, ExceptionInfo> =
             self.extab.as_ref()?.iter().map(|e| (symbol_indices[*e.0 + 1], e.1.clone())).collect();
