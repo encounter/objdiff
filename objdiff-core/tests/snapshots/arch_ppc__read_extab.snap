@@ -9,7 +9,7 @@ Object {
         ),
         extab: Some(
             {
-                10: ExceptionInfo {
+                1: ExceptionInfo {
                     eti_symbol: ExtabSymbolRef {
                         original_index: 5,
                         name: "@31",
@@ -35,7 +35,7 @@ Object {
                     },
                     dtors: [],
                 },
-                11: ExceptionInfo {
+                2: ExceptionInfo {
                     eti_symbol: ExtabSymbolRef {
                         original_index: 7,
                         name: "@52",
@@ -95,7 +95,7 @@ Object {
                         },
                     ],
                 },
-                12: ExceptionInfo {
+                3: ExceptionInfo {
                     eti_symbol: ExtabSymbolRef {
                         original_index: 9,
                         name: "@60",
