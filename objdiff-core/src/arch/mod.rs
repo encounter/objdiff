@@ -340,7 +340,8 @@ impl dyn Arch {
 
 pub trait Arch: Any + Debug + Send + Sync {
     /// Finishes arch-specific initialization that must be done after sections have been combined.
-    fn post_init(&mut self, _sections: &[Section], _symbols: &[Symbol], _symbol_indices: &[usize]) {}
+    fn post_init(&mut self, _sections: &[Section], _symbols: &[Symbol], _symbol_indices: &[usize]) {
+    }
 
     /// Generate a list of instructions references (offset, size, opcode) from the given code.
     ///
