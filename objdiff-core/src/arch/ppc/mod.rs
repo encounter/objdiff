@@ -472,6 +472,18 @@ impl Arch for ArchPpc {
         }
         Ok(next_address.saturating_sub(symbol.address))
     }
+
+    fn post_init(&mut self, _sections: &[Section], _symbols: &[Symbol], symbol_indices: &[usize]) {
+        // Change the indices used as keys from the original symbol indices to the new symbol array indices
+        if let Some(extab) = self.extab.as_ref() {
+            let new_map: BTreeMap<usize, ExceptionInfo> = extab.iter().map(|e| {
+                (symbol_indices[*e.0 + 1], e.1.clone())
+            }).collect();
+
+            self.extab.replace(new_map);
+        }
+
+    }
 }
 
 impl ArchPpc {

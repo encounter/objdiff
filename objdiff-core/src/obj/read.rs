@@ -1089,7 +1089,7 @@ pub fn parse(data: &[u8], config: &DiffObjConfig, diff_side: DiffSide) -> Result
         combine_sections(&mut sections, &mut symbols, config)?;
     }
     add_section_symbols(&sections, &mut symbols);
-    arch.post_init(&sections, &symbols);
+    arch.post_init(&sections, &symbols, &symbol_indices);
     let mut obj = Object {
         arch,
         endianness: obj_file.endianness(),

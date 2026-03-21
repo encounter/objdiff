@@ -162,7 +162,7 @@ impl ArchArm {
 }
 
 impl Arch for ArchArm {
-    fn post_init(&mut self, sections: &[Section], symbols: &[Symbol]) {
+    fn post_init(&mut self, sections: &[Section], symbols: &[Symbol], _symbol_indices: &[usize]) {
         self.disasm_modes = Self::get_mapping_symbols(sections, symbols);
     }
 
