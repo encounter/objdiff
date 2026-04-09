@@ -301,6 +301,13 @@
       "description": "Display MIPS register names with a '$' prefix."
     },
     {
+      "id": "mips.prodgSnAsInvertedRegs",
+      "type": "boolean",
+      "default": false,
+      "name": "ProDG SN AS VU register order",
+      "description": "Changes the register order for specific R5900EE instructions to match the syntax used by the SN AS from ProDG (-snas flag)."
+    },
+    {
       "id": "ppc.calculatePoolRelocations",
       "type": "boolean",
       "default": true,
@@ -363,7 +370,7 @@
     {
       "id": "mips",
       "name": "MIPS",
-      "properties": ["mips.abi", "mips.instrCategory", "mips.registerPrefix"]
+      "properties": ["mips.abi", "mips.instrCategory", "mips.registerPrefix", "mips.prodgSnAsInvertedRegs"]
     },
     {
       "id": "ppc",

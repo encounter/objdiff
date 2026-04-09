@@ -4201,9 +4201,9 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 
 [[package]]
 name = "rabbitizer"
-version = "2.0.0-alpha.7"
+version = "2.0.0-alpha.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2e1f4b7a38a8aa084cf0a9d54921a1546701249f4c2d8b3a3748d34b7415d47"
+checksum = "831ef2f5b90ad594176a99fbf291d5cbeebc6881caefc2d0b54b154f754b96ed"
 dependencies = [
  "bitflags 2.10.0",
  "ordered-float",

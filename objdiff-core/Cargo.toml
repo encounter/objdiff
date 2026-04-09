@@ -155,7 +155,7 @@ powerpc = { version = "0.4", optional = true }
 rlwinmdec = { version = "1.1", optional = true }
 
 # mips
-rabbitizer = { version = "2.0.0-alpha.7", default-features = false, features = ["all_extensions"], optional = true }
+rabbitizer = { version = "2.0.0-alpha.8", default-features = false, features = ["all_extensions"], optional = true }
 
 # x86
 iced-x86 = { version = "1.21", default-features = false, features = ["decoder", "intel", "gas", "masm", "nasm", "exhaustive_enums", "no_std"], optional = true }
