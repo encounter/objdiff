@@ -188,6 +188,7 @@ impl ArchMips {
         rabbitizer::InstructionDisplayFlags::default()
             .with_unknown_instr_comment(false)
             .with_use_dollar(diff_config.mips_register_prefix)
+            .with_r5900ee_prodg_sn_as_inverted_regs(diff_config.mips_prodg_sn_as_inverted_regs)
     }
 
     fn parse_ins_ref(
@@ -237,7 +238,8 @@ impl Arch for ArchMips {
         let instruction = self.parse_ins_ref(resolved.ins_ref, resolved.code, diff_config)?;
         let display_flags = self.instruction_display_flags(diff_config);
         let opcode = instruction.opcode();
-        cb(InstructionPart::opcode(opcode.name(), opcode as u16))?;
+        let mnemonic = instruction.mnemonic_display(&display_flags).to_string();
+        cb(InstructionPart::opcode(mnemonic, opcode as u16))?;
         push_args(&instruction, resolved.relocation, &display_flags, cb)?;
         Ok(())
     }
