@@ -352,7 +352,7 @@ impl Arch for ArchArm {
                         | elf::R_ARM_CALL
                         | elf::R_ARM_JUMP24 => {
                             let data = section_data[address..address + 4].try_into()?;
-                            let addend = self.endianness.read_i32_bytes(data);
+                            let addend = self.endianness.read_i32(data);
                             let imm24 = addend & 0xffffff;
                             (imm24 << 2) << 8 >> 8
                         }
@@ -360,9 +360,9 @@ impl Arch for ArchArm {
                         // Thumb calls
                         elf::R_ARM_THM_PC22 | elf::R_ARM_THM_XPC22 => {
                             let data = section_data[address..address + 2].try_into()?;
-                            let high = self.endianness.read_i16_bytes(data) as i32;
+                            let high = self.endianness.read_i16(data) as i32;
                             let data = section_data[address + 2..address + 4].try_into()?;
-                            let low = self.endianness.read_i16_bytes(data) as i32;
+                            let low = self.endianness.read_i16(data) as i32;
 
                             let imm22 = ((high & 0x7ff) << 11) | (low & 0x7ff);
                             (imm22 << 1) << 9 >> 9
@@ -371,7 +371,7 @@ impl Arch for ArchArm {
                         // Thumb unconditional branch (B, 11-bit offset)
                         elf::R_ARM_THM_PC11 => {
                             let data = section_data[address..address + 2].try_into()?;
-                            let insn = self.endianness.read_u16_bytes(data) as i32;
+                            let insn = self.endianness.read_u16(data) as i32;
                             let imm11 = insn & 0x7ff;
                             (imm11 << 1) << 20 >> 20
                         }
@@ -379,7 +379,7 @@ impl Arch for ArchArm {
                         // Thumb conditional branch (B<cond>, 8-bit offset)
                         elf::R_ARM_THM_PC9 => {
                             let data = section_data[address..address + 2].try_into()?;
-                            let insn = self.endianness.read_u16_bytes(data) as i32;
+                            let insn = self.endianness.read_u16(data) as i32;
                             let imm8 = insn & 0xff;
                             (imm8 << 1) << 23 >> 23
                         }
@@ -387,7 +387,7 @@ impl Arch for ArchArm {
                         // Data
                         elf::R_ARM_ABS32 => {
                             let data = section_data[address..address + 4].try_into()?;
-                            self.endianness.read_i32_bytes(data)
+                            self.endianness.read_i32(data)
                         }
 
                         flags => bail!("Unsupported ARM implicit relocation {flags:?}"),

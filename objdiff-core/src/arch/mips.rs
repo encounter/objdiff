@@ -77,7 +77,7 @@ impl ArchMips {
             .and_then(|section| section.data().ok())
             .and_then(|data| data.get(0x14..0x18))
             .and_then(|s| s.try_into().ok())
-            .map(|bytes| endianness.read_i32_bytes(bytes))
+            .map(|bytes| endianness.read_i32(bytes))
             .unwrap_or(0);
 
         // Parse all relocations to pair R_MIPS_HI16 and R_MIPS_LO16. Since the instructions only
@@ -98,13 +98,13 @@ impl ArchMips {
                 match reloc.flags() {
                     object::RelocationFlags::Elf { r_type: elf::R_MIPS_HI16 } => {
                         let code = data[addr as usize..addr as usize + 4].try_into()?;
-                        let addend = ((endianness.read_u32_bytes(code) & 0x0000FFFF) << 16) as i32;
+                        let addend = ((endianness.read_u32(code) & 0x0000FFFF) << 16) as i32;
                         last_hi = Some(addr);
                         last_hi_addend = addend;
                     }
                     object::RelocationFlags::Elf { r_type: elf::R_MIPS_LO16 } => {
                         let code = data[addr as usize..addr as usize + 4].try_into()?;
-                        let addend = (endianness.read_u32_bytes(code) & 0x0000FFFF) as i16 as i32;
+                        let addend = (endianness.read_u32(code) & 0x0000FFFF) as i16 as i32;
                         let full_addend = (last_hi_addend + addend) as i64;
                         if let Some(hi_addr) = last_hi.take() {
                             addends.insert(hi_addr, full_addend);
@@ -197,7 +197,7 @@ impl ArchMips {
         diff_config: &DiffObjConfig,
     ) -> Result<rabbitizer::Instruction> {
         Ok(rabbitizer::Instruction::new(
-            self.endianness.read_u32_bytes(code.try_into()?),
+            self.endianness.read_u32(code.try_into()?),
             Vram::new(ins_ref.address as u32),
             self.instruction_flags(diff_config),
         ))
@@ -217,7 +217,7 @@ impl Arch for ArchMips {
         let mut ops = Vec::<InstructionRef>::with_capacity(code.len() / 4);
         let mut cur_addr = address as u32;
         for chunk in code.chunks_exact(4) {
-            let code = self.endianness.read_u32_bytes(chunk.try_into()?);
+            let code = self.endianness.read_u32(chunk.try_into()?);
             let instruction =
                 rabbitizer::Instruction::new(code, Vram::new(cur_addr), instruction_flags);
             let opcode = instruction.opcode() as u16;
@@ -269,7 +269,7 @@ impl Arch for ArchMips {
                     let data = section.data()?;
                     let code = self
                         .endianness
-                        .read_u32_bytes(data[address as usize..address as usize + 4].try_into()?);
+                        .read_u32(data[address as usize..address as usize + 4].try_into()?);
                     let addend = match r_type {
                         elf::R_MIPS_32 => code as i64,
                         elf::R_MIPS_26 => ((code & 0x03FFFFFF) << 2) as i64,
@@ -366,7 +366,7 @@ impl Arch for ArchMips {
             && new_address >= symbol.address + 4
             && let Some(data) = section.data_range(new_address - 4, 4)
             && let instruction = rabbitizer::Instruction::new(
-                self.endianness.read_u32_bytes(data.try_into().unwrap()),
+                self.endianness.read_u32(data.try_into().unwrap()),
                 Vram::new((new_address - 4) as u32),
                 self.default_instruction_flags(),
             )

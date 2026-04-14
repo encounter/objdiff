@@ -53,7 +53,7 @@ impl SplitMeta {
                     result.module_name = Some(string);
                 }
                 NT_SPLIT_MODULE_ID => {
-                    result.module_id = Some(e.read_u32_bytes(
+                    result.module_id = Some(e.read_u32(
                         note.desc.try_into().map_err(|_| anyhow!("Invalid module ID size"))?,
                     ));
                 }
@@ -61,14 +61,13 @@ impl SplitMeta {
                     let vec = if is_64 {
                         let mut vec = vec![0u64; note.desc.len() / 8];
                         for (i, v) in vec.iter_mut().enumerate() {
-                            *v =
-                                e.read_u64_bytes(note.desc[i * 8..(i + 1) * 8].try_into().unwrap());
+                            *v = e.read_u64(note.desc[i * 8..(i + 1) * 8].try_into().unwrap());
                         }
                         vec
                     } else {
                         let mut vec = vec![0u64; note.desc.len() / 4];
                         for (i, v) in vec.iter_mut().enumerate() {
-                            *v = e.read_u32_bytes(note.desc[i * 4..(i + 1) * 4].try_into().unwrap())
+                            *v = e.read_u32(note.desc[i * 4..(i + 1) * 4].try_into().unwrap())
                                 as u64;
                         }
                         vec
@@ -101,7 +100,7 @@ impl SplitMeta {
         }
         if let Some(module_id) = self.module_id {
             write_note_header(writer, e, NT_SPLIT_MODULE_ID, 4)?;
-            writer.write_all(&e.write_u32_bytes(module_id))?;
+            writer.write_all(&e.write_u32(module_id))?;
         }
         if let Some(virtual_addresses) = &self.virtual_addresses {
             let count = virtual_addresses.len();
@@ -109,11 +108,11 @@ impl SplitMeta {
             write_note_header(writer, e, NT_SPLIT_VIRTUAL_ADDRESSES, size)?;
             if is_64 {
                 for &addr in virtual_addresses {
-                    writer.write_all(&e.write_u64_bytes(addr))?;
+                    writer.write_all(&e.write_u64(addr))?;
                 }
             } else {
                 for &addr in virtual_addresses {
-                    writer.write_all(&e.write_u32_bytes(addr as u32))?;
+                    writer.write_all(&e.write_u32(addr as u32))?;
                 }
             }
         }
@@ -208,9 +207,9 @@ where
     E: Endian,
     W: std::io::Write + ?Sized,
 {
-    writer.write_all(&e.write_u32_bytes(ELF_NOTE_SPLIT.len() as u32 + 1))?; // Name Size
-    writer.write_all(&e.write_u32_bytes(desc_len as u32))?; // Desc Size
-    writer.write_all(&e.write_u32_bytes(kind))?; // Type
+    writer.write_all(&e.write_u32(ELF_NOTE_SPLIT.len() as u32 + 1))?; // Name Size
+    writer.write_all(&e.write_u32(desc_len as u32))?; // Desc Size
+    writer.write_all(&e.write_u32(kind))?; // Type
     writer.write_all(ELF_NOTE_SPLIT)?; // Name
     writer.write_all(&[0; 1])?; // Null terminator
     align_data_to_4(writer, ELF_NOTE_SPLIT.len() + 1)?;

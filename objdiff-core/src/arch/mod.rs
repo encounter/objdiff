@@ -151,7 +151,7 @@ impl DataType {
                 }
             }
             DataType::Int16 => {
-                let i = endian.read_i16_bytes(bytes.try_into().unwrap());
+                let i = endian.read_i16(bytes.try_into().unwrap());
                 strs.push(LiteralInfo { literal: format!("{i:#x}"), ..Default::default() });
 
                 if i < 0 {
@@ -162,7 +162,7 @@ impl DataType {
                 }
             }
             DataType::Int32 => {
-                let i = endian.read_i32_bytes(bytes.try_into().unwrap());
+                let i = endian.read_i32(bytes.try_into().unwrap());
                 strs.push(LiteralInfo { literal: format!("{i:#x}"), ..Default::default() });
 
                 if i < 0 {
@@ -173,7 +173,7 @@ impl DataType {
                 }
             }
             DataType::Int64 => {
-                let i = endian.read_i64_bytes(bytes.try_into().unwrap());
+                let i = endian.read_i64(bytes.try_into().unwrap());
                 strs.push(LiteralInfo { literal: format!("{i:#x}"), ..Default::default() });
 
                 if i < 0 {
