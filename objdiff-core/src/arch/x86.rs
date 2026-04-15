@@ -193,8 +193,8 @@ impl Arch for ArchX86 {
         if resolved.ins_ref.opcode == OPCODE_DATA {
             let (mnemonic, imm) = match resolved.ins_ref.size {
                 1 => (".byte", resolved.code[0] as u64),
-                2 => (".word", self.endianness.read_u16_bytes(resolved.code.try_into()?) as u64),
-                4 => (".dword", self.endianness.read_u32_bytes(resolved.code.try_into()?) as u64),
+                2 => (".word", self.endianness.read_u16(resolved.code.try_into()?) as u64),
+                4 => (".dword", self.endianness.read_u32(resolved.code.try_into()?) as u64),
                 _ => bail!("Unsupported x86 inline data size {}", resolved.ins_ref.size),
             };
             cb(InstructionPart::opcode(mnemonic, OPCODE_DATA))?;
@@ -288,7 +288,7 @@ impl Arch for ArchX86 {
                 } => {
                     let data =
                         section.data()?[address as usize..address as usize + 4].try_into()?;
-                    self.endianness.read_i32_bytes(data) as i64
+                    self.endianness.read_i32(data) as i64
                 }
                 flags => bail!("Unsupported x86 implicit relocation {flags:?}"),
             },
@@ -299,13 +299,13 @@ impl Arch for ArchX86 {
                 | object::RelocationFlags::Elf { r_type: elf::R_X86_64_32 | elf::R_X86_64_PC32 } => {
                     let data =
                         section.data()?[address as usize..address as usize + 4].try_into()?;
-                    self.endianness.read_i32_bytes(data) as i64
+                    self.endianness.read_i32(data) as i64
                 }
                 object::RelocationFlags::Coff { typ: pe::IMAGE_REL_AMD64_ADDR64 }
                 | object::RelocationFlags::Elf { r_type: elf::R_X86_64_64 } => {
                     let data =
                         section.data()?[address as usize..address as usize + 8].try_into()?;
-                    self.endianness.read_i64_bytes(data)
+                    self.endianness.read_i64(data)
                 }
                 flags => bail!("Unsupported x86-64 implicit relocation {flags:?}"),
             },
