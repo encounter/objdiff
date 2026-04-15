@@ -61,8 +61,7 @@ impl SplitMeta {
                     let vec = if is_64 {
                         let mut vec = vec![0u64; note.desc.len() / 8];
                         for (i, v) in vec.iter_mut().enumerate() {
-                            *v =
-                                e.read_u64(note.desc[i * 8..(i + 1) * 8].try_into().unwrap());
+                            *v = e.read_u64(note.desc[i * 8..(i + 1) * 8].try_into().unwrap());
                         }
                         vec
                     } else {
