@@ -42,15 +42,15 @@ pub mod x86;
 pub const OPCODE_INVALID: u16 = u16::MAX;
 pub const OPCODE_DATA: u16 = u16::MAX - 1;
 
-const SUPPORTED_ENCODINGS: [(&encoding_rs::Encoding, &str); 7] = [
+const SUPPORTED_ENCODINGS_WITH_NULL_TERM: [(&encoding_rs::Encoding, &str); 5] = [
     (encoding_rs::UTF_8, "UTF-8"),
     (encoding_rs::SHIFT_JIS, "Shift JIS"),
-    (encoding_rs::UTF_16BE, "UTF-16BE"),
-    (encoding_rs::UTF_16LE, "UTF-16LE"),
     (encoding_rs::WINDOWS_1252, "Windows-1252"),
     (encoding_rs::EUC_JP, "EUC-JP"),
     (encoding_rs::BIG5, "Big5"),
 ];
+const SUPPORTED_ENCODINGS_NO_NULL_TERM: [(&encoding_rs::Encoding, &str); 2] =
+    [(encoding_rs::UTF_16BE, "UTF-16BE"), (encoding_rs::UTF_16LE, "UTF-16LE")];
 
 /// Represents the type of data associated with an instruction
 #[derive(PartialEq)]
@@ -174,24 +174,27 @@ impl DataType {
                 strs.push((format!("{bytes:#?}"), None, None));
             }
             DataType::String => {
-                // Special case to display (ASCII) as the label for ASCII-only strings.
-                let mut is_ascii = false;
-                if bytes.is_ascii()
-                    && let Ok(str) = str::from_utf8(bytes)
-                {
-                    let trimmed = str.trim_end_matches('\0');
-                    if !trimmed.is_empty() {
-                        let copy_string = escape_special_ascii_characters(trimmed);
-                        strs.push((trimmed.to_string(), Some("ASCII".into()), Some(copy_string)));
-                        is_ascii = true;
+                if let Some(nul_idx) = bytes.iter().position(|&c| c == b'\0') {
+                    let str_bytes = &bytes[..nul_idx];
+                    // Special case to display (ASCII) as the label for ASCII-only strings.
+                    let (cow, _, had_errors) = encoding_rs::UTF_8.decode(str_bytes);
+                    if !had_errors && cow.is_ascii() {
+                        let string = format!("{cow}");
+                        let copy_string = escape_special_ascii_characters(&string);
+                        strs.push((string, Some("ASCII".into()), Some(copy_string)));
+                    }
+                    for (encoding, encoding_name) in SUPPORTED_ENCODINGS_WITH_NULL_TERM {
+                        let (cow, _, had_errors) = encoding.decode(str_bytes);
+                        // Avoid showing ASCII-only strings more than once if the encoding is ASCII-compatible.
+                        if !had_errors && (!encoding.is_ascii_compatible() || !cow.is_ascii()) {
+                            let string = format!("{cow}");
+                            let copy_string = escape_special_ascii_characters(&string);
+                            strs.push((string, Some(encoding_name.into()), Some(copy_string)));
+                        }
                     }
                 }
 
-                for (encoding, encoding_name) in SUPPORTED_ENCODINGS {
-                    // Avoid showing ASCII-only strings more than once if the encoding is ASCII-compatible.
-                    if is_ascii && encoding.is_ascii_compatible() {
-                        continue;
-                    }
+                for (encoding, encoding_name) in SUPPORTED_ENCODINGS_NO_NULL_TERM {
                     let (cow, _, had_errors) = encoding.decode(bytes);
                     if had_errors {
                         continue;

@@ -122,3 +122,90 @@ fn read_vmx128_coff() {
     let output = common::display_diff(&obj, &diff, symbol_idx, &diff_config);
     insta::assert_snapshot!(output);
 }
+
+#[test]
+#[cfg(feature = "ppc")]
+fn decode_sjis_pooled_strings() {
+    // Test multiple pooled Shift JIS strings separated by a single null byte between entries. (MWCC)
+    let diff_config = diff::DiffObjConfig { combine_data_sections: true, ..Default::default() };
+    let obj = obj::read::parse(
+        include_object!("data/ppc/m_Do_hostIO.o"),
+        &diff_config,
+        diff::DiffSide::Base,
+    )
+    .unwrap();
+    common::assert_literal_value(
+        &obj,
+        &diff_config,
+        "createChild__16mDoHIO_subRoot_cFPCcP13JORReflexible",
+        15,
+        "Shift JIS",
+        "危険：既に登録されているホストIOをふたたび登録しようとしています<%s>\n",
+    );
+    common::assert_literal_value(
+        &obj,
+        &diff_config,
+        "createChild__16mDoHIO_subRoot_cFPCcP13JORReflexible",
+        42,
+        "Shift JIS",
+        "ホストIOの空きエントリがありません。登録できませんでした。\n",
+    );
+}
+
+#[test]
+#[cfg(feature = "ppc")]
+fn decode_utf16_unpooled_strings() {
+    // Test unpooled UTF-16BE wide strings with null bytes at the start, end, and in the middle of the string. (MSVC)
+    let diff_config = diff::DiffObjConfig { combine_data_sections: true, ..Default::default() };
+    let obj = obj::read::parse(
+        include_object!("data/ppc/KinectSharePanel.obj"),
+        &diff_config,
+        diff::DiffSide::Base,
+    )
+    .unwrap();
+    common::assert_literal_value(
+        &obj,
+        &diff_config,
+        "?OnPostLink@KinectSharePanel@@AAA?AVDataNode@@PAVDataArray@@@Z",
+        84,
+        "UTF-16BE",
+        "Title Text",
+    );
+    common::assert_literal_value(
+        &obj,
+        &diff_config,
+        "?OnPostLink@KinectSharePanel@@AAA?AVDataNode@@PAVDataArray@@@Z",
+        120,
+        "UTF-16BE",
+        "http://www.dancecentral.com/content-assets/2012/06/2012E3LogoBox_tn.jpg",
+    );
+}
+
+#[test]
+#[cfg(feature = "ppc")]
+fn decode_ascii_strings_with_null_padding() {
+    // Test unpooled ASCII strings with more than one null byte at the end.
+    let diff_config = diff::DiffObjConfig { combine_data_sections: true, ..Default::default() };
+    let obj = obj::read::parse(
+        include_object!("data/ppc/vmx128.obj"),
+        &diff_config,
+        diff::DiffSide::Base,
+    )
+    .unwrap();
+    common::assert_literal_value(
+        &obj,
+        &diff_config,
+        "?PrintVector@@YAXPBDU__vector4@@@Z",
+        24,
+        "ASCII",
+        "%s: [%.2f, %.2f, %.2f, %.2f]\n",
+    );
+    common::assert_literal_value(
+        &obj,
+        &diff_config,
+        "?ReservedRegisterExample@@YAXXZ",
+        59,
+        "ASCII",
+        "Result from vr66",
+    );
+}

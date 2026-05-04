@@ -513,6 +513,8 @@ pub fn ppc_data_flow_analysis(
     )
 }
 
+// Note: This function only supports MWCC ASCII strings.
+// Other encodings and other compilers are currently not supported.
 fn get_string_data(obj: &Object, symbol_index: usize, offset: Simm) -> Option<&str> {
     if let Some(sym) = obj.symbols.get(symbol_index)
         && sym.name.starts_with("@stringBase")

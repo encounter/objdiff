@@ -359,9 +359,12 @@ impl Arch for ArchPpc {
 
     fn guess_data_type(&self, resolved: ResolvedInstructionRef, bytes: &[u8]) -> Option<DataType> {
         if resolved.relocation.is_some_and(|r| {
-            r.symbol.name.starts_with("@stringBase") || r.symbol.name.starts_with("$SG")
+            r.symbol.name.starts_with("@stringBase")
+                || r.symbol.name.starts_with("@wstringBase")
+                || r.symbol.name.starts_with("$SG")
+                || r.symbol.demangled_name == Some("`string'".to_string())
         }) {
-            // Pooled string.
+            // Compiler-generated symbol name for a string or a pool of strings.
             return Some(DataType::String);
         }
         let opcode = powerpc::Opcode::from(resolved.ins_ref.opcode);

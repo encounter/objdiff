@@ -50,3 +50,25 @@ macro_rules! include_object {
         include_bytes_align_as!(u64, $path)
     };
 }
+
+#[allow(dead_code)]
+pub fn assert_literal_value(
+    obj: &Object,
+    diff_config: &DiffObjConfig,
+    function_name: &str,
+    ins_row_idx: usize,
+    literal_label: &str,
+    literal_value: &str,
+) {
+    let symbol_idx = obj.symbols.iter().position(|s| s.name == function_name).unwrap();
+    let diff = objdiff_core::diff::code::no_diff_code(obj, symbol_idx, diff_config).unwrap();
+    let ins_ref = diff.instruction_rows[ins_row_idx].ins_ref.unwrap();
+    let resolved = obj.resolve_instruction_ref(symbol_idx, ins_ref).unwrap();
+    let literals = objdiff_core::diff::display::display_ins_data_literals(obj, resolved);
+    let target_literal = literals
+        .iter()
+        .find(|(_, label_override, _)| *label_override == Some(literal_label.to_string()));
+    assert_ne!(target_literal, None);
+    let (literal, _, _) = target_literal.unwrap();
+    assert_eq!(literal, literal_value);
+}
