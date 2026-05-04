@@ -51,6 +51,7 @@ macro_rules! include_object {
     };
 }
 
+#[allow(dead_code)]
 pub fn assert_literal_value(
     obj: &Object,
     diff_config: &DiffObjConfig,
