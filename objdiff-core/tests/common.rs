@@ -61,10 +61,10 @@ pub fn assert_literal_value(
     literal_value: &str,
 ) {
     let symbol_idx = obj.symbols.iter().position(|s| s.name == function_name).unwrap();
-    let diff = objdiff_core::diff::code::no_diff_code(&obj, symbol_idx, &diff_config).unwrap();
+    let diff = objdiff_core::diff::code::no_diff_code(obj, symbol_idx, diff_config).unwrap();
     let ins_ref = diff.instruction_rows[ins_row_idx].ins_ref.unwrap();
     let resolved = obj.resolve_instruction_ref(symbol_idx, ins_ref).unwrap();
-    let literals = objdiff_core::diff::display::display_ins_data_literals(&obj, resolved);
+    let literals = objdiff_core::diff::display::display_ins_data_literals(obj, resolved);
     let target_literal = literals
         .iter()
         .find(|(_, label_override, _)| *label_override == Some(literal_label.to_string()));
