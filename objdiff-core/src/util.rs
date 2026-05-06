@@ -28,14 +28,14 @@ impl<N: PrimInt> fmt::UpperHex for ReallySigned<N> {
 
 pub fn read_u32(obj_file: &object::File, reader: &mut &[u8]) -> Result<u32> {
     ensure!(reader.len() >= 4, "Not enough bytes to read u32");
-    let value = u32::from_ne_bytes(reader[..4].try_into()?);
+    let value = reader[..4].try_into()?;
     *reader = &reader[4..];
     Ok(obj_file.endianness().read_u32(value))
 }
 
 pub fn read_u16(obj_file: &object::File, reader: &mut &[u8]) -> Result<u16> {
     ensure!(reader.len() >= 2, "Not enough bytes to read u16");
-    let value = u16::from_ne_bytes(reader[..2].try_into()?);
+    let value = reader[..2].try_into()?;
     *reader = &reader[2..];
     Ok(obj_file.endianness().read_u16(value))
 }
