@@ -181,6 +181,12 @@ impl Arch for ArchX86 {
                 branch_dest,
             });
         }
+        // Strip trailing int3 instructions (alignment padding) for x64
+        if matches!(self.arch, Architecture::X86_64) {
+            while out.last().map(|i| i.opcode == iced_x86::Mnemonic::Int3 as u16).unwrap_or(false) {
+                out.pop();
+            }
+        }
         Ok(out)
     }
 
