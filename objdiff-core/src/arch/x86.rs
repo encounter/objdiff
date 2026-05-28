@@ -300,13 +300,14 @@ impl Arch for ArchX86 {
             },
             Architecture::X86_64 => match relocation.flags() {
                 object::RelocationFlags::Coff {
-                    typ: pe::IMAGE_REL_AMD64_ADDR32NB
-                    | pe::IMAGE_REL_AMD64_REL32
-                    | pe::IMAGE_REL_AMD64_REL32_1
-                    | pe::IMAGE_REL_AMD64_REL32_2
-                    | pe::IMAGE_REL_AMD64_REL32_3
-                    | pe::IMAGE_REL_AMD64_REL32_4
-                    | pe::IMAGE_REL_AMD64_REL32_5,
+                    typ:
+                        pe::IMAGE_REL_AMD64_ADDR32NB
+                        | pe::IMAGE_REL_AMD64_REL32
+                        | pe::IMAGE_REL_AMD64_REL32_1
+                        | pe::IMAGE_REL_AMD64_REL32_2
+                        | pe::IMAGE_REL_AMD64_REL32_3
+                        | pe::IMAGE_REL_AMD64_REL32_4
+                        | pe::IMAGE_REL_AMD64_REL32_5,
                 }
                 | object::RelocationFlags::Elf { r_type: elf::R_X86_64_32 | elf::R_X86_64_PC32 } => {
                     let data =
