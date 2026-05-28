@@ -80,7 +80,13 @@ impl ArchX86 {
             },
             Architecture::X86_64 => match flags {
                 RelocationFlags::Coff(typ) => match typ {
-                    pe::IMAGE_REL_AMD64_ADDR32NB | pe::IMAGE_REL_AMD64_REL32 => Some(4),
+                    pe::IMAGE_REL_AMD64_ADDR32NB
+                    | pe::IMAGE_REL_AMD64_REL32
+                    | pe::IMAGE_REL_AMD64_REL32_1
+                    | pe::IMAGE_REL_AMD64_REL32_2
+                    | pe::IMAGE_REL_AMD64_REL32_3
+                    | pe::IMAGE_REL_AMD64_REL32_4
+                    | pe::IMAGE_REL_AMD64_REL32_5 => Some(4),
                     pe::IMAGE_REL_AMD64_ADDR64 => Some(8),
                     _ => None,
                 },
@@ -294,7 +300,13 @@ impl Arch for ArchX86 {
             },
             Architecture::X86_64 => match relocation.flags() {
                 object::RelocationFlags::Coff {
-                    typ: pe::IMAGE_REL_AMD64_ADDR32NB | pe::IMAGE_REL_AMD64_REL32,
+                    typ: pe::IMAGE_REL_AMD64_ADDR32NB
+                    | pe::IMAGE_REL_AMD64_REL32
+                    | pe::IMAGE_REL_AMD64_REL32_1
+                    | pe::IMAGE_REL_AMD64_REL32_2
+                    | pe::IMAGE_REL_AMD64_REL32_3
+                    | pe::IMAGE_REL_AMD64_REL32_4
+                    | pe::IMAGE_REL_AMD64_REL32_5,
                 }
                 | object::RelocationFlags::Elf { r_type: elf::R_X86_64_32 | elf::R_X86_64_PC32 } => {
                     let data =
@@ -337,6 +349,11 @@ impl Arch for ArchX86 {
                     pe::IMAGE_REL_AMD64_ADDR64 => Some("IMAGE_REL_AMD64_ADDR64"),
                     pe::IMAGE_REL_AMD64_ADDR32NB => Some("IMAGE_REL_AMD64_ADDR32NB"),
                     pe::IMAGE_REL_AMD64_REL32 => Some("IMAGE_REL_AMD64_REL32"),
+                    pe::IMAGE_REL_AMD64_REL32_1 => Some("IMAGE_REL_AMD64_REL32_1"),
+                    pe::IMAGE_REL_AMD64_REL32_2 => Some("IMAGE_REL_AMD64_REL32_2"),
+                    pe::IMAGE_REL_AMD64_REL32_3 => Some("IMAGE_REL_AMD64_REL32_3"),
+                    pe::IMAGE_REL_AMD64_REL32_4 => Some("IMAGE_REL_AMD64_REL32_4"),
+                    pe::IMAGE_REL_AMD64_REL32_5 => Some("IMAGE_REL_AMD64_REL32_5"),
                     _ => None,
                 },
                 _ => None,
