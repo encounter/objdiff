@@ -118,6 +118,51 @@
       "description": "Combines all text sections into one."
     },
     {
+      "id": "preferredStringEncoding",
+      "type": "choice",
+      "default": "none",
+      "name": "Preferred string encoding",
+      "description": "Which encoding to use when diffing string literals used in functions.",
+      "items": [
+        {
+          "value": "none",
+          "name": "None"
+        },
+        {
+          "value": "ascii",
+          "name": "ASCII"
+        },
+        {
+          "value": "utf_8",
+          "name": "UTF-8"
+        },
+        {
+          "value": "shift_jis",
+          "name": "Shift JIS"
+        },
+        {
+          "value": "windows_1252",
+          "name": "Windows-1252"
+        },
+        {
+          "value": "euc_jp",
+          "name": "EUC-JP"
+        },
+        {
+          "value": "big5",
+          "name": "Big5"
+        },
+        {
+          "value": "utf_16be",
+          "name": "UTF-16BE"
+        },
+        {
+          "value": "utf_16le",
+          "name": "UTF-16LE"
+        }
+      ]
+    },
+    {
       "id": "arm.archVersion",
       "type": "choice",
       "default": "auto",
@@ -338,6 +383,7 @@
       "id": "general",
       "name": "General",
       "properties": [
+        "preferredStringEncoding",
         "functionRelocDiffs",
         "demangler",
         "showSymbolSizes",

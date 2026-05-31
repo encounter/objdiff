@@ -58,6 +58,7 @@ pub struct LiteralInfo {
     pub label_override: Option<String>,
     pub copy_string: Option<String>,
     pub hidden: bool,
+    pub is_string: bool,
 }
 
 /// Represents the type of data associated with an instruction
@@ -200,6 +201,7 @@ impl DataType {
                             label_override: Some("ASCII".into()),
                             copy_string: Some(copy_string),
                             hidden: false,
+                            is_string: true,
                         });
                     }
                     for (encoding, encoding_name) in SUPPORTED_ENCODINGS_WITH_NULL_TERM {
@@ -214,6 +216,7 @@ impl DataType {
                                 label_override: Some(encoding_name.into()),
                                 copy_string: Some(copy_string),
                                 hidden,
+                                is_string: true,
                             });
                         }
                     }
@@ -232,6 +235,7 @@ impl DataType {
                             label_override: Some(encoding_name.into()),
                             copy_string: Some(copy_string),
                             hidden: false,
+                            is_string: true,
                         });
                     }
                 }
