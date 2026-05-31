@@ -286,7 +286,7 @@ impl GuestDisplay for Component {
                 })];
             }
         };
-        diff::display::instruction_context(obj, resolved, &ins)
+        diff::display::instruction_context(obj, resolved, &ins, &diff_config)
             .into_iter()
             .map(ContextItem::from)
             .collect()
@@ -335,7 +335,7 @@ impl GuestDisplay for Component {
                 })];
             }
         };
-        diff::display::instruction_hover(obj, resolved, &ins)
+        diff::display::instruction_hover(obj, resolved, &ins, &diff_config)
             .into_iter()
             .map(HoverItem::from)
             .collect()

@@ -15,7 +15,7 @@ use object::Endian as _;
 
 use crate::{
     diff::{
-        DiffObjConfig, DiffSide,
+        ConfigEnum, DiffObjConfig, DiffSide, PreferredStringEncoding,
         display::{ContextItem, HoverItem, InstructionPart},
     },
     obj::{
@@ -57,8 +57,26 @@ pub struct LiteralInfo {
     pub literal: String,
     pub label_override: Option<String>,
     pub copy_string: Option<String>,
-    pub hidden: bool,
+    pub hidden: bool, // Only used when the user hasn't set a preferred string encoding
     pub is_string: bool,
+}
+
+impl LiteralInfo {
+    pub fn hidden(&self, diff_config: Option<&DiffObjConfig>) -> bool {
+        let Some(diff_config) = diff_config else {
+            return self.hidden;
+        };
+        if !self.is_string {
+            return self.hidden;
+        }
+        if diff_config.preferred_string_encoding == PreferredStringEncoding::None {
+            return self.hidden;
+        }
+        let Some(ref label) = self.label_override else {
+            return self.hidden;
+        };
+        *label != diff_config.preferred_string_encoding.name()
+    }
 }
 
 /// Represents the type of data associated with an instruction

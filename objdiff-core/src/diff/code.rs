@@ -12,12 +12,9 @@ use super::{
     InstructionBranchTo, InstructionDiffKind, InstructionDiffRow, PreferredStringEncoding,
     SymbolDiff, display::display_ins_data_literals,
 };
-use crate::{
-    diff::ConfigEnum,
-    obj::{
-        InstructionArg, InstructionArgValue, InstructionRef, Object, ResolvedInstructionRef,
-        ResolvedRelocation, ResolvedSymbol, SymbolKind,
-    },
+use crate::obj::{
+    InstructionArg, InstructionArgValue, InstructionRef, Object, ResolvedInstructionRef,
+    ResolvedRelocation, ResolvedSymbol, SymbolKind,
 };
 
 pub fn no_diff_code(
@@ -314,21 +311,8 @@ fn ins_data_literals_eq(
     if diff_config.preferred_string_encoding == PreferredStringEncoding::None {
         return left_literals == right_literals;
     }
-    let preferred_encoding_name = diff_config.preferred_string_encoding.name();
-    left_literals.retain(|lit_info| {
-        !lit_info.is_string
-            || lit_info
-                .label_override
-                .as_ref()
-                .is_none_or(|label| *label == preferred_encoding_name)
-    });
-    right_literals.retain(|lit_info| {
-        !lit_info.is_string
-            || lit_info
-                .label_override
-                .as_ref()
-                .is_none_or(|label| *label == preferred_encoding_name)
-    });
+    left_literals.retain(|lit_info| !lit_info.hidden(Some(diff_config)));
+    right_literals.retain(|lit_info| !lit_info.hidden(Some(diff_config)));
     left_literals == right_literals
 }
 
