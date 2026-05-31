@@ -503,6 +503,9 @@ pub fn relocation_context(
         if !literals.is_empty() {
             out.push(ContextItem::Separator);
             for lit_info in literals {
+                if lit_info.hidden {
+                    continue;
+                }
                 out.push(ContextItem::Copy {
                     value: lit_info.literal,
                     label: lit_info.label_override,
@@ -696,6 +699,9 @@ pub fn instruction_hover(
             if !literals.is_empty() {
                 out.push(HoverItem::Separator);
                 for lit_info in literals {
+                    if lit_info.hidden {
+                        continue;
+                    }
                     out.push(HoverItem::Text {
                         label: lit_info.label_override.unwrap_or_else(|| ty.to_string()),
                         value: format!("{:?}", lit_info.literal),

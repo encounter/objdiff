@@ -57,6 +57,7 @@ pub struct LiteralInfo {
     pub literal: String,
     pub label_override: Option<String>,
     pub copy_string: Option<String>,
+    pub hidden: bool,
 }
 
 /// Represents the type of data associated with an instruction
@@ -198,18 +199,21 @@ impl DataType {
                             literal: string,
                             label_override: Some("ASCII".into()),
                             copy_string: Some(copy_string),
+                            hidden: false,
                         });
                     }
                     for (encoding, encoding_name) in SUPPORTED_ENCODINGS_WITH_NULL_TERM {
                         let (cow, _, had_errors) = encoding.decode(str_bytes);
-                        // Avoid showing ASCII-only strings more than once if the encoding is ASCII-compatible.
-                        if !had_errors && (!encoding.is_ascii_compatible() || !cow.is_ascii()) {
+                        if !had_errors {
                             let string = format!("{cow}");
                             let copy_string = escape_special_ascii_characters(&string);
+                            // Avoid showing ASCII-only strings more than once if the encoding is ASCII-compatible.
+                            let hidden = encoding.is_ascii_compatible() && cow.is_ascii();
                             strs.push(LiteralInfo {
                                 literal: string,
                                 label_override: Some(encoding_name.into()),
                                 copy_string: Some(copy_string),
+                                hidden,
                             });
                         }
                     }
@@ -227,6 +231,7 @@ impl DataType {
                             literal: trimmed.to_string(),
                             label_override: Some(encoding_name.into()),
                             copy_string: Some(copy_string),
+                            hidden: false,
                         });
                     }
                 }
