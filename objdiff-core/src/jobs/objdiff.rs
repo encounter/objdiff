@@ -175,8 +175,8 @@ fn run_build(
     Ok(Box::new(ObjDiffResult {
         first_status,
         second_status,
-        first_obj: first_obj.and_then(|o| result.left.map(|d| (o, d))),
-        second_obj: second_obj.and_then(|o| result.right.map(|d| (o, d))),
+        first_obj: first_obj.zip(result.left),
+        second_obj: second_obj.zip(result.right),
         time,
     }))
 }
