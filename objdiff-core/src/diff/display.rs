@@ -12,6 +12,7 @@ use itertools::Itertools;
 use regex::Regex;
 
 use crate::{
+    arch::LiteralInfo,
     diff::{
         DataDiffKind, DataDiffRow, DiffObjConfig, InstructionDiffKind, InstructionDiffRow,
         ObjectDiff, SymbolDiff, data::resolve_relocation,
@@ -501,8 +502,12 @@ pub fn relocation_context(
         let literals = display_ins_data_literals(obj, ins);
         if !literals.is_empty() {
             out.push(ContextItem::Separator);
-            for (literal, label_override, copy_string) in literals {
-                out.push(ContextItem::Copy { value: literal, label: label_override, copy_string });
+            for lit_info in literals {
+                out.push(ContextItem::Copy {
+                    value: lit_info.literal,
+                    label: lit_info.label_override,
+                    copy_string: lit_info.copy_string,
+                });
             }
         }
     }
@@ -690,10 +695,10 @@ pub fn instruction_hover(
             let literals = display_ins_data_literals(obj, resolved);
             if !literals.is_empty() {
                 out.push(HoverItem::Separator);
-                for (literal, label_override, _) in literals {
+                for lit_info in literals {
                     out.push(HoverItem::Text {
-                        label: label_override.unwrap_or_else(|| ty.to_string()),
-                        value: format!("{literal:?}"),
+                        label: lit_info.label_override.unwrap_or_else(|| ty.to_string()),
+                        value: format!("{:?}", lit_info.literal),
                         color: HoverItemColor::Normal,
                     });
                 }
@@ -880,7 +885,7 @@ pub fn display_ins_data_labels(obj: &Object, resolved: ResolvedInstructionRef) -
 pub fn display_ins_data_literals(
     obj: &Object,
     resolved: ResolvedInstructionRef,
-) -> Vec<(String, Option<String>, Option<String>)> {
+) -> Vec<LiteralInfo> {
     let Some(reloc) = resolved.relocation else {
         return Vec::new();
     };
