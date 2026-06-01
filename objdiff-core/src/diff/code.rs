@@ -9,8 +9,8 @@ use anyhow::{Context, Result, anyhow, ensure};
 
 use super::{
     DiffObjConfig, FunctionRelocDiffs, InstructionArgDiffIndex, InstructionBranchFrom,
-    InstructionBranchTo, InstructionDiffKind, InstructionDiffRow, SymbolDiff,
-    display::display_ins_data_literals,
+    InstructionBranchTo, InstructionDiffKind, InstructionDiffRow, PreferredStringEncoding,
+    SymbolDiff, display::display_ins_data_literals,
 };
 use crate::obj::{
     InstructionArg, InstructionArgValue, InstructionRef, Object, ResolvedInstructionRef,
@@ -296,6 +296,26 @@ pub(crate) fn section_name_eq(
     })
 }
 
+fn ins_data_literals_eq(
+    left_obj: &Object,
+    right_obj: &Object,
+    left_ins: ResolvedInstructionRef,
+    right_ins: ResolvedInstructionRef,
+    diff_config: &DiffObjConfig,
+) -> bool {
+    let mut left_literals = display_ins_data_literals(left_obj, left_ins);
+    let mut right_literals = display_ins_data_literals(right_obj, right_ins);
+    if left_literals == right_literals {
+        return true;
+    }
+    if diff_config.preferred_string_encoding == PreferredStringEncoding::Auto {
+        return left_literals == right_literals;
+    }
+    left_literals.retain(|lit_info| !lit_info.hidden(Some(diff_config)));
+    right_literals.retain(|lit_info| !lit_info.hidden(Some(diff_config)));
+    left_literals == right_literals
+}
+
 fn reloc_eq(
     left_obj: &Object,
     right_obj: &Object,
@@ -330,8 +350,7 @@ fn reloc_eq(
                 && (diff_config.function_reloc_diffs == FunctionRelocDiffs::NameAddress
                     || left_reloc.symbol.kind != SymbolKind::Object
                     || right_reloc.symbol.size == 0 // Likely a pool symbol like ...data, don't treat this as a diff
-                    || display_ins_data_literals(left_obj, left_ins)
-                        == display_ins_data_literals(right_obj, right_ins))
+                    || ins_data_literals_eq(left_obj, right_obj, left_ins, right_ins, diff_config))
         }
         (Some(_), None) | (None, Some(_)) | (None, None) => symbol_name_addend_matches,
     }

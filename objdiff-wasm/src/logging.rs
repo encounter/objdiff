@@ -44,6 +44,7 @@ pub fn init(level: wasi_logging::Level) {
 }
 
 #[cfg(not(feature = "std"))]
+#[cfg(target_arch = "wasm32")]
 #[panic_handler]
 fn panic(info: &core::panic::PanicInfo) -> ! {
     use alloc::string::ToString;

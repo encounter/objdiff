@@ -12,6 +12,7 @@ use itertools::Itertools;
 use regex::Regex;
 
 use crate::{
+    arch::LiteralInfo,
     diff::{
         DataDiffKind, DataDiffRow, DiffObjConfig, InstructionDiffKind, InstructionDiffRow,
         ObjectDiff, SymbolDiff, data::resolve_relocation,
@@ -494,15 +495,21 @@ pub fn relocation_context(
     obj: &Object,
     reloc: ResolvedRelocation,
     ins: Option<ResolvedInstructionRef>,
+    diff_config: Option<&DiffObjConfig>,
 ) -> Vec<ContextItem> {
     let mut out = Vec::new();
     out.append(&mut symbol_context(obj, reloc.relocation.target_symbol));
     if let Some(ins) = ins {
-        let literals = display_ins_data_literals(obj, ins);
+        let mut literals = display_ins_data_literals(obj, ins);
+        literals.retain(|lit_info| !lit_info.hidden(diff_config));
         if !literals.is_empty() {
             out.push(ContextItem::Separator);
-            for (literal, label_override, copy_string) in literals {
-                out.push(ContextItem::Copy { value: literal, label: label_override, copy_string });
+            for lit_info in literals {
+                out.push(ContextItem::Copy {
+                    value: lit_info.literal,
+                    label: lit_info.label_override,
+                    copy_string: lit_info.copy_string,
+                });
             }
         }
     }
@@ -555,7 +562,7 @@ pub fn data_row_context(obj: &Object, diff_row: &DataDiffRow) -> Vec<ContextItem
         prev_reloc = Some(reloc);
 
         let reloc = resolve_relocation(&obj.symbols, reloc);
-        out.append(&mut relocation_context(obj, reloc, None));
+        out.append(&mut relocation_context(obj, reloc, None, None));
     }
     out
 }
@@ -592,6 +599,7 @@ pub fn instruction_context(
     obj: &Object,
     resolved: ResolvedInstructionRef,
     ins: &ParsedInstruction,
+    diff_config: &DiffObjConfig,
 ) -> Vec<ContextItem> {
     let mut out = Vec::new();
     let mut hex_string = String::new();
@@ -636,7 +644,7 @@ pub fn instruction_context(
     }
     if let Some(reloc) = resolved.relocation {
         out.push(ContextItem::Separator);
-        out.append(&mut relocation_context(obj, reloc, Some(resolved)));
+        out.append(&mut relocation_context(obj, reloc, Some(resolved), Some(diff_config)));
     }
     out
 }
@@ -645,6 +653,7 @@ pub fn instruction_hover(
     obj: &Object,
     resolved: ResolvedInstructionRef,
     ins: &ParsedInstruction,
+    diff_config: &DiffObjConfig,
 ) -> Vec<HoverItem> {
     let mut out = Vec::new();
     out.push(HoverItem::Text {
@@ -687,13 +696,14 @@ pub fn instruction_hover(
         out.append(&mut relocation_hover(obj, reloc, None));
         let bytes = obj.symbol_data(reloc.relocation.target_symbol).unwrap_or(&[]);
         if let Some(ty) = obj.arch.guess_data_type(resolved, bytes) {
-            let literals = display_ins_data_literals(obj, resolved);
+            let mut literals = display_ins_data_literals(obj, resolved);
+            literals.retain(|lit_info| !lit_info.hidden(Some(diff_config)));
             if !literals.is_empty() {
                 out.push(HoverItem::Separator);
-                for (literal, label_override, _) in literals {
+                for lit_info in literals {
                     out.push(HoverItem::Text {
-                        label: label_override.unwrap_or_else(|| ty.to_string()),
-                        value: format!("{literal:?}"),
+                        label: lit_info.label_override.unwrap_or_else(|| ty.to_string()),
+                        value: format!("{:?}", lit_info.literal),
                         color: HoverItemColor::Normal,
                     });
                 }
@@ -880,7 +890,7 @@ pub fn display_ins_data_labels(obj: &Object, resolved: ResolvedInstructionRef) -
 pub fn display_ins_data_literals(
     obj: &Object,
     resolved: ResolvedInstructionRef,
-) -> Vec<(String, Option<String>, Option<String>)> {
+) -> Vec<LiteralInfo> {
     let Some(reloc) = resolved.relocation else {
         return Vec::new();
     };

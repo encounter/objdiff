@@ -198,8 +198,8 @@ fn run_oneshot(
         .transpose()?;
     let result =
         diff::diff_objs(target.as_ref(), base.as_ref(), None, &diff_config, &mapping_config)?;
-    let left = target.as_ref().and_then(|o| result.left.as_ref().map(|d| (o, d)));
-    let right = base.as_ref().and_then(|o| result.right.as_ref().map(|d| (o, d)));
+    let left = target.as_ref().zip(result.left.as_ref());
+    let right = base.as_ref().zip(result.right.as_ref());
     let diff_result = DiffResult::new(left, right, &diff_config)?;
     write_output(&diff_result, Some(output), output_format)?;
     Ok(())

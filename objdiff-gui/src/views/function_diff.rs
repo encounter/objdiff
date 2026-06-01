@@ -97,7 +97,7 @@ fn ins_hover_ui(
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Wrap);
-        hover_items_ui(ui, instruction_hover(obj, resolved, &ins), appearance);
+        hover_items_ui(ui, instruction_hover(obj, resolved, &ins, diff_config), appearance);
     });
 }
 
@@ -128,7 +128,12 @@ fn ins_context_menu(
     ui.scope(|ui| {
         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
         ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Truncate);
-        context_menu_items_ui(ui, instruction_context(obj, resolved, &ins), column, appearance);
+        context_menu_items_ui(
+            ui,
+            instruction_context(obj, resolved, &ins, diff_config),
+            column,
+            appearance,
+        );
     });
 }
 
