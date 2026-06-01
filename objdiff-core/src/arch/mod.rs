@@ -69,7 +69,7 @@ impl LiteralInfo {
         if !self.is_string {
             return self.hidden;
         }
-        if diff_config.preferred_string_encoding == PreferredStringEncoding::None {
+        if diff_config.preferred_string_encoding == PreferredStringEncoding::Auto {
             return self.hidden;
         }
         let Some(ref label) = self.label_override else {

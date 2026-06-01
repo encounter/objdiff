@@ -120,13 +120,13 @@
     {
       "id": "preferredStringEncoding",
       "type": "choice",
-      "default": "none",
+      "default": "auto",
       "name": "Preferred string encoding",
       "description": "Which encoding to use when diffing string literals used in functions.",
       "items": [
         {
-          "value": "none",
-          "name": "None"
+          "value": "auto",
+          "name": "Auto"
         },
         {
           "value": "ascii",

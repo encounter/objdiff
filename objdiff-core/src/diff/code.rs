@@ -308,7 +308,7 @@ fn ins_data_literals_eq(
     if left_literals == right_literals {
         return true;
     }
-    if diff_config.preferred_string_encoding == PreferredStringEncoding::None {
+    if diff_config.preferred_string_encoding == PreferredStringEncoding::Auto {
         return left_literals == right_literals;
     }
     left_literals.retain(|lit_info| !lit_info.hidden(Some(diff_config)));
