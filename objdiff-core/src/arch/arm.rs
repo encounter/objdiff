@@ -184,6 +184,7 @@ impl Arch for ArchArm {
             .disasm_modes
             .get(&section_index)
             .map(|x| x.as_slice())
+            .filter(|x| !x.is_empty())
             .unwrap_or(&fallback_mappings);
         let first_mapping_idx = mapping_symbols
             .binary_search_by_key(&start_addr, |x| x.address)
@@ -629,5 +630,30 @@ impl unarm::FormatIns for ArgsFormatter<'_> {
             self.write(InstructionPart::basic(")"))?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::collections::BTreeMap;
+
+    use super::*;
+
+    #[test]
+    fn scan_instructions_empty_mapping_symbols() {
+        // A code section that has an entry in disasm_modes but no mapping symbols
+        // (e.g. an ELF whose .text has no $a/$t/$d symbol) should fall back to ARM
+        // mode instead of indexing an empty slice and panicking.
+        let mut disasm_modes = BTreeMap::new();
+        disasm_modes.insert(0, Vec::new());
+        let arch = ArchArm {
+            disasm_modes,
+            detected_version: None,
+            endianness: object::Endianness::Little,
+        };
+        let code = [0x00, 0x00, 0xa0, 0xe1]; // mov r0, r0
+        let refs =
+            arch.scan_instructions_internal(0, &code, 0, &[], &DiffObjConfig::default()).unwrap();
+        assert_eq!(refs.len(), 1);
     }
 }
