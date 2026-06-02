@@ -456,7 +456,9 @@ pub fn find_similar_code_symbols(
         let Some(match_percent) = left_diff.match_percent else { continue };
         results.push(SimilarSymbol { symbol_idx: target_idx, match_percent });
     }
-    results.sort_by(|a, b| b.match_percent.partial_cmp(&a.match_percent).unwrap_or(core::cmp::Ordering::Equal));
+    results.sort_by(|a, b| {
+        b.match_percent.partial_cmp(&a.match_percent).unwrap_or(core::cmp::Ordering::Equal)
+    });
     results
 }
 

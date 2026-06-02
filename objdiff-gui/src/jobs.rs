@@ -134,11 +134,8 @@ pub fn start_find_similar_job(
     column: usize,
 ) {
     let Some(selected_obj) = &state.config.selected_obj else { return };
-    let source_path = if column == 0 {
-        selected_obj.target_path.clone()
-    } else {
-        selected_obj.base_path.clone()
-    };
+    let source_path =
+        if column == 0 { selected_obj.target_path.clone() } else { selected_obj.base_path.clone() };
     let Some(source_path) = source_path else { return };
     let objects = state
         .objects

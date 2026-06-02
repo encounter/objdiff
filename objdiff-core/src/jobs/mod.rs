@@ -11,11 +11,8 @@ use std::{
 use anyhow::Result;
 
 use crate::jobs::{
-    check_update::CheckUpdateResult,
-    create_scratch::CreateScratchResult,
-    find_similar::FindSimilarResult,
-    objdiff::ObjDiffResult,
-    update::UpdateResult,
+    check_update::CheckUpdateResult, create_scratch::CreateScratchResult,
+    find_similar::FindSimilarResult, objdiff::ObjDiffResult, update::UpdateResult,
 };
 
 pub mod check_update;

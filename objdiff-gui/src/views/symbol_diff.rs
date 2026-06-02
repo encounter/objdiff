@@ -14,10 +14,8 @@ use objdiff_core::{
         },
     },
     jobs::{
-        Job, JobQueue, JobResult,
-        create_scratch::CreateScratchResult,
-        find_similar::SimilarFunctionMatch,
-        objdiff::ObjDiffResult,
+        Job, JobQueue, JobResult, create_scratch::CreateScratchResult,
+        find_similar::SimilarFunctionMatch, objdiff::ObjDiffResult,
     },
     obj::{Object, Section, SectionKind, Symbol, SymbolFlag},
 };
@@ -91,7 +89,10 @@ pub enum DiffViewAction {
     ScrollToRow(usize),
     /// Find and display code symbols similar to the given symbol.
     /// `column` is 0 for left object, 1 for right object.
-    FindSimilarFunctions { symbol_idx: usize, column: usize },
+    FindSimilarFunctions {
+        symbol_idx: usize,
+        column: usize,
+    },
     /// Close the similar functions panel.
     CloseSimilarFunctions,
     /// Set the similar functions search filter.
@@ -100,6 +101,11 @@ pub enum DiffViewAction {
     SetSimilarShowTarget(bool),
     /// Show/hide base-side results in the similar functions panel.
     SetSimilarShowBase(bool),
+    /// Set the minimum/maximum match-percent filter for the similar functions panel.
+    SetSimilarPercentRange {
+        min: f32,
+        max: f32,
+    },
 }
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -135,6 +141,8 @@ pub struct SimilarFunctionsState {
     pub search_regex: Option<Regex>,
     pub show_target: bool,
     pub show_base: bool,
+    pub min_percent: f32,
+    pub max_percent: f32,
 }
 
 #[derive(Default)]
@@ -198,10 +206,10 @@ impl DiffViewState {
                 false
             }
             JobResult::FindSimilar(result) => {
-                if let Some(result) = take(result) {
-                    if let Some(state) = &mut self.similar_functions {
-                        state.matches = Some(result.matches);
-                    }
+                if let Some(result) = take(result)
+                    && let Some(state) = &mut self.similar_functions
+                {
+                    state.matches = Some(result.matches);
                 }
                 false
             }
@@ -429,6 +437,12 @@ impl DiffViewState {
                     state.show_base = value;
                 }
             }
+            DiffViewAction::SetSimilarPercentRange { min, max } => {
+                if let Some(state) = &mut self.similar_functions {
+                    state.min_percent = min;
+                    state.max_percent = max;
+                }
+            }
             DiffViewAction::FindSimilarFunctions { symbol_idx, column } => {
                 let Some(result) = self.build.as_deref() else { return };
                 let Some((source_obj, _)) = (match column {
@@ -450,6 +464,8 @@ impl DiffViewState {
                     search_regex: None,
                     show_target: true,
                     show_base: true,
+                    min_percent: 0.0,
+                    max_percent: 100.0,
                 });
                 let Ok(state_guard) = state.read() else { return };
                 start_find_similar_job(ctx, jobs, &state_guard, source_symbol_name, column);
@@ -959,6 +975,9 @@ pub fn similar_functions_col_ui(
                         return false;
                     }
                     if is_base && !state.show_base {
+                        return false;
+                    }
+                    if m.match_percent < state.min_percent || m.match_percent > state.max_percent {
                         return false;
                     }
                     if let Some(re) = &state.search_regex {

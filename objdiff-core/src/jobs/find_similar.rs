@@ -53,9 +53,8 @@ fn run_find_similar(
 ) -> Result<Box<FindSimilarResult>> {
     let diff_side = if config.source_column == 0 { DiffSide::Target } else { DiffSide::Base };
     let source_obj = read::read(config.source_path.as_ref(), &config.diff_config, diff_side)?;
-    let source_symbol_idx = source_obj
-        .symbol_by_name(&config.source_symbol_name)
-        .ok_or_else(|| {
+    let source_symbol_idx =
+        source_obj.symbol_by_name(&config.source_symbol_name).ok_or_else(|| {
             anyhow::anyhow!("Source symbol '{}' not found", config.source_symbol_name)
         })?;
 
@@ -86,16 +85,13 @@ fn run_find_similar(
             instructions.len()
         );
         for ins_ref in &instructions {
-            let Some(resolved) =
-                source_obj.resolve_instruction_ref(source_symbol_idx, *ins_ref)
+            let Some(resolved) = source_obj.resolve_instruction_ref(source_symbol_idx, *ins_ref)
             else {
                 continue;
             };
             let mut text = format!("{:#010x}  ", ins_ref.address);
-            let _ = source_obj.arch.display_instruction(
-                resolved,
-                &config.diff_config,
-                &mut |part| {
+            let _ =
+                source_obj.arch.display_instruction(resolved, &config.diff_config, &mut |part| {
                     match part {
                         InstructionPart::Basic(s) | InstructionPart::Opcode(s, _) => {
                             text.push_str(&s)
@@ -109,9 +105,7 @@ fn run_find_similar(
                         InstructionPart::Arg(InstructionArg::Reloc) => {
                             if let Some(reloc) = resolved.relocation {
                                 let sym = &source_obj.symbols[reloc.relocation.target_symbol];
-                                text.push_str(
-                                    sym.demangled_name.as_deref().unwrap_or(&sym.name),
-                                );
+                                text.push_str(sym.demangled_name.as_deref().unwrap_or(&sym.name));
                                 if reloc.relocation.addend != 0 {
                                     text.push_str(&format!("+{:#x}", reloc.relocation.addend));
                                 }
@@ -122,8 +116,7 @@ fn run_find_similar(
                         InstructionPart::Separator => text.push_str(", "),
                     }
                     Ok(())
-                },
-            );
+                });
             log::info!("{text}");
         }
     }
@@ -132,13 +125,7 @@ fn run_find_similar(
     let mut all_matches = Vec::new();
 
     for (idx, scan_obj) in config.objects.iter().enumerate() {
-        update_status(
-            context,
-            format!("Scanning {}", scan_obj.name),
-            idx as u32,
-            total,
-            &cancel,
-        )?;
+        update_status(context, format!("Scanning {}", scan_obj.name), idx as u32, total, &cancel)?;
 
         let project_dir = config.build_config.project_dir.as_deref();
 
@@ -149,17 +136,20 @@ fn run_find_similar(
             };
             let Some(path) = path else { continue };
 
-            if should_build {
-                if let Some(project_dir) = project_dir {
-                    if let Ok(rel_path) = path.strip_prefix(project_dir) {
-                        run_make(&config.build_config, rel_path.with_unix_encoding().as_ref());
-                    }
-                }
+            if should_build
+                && let Some(project_dir) = project_dir
+                && let Ok(rel_path) = path.strip_prefix(project_dir)
+            {
+                run_make(&config.build_config, rel_path.with_unix_encoding().as_ref());
             }
 
             let Ok(obj) = read::read(path.as_ref(), &config.diff_config, side) else { continue };
-            let similar =
-                find_similar_code_symbols(&source_obj, source_symbol_idx, &obj, &config.diff_config);
+            let similar = find_similar_code_symbols(
+                &source_obj,
+                source_symbol_idx,
+                &obj,
+                &config.diff_config,
+            );
             let side_label = if side == DiffSide::Target { "target" } else { "base" };
             for sim in similar {
                 let symbol = &obj.symbols[sim.symbol_idx];

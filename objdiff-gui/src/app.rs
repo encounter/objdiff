@@ -717,8 +717,8 @@ impl eframe::App for App {
 
         frame_history.on_new_frame(ctx.input(|i| i.time), frame.info().cpu_usage);
 
-        let side_panel_available = diff_state.current_view == View::SymbolDiff
-            && diff_state.similar_functions.is_none();
+        let side_panel_available =
+            diff_state.current_view == View::SymbolDiff && diff_state.similar_functions.is_none();
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // Temporarily use pre-egui 0.32 menu. ComboBox within menu

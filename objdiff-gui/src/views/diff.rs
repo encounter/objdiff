@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use egui::{Id, Layout, RichText, ScrollArea, TextEdit, Ui, Widget, text::LayoutJob};
+use egui::{Id, Layout, RichText, ScrollArea, Slider, TextEdit, Ui, Widget, text::LayoutJob};
 use objdiff_core::{
     build::BuildStatus,
     diff::{
@@ -204,8 +204,7 @@ pub fn diff_view_ui(
             );
             ui.horizontal(|ui| {
                 let mut search = sim.search.clone();
-                let response =
-                    TextEdit::singleline(&mut search).hint_text("Filter symbols").ui(ui);
+                let response = TextEdit::singleline(&mut search).hint_text("Filter symbols").ui(ui);
                 if hotkeys::consume_symbol_filter_shortcut(ui.ctx()) {
                     response.request_focus();
                 }
@@ -219,6 +218,30 @@ pub fn diff_view_ui(
                 let mut show_base = sim.show_base;
                 if ui.checkbox(&mut show_base, "Base").changed() {
                     ret = Some(DiffViewAction::SetSimilarShowBase(show_base));
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("Min:");
+                let mut min = sim.min_percent;
+                if ui
+                    .add(Slider::new(&mut min, 0.0..=sim.max_percent).suffix("%").fixed_decimals(0))
+                    .changed()
+                {
+                    ret =
+                        Some(DiffViewAction::SetSimilarPercentRange { min, max: sim.max_percent });
+                }
+                ui.label("Max:");
+                let mut max = sim.max_percent;
+                if ui
+                    .add(
+                        Slider::new(&mut max, sim.min_percent..=100.0)
+                            .suffix("%")
+                            .fixed_decimals(0),
+                    )
+                    .changed()
+                {
+                    ret =
+                        Some(DiffViewAction::SetSimilarPercentRange { min: sim.min_percent, max });
                 }
             });
         });
@@ -341,17 +364,10 @@ pub fn diff_view_ui(
                     }
 
                     ui.with_layout(Layout::right_to_left(egui::Align::TOP), |ui| {
-                        if ui
-                            .small_button("⏷")
-                            .on_hover_text_at_pointer("Expand all")
-                            .clicked()
-                        {
+                        if ui.small_button("⏷").on_hover_text_at_pointer("Expand all").clicked() {
                             open_sections.0 = Some(true);
                         }
-                        if ui
-                            .small_button("⏶")
-                            .on_hover_text_at_pointer("Collapse all")
-                            .clicked()
+                        if ui.small_button("⏶").on_hover_text_at_pointer("Collapse all").clicked()
                         {
                             open_sections.0 = Some(false);
                         }
