@@ -26,7 +26,8 @@ use crate::{
         function_diff::{FunctionDiffContext, asm_col_ui},
         symbol_diff::{
             DiffViewAction, DiffViewNavigation, DiffViewState, SymbolDiffContext, SymbolRefByName,
-            View, match_color_for_symbol, symbol_context_menu_ui, symbol_hover_ui, symbol_list_ui,
+            View, match_color_for_symbol, similar_functions_col_ui, symbol_context_menu_ui,
+            symbol_hover_ui, symbol_list_ui,
         },
         write_text,
     },
@@ -188,6 +189,26 @@ pub fn diff_view_ui(
     let mut scroll_to_prev_diff = false;
     let mut scroll_to_next_diff = false;
 
+    // Full-width similar functions panel: skip the normal two-column layout entirely.
+    if let Some(sim) = &state.similar_functions {
+        render_header(ui, available_width, 1, |ui, _| {
+            ui.horizontal(|ui| {
+                if ui.button("⏴ Back").clicked() || hotkeys::back_pressed(ui.ctx()) {
+                    ret = Some(DiffViewAction::CloseSimilarFunctions);
+                }
+            });
+            ui.label(
+                RichText::new(format!("Similar to {}", sim.source_symbol_name))
+                    .font(appearance.code_font.clone())
+                    .color(appearance.highlight_color),
+            );
+        });
+        ui.push_id("similar_functions", |ui| {
+            let _ = similar_functions_col_ui(ui, sim, appearance);
+        });
+        return ret;
+    }
+
     render_header(ui, available_width, 2, |ui, column| {
         if column == 0 {
             // Left column
@@ -301,10 +322,17 @@ pub fn diff_view_ui(
                     }
 
                     ui.with_layout(Layout::right_to_left(egui::Align::TOP), |ui| {
-                        if ui.small_button("⏷").on_hover_text_at_pointer("Expand all").clicked() {
+                        if ui
+                            .small_button("⏷")
+                            .on_hover_text_at_pointer("Expand all")
+                            .clicked()
+                        {
                             open_sections.0 = Some(true);
                         }
-                        if ui.small_button("⏶").on_hover_text_at_pointer("Collapse all").clicked()
+                        if ui
+                            .small_button("⏶")
+                            .on_hover_text_at_pointer("Collapse all")
+                            .clicked()
                         {
                             open_sections.0 = Some(false);
                         }

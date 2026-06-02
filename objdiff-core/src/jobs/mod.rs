@@ -11,12 +11,16 @@ use std::{
 use anyhow::Result;
 
 use crate::jobs::{
-    check_update::CheckUpdateResult, create_scratch::CreateScratchResult, objdiff::ObjDiffResult,
+    check_update::CheckUpdateResult,
+    create_scratch::CreateScratchResult,
+    find_similar::FindSimilarResult,
+    objdiff::ObjDiffResult,
     update::UpdateResult,
 };
 
 pub mod check_update;
 pub mod create_scratch;
+pub mod find_similar;
 pub mod objdiff;
 pub mod update;
 
@@ -26,6 +30,7 @@ pub enum Job {
     CheckUpdate,
     Update,
     CreateScratch,
+    FindSimilar,
 }
 pub static JOB_ID: AtomicUsize = AtomicUsize::new(0);
 
@@ -168,6 +173,7 @@ pub enum JobResult {
     CheckUpdate(Option<Box<CheckUpdateResult>>),
     Update(Box<UpdateResult>),
     CreateScratch(Option<Box<CreateScratchResult>>),
+    FindSimilar(Option<Box<FindSimilarResult>>),
 }
 
 fn start_job(

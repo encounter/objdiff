@@ -337,6 +337,7 @@ impl AppState {
                 JobResult::CheckUpdate(_) => todo!("CheckUpdate"),
                 JobResult::Update(_) => todo!("Update"),
                 JobResult::CreateScratch(_) => todo!("CreateScratch"),
+                JobResult::FindSimilar(_) => unreachable!("Unexpected JobResult::FindSimilar"),
             }
         }
         Ok(redraw)

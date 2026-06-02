@@ -4,6 +4,7 @@ use egui::{
     CollapsingHeader, Color32, Id, OpenUrl, ScrollArea, Ui, Widget, style::ScrollAnimation,
     text::LayoutJob,
 };
+use egui_extras::{Column, TableBuilder};
 use objdiff_core::{
     diff::{
         DiffObjConfig, ObjectDiff, ShowSymbolSizes, SymbolDiff,
@@ -12,7 +13,12 @@ use objdiff_core::{
             symbol_context, symbol_hover,
         },
     },
-    jobs::{Job, JobQueue, JobResult, create_scratch::CreateScratchResult, objdiff::ObjDiffResult},
+    jobs::{
+        Job, JobQueue, JobResult,
+        create_scratch::CreateScratchResult,
+        find_similar::SimilarFunctionMatch,
+        objdiff::ObjDiffResult,
+    },
     obj::{Object, Section, SectionKind, Symbol, SymbolFlag},
 };
 use regex::{Regex, RegexBuilder};
@@ -20,7 +26,7 @@ use regex::{Regex, RegexBuilder};
 use crate::{
     app::AppStateRef,
     hotkeys,
-    jobs::{is_create_scratch_available, start_create_scratch},
+    jobs::{is_create_scratch_available, start_create_scratch, start_find_similar_job},
     views::{
         appearance::Appearance,
         diff::{context_menu_items_ui, hover_items_ui},
@@ -83,6 +89,11 @@ pub enum DiffViewAction {
     SetShowDataFlow(bool),
     // Scrolls a row of the function view table into view.
     ScrollToRow(usize),
+    /// Find and display code symbols similar to the given symbol.
+    /// `column` is 0 for left object, 1 for right object.
+    FindSimilarFunctions { symbol_idx: usize, column: usize },
+    /// Close the similar functions panel.
+    CloseSimilarFunctions,
 }
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -109,6 +120,13 @@ pub struct ResolvedNavigation {
     pub right_symbol: Option<SymbolRefByName>,
 }
 
+pub struct SimilarFunctionsState {
+    /// Display name (demangled) of the source symbol
+    pub source_symbol_name: String,
+    /// `None` while the job is running; `Some` once complete
+    pub matches: Option<Vec<SimilarFunctionMatch>>,
+}
+
 #[derive(Default)]
 pub struct DiffViewState {
     pub build: Option<Box<ObjDiffResult>>,
@@ -127,6 +145,7 @@ pub struct DiffViewState {
     pub source_path_available: bool,
     pub post_build_nav: Option<ResolvedNavigation>,
     pub object_name: String,
+    pub similar_functions: Option<SimilarFunctionsState>,
 }
 
 #[derive(Default)]
@@ -166,6 +185,14 @@ impl DiffViewState {
             }
             JobResult::CreateScratch(result) => {
                 self.scratch = take(result);
+                false
+            }
+            JobResult::FindSimilar(result) => {
+                if let Some(result) = take(result) {
+                    if let Some(state) = &mut self.similar_functions {
+                        state.matches = Some(result.matches);
+                    }
+                }
                 false
             }
             _ => true,
@@ -369,6 +396,28 @@ impl DiffViewState {
             DiffViewAction::ScrollToRow(row) => {
                 self.scroll_to_diff_row = Some(row);
             }
+            DiffViewAction::CloseSimilarFunctions => {
+                self.similar_functions = None;
+            }
+            DiffViewAction::FindSimilarFunctions { symbol_idx, column } => {
+                let Some(result) = self.build.as_deref() else { return };
+                let Some((source_obj, _)) = (match column {
+                    0 => result.first_obj.as_ref(),
+                    _ => result.second_obj.as_ref(),
+                }) else {
+                    return;
+                };
+                let Some(source_symbol) = source_obj.symbols.get(symbol_idx) else { return };
+                let source_symbol_name = source_symbol.name.clone();
+                let display_name = source_symbol
+                    .demangled_name
+                    .clone()
+                    .unwrap_or_else(|| source_symbol_name.clone());
+                self.similar_functions =
+                    Some(SimilarFunctionsState { source_symbol_name: display_name, matches: None });
+                let Ok(state_guard) = state.read() else { return };
+                start_find_similar_job(ctx, jobs, &state_guard, source_symbol_name, column);
+            }
         }
     }
 
@@ -525,6 +574,13 @@ pub fn symbol_context_menu_ui(
             } else {
                 ret = Some(DiffViewAction::SelectingLeft(symbol_ref));
             }
+            ui.close();
+        }
+
+        if section.is_some_and(|s| s.kind == SectionKind::Code)
+            && ui.button("Find similar functions").clicked()
+        {
+            ret = Some(DiffViewAction::FindSimilarFunctions { symbol_idx, column });
             ui.close();
         }
     });
@@ -836,6 +892,72 @@ pub fn symbol_list_ui(
         });
     });
     ret
+}
+
+/// Render the "Find Similar Functions" results in a column body,
+/// matching the style of [`symbol_list_ui`].
+#[must_use]
+pub fn similar_functions_col_ui(
+    ui: &mut Ui,
+    state: &SimilarFunctionsState,
+    appearance: &Appearance,
+) -> Option<DiffViewAction> {
+    ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+    match &state.matches {
+        None => {
+            ui.horizontal(|ui| {
+                ui.spinner();
+                ui.label("Scanning project objects…");
+            });
+        }
+        Some(matches) if matches.is_empty() => {
+            ui.label("No similar functions found.");
+        }
+        Some(matches) => {
+            let row_height = appearance.code_font.size;
+            let available_height = ui.available_height();
+            TableBuilder::new(ui)
+                .auto_shrink([false, false])
+                .min_scrolled_height(available_height)
+                .resizable(true)
+                .column(Column::initial(40.0).at_least(40.0).clip(true))
+                .column(Column::remainder().at_least(500.0).clip(true))
+                .column(Column::initial(260.0).at_least(260.0).clip(true))
+                .body(|body| {
+                    body.rows(row_height, matches.len(), |mut row| {
+                        let m = &matches[row.index()];
+                        let name = m.demangled_name.as_deref().unwrap_or(&m.symbol_name);
+                        // Derive "filename (side)" for display, keep full name for tooltip.
+                        let (base_name, suffix) =
+                            if let Some(n) = m.object_name.strip_suffix(" (target)") {
+                                (n, " (target)")
+                            } else if let Some(n) = m.object_name.strip_suffix(" (base)") {
+                                (n, " (base)")
+                            } else {
+                                (m.object_name.as_str(), "")
+                            };
+                        let file_name = std::path::Path::new(base_name)
+                            .file_name()
+                            .and_then(|f| f.to_str())
+                            .unwrap_or(base_name);
+                        row.col(|ui| {
+                            ui.label(
+                                egui::RichText::new(format!("{:.0}%", m.match_percent.floor()))
+                                    .color(match_color_for_symbol(m.match_percent, appearance)),
+                            );
+                        });
+                        row.col(|ui| {
+                            ui.label(name);
+                        });
+                        row.col(|ui| {
+                            ui.weak(format!("{file_name}{suffix}"))
+                                .on_hover_text(&m.object_name);
+                        });
+                    });
+                });
+        }
+    }
+    None
 }
 
 #[derive(Copy, Clone)]
