@@ -219,6 +219,10 @@ pub fn diff_view_ui(
                 if ui.checkbox(&mut show_base, "Base").changed() {
                     ret = Some(DiffViewAction::SetSimilarShowBase(show_base));
                 }
+                let mut same_object_only = sim.same_object_only;
+                if ui.checkbox(&mut same_object_only, "Same object").changed() {
+                    ret = Some(DiffViewAction::SetSimilarSameObjectOnly(same_object_only));
+                }
             });
             ui.horizontal(|ui| {
                 ui.label("Min:");

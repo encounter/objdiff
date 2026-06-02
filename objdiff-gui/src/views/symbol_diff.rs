@@ -106,6 +106,8 @@ pub enum DiffViewAction {
         min: f32,
         max: f32,
     },
+    /// Only show results from the same object as the source symbol.
+    SetSimilarSameObjectOnly(bool),
 }
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -135,12 +137,15 @@ pub struct ResolvedNavigation {
 pub struct SimilarFunctionsState {
     /// Display name (demangled) of the source symbol
     pub source_symbol_name: String,
+    /// Name of the object the source symbol belongs to (for "Same object" filtering)
+    pub source_object_name: String,
     /// `None` while the job is running; `Some` once complete
     pub matches: Option<Vec<SimilarFunctionMatch>>,
     pub search: String,
     pub search_regex: Option<Regex>,
     pub show_target: bool,
     pub show_base: bool,
+    pub same_object_only: bool,
     pub min_percent: f32,
     pub max_percent: f32,
 }
@@ -443,6 +448,11 @@ impl DiffViewState {
                     state.max_percent = max;
                 }
             }
+            DiffViewAction::SetSimilarSameObjectOnly(value) => {
+                if let Some(state) = &mut self.similar_functions {
+                    state.same_object_only = value;
+                }
+            }
             DiffViewAction::FindSimilarFunctions { symbol_idx, column } => {
                 let Some(result) = self.build.as_deref() else { return };
                 let Some((source_obj, _)) = (match column {
@@ -459,11 +469,13 @@ impl DiffViewState {
                     .unwrap_or_else(|| source_symbol_name.clone());
                 self.similar_functions = Some(SimilarFunctionsState {
                     source_symbol_name: display_name,
+                    source_object_name: self.object_name.clone(),
                     matches: None,
                     search: String::new(),
                     search_regex: None,
                     show_target: true,
                     show_base: true,
+                    same_object_only: false,
                     min_percent: 0.0,
                     max_percent: 100.0,
                 });
@@ -979,6 +991,16 @@ pub fn similar_functions_col_ui(
                     }
                     if m.match_percent < state.min_percent || m.match_percent > state.max_percent {
                         return false;
+                    }
+                    if state.same_object_only {
+                        let obj_name = m
+                            .object_name
+                            .strip_suffix(" (target)")
+                            .or_else(|| m.object_name.strip_suffix(" (base)"))
+                            .unwrap_or(&m.object_name);
+                        if obj_name != state.source_object_name {
+                            return false;
+                        }
                     }
                     if let Some(re) = &state.search_regex {
                         let name = m.demangled_name.as_deref().unwrap_or(&m.symbol_name);
