@@ -471,9 +471,13 @@ impl Arch for ArchArm {
         while next_address >= symbol.address + 2
             && let Some(data) = section.data_range(next_address - 2, 2)
             && data == [0u8; 2]
-            && section.relocation_at(next_address - 2, 2).is_none()
         {
             next_address -= 2;
+            if let Some(relocation) = section.relocation_at(next_address, 2) {
+                // Avoid cutting trailing relocations in half.
+                next_address += self.data_reloc_size(relocation.flags) as u64;
+                break;
+            }
         }
         Ok(next_address.saturating_sub(symbol.address))
     }
