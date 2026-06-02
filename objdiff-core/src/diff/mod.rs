@@ -419,6 +419,49 @@ pub fn diff_objs(
     })
 }
 
+/// Score entry for a candidate symbol when searching for similar functions.
+#[derive(Debug, Clone)]
+pub struct SimilarSymbol {
+    pub symbol_idx: usize,
+    pub match_percent: f32,
+}
+
+/// Find all code symbols in `target_obj` that are similar to a given symbol in `source_obj`,
+/// sorted descending by similarity score. Symbols that fail to score are silently skipped.
+pub fn find_similar_code_symbols(
+    source_obj: &Object,
+    source_symbol_idx: usize,
+    target_obj: &Object,
+    diff_config: &DiffObjConfig,
+) -> Vec<SimilarSymbol> {
+    let source_symbol = &source_obj.symbols[source_symbol_idx];
+    let source_section_kind = symbol_section_kind(source_obj, source_symbol);
+    if source_section_kind != SectionKind::Code {
+        return vec![];
+    }
+
+    let mut results = Vec::new();
+    for (target_idx, target_symbol) in target_obj.symbols.iter().enumerate() {
+        if target_symbol.size == 0 || target_symbol.flags.contains(SymbolFlag::Ignored) {
+            continue;
+        }
+        if symbol_section_kind(target_obj, target_symbol) != SectionKind::Code {
+            continue;
+        }
+        let Ok((left_diff, _)) =
+            diff_code(source_obj, target_obj, source_symbol_idx, target_idx, diff_config)
+        else {
+            continue;
+        };
+        let Some(match_percent) = left_diff.match_percent else { continue };
+        results.push(SimilarSymbol { symbol_idx: target_idx, match_percent });
+    }
+    results.sort_by(|a, b| {
+        b.match_percent.partial_cmp(&a.match_percent).unwrap_or(core::cmp::Ordering::Equal)
+    });
+    results
+}
+
 #[derive(Clone, Copy)]
 enum MappingSymbol<'a> {
     Left(&'a str),

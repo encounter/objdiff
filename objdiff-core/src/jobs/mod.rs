@@ -11,12 +11,13 @@ use std::{
 use anyhow::Result;
 
 use crate::jobs::{
-    check_update::CheckUpdateResult, create_scratch::CreateScratchResult, objdiff::ObjDiffResult,
-    update::UpdateResult,
+    check_update::CheckUpdateResult, create_scratch::CreateScratchResult,
+    find_similar::FindSimilarResult, objdiff::ObjDiffResult, update::UpdateResult,
 };
 
 pub mod check_update;
 pub mod create_scratch;
+pub mod find_similar;
 pub mod objdiff;
 pub mod update;
 
@@ -26,6 +27,7 @@ pub enum Job {
     CheckUpdate,
     Update,
     CreateScratch,
+    FindSimilar,
 }
 pub static JOB_ID: AtomicUsize = AtomicUsize::new(0);
 
@@ -96,6 +98,22 @@ impl JobQueue {
 
     /// Removes a job from the queue given its ID.
     pub fn remove(&mut self, id: usize) { self.jobs.retain(|job| job.id != id); }
+
+    /// Cancels and removes all running jobs of the given kind.
+    pub fn cancel_kind(&mut self, kind: Job) {
+        let ids: Vec<usize> = self
+            .jobs
+            .iter()
+            .filter(|j| j.kind == kind)
+            .map(|j| {
+                let _ = j.cancel.send(());
+                j.id
+            })
+            .collect();
+        for id in ids {
+            self.remove(id);
+        }
+    }
 
     /// Collects the results of all finished jobs and handles any errors.
     pub fn collect_results(&mut self) {
@@ -168,6 +186,7 @@ pub enum JobResult {
     CheckUpdate(Option<Box<CheckUpdateResult>>),
     Update(Box<UpdateResult>),
     CreateScratch(Option<Box<CreateScratchResult>>),
+    FindSimilar(Option<Box<FindSimilarResult>>),
 }
 
 fn start_job(
