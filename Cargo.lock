@@ -29,6 +29,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "address_space"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a636fa14876e21c4162d323c7545c3ef2d9a78a253098bebee720c024d6c027a"
+
+[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4201,10 +4207,11 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 
 [[package]]
 name = "rabbitizer"
-version = "2.0.0-alpha.8"
+version = "2.0.0-alpha.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "831ef2f5b90ad594176a99fbf291d5cbeebc6881caefc2d0b54b154f754b96ed"
+checksum = "9f79a2bb675522959249aa5074d7ac6a2aa502d6b1b3c8570f36567eaf36bd6a"
 dependencies = [
+ "address_space",
  "bitflags 2.10.0",
  "ordered-float",
 ]
