@@ -202,6 +202,25 @@ pub fn diff_view_ui(
                     .font(appearance.code_font.clone())
                     .color(appearance.highlight_color),
             );
+            ui.horizontal(|ui| {
+                let mut search = sim.search.clone();
+                let response =
+                    TextEdit::singleline(&mut search).hint_text("Filter symbols").ui(ui);
+                if hotkeys::consume_symbol_filter_shortcut(ui.ctx()) {
+                    response.request_focus();
+                }
+                if response.changed() {
+                    ret = Some(DiffViewAction::SetSimilarSearch(search));
+                }
+                let mut show_target = sim.show_target;
+                if ui.checkbox(&mut show_target, "Target").changed() {
+                    ret = Some(DiffViewAction::SetSimilarShowTarget(show_target));
+                }
+                let mut show_base = sim.show_base;
+                if ui.checkbox(&mut show_base, "Base").changed() {
+                    ret = Some(DiffViewAction::SetSimilarShowBase(show_base));
+                }
+            });
         });
         ui.push_id("similar_functions", |ui| {
             let _ = similar_functions_col_ui(ui, sim, appearance);

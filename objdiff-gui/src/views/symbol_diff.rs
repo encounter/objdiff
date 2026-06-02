@@ -94,6 +94,12 @@ pub enum DiffViewAction {
     FindSimilarFunctions { symbol_idx: usize, column: usize },
     /// Close the similar functions panel.
     CloseSimilarFunctions,
+    /// Set the similar functions search filter.
+    SetSimilarSearch(String),
+    /// Show/hide target-side results in the similar functions panel.
+    SetSimilarShowTarget(bool),
+    /// Show/hide base-side results in the similar functions panel.
+    SetSimilarShowBase(bool),
 }
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -125,6 +131,10 @@ pub struct SimilarFunctionsState {
     pub source_symbol_name: String,
     /// `None` while the job is running; `Some` once complete
     pub matches: Option<Vec<SimilarFunctionMatch>>,
+    pub search: String,
+    pub search_regex: Option<Regex>,
+    pub show_target: bool,
+    pub show_base: bool,
 }
 
 #[derive(Default)]
@@ -399,6 +409,26 @@ impl DiffViewState {
             DiffViewAction::CloseSimilarFunctions => {
                 self.similar_functions = None;
             }
+            DiffViewAction::SetSimilarSearch(search) => {
+                if let Some(state) = &mut self.similar_functions {
+                    state.search_regex = if search.is_empty() {
+                        None
+                    } else {
+                        RegexBuilder::new(&search).case_insensitive(true).build().ok()
+                    };
+                    state.search = search;
+                }
+            }
+            DiffViewAction::SetSimilarShowTarget(value) => {
+                if let Some(state) = &mut self.similar_functions {
+                    state.show_target = value;
+                }
+            }
+            DiffViewAction::SetSimilarShowBase(value) => {
+                if let Some(state) = &mut self.similar_functions {
+                    state.show_base = value;
+                }
+            }
             DiffViewAction::FindSimilarFunctions { symbol_idx, column } => {
                 let Some(result) = self.build.as_deref() else { return };
                 let Some((source_obj, _)) = (match column {
@@ -413,8 +443,14 @@ impl DiffViewState {
                     .demangled_name
                     .clone()
                     .unwrap_or_else(|| source_symbol_name.clone());
-                self.similar_functions =
-                    Some(SimilarFunctionsState { source_symbol_name: display_name, matches: None });
+                self.similar_functions = Some(SimilarFunctionsState {
+                    source_symbol_name: display_name,
+                    matches: None,
+                    search: String::new(),
+                    search_regex: None,
+                    show_target: true,
+                    show_base: true,
+                });
                 let Ok(state_guard) = state.read() else { return };
                 start_find_similar_job(ctx, jobs, &state_guard, source_symbol_name, column);
             }
@@ -914,6 +950,27 @@ pub fn similar_functions_col_ui(
             ui.label("No similar functions found.");
         }
         Some(matches) => {
+            let filtered: Vec<&SimilarFunctionMatch> = matches
+                .iter()
+                .filter(|m| {
+                    let is_base = m.object_name.ends_with(" (base)");
+                    let is_target = m.object_name.ends_with(" (target)");
+                    if is_target && !state.show_target {
+                        return false;
+                    }
+                    if is_base && !state.show_base {
+                        return false;
+                    }
+                    if let Some(re) = &state.search_regex {
+                        let name = m.demangled_name.as_deref().unwrap_or(&m.symbol_name);
+                        if !re.is_match(name) && !re.is_match(&m.object_name) {
+                            return false;
+                        }
+                    }
+                    true
+                })
+                .collect();
+
             let row_height = appearance.code_font.size;
             let available_height = ui.available_height();
             TableBuilder::new(ui)
@@ -924,10 +981,9 @@ pub fn similar_functions_col_ui(
                 .column(Column::remainder().at_least(500.0).clip(true))
                 .column(Column::initial(260.0).at_least(260.0).clip(true))
                 .body(|body| {
-                    body.rows(row_height, matches.len(), |mut row| {
-                        let m = &matches[row.index()];
+                    body.rows(row_height, filtered.len(), |mut row| {
+                        let m = filtered[row.index()];
                         let name = m.demangled_name.as_deref().unwrap_or(&m.symbol_name);
-                        // Derive "filename (side)" for display, keep full name for tooltip.
                         let (base_name, suffix) =
                             if let Some(n) = m.object_name.strip_suffix(" (target)") {
                                 (n, " (target)")
@@ -950,8 +1006,13 @@ pub fn similar_functions_col_ui(
                             ui.label(name);
                         });
                         row.col(|ui| {
-                            ui.weak(format!("{file_name}{suffix}"))
-                                .on_hover_text(&m.object_name);
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    ui.weak(format!("{file_name}{suffix}"))
+                                        .on_hover_text(&m.object_name);
+                                },
+                            );
                         });
                     });
                 });
