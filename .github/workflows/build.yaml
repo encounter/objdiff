@@ -28,7 +28,7 @@ jobs:
           sudo apt-get update
           sudo apt-get -y install libgtk-3-dev
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -47,7 +47,7 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Setup Rust toolchain
         # We use nightly options in rustfmt.toml
         uses: dtolnay/rust-toolchain@nightly
@@ -67,7 +67,7 @@ jobs:
     # Prevent new advisories from failing CI
     continue-on-error: ${{ matrix.checks == 'advisories' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check ${{ matrix.checks }}
@@ -86,7 +86,7 @@ jobs:
           sudo apt-get update
           sudo apt-get -y install libgtk-3-dev
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Cache Rust workspace
@@ -145,10 +145,10 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install uv
         if: matrix.build == 'zigbuild'
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
       - name: Install cargo-zigbuild
         if: matrix.build == 'zigbuild'
         run: |
@@ -167,7 +167,7 @@ jobs:
           cargo ${{ matrix.build }} --profile ${{ env.BUILD_PROFILE }} --target ${{ matrix.target }}
           --bin ${{ env.CARGO_BIN_NAME }} --features ${{ matrix.features }}
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.CARGO_BIN_NAME }}-${{ matrix.name }}
           path: |
@@ -213,10 +213,10 @@ jobs:
           sudo apt-get update
           sudo apt-get -y install ${{ matrix.packages }}
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Install uv
         if: matrix.build == 'zigbuild'
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
       - name: Install cargo-zigbuild
         if: matrix.build == 'zigbuild'
         run: |
@@ -235,7 +235,7 @@ jobs:
           cargo ${{ matrix.build }} --profile ${{ env.BUILD_PROFILE }} --target ${{ matrix.target }}
           --bin ${{ env.CARGO_BIN_NAME }} --features ${{ matrix.features }}
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.CARGO_BIN_NAME }}-${{ matrix.name }}
           path: |
@@ -248,7 +248,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@nightly
         with:
@@ -256,7 +256,7 @@ jobs:
       - name: Cache Rust workspace
         uses: Swatinem/rust-cache@v2
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6.4.0
         with:
           node-version: lts/*
       - name: Install dependencies
@@ -264,7 +264,7 @@ jobs:
       - name: Build
         run: npm -C objdiff-wasm run build
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wasm
           path: objdiff-wasm/dist/
@@ -277,7 +277,7 @@ jobs:
     needs: [ build-cli, build-gui, build-wasm ]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Check git tag against package versions
         shell: bash
         run: |
@@ -345,7 +345,7 @@ jobs:
     needs: [ check-version ]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Publish
@@ -360,9 +360,9 @@ jobs:
     needs: [ check-version ]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6.4.0
         with:
           node-version: lts/*
           registry-url: 'https://registry.npmjs.org'
