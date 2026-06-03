@@ -137,6 +137,10 @@ pub struct ResolvedNavigation {
 pub struct SimilarFunctionsState {
     /// Display name (demangled) of the source symbol
     pub source_symbol_name: String,
+    /// Mangled name used to match against job results so stale results are discarded
+    pub source_symbol_name_mangled: String,
+    /// Column (0 = target, 1 = base) used to match against job results
+    pub source_column: usize,
     /// Name of the object the source symbol belongs to (for "Same object" filtering)
     pub source_object_name: String,
     /// `None` while the job is running; `Some` once complete
@@ -213,6 +217,8 @@ impl DiffViewState {
             JobResult::FindSimilar(result) => {
                 if let Some(result) = take(result)
                     && let Some(state) = &mut self.similar_functions
+                    && state.source_symbol_name_mangled == result.source_symbol_name
+                    && state.source_column == result.source_column
                 {
                     state.matches = Some(result.matches);
                 }
@@ -421,6 +427,7 @@ impl DiffViewState {
             }
             DiffViewAction::CloseSimilarFunctions => {
                 self.similar_functions = None;
+                jobs.cancel_kind(Job::FindSimilar);
             }
             DiffViewAction::SetSimilarSearch(search) => {
                 if let Some(state) = &mut self.similar_functions {
@@ -469,6 +476,8 @@ impl DiffViewState {
                     .unwrap_or_else(|| source_symbol_name.clone());
                 self.similar_functions = Some(SimilarFunctionsState {
                     source_symbol_name: display_name,
+                    source_symbol_name_mangled: source_symbol_name.clone(),
+                    source_column: column,
                     source_object_name: self.object_name.clone(),
                     matches: None,
                     search: String::new(),

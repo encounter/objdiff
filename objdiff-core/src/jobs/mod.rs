@@ -99,6 +99,22 @@ impl JobQueue {
     /// Removes a job from the queue given its ID.
     pub fn remove(&mut self, id: usize) { self.jobs.retain(|job| job.id != id); }
 
+    /// Cancels and removes all running jobs of the given kind.
+    pub fn cancel_kind(&mut self, kind: Job) {
+        let ids: Vec<usize> = self
+            .jobs
+            .iter()
+            .filter(|j| j.kind == kind)
+            .map(|j| {
+                let _ = j.cancel.send(());
+                j.id
+            })
+            .collect();
+        for id in ids {
+            self.remove(id);
+        }
+    }
+
     /// Collects the results of all finished jobs and handles any errors.
     pub fn collect_results(&mut self) {
         let mut results = vec![];

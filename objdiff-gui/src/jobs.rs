@@ -156,7 +156,8 @@ pub fn start_find_similar_job(
         build_base: state.config.build_base,
         build_target: state.config.build_target,
     };
-    jobs.push_once(Job::FindSimilar, || find_similar::start_find_similar(egui_waker(ctx), config));
+    jobs.cancel_kind(Job::FindSimilar);
+    jobs.push(find_similar::start_find_similar(egui_waker(ctx), config));
 }
 
 pub fn start_check_update(ctx: &egui::Context, jobs: &mut JobQueue) {
