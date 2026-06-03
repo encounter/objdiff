@@ -219,7 +219,7 @@ fn report_object(
                 .with_context(|| format!("Failed to open {p}"))
         })
         .transpose()?;
-    let base = object
+    let mut base = object
         .base_path
         .as_ref()
         .map(|p| {
@@ -227,6 +227,112 @@ fn report_object(
                 .with_context(|| format!("Failed to open {p}"))
         })
         .transpose()?;
+
+    // When deduplicating, remove extabindex/extab entries from the base object
+    // that correspond to weak/global functions already seen in earlier units.
+    // The linker would have stripped these, but our compiled objects still have them.
+    // We must physically remove them so the diff engine sees matching section layouts.
+    if let Some(existing) = &existing_functions
+        && let Some(base_obj) = &mut base
+    {
+        // Find weak/global code symbols that are duplicates
+        let dedup_func_indices: HashSet<usize> = base_obj
+            .symbols
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| {
+                s.size > 0
+                    && (s.flags.contains(SymbolFlag::Global) || s.flags.contains(SymbolFlag::Weak))
+                    && existing.contains(&s.name)
+            })
+            .map(|(i, _)| i)
+            .collect();
+
+        if !dedup_func_indices.is_empty() {
+            // (extabindex_section_idx, entry_addr, entry_size, extab_info)
+            type Removal = (usize, u64, u64, Option<(usize, usize)>);
+            let mut removals: Vec<Removal> = vec![];
+
+            for (section_idx, section) in base_obj.sections.iter().enumerate() {
+                if section.name != "extabindex" {
+                    continue;
+                }
+                for sym in base_obj.symbols.iter() {
+                    if sym.section != Some(section_idx) || sym.size == 0 {
+                        continue;
+                    }
+                    // Check function relocation at sym.address
+                    let is_dedup = section.relocations.iter().any(|r| {
+                        r.address == sym.address && dedup_func_indices.contains(&r.target_symbol)
+                    });
+                    if !is_dedup {
+                        continue;
+                    }
+                    // Find corresponding extab entry via relocation at sym.address + 8
+                    let extab_info =
+                        section.relocations.iter().find(|r| r.address == sym.address + 8).and_then(
+                            |r| {
+                                let extab_sym = &base_obj.symbols[r.target_symbol];
+                                extab_sym.section.map(|si| (si, r.target_symbol))
+                            },
+                        );
+                    removals.push((section_idx, sym.address, sym.size, extab_info));
+                }
+            }
+
+            // Process removals for each affected section
+            // Collect all (section_idx, address, size) pairs to remove
+            let mut section_removals: Vec<(usize, u64, u64)> = vec![];
+            for (ei_sec, ei_addr, ei_size, extab_info) in &removals {
+                section_removals.push((*ei_sec, *ei_addr, *ei_size));
+                if let Some((extab_sec, extab_sym_idx)) = extab_info {
+                    let extab_sym = &base_obj.symbols[*extab_sym_idx];
+                    section_removals.push((*extab_sec, extab_sym.address, extab_sym.size));
+                }
+            }
+
+            // Group by section and sort by address descending (remove from end first)
+            section_removals.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
+
+            for (section_idx, addr, size) in &section_removals {
+                let section = &mut base_obj.sections[*section_idx];
+                let base_addr = section.address;
+                let offset = (*addr - base_addr) as usize;
+                let sz = *size as usize;
+
+                // Remove bytes from section data
+                if offset + sz <= section.data.0.len() {
+                    section.data.0.drain(offset..offset + sz);
+                }
+
+                // Remove relocations in this range, adjust those after
+                section.relocations.retain(|r| r.address < *addr || r.address >= addr + size);
+                for r in &mut section.relocations {
+                    if r.address >= addr + size {
+                        r.address -= size;
+                    }
+                }
+
+                // Adjust section size
+                section.size -= size;
+
+                // Adjust symbol addresses in this section
+                for s in &mut base_obj.symbols {
+                    if s.section == Some(*section_idx) {
+                        if s.address >= *addr && s.address < addr + size {
+                            s.size = 0;
+                        } else if s.address >= addr + size {
+                            s.address -= size;
+                        } else if s.address < *addr && s.address + s.size > *addr {
+                            // Symbol spans the removed region — shrink it
+                            s.size -= size;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     let result =
         diff::diff_objs(target.as_ref(), base.as_ref(), None, diff_config, &mapping_config)?;
 
