@@ -263,7 +263,10 @@ impl Default for AppConfig {
 }
 
 impl AppState {
-    pub fn set_project_dir(&mut self, path: Utf8PlatformPathBuf) {
+    pub fn set_project_dir(&mut self, path: Utf8PlatformPathBuf, jobs: &mut JobQueue) {
+        jobs.cancel_kind(Job::ObjDiff);
+        jobs.cancel_kind(Job::FindSimilar);
+        jobs.cancel_kind(Job::CreateScratch);
         self.config.recent_projects.retain(|p| p != &path);
         if self.config.recent_projects.len() > 9 {
             self.config.recent_projects.truncate(9);
@@ -495,7 +498,7 @@ impl App {
             if let Some(project_dir) = project_dir
                 && state.config.project_dir.as_ref().is_none_or(|p| *p != project_dir)
             {
-                state.set_project_dir(project_dir);
+                state.set_project_dir(project_dir, &mut app.view_state.jobs);
             }
             if state.config.project_dir.is_some() {
                 state.config_change = true;
@@ -769,7 +772,7 @@ impl eframe::App for App {
                                         state
                                             .write()
                                             .unwrap()
-                                            .set_project_dir(Utf8PlatformPathBuf::from(path));
+                                            .set_project_dir(Utf8PlatformPathBuf::from(path), jobs);
                                         ui.close();
                                     }
                                 }
