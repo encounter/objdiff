@@ -80,3 +80,25 @@ fn ido_mdebug_line_numbers() {
     assert_eq!(text_section.line_info.get(&56), Some(&9));
     assert_eq!(text_section.line_info.len(), 66);
 }
+
+#[test]
+#[cfg(feature = "mips")]
+fn mwcc_dwarf1_line_numbers_multiple_functions() {
+    let diff_config = diff::DiffObjConfig::default();
+    let obj = obj::read::parse(
+        include_object!("data/mips/mwcc_lines_example.o"),
+        &diff_config,
+        diff::DiffSide::Base,
+    )
+    .unwrap();
+
+    for function_name in ["foo", "bar"] {
+        let symbol = obj.symbols.iter().find(|s| s.name == function_name).unwrap();
+        let section_idx = symbol.section.unwrap();
+        let section = &obj.sections[section_idx];
+        assert!(
+            section.line_info.values().any(|line| *line > 0),
+            "{function_name} should have valid line numbers"
+        );
+    }
+}
