@@ -98,3 +98,22 @@ fn trim_trailing_hword() {
     let output = common::display_diff(&obj, &diff, symbol_idx, &diff_config);
     insta::assert_snapshot!(output);
 }
+
+#[test]
+#[cfg(feature = "arm")]
+fn no_mapping_symbols_in_text() {
+    // A .text section that contains code bytes but is not covered by any
+    // mapping symbol must not panic while scanning instructions.
+    let diff_config = diff::DiffObjConfig::default();
+    let obj = obj::read::parse(
+        include_object!("data/arm/issue_352.o"),
+        &diff_config,
+        diff::DiffSide::Base,
+    )
+    .unwrap();
+    for (symbol_idx, symbol) in obj.symbols.iter().enumerate() {
+        if symbol.section.is_some() && symbol.size > 0 {
+            let _ = diff::code::no_diff_code(&obj, symbol_idx, &diff_config);
+        }
+    }
+}
