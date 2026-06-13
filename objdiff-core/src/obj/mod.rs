@@ -374,6 +374,7 @@ pub struct Relocation {
 pub enum RelocationFlags {
     Elf(u32),
     Coff(u16),
+    MachO { r_type: u8, r_pcrel: bool, r_length: u8 },
 }
 
 #[derive(Debug, Copy, Clone)]
