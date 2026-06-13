@@ -77,6 +77,7 @@ impl ArchX86 {
                     elf::R_386_16 => Some(2),
                     _ => None,
                 },
+                RelocationFlags::MachO { r_length, .. } => Some(1 << r_length as usize),
             },
             Architecture::X86_64 => match flags {
                 RelocationFlags::Coff(typ) => match typ {
@@ -96,6 +97,7 @@ impl ArchX86 {
                     elf::R_X86_64_64 => Some(8),
                     _ => None,
                 },
+                RelocationFlags::MachO { .. } => None,
             },
         }
     }
@@ -303,6 +305,22 @@ impl Arch for ArchX86 {
                         section.data()?[address as usize..address as usize + 4].try_into()?;
                     self.endianness.read_i32(data) as i64
                 }
+                object::RelocationFlags::MachO { r_length, .. } => {
+                    let size = 1usize << r_length as usize;
+                    match size {
+                        4 => {
+                            let data = section.data()?[address as usize..address as usize + 4]
+                                .try_into()?;
+                            self.endianness.read_i32(data) as i64
+                        }
+                        8 => {
+                            let data = section.data()?[address as usize..address as usize + 8]
+                                .try_into()?;
+                            self.endianness.read_i64(data)
+                        }
+                        _ => bail!("Unsupported MachO x86 implicit relocation length: {r_length}"),
+                    }
+                }
                 flags => bail!("Unsupported x86 implicit relocation {flags:?}"),
             },
             Architecture::X86_64 => match relocation.flags() {
@@ -352,6 +370,7 @@ impl Arch for ArchX86 {
                     elf::R_386_16 => Some("R_386_16"),
                     _ => None,
                 },
+                RelocationFlags::MachO { .. } => None,
             },
             Architecture::X86_64 => match flags {
                 RelocationFlags::Coff(typ) => match typ {
