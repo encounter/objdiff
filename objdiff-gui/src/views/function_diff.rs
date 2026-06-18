@@ -20,12 +20,43 @@ use crate::views::{
     symbol_diff::DiffViewAction,
 };
 
+#[derive(Debug, Default, Copy, Clone)]
+pub enum GoToTarget {
+    #[default]
+    None,
+    LineNumber(u32),
+    Address(u64),
+    VirtualAddress(u64),
+}
+
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
+pub enum GoToTargetType {
+    #[default]
+    LineNumber,
+    Address,
+    VirtualAddress,
+}
+
+impl core::fmt::Display for GoToTargetType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            GoToTargetType::LineNumber => write!(f, "Line Number"),
+            GoToTargetType::Address => write!(f, "Address / Offset"),
+            GoToTargetType::VirtualAddress => write!(f, "Virtual Address"),
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct FunctionViewState {
     left_highlight: HighlightKind,
     right_highlight: HighlightKind,
-    pub scroll_to_line_number: Option<u32>,
-    pub go_to_line_text: String,
+    pub go_to_target: GoToTarget,
+    pub go_to_target_is_right: bool,
+    pub go_to_text_left: String,
+    pub go_to_target_type_left: GoToTargetType,
+    pub go_to_text_right: String,
+    pub go_to_target_type_right: GoToTargetType,
 }
 
 impl FunctionViewState {
