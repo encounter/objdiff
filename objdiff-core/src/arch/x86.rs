@@ -169,6 +169,15 @@ impl Arch for ArchX86 {
                             }
 
                             continue 'outer;
+                        } else {
+                            // The relocation's data size overruns the symbol's remaining code
+                            // (e.g. a 4-byte relocation inside a 2-byte symbol, as produced by
+                            // delinked/overlapping label symbols). It can't be inline data, so
+                            // stop scanning relocations at this address and fall through to
+                            // decode the bytes as a normal instruction. Without this `break` the
+                            // inner loop re-peeks the same relocation forever, since nothing
+                            // advances `reloc_iter` or the decoder when `set_position` fails.
+                            break;
                         }
                     }
                     Ordering::Greater => break,
@@ -408,6 +417,11 @@ impl Arch for ArchX86 {
                             new_address = address + reloc_size as u64;
                             decoder.set_ip(new_address);
                             continue 'outer;
+                        } else {
+                            // Relocation can't fit the symbol's remaining bytes (see the note in
+                            // scan_instructions_internal); decode them as a normal instruction
+                            // rather than spinning on the same relocation.
+                            break;
                         }
                     }
                     Ordering::Greater => break,
@@ -597,6 +611,32 @@ mod test {
         assert_eq!(scanned[1].size, 7);
         assert_eq!(scanned[1].opcode, iced_x86::Mnemonic::Mov as u16);
         assert_eq!(scanned[1].branch_dest, None);
+    }
+
+    #[test]
+    fn test_scan_instructions_reloc_overruns_code() {
+        // Regression: a relocation that starts at the symbol but whose data size (4 bytes for
+        // a DIR32) overruns the symbol's code window. This is produced by delinked/overlapping
+        // label symbols (e.g. a 2-byte `LAB_x+1` sitting on a relocation). Previously the
+        // inner relocation loop re-peeked the same relocation forever because `set_position`
+        // failed and nothing advanced; the scan must instead decode the bytes as a normal
+        // instruction and terminate.
+        let arch = ArchX86 { arch: Architecture::X86, endianness: object::Endianness::Little };
+        let code = [0x00, 0x00]; // `add [eax], al` — 2 bytes, shorter than the 4-byte reloc
+        let relocations = [Relocation {
+            flags: RelocationFlags::Coff(pe::IMAGE_REL_I386_DIR32),
+            address: 0,
+            target_symbol: 0,
+            addend: 0,
+        }];
+        let scanned = arch
+            .scan_instructions_internal(0, &code, 0, &relocations, &DiffObjConfig::default())
+            .unwrap();
+        assert_eq!(scanned.len(), 1);
+        assert_eq!(scanned[0].address, 0);
+        assert_eq!(scanned[0].size, 2);
+        assert_eq!(scanned[0].opcode, iced_x86::Mnemonic::Add as u16);
+        assert_eq!(scanned[0].branch_dest, None);
     }
 
     #[test]
