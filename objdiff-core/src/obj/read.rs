@@ -732,11 +732,11 @@ fn parse_line_info(
 
 /// Parse .line section from DWARF 1.1 format.
 fn parse_line_info_dwarf1(obj_file: &object::File, sections: &mut [Section]) -> Result<()> {
-    if let Some(section) = obj_file.section_by_name(".line") {
+    let mut text_sections = sections.iter_mut().filter(|s| s.kind == SectionKind::Code);
+    for section in obj_file.sections().filter(|s| s.name().is_ok_and(|n| n == ".line")) {
         let data = section.uncompressed_data()?;
         let mut reader: &[u8] = data.as_ref();
 
-        let mut text_sections = sections.iter_mut().filter(|s| s.kind == SectionKind::Code);
         while !reader.is_empty() {
             let mut section_data = reader;
             let size = read_u32(obj_file, &mut section_data)? as usize;
