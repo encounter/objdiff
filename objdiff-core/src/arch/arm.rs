@@ -343,6 +343,15 @@ impl Arch for ArchArm {
             // Handle ELF implicit relocations
             object::RelocationFlags::Elf { r_type } => {
                 if relocation.has_implicit_addend() {
+                    // R_ARM_V4BX marks a `bx` instruction so the linker can optionally
+                    // rewrite it for ARMv4 interworking. Drops the addend since it's meaningless.
+                    if r_type == elf::R_ARM_V4BX {
+                        return Ok(Some(RelocationOverride {
+                            target: RelocationOverrideTarget::Skip,
+                            addend: 0,
+                        }));
+                    }
+
                     let section_data = section.data()?;
                     let address = address as usize;
                     let addend = match r_type {
@@ -419,6 +428,7 @@ impl Arch for ArchArm {
                 elf::R_ARM_CALL => Some("R_ARM_CALL"),
                 elf::R_ARM_THM_PC11 => Some("R_ARM_THM_PC11"),
                 elf::R_ARM_THM_PC9 => Some("R_ARM_THM_PC9"),
+                elf::R_ARM_V4BX => Some("R_ARM_V4BX"),
                 _ => None,
             },
             _ => None,
