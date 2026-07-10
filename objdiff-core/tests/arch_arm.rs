@@ -84,6 +84,22 @@ fn thumb_short_data_mapping() {
 
 #[test]
 #[cfg(feature = "arm")]
+fn read_arm_v4bx() {
+    // R_ARM_V4BX relocations mark `bx` instructions so the linker can optionally
+    // rewrite them for ARMv4 interworking.
+    let diff_config = diff::DiffObjConfig::default();
+    let obj =
+        obj::read::parse(include_object!("data/arm/v4bx.o"), &diff_config, diff::DiffSide::Base)
+            .unwrap();
+    let symbol_idx = obj.symbols.iter().position(|s| s.name == "v4bx_func").unwrap();
+    let diff = diff::code::no_diff_code(&obj, symbol_idx, &diff_config).unwrap();
+    let output = common::display_diff(&obj, &diff, symbol_idx, &diff_config);
+    // The `bx lr` still disassembles normally; the V4BX hint is simply dropped.
+    assert!(output.contains("bx"), "expected a `bx` instruction, got:\n{output}");
+}
+
+#[test]
+#[cfg(feature = "arm")]
 fn trim_trailing_hword() {
     let diff_config = diff::DiffObjConfig::default();
     let obj = obj::read::parse(
