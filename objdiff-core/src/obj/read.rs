@@ -9,7 +9,7 @@ use alloc::{
 use core::{cmp::Ordering, num::NonZeroU64};
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use object::{Object as _, ObjectSection as _, ObjectSymbol as _};
+use object::{Architecture, Object as _, ObjectSection as _, ObjectSymbol as _};
 
 use crate::{
     arch::{Arch, RelocationOverride, RelocationOverrideTarget, new_arch},
@@ -133,7 +133,9 @@ fn map_symbol(
     if symbol.is_weak() {
         flags |= SymbolFlag::Weak;
     }
-    if file.format() == object::BinaryFormat::Elf && symbol.scope() == object::SymbolScope::Linkage
+    if file.format() == object::BinaryFormat::Elf
+        && symbol.scope() == object::SymbolScope::Linkage
+        && (file.architecture() != Architecture::Arm || !symbol.is_global())
     {
         flags |= SymbolFlag::Hidden;
     }
