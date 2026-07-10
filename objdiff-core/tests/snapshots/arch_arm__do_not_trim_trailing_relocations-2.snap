@@ -1,0 +1,15 @@
+---
+source: objdiff-core/tests/arch_arm.rs
+expression: output
+---
+[(Address(0), Dim, 5), (Spacing(4), Normal, 0), (Opcode("ldr", 24), Normal, 10), (Argument(Opaque("r1")), Normal, 0), (Basic(", "), Normal, 0), (Basic("["), Normal, 0), (Argument(Opaque("pc")), Normal, 0), (Basic(", "), Normal, 0), (Basic("#"), Normal, 0), (Argument(Signed(16)), Normal, 0), (Basic("]"), Normal, 0), (Basic(" (->"), Normal, 0), (BranchDest(20), Normal, 0), (Basic(")"), Normal, 0), (Eol, Normal, 0)]
+[(Address(2), Dim, 5), (Spacing(4), Normal, 0), (Opcode("mov", 43), Normal, 10), (Argument(Opaque("r3")), Normal, 0), (Basic(", "), Normal, 0), (Argument(Opaque("r1")), Normal, 0), (Eol, Normal, 0)]
+[(Address(4), Dim, 5), (Spacing(4), Normal, 0), (Opcode("add", 1), Normal, 10), (Argument(Opaque("r3")), Normal, 0), (Basic(", "), Normal, 0), (Basic("#"), Normal, 0), (Argument(Unsigned(36)), Normal, 0), (Eol, Normal, 0)]
+[(Address(6), Dim, 5), (Spacing(4), Normal, 0), (Opcode("mov", 43), Normal, 10), (Argument(Opaque("r2")), Normal, 0), (Basic(", "), Normal, 0), (Basic("#"), Normal, 0), (Argument(Unsigned(0)), Normal, 0), (Eol, Normal, 0)]
+[(Address(8), Dim, 5), (Spacing(4), Normal, 0), (Opcode("mov", 43), Normal, 10), (Argument(Opaque("r0")), Normal, 0), (Basic(", "), Normal, 0), (Basic("#"), Normal, 0), (Argument(Unsigned(2)), Normal, 0), (Eol, Normal, 0)]
+[(Address(10), Dim, 5), (Spacing(4), Normal, 0), (Opcode("strb", 117), Normal, 10), (Argument(Opaque("r0")), Normal, 0), (Basic(", "), Normal, 0), (Basic("["), Normal, 0), (Argument(Opaque("r3")), Normal, 0), (Basic(", "), Normal, 0), (Basic("#"), Normal, 0), (Argument(Signed(0)), Normal, 0), (Basic("]"), Normal, 0), (Eol, Normal, 0)]
+[(Address(12), Dim, 5), (Spacing(4), Normal, 0), (Opcode("strb", 117), Normal, 10), (Argument(Opaque("r2")), Normal, 0), (Basic(", "), Normal, 0), (Basic("["), Normal, 0), (Argument(Opaque("r1")), Normal, 0), (Basic(", "), Normal, 0), (Basic("#"), Normal, 0), (Argument(Signed(28)), Normal, 0), (Basic("]"), Normal, 0), (Eol, Normal, 0)]
+[(Address(14), Dim, 5), (Spacing(4), Normal, 0), (Opcode("strh", 124), Normal, 10), (Argument(Opaque("r2")), Normal, 0), (Basic(", "), Normal, 0), (Basic("["), Normal, 0), (Argument(Opaque("r1")), Normal, 0), (Basic(", "), Normal, 0), (Basic("#"), Normal, 0), (Argument(Signed(22)), Normal, 0), (Basic("]"), Normal, 0), (Eol, Normal, 0)]
+[(Address(16), Dim, 5), (Spacing(4), Normal, 0), (Opcode("bx", 9), Normal, 10), (Argument(Opaque("lr")), Normal, 0), (Eol, Normal, 0)]
+[(Address(18), Dim, 5), (Spacing(4), Normal, 0), (Opcode(".hword", 65534), Normal, 10), (Argument(Unsigned(0)), Normal, 0), (Eol, Normal, 0)]
+[(Address(20), Dim, 5), (Spacing(4), Normal, 0), (Opcode(".word", 65534), Normal, 10), (Symbol(Symbol { name: "gCurrentSprite", demangled_name: None, normalized_name: None, address: 0, size: 0, kind: Unknown, section: None, flags: FlagSet(Global), align: None, virtual_address: None }), Bright, 0), (Eol, Normal, 0)]

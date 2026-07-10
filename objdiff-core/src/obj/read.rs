@@ -183,7 +183,6 @@ fn map_symbol(
 fn map_symbols(
     arch: &dyn Arch,
     obj_file: &object::File,
-    sections: &[Section],
     section_indices: &[usize],
     split_meta: Option<&SplitMeta>,
     config: &DiffObjConfig,
@@ -224,9 +223,6 @@ fn map_symbols(
         symbol_indices[obj_symbol.index().0] = symbols.len();
         symbols.push(symbol);
     }
-
-    // Infer symbol sizes for 0-size symbols
-    infer_symbol_sizes(arch, &mut symbols, sections)?;
 
     Ok((symbols, symbol_indices))
 }
@@ -288,7 +284,7 @@ fn is_local_label(symbol: &Symbol) -> bool {
 }
 
 fn infer_symbol_sizes(arch: &dyn Arch, symbols: &mut [Symbol], sections: &[Section]) -> Result<()> {
-    // Above, we've sorted the symbols by section and then by address.
+    // Above, we've sorted the symbols by section and then by address, and also mapped section relocations.
 
     // Set symbol sizes based on the next symbol's address
     let mut iter_idx = 0;
@@ -1077,15 +1073,11 @@ pub fn parse(data: &[u8], config: &DiffObjConfig, diff_side: DiffSide) -> Result
     let split_meta = parse_split_meta(&obj_file)?;
     let (mut sections, section_indices) =
         map_sections(arch.as_ref(), &obj_file, split_meta.as_ref())?;
-    let (mut symbols, symbol_indices) = map_symbols(
-        arch.as_ref(),
-        &obj_file,
-        &sections,
-        &section_indices,
-        split_meta.as_ref(),
-        config,
-    )?;
+    let (mut symbols, symbol_indices) =
+        map_symbols(arch.as_ref(), &obj_file, &section_indices, split_meta.as_ref(), config)?;
     map_relocations(arch.as_ref(), &obj_file, &mut sections, &section_indices, &symbol_indices)?;
+    // Infer symbol sizes for 0-size symbols (must be done after map_relocations is called)
+    infer_symbol_sizes(arch.as_ref(), &mut symbols, &sections)?;
     parse_line_info(&obj_file, &mut sections, &section_indices, data)?;
     if config.combine_data_sections || config.combine_text_sections {
         combine_sections(&mut sections, &mut symbols, config)?;
