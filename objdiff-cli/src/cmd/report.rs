@@ -210,7 +210,11 @@ fn report_object(
         }
         _ => {}
     }
-    let mapping_config = diff::MappingConfig::default();
+    let mapping_config = diff::MappingConfig {
+        mappings: object.symbol_mappings.clone(),
+        selecting_left: None,
+        selecting_right: None,
+    };
     let target = object
         .target_path
         .as_ref()
