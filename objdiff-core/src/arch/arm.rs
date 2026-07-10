@@ -183,7 +183,7 @@ impl Arch for ArchArm {
         let mapping_symbols = self
             .disasm_modes
             .get(&section_index)
-            .map(|x| x.as_slice())
+            .map(|x| if x.is_empty() { &fallback_mappings } else { x.as_slice() })
             .unwrap_or(&fallback_mappings);
         let first_mapping_idx = mapping_symbols
             .binary_search_by_key(&start_addr, |x| x.address)
