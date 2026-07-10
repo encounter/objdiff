@@ -1,3 +1,4 @@
+#![allow(unused)] // TODO
 use std::{
     collections::BTreeMap,
     io::stdout,

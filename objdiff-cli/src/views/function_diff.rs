@@ -1,3 +1,4 @@
+#![allow(unused)] // TODO
 use core::cmp::Ordering;
 
 use anyhow::Result;

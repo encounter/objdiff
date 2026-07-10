@@ -1,3 +1,4 @@
+#![allow(unused)] // TODO
 use anyhow::Result;
 use crossterm::event::Event;
 use ratatui::Frame;
