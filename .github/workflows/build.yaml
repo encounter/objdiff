@@ -340,7 +340,6 @@ jobs:
 
   release-cargo:
     name: Release (Cargo)
-    if: 'false' # TODO re-enable when all dependencies are published
     runs-on: ubuntu-latest
     needs: [ check-version ]
     steps:
