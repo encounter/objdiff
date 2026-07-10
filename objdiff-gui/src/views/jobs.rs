@@ -56,7 +56,7 @@ pub fn jobs_ui(ui: &mut egui::Ui, jobs: &mut JobQueue, appearance: &Appearance) 
             ui.label(if status.status.len() > STATUS_LENGTH - 3 {
                 format!("{}…", &status.status[0..STATUS_LENGTH - 3])
             } else {
-                format!("{:width$}", &status.status, width = STATUS_LENGTH)
+                format!("{:width$}", status.status, width = STATUS_LENGTH)
             })
             .on_hover_text_at_pointer(&status.status)
             .context_menu(|ui| {

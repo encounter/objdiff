@@ -1,4 +1,4 @@
-#![allow(clippy::needless_lifetimes)] // Generated serde code
+#![allow(clippy::useless_borrows_in_formatting)] // Generated serde code
 
 use alloc::{
     string::{String, ToString},

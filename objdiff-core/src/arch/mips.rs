@@ -217,8 +217,8 @@ impl Arch for ArchMips {
         let instruction_flags = self.instruction_flags(diff_config);
         let mut ops = Vec::<InstructionRef>::with_capacity(code.len() / 4);
         let mut cur_addr = address as u32;
-        for chunk in code.chunks_exact(4) {
-            let code = self.endianness.read_u32(chunk.try_into()?);
+        for chunk in code.as_chunks::<4>().0 {
+            let code = self.endianness.read_u32(*chunk);
             let instruction =
                 rabbitizer::Instruction::new(code, Vram::new(cur_addr), instruction_flags);
             let opcode = instruction.opcode() as u16;

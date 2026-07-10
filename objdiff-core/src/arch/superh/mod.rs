@@ -35,8 +35,8 @@ impl Arch for ArchSuperH {
         let mut ops = Vec::<InstructionRef>::with_capacity(code.len() / 2);
         let mut offset = address;
 
-        for chunk in code.chunks_exact(2) {
-            let opcode = u16::from_be_bytes(chunk.try_into().unwrap());
+        for chunk in code.as_chunks::<2>().0 {
+            let opcode = u16::from_be_bytes(*chunk);
             let mut parts: Vec<InstructionPart> = vec![];
             let resolved: ResolvedInstructionRef = Default::default();
             let mut branch_dest: Option<u64> = None;
@@ -80,8 +80,8 @@ impl Arch for ArchSuperH {
             let mut data_offsets = BTreeMap::<u64, DataInfo>::new();
 
             let mut pos: u64 = 0;
-            for chunk in symbol_data.chunks_exact(2) {
-                let opcode = u16::from_be_bytes(chunk.try_into().unwrap());
+            for chunk in symbol_data.as_chunks::<2>().0 {
+                let opcode = u16::from_be_bytes(*chunk);
                 // mov.w
                 if (opcode & 0xf000) == 0x9000 {
                     let target = (opcode as u64 & 0xff) * 2 + 4 + pos;

@@ -99,7 +99,7 @@ pub fn run(args: Args) -> Result<()> {
                 let Some((project_config, project_config_info)) =
                     objdiff_core::config::try_project_config(project.as_ref())
                 else {
-                    bail!("Project config not found in {}", &project)
+                    bail!("Project config not found in {}", project)
                 };
                 let project_config = project_config.with_context(|| {
                     format!("Reading project config {}", project_config_info.path.display())
