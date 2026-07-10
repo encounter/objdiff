@@ -344,7 +344,9 @@ pub fn diff_view_ui(
                     );
                 } else {
                     ui.label(RichText::new("Last built:").text_style(egui::TextStyle::Monospace));
-                    let format = format_description::parse("[hour]:[minute]:[second]").unwrap();
+                    let format =
+                        format_description::parse_borrowed::<3>("[hour]:[minute]:[second]")
+                            .unwrap();
                     ui.label(
                         RichText::new(
                             result.time.to_offset(appearance.utc_offset).format(&format).unwrap(),

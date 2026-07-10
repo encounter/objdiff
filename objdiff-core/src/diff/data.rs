@@ -2,7 +2,7 @@ use alloc::{vec, vec::Vec};
 use core::{cmp::Ordering, ops::Range};
 
 use anyhow::{Result, anyhow};
-use similar::{Algorithm, capture_diff_slices, get_diff_ratio};
+use similar::{Algorithm, capture_diff_slices, diff_ratio};
 
 use super::{
     DataDiff, DataDiffKind, DataDiffRow, DataRelocationDiff, ObjectDiff, SectionDiff, SymbolDiff,
@@ -79,7 +79,7 @@ pub fn resolve_relocation<'obj>(
 /// Compares the bytes within a certain data range.
 fn diff_data_range(left_data: &[u8], right_data: &[u8]) -> (f32, Vec<DataDiff>, Vec<DataDiff>) {
     let ops = capture_diff_slices(Algorithm::Patience, left_data, right_data);
-    let bytes_match_ratio = get_diff_ratio(&ops, left_data.len(), right_data.len());
+    let bytes_match_ratio = diff_ratio(&ops, left_data.len(), right_data.len());
 
     let mut left_data_diff = Vec::<DataDiff>::new();
     let mut right_data_diff = Vec::<DataDiff>::new();
@@ -552,7 +552,7 @@ pub fn diff_bss_section(
         .filter_map(|(_, s)| s.address.checked_sub(right_section.address).map(|a| (a, s.size)))
         .collect::<Vec<_>>();
     let ops = capture_diff_slices(Algorithm::Patience, &left_sizes, &right_sizes);
-    let mut match_percent = get_diff_ratio(&ops, left_sizes.len(), right_sizes.len()) * 100.0;
+    let mut match_percent = diff_ratio(&ops, left_sizes.len(), right_sizes.len()) * 100.0;
 
     // Use the highest match percent between two options:
     // - Left symbols matching right symbols by name
