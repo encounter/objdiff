@@ -75,9 +75,13 @@ ignore = [
     #{ crate = "a-crate-that-is-yanked@0.1.1", reason = "you can specify why you are ignoring the yanked crate" },
     { id = "RUSTSEC-2024-0436", reason = "Unmaintained paste crate is an indirect dependency" },
     { id = "RUSTSEC-2025-0052", reason = "Unmaintained async-std crate is an indirect dependency" },
-    { id = "RUSTSEC-2025-0119", reason = "Unmaintained number_prefix crate is an indirect dependency" },
     { id = "RUSTSEC-2025-0134", reason = "Unmaintained rustls-pemfile crate is an indirect dependency" },
-    { id = "RUSTSEC-2026-0002", reason = "Unsound advisory in lru indirect dependency" },
+    { id = "RUSTSEC-2026-0098", reason = "Build-time objdiff-wasm wit-deps dependency still uses reqwest 0.11; latest wit-deps has no safe upgrade path" },
+    { id = "RUSTSEC-2026-0099", reason = "Build-time objdiff-wasm wit-deps dependency still uses reqwest 0.11; latest wit-deps has no safe upgrade path" },
+    { id = "RUSTSEC-2026-0104", reason = "Build-time objdiff-wasm wit-deps dependency still uses reqwest 0.11; latest wit-deps has no safe upgrade path" },
+    { id = "RUSTSEC-2026-0192", reason = "Unmaintained ttf-parser is an egui 0.33 indirect dependency; egui 0.35 requires raising MSRV from 1.88 to 1.92" },
+    { id = "RUSTSEC-2026-0194", reason = "Build-time wayland-scanner dependency parses vendored protocol XML; no newer stable wayland-scanner release is available" },
+    { id = "RUSTSEC-2026-0195", reason = "Build-time wayland-scanner dependency parses vendored protocol XML; no newer stable wayland-scanner release is available" },
 ]
 # If this is true, then cargo deny will use the git executable to fetch advisory database.
 # If this is false, then it uses a built-in git library.
@@ -245,8 +249,6 @@ allow-git = []
 [sources.allow-org]
 # github.com organizations to allow git sources for
 github = [
-    "encounter",
-    "gimli-rs",  # gimli
 ]
 # gitlab.com organizations to allow git sources for
 gitlab = []

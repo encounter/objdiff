@@ -1,10 +1,7 @@
 use std::{sync::mpsc::Receiver, task::Waker};
 
 use anyhow::{Context, Result};
-use self_update::{
-    cargo_crate_version,
-    update::{Release, ReleaseUpdate},
-};
+use self_update::update::{Release, ReleaseUpdate};
 
 use crate::jobs::{Job, JobContext, JobResult, JobState, start_job, update_status};
 
@@ -26,13 +23,13 @@ fn run_check_update(
 ) -> Result<Box<CheckUpdateResult>> {
     update_status(context, "Fetching latest release".to_string(), 0, 1, &cancel)?;
     let updater = (config.build_updater)().context("Failed to create release updater")?;
-    let latest_release = updater.get_latest_release()?;
-    let update_available =
-        self_update::version::bump_is_greater(cargo_crate_version!(), &latest_release.version)?;
+    let releases = updater.get_latest_release()?;
+    let update_available = releases.is_update_available()?;
+    let latest_release = releases.latest().context("No release found")?.clone();
     // Find the binary name in the release assets
     let mut found_binary = None;
     for bin_name in &config.bin_names {
-        if latest_release.assets.iter().any(|a| &a.name == bin_name) {
+        if latest_release.assets().iter().any(|a| a.name() == bin_name) {
             found_binary = Some(bin_name.clone());
             break;
         }

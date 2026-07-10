@@ -28,18 +28,19 @@ fn run_update(
 ) -> Result<Box<UpdateResult>> {
     update_status(status, "Fetching latest release".to_string(), 0, 3, &cancel)?;
     let updater = (config.build_updater)().context("Failed to create release updater")?;
-    let latest_release = updater.get_latest_release()?;
+    let releases = updater.get_latest_release()?;
+    let latest_release = releases.latest().context("No release found")?;
     let asset =
-        latest_release.assets.iter().find(|a| a.name == config.bin_name).ok_or_else(|| {
+        latest_release.assets().iter().find(|a| a.name() == config.bin_name).ok_or_else(|| {
             anyhow::Error::msg(format!("No release asset for {}", config.bin_name))
         })?;
 
     update_status(status, "Downloading release".to_string(), 1, 3, &cancel)?;
     let tmp_dir = tempfile::Builder::new().prefix("update").tempdir_in(current_dir()?)?;
-    let tmp_path = tmp_dir.path().join(&asset.name);
+    let tmp_path = tmp_dir.path().join(asset.name());
     let tmp_file = File::create(&tmp_path)?;
-    self_update::Download::from_url(&asset.download_url)
-        .set_header(reqwest::header::ACCEPT, "application/octet-stream".parse()?)
+    self_update::Download::from_url(asset.download_url())
+        .request_header(self_update::http::header::ACCEPT, "application/octet-stream")
         .download_to(tmp_file)?;
 
     update_status(status, "Extracting release".to_string(), 2, 3, &cancel)?;

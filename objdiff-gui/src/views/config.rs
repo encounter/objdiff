@@ -182,7 +182,7 @@ pub fn config_ui(
     }
     ui.label(format!("Current version: {}", env!("CARGO_PKG_VERSION")));
     if let Some(result) = &config_state.check_update {
-        ui.label(format!("Latest version: {}", result.latest_release.version));
+        ui.label(format!("Latest version: {}", result.latest_release.version()));
         if result.update_available {
             ui.colored_label(appearance.insert_color, "Update available");
             ui.horizontal(|ui| {
