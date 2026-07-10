@@ -10,6 +10,7 @@ const FDR_SIZE: usize = 0x48;
 const PDR_SIZE: usize = 0x34;
 const SYMR_SIZE: usize = 0x0c;
 
+const ST_LABEL: u8 = 5;
 const ST_PROC: u8 = 6;
 const ST_STATICPROC: u8 = 14;
 const ST_END: u8 = 8;
@@ -40,6 +41,8 @@ pub(super) fn parse_line_info_mdebug(
     )?;
     let symbols = parse_symbols(symbols_data, endianness)?;
 
+    let strings_data = slice_at(data, header.cb_ss_offset, header.iss_max, section_file_offset)?;
+
     let fdr_data = slice_at(
         data,
         header.cb_fd_offset,
@@ -63,11 +66,13 @@ pub(super) fn parse_line_info_mdebug(
             continue;
         }
 
+        assign_label_lines(sections, &symbols[sym_base..sym_end], strings_data, &fdr);
+
         let Some(line_file_offset) = header.cb_line_offset.checked_add(fdr.cb_line_offset) else {
             continue;
         };
         let Some(line_file_base) =
-            resolve_offset(line_file_offset, data.len(), section_file_offset)
+            resolve_offset(line_file_offset, fdr.cb_line as usize, data.len(), section_file_offset)
         else {
             continue;
         };
@@ -168,6 +173,44 @@ fn assign_lines(sections: &mut [Section], base_address: u64, lines: &[i32]) {
     }
 }
 
+fn assign_label_lines(
+    sections: &mut [Section],
+    symbols: &[SymbolEntry],
+    strings: &[u8],
+    fdr: &FileDescriptor,
+) {
+    for sym in symbols {
+        if sym.st != ST_LABEL || sym.index == 0 {
+            continue;
+        }
+        let Some(name) = symbol_name(strings, fdr.iss_base, sym.iss) else {
+            continue;
+        };
+        if !name.starts_with("$LM") {
+            continue;
+        }
+        let address = fdr.adr as u64 + sym.value as u64;
+        if let Some(section) = find_code_section(sections, address) {
+            section.line_info.insert(address, sym.index);
+        }
+    }
+}
+
+fn symbol_name(strings: &[u8], file_string_base: u32, string_offset: u32) -> Option<&str> {
+    let offset =
+        string_offset.try_into().ok().filter(|&offset: &usize| offset < strings.len()).or_else(
+            || {
+                file_string_base
+                    .checked_add(string_offset)?
+                    .try_into()
+                    .ok()
+                    .filter(|&offset: &usize| offset < strings.len())
+            },
+        )?;
+    let end = offset + strings[offset..].iter().position(|&b| b == 0)?;
+    core::str::from_utf8(&strings[offset..end]).ok()
+}
+
 fn find_code_section(sections: &mut [Section], address: u64) -> Option<&mut Section> {
     sections.iter_mut().find(|section| {
         section.kind == SectionKind::Code
@@ -209,12 +252,12 @@ fn slice_at(
     let size = size as usize;
     if size == 0 {
         ensure!(
-            resolve_offset(offset, data.len(), section_file_offset).is_some(),
+            resolve_offset(offset, 0, data.len(), section_file_offset).is_some(),
             "offset outside of .mdebug section"
         );
         return Ok(&data[0..0]);
     }
-    let Some(offset) = resolve_offset(offset, data.len(), section_file_offset) else {
+    let Some(offset) = resolve_offset(offset, size, data.len(), section_file_offset) else {
         bail!("offset outside of .mdebug section");
     };
     let end = offset.checked_add(size).context("range overflow")?;
@@ -224,17 +267,18 @@ fn slice_at(
 
 fn resolve_offset(
     offset: u32,
+    size: usize,
     data_len: usize,
     section_file_offset: Option<usize>,
 ) -> Option<usize> {
     let offset = offset as usize;
-    if offset <= data_len {
-        Some(offset)
-    } else if let Some(file_offset) = section_file_offset {
-        offset.checked_sub(file_offset).filter(|rel| *rel <= data_len)
-    } else {
-        None
+    if let Some(file_offset) = section_file_offset
+        && let Some(rel) = offset.checked_sub(file_offset)
+        && rel.checked_add(size).is_some_and(|end| end <= data_len)
+    {
+        return Some(rel);
     }
+    offset.checked_add(size).filter(|&end| end <= data_len).map(|_| offset)
 }
 
 #[derive(Clone, Copy)]
@@ -242,8 +286,10 @@ struct Header {
     cb_line_offset: u32,
     cb_pd_offset: u32,
     cb_sym_offset: u32,
+    cb_ss_offset: u32,
     cb_fd_offset: u32,
     isym_max: u32,
+    iss_max: u32,
     ifd_max: u32,
 }
 
@@ -267,8 +313,8 @@ impl Header {
         let _cb_opt_offset = read_u32(data, &mut cursor, endianness)?;
         let _iaux_max = read_u32(data, &mut cursor, endianness)?;
         let _cb_aux_offset = read_u32(data, &mut cursor, endianness)?;
-        let _iss_max = read_u32(data, &mut cursor, endianness)?;
-        let _cb_ss_offset = read_u32(data, &mut cursor, endianness)?;
+        let iss_max = read_u32(data, &mut cursor, endianness)?;
+        let cb_ss_offset = read_u32(data, &mut cursor, endianness)?;
         let _iss_ext_max = read_u32(data, &mut cursor, endianness)?;
         let _cb_ss_ext_offset = read_u32(data, &mut cursor, endianness)?;
         let ifd_max = read_u32(data, &mut cursor, endianness)?;
@@ -278,13 +324,23 @@ impl Header {
         let _iext_max = read_u32(data, &mut cursor, endianness)?;
         let _cb_ext_offset = read_u32(data, &mut cursor, endianness)?;
 
-        Ok(Header { cb_line_offset, cb_pd_offset, cb_sym_offset, cb_fd_offset, isym_max, ifd_max })
+        Ok(Header {
+            cb_line_offset,
+            cb_pd_offset,
+            cb_sym_offset,
+            cb_ss_offset,
+            cb_fd_offset,
+            isym_max,
+            iss_max,
+            ifd_max,
+        })
     }
 }
 
 #[derive(Clone, Copy)]
 struct FileDescriptor {
     adr: u32,
+    iss_base: u32,
     isym_base: u32,
     csym: u32,
     ipd_first: u16,
@@ -299,7 +355,7 @@ impl FileDescriptor {
         let mut cursor = 0;
         let adr = read_u32(data, &mut cursor, endianness)?;
         let _rss = read_u32(data, &mut cursor, endianness)?;
-        let _iss_base = read_u32(data, &mut cursor, endianness)?;
+        let iss_base = read_u32(data, &mut cursor, endianness)?;
         let _cb_ss = read_u32(data, &mut cursor, endianness)?;
         let isym_base = read_u32(data, &mut cursor, endianness)?;
         let csym = read_u32(data, &mut cursor, endianness)?;
@@ -317,7 +373,16 @@ impl FileDescriptor {
         let cb_line_offset = read_u32(data, &mut cursor, endianness)?;
         let cb_line = read_u32(data, &mut cursor, endianness)?;
 
-        Ok(FileDescriptor { adr, isym_base, csym, ipd_first, cpd, cb_line_offset, cb_line })
+        Ok(FileDescriptor {
+            adr,
+            iss_base,
+            isym_base,
+            csym,
+            ipd_first,
+            cpd,
+            cb_line_offset,
+            cb_line,
+        })
     }
 }
 
@@ -354,6 +419,7 @@ impl ProcDescriptor {
 
 #[derive(Clone, Copy)]
 struct SymbolEntry {
+    iss: u32,
     value: u32,
     st: u8,
     index: u32,
@@ -364,14 +430,14 @@ fn parse_symbols(data: &[u8], endianness: Endianness) -> Result<Vec<SymbolEntry>
     let mut symbols = Vec::with_capacity(data.len() / SYMR_SIZE);
     let mut cursor = 0;
     while cursor + SYMR_SIZE <= data.len() {
-        let _iss = read_u32(data, &mut cursor, endianness)?;
+        let iss = read_u32(data, &mut cursor, endianness)?;
         let value = read_u32(data, &mut cursor, endianness)?;
         let bits = read_u32(data, &mut cursor, endianness)?;
         let (st, index) = match endianness {
             Endianness::Big => (((bits >> 26) & 0x3f) as u8, bits & 0x000f_ffff),
             Endianness::Little => (((bits & 0x3f) as u8), (bits >> 12) & 0x000f_ffff),
         };
-        symbols.push(SymbolEntry { value, st, index });
+        symbols.push(SymbolEntry { iss, value, st, index });
     }
     Ok(symbols)
 }
