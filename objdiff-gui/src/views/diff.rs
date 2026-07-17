@@ -23,7 +23,7 @@ use crate::{
         column_layout::{render_header, render_strips, render_table},
         data_diff::data_row_ui,
         extab_diff::extab_ui,
-        function_diff::{FunctionDiffContext, asm_col_ui},
+        function_diff::{FunctionDiffContext, GoToTarget, GoToTargetType, asm_col_ui},
         symbol_diff::{
             DiffViewAction, DiffViewNavigation, DiffViewState, SymbolDiffContext, SymbolRefByName,
             View, match_color_for_symbol, symbol_context_menu_ui, symbol_hover_ui, symbol_list_ui,
@@ -114,6 +114,57 @@ fn get_asm_text(
     }
 
     asm_text
+}
+
+fn try_scroll_to_go_to_target(
+    go_to_target: GoToTarget,
+    obj: &Object,
+    diff: &ObjectDiff,
+    symbol_idx: usize,
+) -> Option<DiffViewAction> {
+    match go_to_target {
+        GoToTarget::None => return None,
+        GoToTarget::LineNumber(target_line) => {
+            let symbol = obj.symbols.get(symbol_idx)?;
+            let section_index = symbol.section?;
+            let section = &obj.sections[section_index];
+            for (ins_idx, ins_row) in diff.symbols[symbol_idx].instruction_rows.iter().enumerate() {
+                if let Some(ins_ref) = ins_row.ins_ref
+                    && let Some(current_line) =
+                        section.line_info.range(..=ins_ref.address).last().map(|(_, &b)| b)
+                    && current_line == target_line
+                {
+                    return Some(DiffViewAction::ScrollToRow(ins_idx));
+                }
+            }
+        }
+        GoToTarget::Address(target_address) => {
+            let symbol = obj.symbols.get(symbol_idx)?;
+            let symbol_diff = diff.symbols.get(symbol_idx)?;
+            for (ins_idx, ins_row) in symbol_diff.instruction_rows.iter().enumerate() {
+                if let Some(ins_ref) = ins_row.ins_ref
+                    && target_address == ins_ref.address.saturating_sub(symbol.address)
+                {
+                    return Some(DiffViewAction::ScrollToRow(ins_idx));
+                }
+            }
+        }
+        GoToTarget::VirtualAddress(target_virtual_address) => {
+            let symbol = obj.symbols.get(symbol_idx)?;
+            let section_index = symbol.section?;
+            let section = &obj.sections[section_index];
+            let section_virtual_address = section.virtual_address?;
+            let target_offset = target_virtual_address.checked_sub(section_virtual_address)?;
+            for (ins_idx, ins_row) in diff.symbols[symbol_idx].instruction_rows.iter().enumerate() {
+                if let Some(ins_ref) = ins_row.ins_ref
+                    && ins_ref.address == target_offset
+                {
+                    return Some(DiffViewAction::ScrollToRow(ins_idx));
+                }
+            }
+        }
+    };
+    None
 }
 
 #[must_use]
@@ -287,6 +338,44 @@ pub fn diff_view_ui(
                     {
                         ret = Some(DiffViewAction::SelectingLeft(symbol_ref.clone()));
                     }
+
+                    if state.current_view == View::FunctionDiff {
+                        ui.separator();
+
+                        let mut goto_line_text = state.function_state.go_to_text_left.clone();
+                        let response = TextEdit::singleline(&mut goto_line_text)
+                            .hint_text("Go to...")
+                            .desired_width(100.0)
+                            .ui(ui);
+
+                        let mut go_to_target_type_left: GoToTargetType =
+                            state.function_state.go_to_target_type_left;
+                        egui::ComboBox::from_id_salt("go_to_target_type_left")
+                            .selected_text(go_to_target_type_left.to_string())
+                            .show_ui(ui, |ui| {
+                                for go_to_target_type in [
+                                    GoToTargetType::LineNumber,
+                                    GoToTargetType::Address,
+                                    GoToTargetType::VirtualAddress,
+                                ] {
+                                    let response = ui.selectable_value(
+                                        &mut go_to_target_type_left,
+                                        go_to_target_type,
+                                        go_to_target_type.to_string(),
+                                    );
+                                    if response.changed() {
+                                        ret = Some(DiffViewAction::SetGoToTargetType(
+                                            go_to_target_type_left,
+                                            false,
+                                        ));
+                                    }
+                                }
+                            });
+
+                        if response.changed() {
+                            ret = Some(DiffViewAction::SetGoToText(goto_line_text, false));
+                        }
+                    }
                 });
             } else if left_ctx.status.success && !left_ctx.has_symbol() {
                 ui.horizontal(|ui| {
@@ -458,6 +547,48 @@ pub fn diff_view_ui(
                         needs_separator = true;
                     }
 
+                    if state.current_view == View::FunctionDiff {
+                        if needs_separator {
+                            ui.separator();
+                        }
+                        let mut goto_line_text = state.function_state.go_to_text_right.clone();
+                        let response = TextEdit::singleline(&mut goto_line_text)
+                            .hint_text("Go to...")
+                            .desired_width(100.0)
+                            .ui(ui);
+                        if hotkeys::consume_go_to_shortcut(ui.ctx()) {
+                            response.request_focus();
+                        }
+
+                        let mut go_to_target_type_right: GoToTargetType =
+                            state.function_state.go_to_target_type_right;
+                        egui::ComboBox::from_id_salt("go_to_target_type_right")
+                            .selected_text(go_to_target_type_right.to_string())
+                            .show_ui(ui, |ui| {
+                                for go_to_target_type in [
+                                    GoToTargetType::LineNumber,
+                                    GoToTargetType::Address,
+                                    GoToTargetType::VirtualAddress,
+                                ] {
+                                    let response = ui.selectable_value(
+                                        &mut go_to_target_type_right,
+                                        go_to_target_type,
+                                        go_to_target_type.to_string(),
+                                    );
+                                    if response.changed() {
+                                        ret = Some(DiffViewAction::SetGoToTargetType(
+                                            go_to_target_type_right,
+                                            true,
+                                        ));
+                                    }
+                                }
+                            });
+
+                        if response.changed() {
+                            ret = Some(DiffViewAction::SetGoToText(goto_line_text, true));
+                        }
+                    }
+
                     if state.current_view == View::FunctionDiff
                         || state.current_view == View::DataDiff
                     {
@@ -521,6 +652,18 @@ pub fn diff_view_ui(
             if left_symbol_diff.instruction_rows.len() != right_symbol_diff.instruction_rows.len() {
                 ui.label("Instruction count mismatch");
                 return;
+            }
+            if let Some(action) = try_scroll_to_go_to_target(
+                state.function_state.go_to_target,
+                if state.function_state.go_to_target_is_right { right_obj } else { left_obj },
+                if state.function_state.go_to_target_is_right { right_diff } else { left_diff },
+                if state.function_state.go_to_target_is_right {
+                    right_symbol_idx
+                } else {
+                    left_symbol_idx
+                },
+            ) {
+                ret = Some(action);
             }
             let instructions_len = left_symbol_diff.instruction_rows.len();
             let mut min_row = None;
@@ -799,6 +942,14 @@ fn diff_col_ui(
                     },
                 );
             } else {
+                if let Some(action) = try_scroll_to_go_to_target(
+                    state.function_state.go_to_target,
+                    obj,
+                    diff,
+                    symbol_idx,
+                ) {
+                    ret = Some(action);
+                }
                 render_table(
                     ui,
                     available_width / 2.0,

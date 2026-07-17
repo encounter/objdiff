@@ -24,7 +24,7 @@ use crate::{
     views::{
         appearance::Appearance,
         diff::{context_menu_items_ui, hover_items_ui},
-        function_diff::FunctionViewState,
+        function_diff::{FunctionViewState, GoToTarget, GoToTargetType},
         write_text,
     },
 };
@@ -83,6 +83,12 @@ pub enum DiffViewAction {
     SetShowDataFlow(bool),
     // Scrolls a row of the function view table into view.
     ScrollToRow(usize),
+    /// Changes the text of the "Go to..." field.
+    /// The bool is true for right, false for left.
+    SetGoToText(String, bool),
+    /// Changes the dropdown next to the "Go to..." field.
+    /// The bool is true for right, false for left.
+    SetGoToTargetType(GoToTargetType, bool),
 }
 
 #[derive(Debug, Clone, Default, Eq, PartialEq)]
@@ -204,6 +210,7 @@ impl DiffViewState {
         // Clear the scroll flags to prevent it from scrolling continuously.
         self.symbol_state.autoscroll_to_highlighted_symbols = false;
         self.scroll_to_diff_row = None;
+        self.function_state.go_to_target = GoToTarget::None;
 
         let Some(action) = action else {
             return;
@@ -369,6 +376,23 @@ impl DiffViewState {
             DiffViewAction::ScrollToRow(row) => {
                 self.scroll_to_diff_row = Some(row);
             }
+            DiffViewAction::SetGoToText(text, is_right) => {
+                self.function_state.go_to_target_is_right = is_right;
+                if is_right {
+                    self.function_state.go_to_text_right = text;
+                } else {
+                    self.function_state.go_to_text_left = text;
+                }
+                self.resolve_go_to_target(is_right);
+            }
+            DiffViewAction::SetGoToTargetType(target_type, is_right) => {
+                if is_right {
+                    self.function_state.go_to_target_type_right = target_type;
+                } else {
+                    self.function_state.go_to_target_type_left = target_type;
+                }
+                self.resolve_go_to_target(is_right);
+            }
         }
     }
 
@@ -416,6 +440,36 @@ impl DiffViewState {
         } else {
             self.search = search;
             self.search_regex = search_regex;
+        }
+    }
+
+    fn resolve_go_to_target(&mut self, is_right: bool) {
+        let target_type = if is_right {
+            self.function_state.go_to_target_type_right
+        } else {
+            self.function_state.go_to_target_type_left
+        };
+        let target_text = if is_right {
+            &self.function_state.go_to_text_right
+        } else {
+            &self.function_state.go_to_text_left
+        };
+        match target_type {
+            GoToTargetType::LineNumber => {
+                if let Ok(line_num) = target_text.trim().parse::<u32>() {
+                    self.function_state.go_to_target = GoToTarget::LineNumber(line_num)
+                }
+            }
+            GoToTargetType::Address => {
+                if let Ok(address) = u64::from_str_radix(target_text.trim(), 16) {
+                    self.function_state.go_to_target = GoToTarget::Address(address)
+                }
+            }
+            GoToTargetType::VirtualAddress => {
+                if let Ok(virtual_address) = u64::from_str_radix(target_text.trim(), 16) {
+                    self.function_state.go_to_target = GoToTarget::VirtualAddress(virtual_address)
+                }
+            }
         }
     }
 }

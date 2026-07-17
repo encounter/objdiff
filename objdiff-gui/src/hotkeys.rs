@@ -118,3 +118,9 @@ const NEXT_DIFF_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CT
 pub fn consume_next_diff_shortcut(ctx: &Context) -> bool {
     ctx.input_mut(|i| i.consume_shortcut(&NEXT_DIFF_SHORTCUT))
 }
+
+const GO_TO_SHORTCUT: KeyboardShortcut = KeyboardShortcut::new(Modifiers::CTRL, Key::G);
+
+pub fn consume_go_to_shortcut(ctx: &Context) -> bool {
+    ctx.input_mut(|i| i.consume_shortcut(&GO_TO_SHORTCUT))
+}
