@@ -606,14 +606,14 @@ fn symbol_ui(
     if diff_config.show_symbol_sizes == ShowSymbolSizes::Decimal {
         write_text(
             &format!(" (size={})", symbol.size),
-            appearance.deemphasized_text_color,
+            appearance.text_color,
             &mut job,
             appearance.code_font.clone(),
         );
     } else if diff_config.show_symbol_sizes == ShowSymbolSizes::Hex {
         write_text(
             &format!(" (size={:x})", symbol.size),
-            appearance.deemphasized_text_color,
+            appearance.text_color,
             &mut job,
             appearance.code_font.clone(),
         );
