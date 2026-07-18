@@ -13,7 +13,7 @@ use super::{
     SymbolDiff, display::display_ins_data_literals,
 };
 use crate::{
-    diff::{address_eq, section_name_eq},
+    diff::{address_eq, section_name_eq, symbol_name_matches},
     obj::{
         InstructionArg, InstructionArgValue, InstructionRef, Object, ResolvedInstructionRef,
         ResolvedRelocation, ResolvedSymbol, SymbolKind,
@@ -311,7 +311,7 @@ fn reloc_eq(
         return true;
     }
 
-    let symbol_name_addend_matches = left_reloc.symbol.name == right_reloc.symbol.name
+    let symbol_name_addend_matches = symbol_name_matches(left_reloc.symbol, right_reloc.symbol)
         && left_reloc.relocation.addend == right_reloc.relocation.addend;
     match (left_reloc.symbol.section, right_reloc.symbol.section) {
         (Some(sl), Some(sr)) => {
