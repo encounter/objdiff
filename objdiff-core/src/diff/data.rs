@@ -54,8 +54,17 @@ fn reloc_eq(
             if !section_name_eq(left_obj, right_obj, sl, sr) {
                 return false;
             };
-            // Match if name+addend or address match
-            symbol_name_addend_matches || address_eq(left_reloc, right_reloc)
+            let mut name_ok = false;
+            if left_reloc.symbol.flags.contains(SymbolFlag::CompilerGenerated)
+                && right_reloc.symbol.flags.contains(SymbolFlag::CompilerGenerated)
+            {
+                // Match if both symbol names are fully compiler-generated
+                name_ok = true;
+            } else if symbol_name_addend_matches || address_eq(left_reloc, right_reloc) {
+                // Match if name+addend or address match
+                name_ok = true;
+            }
+            name_ok
         }
         (Some(_), None) | (None, Some(_)) | (None, None) => symbol_name_addend_matches,
     }

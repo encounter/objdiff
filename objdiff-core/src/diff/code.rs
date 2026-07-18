@@ -16,7 +16,7 @@ use crate::{
     diff::{address_eq, section_name_eq, symbol_name_matches},
     obj::{
         InstructionArg, InstructionArgValue, InstructionRef, Object, ResolvedInstructionRef,
-        ResolvedRelocation, ResolvedSymbol, SymbolKind,
+        ResolvedRelocation, ResolvedSymbol, SymbolFlag, SymbolKind,
     },
 };
 
@@ -321,6 +321,11 @@ fn reloc_eq(
             let mut name_ok = false;
             if diff_config.function_reloc_diffs == FunctionRelocDiffs::DataValue {
                 // Ignore names entirely
+                name_ok = true;
+            } else if left_reloc.symbol.flags.contains(SymbolFlag::CompilerGenerated)
+                && right_reloc.symbol.flags.contains(SymbolFlag::CompilerGenerated)
+            {
+                // Match if both symbol names are fully compiler-generated
                 name_ok = true;
             } else if symbol_name_addend_matches || address_eq(left_reloc, right_reloc) {
                 // Match if name+addend or address match
