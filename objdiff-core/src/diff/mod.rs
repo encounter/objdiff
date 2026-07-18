@@ -14,10 +14,11 @@ use crate::{
         data::{
             diff_bss_section, diff_bss_symbol, diff_data_section, diff_data_symbol,
             diff_generic_section, no_diff_bss_section, no_diff_data_section, no_diff_data_symbol,
-            symbol_name_matches,
         },
     },
-    obj::{InstructionRef, Object, Relocation, SectionKind, Symbol, SymbolFlag},
+    obj::{
+        InstructionRef, Object, Relocation, ResolvedRelocation, SectionKind, Symbol, SymbolFlag,
+    },
 };
 
 pub mod code;
@@ -813,4 +814,44 @@ pub enum DiffSide {
     Target,
     /// The base side of the diff.
     Base,
+}
+
+pub(crate) fn address_eq(left: ResolvedRelocation, right: ResolvedRelocation) -> bool {
+    if right.symbol.size == 0 && left.symbol.size != 0 {
+        // The base relocation is against a pool but the target relocation isn't.
+        // This can happen in rare cases where the compiler will generate a pool+addend relocation
+        // in the base's data, but the one detected in the target is direct with no addend.
+        // Just check that the final address is the same so these count as a match.
+        left.symbol.address as i64 + left.relocation.addend
+            == right.symbol.address as i64 + right.relocation.addend
+    } else {
+        // But otherwise, if the compiler isn't using a pool, we're more strict and check that the
+        // target symbol address and relocation addend both match exactly.
+        left.symbol.address == right.symbol.address
+            && left.relocation.addend == right.relocation.addend
+    }
+}
+
+pub(crate) fn section_name_eq(
+    left_obj: &Object,
+    right_obj: &Object,
+    left_section_index: usize,
+    right_section_index: usize,
+) -> bool {
+    left_obj.sections.get(left_section_index).is_some_and(|left_section| {
+        right_obj
+            .sections
+            .get(right_section_index)
+            .is_some_and(|right_section| left_section.name == right_section.name)
+    })
+}
+
+pub(crate) fn symbol_name_matches(left: &Symbol, right: &Symbol) -> bool {
+    if let Some(left_name) = &left.normalized_name
+        && let Some(right_name) = &right.normalized_name
+    {
+        left_name == right_name
+    } else {
+        left.name == right.name
+    }
 }
