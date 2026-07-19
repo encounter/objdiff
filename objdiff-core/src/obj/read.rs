@@ -133,7 +133,7 @@ fn map_symbol(
     if symbol.is_weak() {
         flags |= SymbolFlag::Weak;
     }
-    if file.format() == object::BinaryFormat::Elf
+    if matches!(file.format(), object::BinaryFormat::Elf | object::BinaryFormat::MachO)
         && symbol.scope() == object::SymbolScope::Linkage
         && (file.architecture() != Architecture::Arm || !symbol.is_global())
     {
@@ -250,6 +250,7 @@ fn add_section_symbols(sections: &[Section], symbols: &mut Vec<Symbol>) {
 
         // `section.size` can include extra padding, so instead prefer using the address that the
         // last symbol ends at when there are any symbols in the section.
+        // Compute size as a section-relative offset (important for non-zero section.address, e.g. Mach-O).
         let size = symbols
             .iter()
             .filter(|s| {
@@ -257,13 +258,14 @@ fn add_section_symbols(sections: &[Section], symbols: &mut Vec<Symbol>) {
             })
             .map(|s| s.address + s.size)
             .max()
-            .unwrap_or(section.size);
+            .unwrap_or(section.address + section.size)
+            .saturating_sub(section.address);
 
         symbols.push(Symbol {
             name,
             demangled_name: None,
             normalized_name: None,
-            address: 0,
+            address: section.address,
             size,
             kind: SymbolKind::Section,
             section: Some(section_idx),
@@ -577,6 +579,9 @@ fn map_section_relocations(
         let flags = match reloc.flags() {
             object::RelocationFlags::Elf { r_type } => RelocationFlags::Elf(r_type),
             object::RelocationFlags::Coff { typ } => RelocationFlags::Coff(typ),
+            object::RelocationFlags::MachO { r_type, r_pcrel, r_length } => {
+                RelocationFlags::MachO { r_type, r_pcrel, r_length }
+            }
             flags => bail!("Unhandled relocation flags: {:?}", flags),
         };
         let target_symbol = match symbol_indices.get(symbol_index.0).copied() {
