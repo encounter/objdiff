@@ -1076,6 +1076,7 @@ pub fn parse(data: &[u8], config: &DiffObjConfig, diff_side: DiffSide) -> Result
     let (mut symbols, symbol_indices) =
         map_symbols(arch.as_ref(), &obj_file, &section_indices, split_meta.as_ref(), config)?;
     map_relocations(arch.as_ref(), &obj_file, &mut sections, &section_indices, &symbol_indices)?;
+    arch.pre_init(&sections, &symbols, &symbol_indices);
     // Infer symbol sizes for 0-size symbols (must be done after map_relocations is called)
     infer_symbol_sizes(arch.as_ref(), &mut symbols, &sections)?;
     parse_line_info(&obj_file, &mut sections, &section_indices, data)?;

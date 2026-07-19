@@ -162,6 +162,10 @@ impl ArchArm {
 }
 
 impl Arch for ArchArm {
+    fn pre_init(&mut self, sections: &[Section], symbols: &[Symbol], _symbol_indices: &[usize]) {
+        self.disasm_modes = Self::get_mapping_symbols(sections, symbols);
+    }
+
     fn post_init(&mut self, sections: &[Section], symbols: &[Symbol], _symbol_indices: &[usize]) {
         self.disasm_modes = Self::get_mapping_symbols(sections, symbols);
     }
@@ -474,20 +478,24 @@ impl Arch for ArchArm {
         section: &Section,
         mut next_address: u64,
     ) -> Result<u64> {
-        // TODO: This should probably check the disasm mode and trim accordingly,
-        // but self.disasm_modes isn't populated until post_init, so it needs a refactor.
-
         // Trim any trailing 2-byte zeroes from the end (padding)
         while next_address >= symbol.address + 2
+            && !symbol.section.is_some_and(|section_idx| {
+                self.disasm_modes
+                    .get(&section_idx)
+                    .and_then(|mappings| {
+                        mappings.iter().rfind(|mapping| mapping.address as u64 <= next_address - 2)
+                    })
+                    .is_some_and(|mapping| mapping.ends_with_complete_data_words(next_address))
+            })
             && let Some(data) = section.data_range(next_address - 2, 2)
             && data == [0u8; 2]
+            && !section.relocation_at(next_address.saturating_sub(4), 4).is_some_and(|relocation| {
+                relocation.address + self.data_reloc_size(relocation.flags) as u64
+                    > next_address - 2
+            })
         {
             next_address -= 2;
-            if let Some(relocation) = section.relocation_at(next_address, 2) {
-                // Avoid cutting trailing relocations in half.
-                next_address += self.data_reloc_size(relocation.flags) as u64;
-                break;
-            }
         }
         Ok(next_address.saturating_sub(symbol.address))
     }
@@ -500,6 +508,11 @@ struct DisasmMode {
 }
 
 impl DisasmMode {
+    fn ends_with_complete_data_words(self, end_address: u64) -> bool {
+        let data_size = end_address.saturating_sub(self.address as u64);
+        self.mapping == unarm::ParseMode::Data && data_size >= 4 && data_size.is_multiple_of(4)
+    }
+
     fn from_object_symbol<'a>(sym: &object::Symbol<'a, '_, &'a [u8]>) -> Option<Self> {
         sym.name()
             .ok()
@@ -643,5 +656,20 @@ impl unarm::FormatIns for ArgsFormatter<'_> {
             self.write(InstructionPart::basic(")"))?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DisasmMode;
+
+    #[test]
+    fn complete_data_words_exclude_trailing_halfword_padding() {
+        let mapping = DisasmMode { address: 0x1000, mapping: unarm::ParseMode::Data };
+
+        assert!(!mapping.ends_with_complete_data_words(0x1002));
+        assert!(mapping.ends_with_complete_data_words(0x1004));
+        assert!(!mapping.ends_with_complete_data_words(0x1006));
+        assert!(mapping.ends_with_complete_data_words(0x1008));
     }
 }
