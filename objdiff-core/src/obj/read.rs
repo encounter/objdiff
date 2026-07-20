@@ -6,7 +6,10 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use core::{cmp::Ordering, num::NonZeroU64};
+use core::{
+    cmp::Ordering,
+    num::{NonZeroU32, NonZeroU64},
+};
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use object::{Architecture, Object as _, ObjectSection as _, ObjectSymbol as _};
@@ -17,6 +20,7 @@ use crate::{
     obj::{
         FlowAnalysisResult, Object, Relocation, RelocationFlags, Section, SectionData, SectionFlag,
         SectionKind, Symbol, SymbolFlag, SymbolFlagSet, SymbolKind,
+        comment::{COMMENT_SECTION, CommentSym, MWComment},
         split_meta::{SPLITMETA_SECTION, SplitMeta},
     },
     util::{align_data_slice_to, align_u64_to, read_u16, read_u32},
@@ -103,6 +107,7 @@ fn map_symbol(
     symbol: &object::Symbol,
     section_indices: &[usize],
     split_meta: Option<&SplitMeta>,
+    comment_syms: Option<&Vec<CommentSym>>,
     config: &DiffObjConfig,
 ) -> Result<Symbol> {
     let mut name = symbol.name().context("Failed to process symbol name")?.to_string();
@@ -156,6 +161,9 @@ fn map_symbol(
     };
     let address = arch.symbol_address(symbol.address(), kind);
     let demangled_name = config.demangler.demangle(&name);
+    // Find the alignment for the symbol if available
+    let comment_sym = comment_syms.map(|vec| vec[symbol.index().0 - 1]);
+    let align = comment_sym.and_then(|c| NonZeroU32::new(c.align));
     // Find the virtual address for the symbol if available
     let virtual_address = split_meta
         .and_then(|m| m.virtual_addresses.as_ref())
@@ -175,7 +183,7 @@ fn map_symbol(
         kind,
         section,
         flags,
-        align: None, // TODO parse .comment
+        align,
         virtual_address,
     })
 }
@@ -185,6 +193,7 @@ fn map_symbols(
     obj_file: &object::File,
     section_indices: &[usize],
     split_meta: Option<&SplitMeta>,
+    comment_syms: Option<&Vec<CommentSym>>,
     config: &DiffObjConfig,
 ) -> Result<(Vec<Symbol>, Vec<usize>)> {
     // symbols() is not guaranteed to be sorted by address.
@@ -219,7 +228,15 @@ fn map_symbols(
     let mut symbols = Vec::<Symbol>::with_capacity(obj_symbols.len() + obj_file.sections().count());
     let mut symbol_indices = vec![usize::MAX; max_index + 1];
     for obj_symbol in obj_symbols {
-        let symbol = map_symbol(arch, obj_file, &obj_symbol, section_indices, split_meta, config)?;
+        let symbol = map_symbol(
+            arch,
+            obj_file,
+            &obj_symbol,
+            section_indices,
+            split_meta,
+            comment_syms,
+            config,
+        )?;
         symbol_indices[obj_symbol.index().0] = symbols.len();
         symbols.push(symbol);
     }
@@ -1071,10 +1088,17 @@ pub fn parse(data: &[u8], config: &DiffObjConfig, diff_side: DiffSide) -> Result
     let obj_file = object::File::parse(data)?;
     let mut arch = new_arch(&obj_file, diff_side)?;
     let split_meta = parse_split_meta(&obj_file)?;
+    let comment_syms = parse_mw_comment_syms(&obj_file)?;
     let (mut sections, section_indices) =
         map_sections(arch.as_ref(), &obj_file, split_meta.as_ref())?;
-    let (mut symbols, symbol_indices) =
-        map_symbols(arch.as_ref(), &obj_file, &section_indices, split_meta.as_ref(), config)?;
+    let (mut symbols, symbol_indices) = map_symbols(
+        arch.as_ref(),
+        &obj_file,
+        &section_indices,
+        split_meta.as_ref(),
+        comment_syms.as_ref(),
+        config,
+    )?;
     map_relocations(arch.as_ref(), &obj_file, &mut sections, &section_indices, &symbol_indices)?;
     // Infer symbol sizes for 0-size symbols (must be done after map_relocations is called)
     infer_symbol_sizes(arch.as_ref(), &mut symbols, &sections)?;
@@ -1119,6 +1143,27 @@ pub fn has_function(obj_path: &std::path::Path, symbol_name: &str) -> Result<boo
 fn parse_split_meta(obj_file: &object::File) -> Result<Option<SplitMeta>> {
     Ok(if let Some(section) = obj_file.section_by_name(SPLITMETA_SECTION) {
         Some(SplitMeta::from_section(section, obj_file.endianness(), obj_file.is_64())?)
+    } else {
+        None
+    })
+}
+
+fn parse_mw_comment_syms(obj_file: &object::File) -> Result<Option<Vec<CommentSym>>> {
+    Ok(if let Some(section) = obj_file.section_by_name(COMMENT_SECTION) {
+        let data = section.uncompressed_data()?;
+        let mut reader: &[u8] = data.as_ref();
+        if let Ok(_header) = MWComment::from_reader(obj_file, &mut reader) {
+            CommentSym::from_reader(obj_file, &mut reader)?; // Null symbol
+            let mut comment_syms = Vec::with_capacity(obj_file.symbols().count());
+            for _symbol in obj_file.symbols() {
+                let comment_sym = CommentSym::from_reader(obj_file, &mut reader)?;
+                comment_syms.push(comment_sym);
+            }
+            Some(comment_syms)
+        } else {
+            // .comment section exists but the header failed to parse, likely an unsupported compiler version (e.g. mwccarm)
+            None
+        }
     } else {
         None
     })
