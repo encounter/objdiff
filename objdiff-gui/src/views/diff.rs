@@ -308,6 +308,37 @@ pub fn diff_view_ui(
                         {
                             open_sections.0 = Some(false);
                         }
+
+                        if let Some((_, left_diff)) = left_ctx.obj {
+                            let wrong_order_symbols = left_diff
+                                .symbols
+                                .iter()
+                                .filter(|s| s.order.is_some_and(|o| o != Ordering::Equal))
+                                .count();
+                            let first_wrong_order_symbol = left_diff
+                                .symbols
+                                .iter()
+                                .position(|s| s.order.is_some_and(|o| o != Ordering::Equal));
+                            if ui
+                                .add_enabled(
+                                    first_wrong_order_symbol.is_some(),
+                                    egui::Button::new(format!(
+                                        "Wrong order: {}/{}",
+                                        wrong_order_symbols,
+                                        left_diff.symbols.len()
+                                    )),
+                                )
+                                .clicked()
+                                && let Some(left_sym_idx) = first_wrong_order_symbol
+                            {
+                                let target_symbol = left_diff.symbols[left_sym_idx].target_symbol;
+                                ret = Some(DiffViewAction::SetSymbolHighlight(
+                                    Some(left_sym_idx),
+                                    target_symbol,
+                                    true,
+                                ));
+                            }
+                        }
                     })
                 });
             }
