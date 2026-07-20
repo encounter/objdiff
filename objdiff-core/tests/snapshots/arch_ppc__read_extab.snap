@@ -137,7 +137,9 @@ Object {
                 0,
             ),
             flags: FlagSet(Local),
-            align: None,
+            align: Some(
+                4,
+            ),
             virtual_address: None,
         },
         Symbol {
@@ -151,7 +153,9 @@ Object {
                 0,
             ),
             flags: FlagSet(Global | HasExtra),
-            align: None,
+            align: Some(
+                4,
+            ),
             virtual_address: None,
         },
         Symbol {
@@ -165,7 +169,9 @@ Object {
                 0,
             ),
             flags: FlagSet(Global | HasExtra),
-            align: None,
+            align: Some(
+                4,
+            ),
             virtual_address: None,
         },
         Symbol {
@@ -181,7 +187,9 @@ Object {
                 0,
             ),
             flags: FlagSet(Global | Weak | HasExtra),
-            align: None,
+            align: Some(
+                4,
+            ),
             virtual_address: None,
         },
         Symbol {
@@ -195,7 +203,9 @@ Object {
                 1,
             ),
             flags: FlagSet(Local),
-            align: None,
+            align: Some(
+                4,
+            ),
             virtual_address: None,
         },
         Symbol {
@@ -209,7 +219,9 @@ Object {
                 1,
             ),
             flags: FlagSet(Local | CompilerGenerated),
-            align: None,
+            align: Some(
+                4,
+            ),
             virtual_address: None,
         },
         Symbol {
@@ -223,7 +235,9 @@ Object {
                 1,
             ),
             flags: FlagSet(Local | CompilerGenerated),
-            align: None,
+            align: Some(
+                4,
+            ),
             virtual_address: None,
         },
         Symbol {
@@ -237,7 +251,9 @@ Object {
                 1,
             ),
             flags: FlagSet(Local | CompilerGenerated),
-            align: None,
+            align: Some(
+                4,
+            ),
             virtual_address: None,
         },
         Symbol {
@@ -251,7 +267,9 @@ Object {
                 2,
             ),
             flags: FlagSet(Local),
-            align: None,
+            align: Some(
+                4,
+            ),
             virtual_address: None,
         },
         Symbol {
@@ -265,7 +283,9 @@ Object {
                 2,
             ),
             flags: FlagSet(Local | CompilerGenerated),
-            align: None,
+            align: Some(
+                4,
+            ),
             virtual_address: None,
         },
         Symbol {
@@ -279,7 +299,9 @@ Object {
                 2,
             ),
             flags: FlagSet(Local | CompilerGenerated),
-            align: None,
+            align: Some(
+                4,
+            ),
             virtual_address: None,
         },
         Symbol {
@@ -293,7 +315,9 @@ Object {
                 2,
             ),
             flags: FlagSet(Local | CompilerGenerated),
-            align: None,
+            align: Some(
+                4,
+            ),
             virtual_address: None,
         },
         Symbol {
