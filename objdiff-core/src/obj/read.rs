@@ -6,8 +6,10 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use core::{cmp::Ordering, num::NonZeroU64};
-use std::num::NonZeroU32;
+use core::{
+    cmp::Ordering,
+    num::{NonZeroU32, NonZeroU64},
+};
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use object::{Architecture, Object as _, ObjectSection as _, ObjectSymbol as _};
