@@ -1,3 +1,4 @@
+pub mod comment;
 #[cfg(feature = "dwarf")]
 mod dwarf2;
 mod mdebug;
