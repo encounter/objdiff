@@ -485,21 +485,34 @@ fn diff_order_for_section_name(
         .collect();
 
     let mut expected_right_order_idx = 0;
-    for (left_symbol_idx, _left_symbol) in left_paired_symbols.iter() {
+    for (left_order_idx, (left_symbol_idx, _left_symbol)) in left_paired_symbols.iter().enumerate()
+    {
         let right_symbol_idx = left_sym_idx_to_right_sym_idx.get(left_symbol_idx).unwrap();
         let right_order_idx = right_paired_symbols
             .iter()
             .position(|(sym_idx, _)| sym_idx == right_symbol_idx)
-            .ok_or_else(|| anyhow!("Failed to find right side symbol for paired left symbol"))?;
-        left_diff.symbols[*left_symbol_idx].order =
-            Some(expected_right_order_idx.cmp(&right_order_idx));
-        right_diff.symbols[*right_symbol_idx].order =
-            Some(right_order_idx.cmp(&expected_right_order_idx));
-        if right_order_idx == expected_right_order_idx {
-            expected_right_order_idx += 1;
+            .ok_or_else(|| {
+                anyhow!("Failed to find right side symbol for paired left side symbol")
+            })?;
+        if right_order_idx == left_order_idx {
+            // In the correct spot.
+            left_diff.symbols[*left_symbol_idx].order = Some(Ordering::Equal);
+            right_diff.symbols[*right_symbol_idx].order = Some(Ordering::Equal);
+            expected_right_order_idx = left_order_idx + 1
+        } else if right_order_idx == expected_right_order_idx {
+            // In the wrong spot, but correct relative to the symbol before it.
+            // Don't show this as a diff to reduce noise.
+            left_diff.symbols[*left_symbol_idx].order = Some(Ordering::Equal);
+            right_diff.symbols[*right_symbol_idx].order = Some(Ordering::Equal);
         } else {
-            expected_right_order_idx = right_order_idx + 1;
+            // In the wrong spot.
+            left_diff.symbols[*left_symbol_idx].order =
+                Some(expected_right_order_idx.cmp(&right_order_idx));
+            right_diff.symbols[*right_symbol_idx].order =
+                Some(right_order_idx.cmp(&expected_right_order_idx));
+            expected_right_order_idx = right_order_idx;
         }
+        expected_right_order_idx += 1;
     }
     Ok(())
 }
