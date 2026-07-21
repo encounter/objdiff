@@ -316,8 +316,7 @@ pub fn diff_view_ui(
                                 .iter()
                                 .enumerate()
                                 .skip(left_highlight + 1)
-                                .filter(|(_, s)| s.order.is_some_and(|o| o != Ordering::Equal))
-                                .next()
+                                .find(|(_, s)| s.order.is_some_and(|o| o != Ordering::Equal))
                                 .map(|(i, _)| i);
                             if next_wrong_order_symbol_idx.is_some() {
                                 wrong_order_symbol_idx_to_select = next_wrong_order_symbol_idx;
