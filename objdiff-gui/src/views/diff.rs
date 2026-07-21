@@ -300,6 +300,50 @@ pub fn diff_view_ui(
                         ret = Some(DiffViewAction::SetSearch(search));
                     }
 
+                    if let Some((_, left_diff)) = left_ctx.obj {
+                        let wrong_order_symbols = left_diff
+                            .symbols
+                            .iter()
+                            .filter(|s| s.order.is_some_and(|o| o != Ordering::Equal))
+                            .count();
+                        let mut wrong_order_symbol_idx_to_select = left_diff
+                            .symbols
+                            .iter()
+                            .position(|s| s.order.is_some_and(|o| o != Ordering::Equal));
+                        if let Some(left_highlight) = state.symbol_state.highlighted_symbol.0 {
+                            let next_wrong_order_symbol_idx = left_diff
+                                .symbols
+                                .iter()
+                                .enumerate()
+                                .skip(left_highlight + 1)
+                                .filter(|(_, s)| s.order.is_some_and(|o| o != Ordering::Equal))
+                                .next()
+                                .map(|(i, _)| i);
+                            if next_wrong_order_symbol_idx.is_some() {
+                                wrong_order_symbol_idx_to_select = next_wrong_order_symbol_idx;
+                            }
+                        }
+                        if ui
+                            .add_enabled(
+                                wrong_order_symbol_idx_to_select.is_some(),
+                                egui::Button::new(format!(
+                                    "Wrong order: {}/{}",
+                                    wrong_order_symbols,
+                                    left_diff.symbols.len()
+                                )),
+                            )
+                            .clicked()
+                            && let Some(left_sym_idx) = wrong_order_symbol_idx_to_select
+                        {
+                            let target_symbol = left_diff.symbols[left_sym_idx].target_symbol;
+                            ret = Some(DiffViewAction::SetSymbolHighlight(
+                                Some(left_sym_idx),
+                                target_symbol,
+                                true,
+                            ));
+                        }
+                    }
+
                     ui.with_layout(Layout::right_to_left(egui::Align::TOP), |ui| {
                         if ui.small_button("⏷").on_hover_text_at_pointer("Expand all").clicked() {
                             open_sections.0 = Some(true);
@@ -308,51 +352,7 @@ pub fn diff_view_ui(
                         {
                             open_sections.0 = Some(false);
                         }
-
-                        if let Some((_, left_diff)) = left_ctx.obj {
-                            let wrong_order_symbols = left_diff
-                                .symbols
-                                .iter()
-                                .filter(|s| s.order.is_some_and(|o| o != Ordering::Equal))
-                                .count();
-                            let mut wrong_order_symbol_idx_to_select = left_diff
-                                .symbols
-                                .iter()
-                                .position(|s| s.order.is_some_and(|o| o != Ordering::Equal));
-                            if let Some(left_highlight) = state.symbol_state.highlighted_symbol.0 {
-                                let next_wrong_order_symbol_idx = left_diff
-                                    .symbols
-                                    .iter()
-                                    .enumerate()
-                                    .skip(left_highlight + 1)
-                                    .filter(|(_, s)| s.order.is_some_and(|o| o != Ordering::Equal))
-                                    .next()
-                                    .map(|(i, _)| i);
-                                if next_wrong_order_symbol_idx.is_some() {
-                                    wrong_order_symbol_idx_to_select = next_wrong_order_symbol_idx;
-                                }
-                            }
-                            if ui
-                                .add_enabled(
-                                    wrong_order_symbol_idx_to_select.is_some(),
-                                    egui::Button::new(format!(
-                                        "Wrong order: {}/{}",
-                                        wrong_order_symbols,
-                                        left_diff.symbols.len()
-                                    )),
-                                )
-                                .clicked()
-                                && let Some(left_sym_idx) = wrong_order_symbol_idx_to_select
-                            {
-                                let target_symbol = left_diff.symbols[left_sym_idx].target_symbol;
-                                ret = Some(DiffViewAction::SetSymbolHighlight(
-                                    Some(left_sym_idx),
-                                    target_symbol,
-                                    true,
-                                ));
-                            }
-                        }
-                    })
+                    });
                 });
             }
 
