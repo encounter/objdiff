@@ -4,9 +4,9 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use core::{num::NonZeroU32, ops::Range};
+use core::{cmp::Ordering, num::NonZeroU32, ops::Range};
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 
 use crate::{
     diff::{
@@ -17,7 +17,7 @@ use crate::{
             symbol_name_matches,
         },
     },
-    obj::{InstructionRef, Object, Relocation, SectionKind, Symbol, SymbolFlag},
+    obj::{InstructionRef, Object, Relocation, SectionKind, Symbol, SymbolFlag, SymbolKind},
 };
 
 pub mod code;
@@ -47,6 +47,7 @@ pub struct SymbolDiff {
     pub diff_score: Option<(u64, u64)>,
     pub instruction_rows: Vec<InstructionDiffRow>,
     pub data_rows: Vec<DataDiffRow>,
+    pub order: Option<Ordering>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -207,8 +208,8 @@ pub fn diff_objs(
     let mut right = right.map(|p| (p, ObjectDiff::new_from_obj(p)));
     let mut prev = prev.map(|p| (p, ObjectDiff::new_from_obj(p)));
 
-    for symbol_match in symbol_matches {
-        match symbol_match {
+    for symbol_match in &symbol_matches {
+        match *symbol_match {
             SymbolMatch {
                 left: Some(left_symbol_ref),
                 right: Some(right_symbol_ref),
@@ -412,11 +413,108 @@ pub fn diff_objs(
         }
     }
 
+    if let Some((left_obj, left_out)) = left.as_mut()
+        && let Some((right_obj, right_out)) = right.as_mut()
+    {
+        let mut done_section_names = BTreeSet::new();
+        for left_section in left_obj.sections.iter() {
+            if done_section_names.contains(&left_section.name) {
+                continue;
+            }
+            done_section_names.insert(&left_section.name);
+            diff_order_for_section_name(
+                left_obj,
+                right_obj,
+                left_out,
+                right_out,
+                &left_section.name,
+                &symbol_matches,
+            )?;
+        }
+    }
+
     Ok(DiffObjsResult {
         left: left.map(|(_, o)| o),
         right: right.map(|(_, o)| o),
         prev: prev.map(|(_, o)| o),
     })
+}
+
+fn symbols_matching_section_name<'obj>(
+    obj: &'obj Object,
+    section_name: &str,
+) -> impl Iterator<Item = (usize, &'obj Symbol)> {
+    obj.symbols.iter().enumerate().filter(move |(_, s)| {
+        let curr_section_name = symbol_section(obj, s).map(|(n, _)| n);
+        curr_section_name == Some(section_name)
+            && s.kind != SymbolKind::Section
+            && s.size > 0
+            && !s.flags.contains(SymbolFlag::Hidden)
+            && !s.flags.contains(SymbolFlag::Ignored)
+    })
+}
+
+fn diff_order_for_section_name(
+    left_obj: &Object,
+    right_obj: &Object,
+    left_diff: &mut ObjectDiff,
+    right_diff: &mut ObjectDiff,
+    section_name: &str,
+    symbol_matches: &Vec<SymbolMatch>,
+) -> Result<()> {
+    let mut left_paired_symbol_idxs = BTreeSet::new();
+    let mut right_paired_symbol_idxs = BTreeSet::new();
+    let mut left_sym_idx_to_right_sym_idx = BTreeMap::new();
+    for symbol_match in symbol_matches {
+        let Some(left_symbol_idx) = symbol_match.left else {
+            continue;
+        };
+        let Some(right_symbol_idx) = symbol_match.right else {
+            continue;
+        };
+        left_paired_symbol_idxs.insert(left_symbol_idx);
+        right_paired_symbol_idxs.insert(right_symbol_idx);
+        left_sym_idx_to_right_sym_idx.insert(left_symbol_idx, right_symbol_idx);
+    }
+
+    let left_paired_symbols: Vec<_> = symbols_matching_section_name(left_obj, section_name)
+        .filter(|(sym_idx, _)| left_paired_symbol_idxs.contains(sym_idx))
+        .collect();
+    let right_paired_symbols: Vec<_> = symbols_matching_section_name(right_obj, section_name)
+        .filter(|(sym_idx, _)| right_paired_symbol_idxs.contains(sym_idx))
+        .collect();
+
+    let mut expected_right_order_idx = 0;
+    for (left_order_idx, (left_symbol_idx, _left_symbol)) in left_paired_symbols.iter().enumerate()
+    {
+        let right_symbol_idx = left_sym_idx_to_right_sym_idx.get(left_symbol_idx).unwrap();
+        let right_order_idx = right_paired_symbols
+            .iter()
+            .position(|(sym_idx, _)| sym_idx == right_symbol_idx)
+            .ok_or_else(|| {
+                anyhow!("Failed to find right side symbol for paired left side symbol")
+            })?;
+        if right_order_idx == left_order_idx {
+            // In the correct spot.
+            left_diff.symbols[*left_symbol_idx].order = Some(Ordering::Equal);
+            right_diff.symbols[*right_symbol_idx].order = Some(Ordering::Equal);
+            expected_right_order_idx = left_order_idx + 1
+        } else if right_order_idx == expected_right_order_idx {
+            // In the wrong spot, but correct relative to the symbol before it.
+            // Don't show this as a diff to reduce noise.
+            left_diff.symbols[*left_symbol_idx].order = Some(Ordering::Equal);
+            right_diff.symbols[*right_symbol_idx].order = Some(Ordering::Equal);
+        } else {
+            // In the wrong spot.
+            left_diff.symbols[*left_symbol_idx].order =
+                Some(expected_right_order_idx.cmp(&right_order_idx));
+            right_diff.symbols[*right_symbol_idx].order =
+                Some(right_order_idx.cmp(&expected_right_order_idx));
+            expected_right_order_idx = right_order_idx;
+        }
+        expected_right_order_idx += 1;
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy)]

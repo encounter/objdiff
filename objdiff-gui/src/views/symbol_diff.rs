@@ -1,4 +1,4 @@
-use std::mem::take;
+use std::{cmp::Ordering, mem::take};
 
 use egui::{
     CollapsingHeader, Color32, Id, OpenUrl, ScrollArea, Ui, Widget, style::ScrollAnimation,
@@ -605,14 +605,29 @@ fn symbol_ui(
     write_text(name, appearance.highlight_color, &mut job, appearance.code_font.clone());
     if diff_config.show_symbol_sizes == ShowSymbolSizes::Decimal {
         write_text(
-            &format!(" (size={})", symbol.size),
+            &format!(" (size:{})", symbol.size),
             appearance.text_color,
             &mut job,
             appearance.code_font.clone(),
         );
     } else if diff_config.show_symbol_sizes == ShowSymbolSizes::Hex {
         write_text(
-            &format!(" (size={:x})", symbol.size),
+            &format!(" (size:{:x})", symbol.size),
+            appearance.text_color,
+            &mut job,
+            appearance.code_font.clone(),
+        );
+    }
+    if let Some(order) = symbol_diff.order
+        && order != Ordering::Equal
+    {
+        let order_char = match order {
+            Ordering::Less => "⏷",
+            Ordering::Equal => unreachable!(),
+            Ordering::Greater => "⏶",
+        };
+        write_text(
+            &format!(" {order_char}"),
             appearance.text_color,
             &mut job,
             appearance.code_font.clone(),
