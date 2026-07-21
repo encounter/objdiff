@@ -690,8 +690,7 @@ mod tests {
         assert!(!mapping.ends_with_complete_data_words(0x1006));
         assert!(mapping.ends_with_complete_data_words(0x1008));
 
-        let unaligned_mapping =
-            DisasmMode { address: 0x1002, mapping: unarm::ParseMode::Data };
+        let unaligned_mapping = DisasmMode { address: 0x1002, mapping: unarm::ParseMode::Data };
         assert!(!unaligned_mapping.ends_with_complete_data_words(0x1004));
         assert!(!unaligned_mapping.ends_with_complete_data_words(0x1006));
         assert!(unaligned_mapping.ends_with_complete_data_words(0x1008));
