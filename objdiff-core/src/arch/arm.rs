@@ -520,7 +520,12 @@ struct DisasmMode {
 impl DisasmMode {
     fn ends_with_complete_data_words(self, end_address: u64) -> bool {
         let data_size = end_address.saturating_sub(self.address as u64);
-        self.mapping == unarm::ParseMode::Data && data_size >= 4 && data_size.is_multiple_of(4)
+        let bytes_until_word_alignment = (4 - (self.address as u64 % 4)) % 4;
+        let aligned_data_size = data_size.saturating_sub(bytes_until_word_alignment);
+        self.mapping == unarm::ParseMode::Data
+            && data_size >= bytes_until_word_alignment
+            && aligned_data_size >= 4
+            && aligned_data_size.is_multiple_of(4)
     }
 
     fn from_object_symbol<'a>(sym: &object::Symbol<'a, '_, &'a [u8]>) -> Option<Self> {
@@ -684,6 +689,14 @@ mod tests {
         assert!(mapping.ends_with_complete_data_words(0x1004));
         assert!(!mapping.ends_with_complete_data_words(0x1006));
         assert!(mapping.ends_with_complete_data_words(0x1008));
+
+        let unaligned_mapping =
+            DisasmMode { address: 0x1002, mapping: unarm::ParseMode::Data };
+        assert!(!unaligned_mapping.ends_with_complete_data_words(0x1004));
+        assert!(!unaligned_mapping.ends_with_complete_data_words(0x1006));
+        assert!(unaligned_mapping.ends_with_complete_data_words(0x1008));
+        assert!(!unaligned_mapping.ends_with_complete_data_words(0x100a));
+        assert!(unaligned_mapping.ends_with_complete_data_words(0x100c));
     }
 
     #[test]
