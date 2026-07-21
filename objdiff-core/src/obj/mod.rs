@@ -113,21 +113,16 @@ impl Section {
         self.align.map_or(MIN_ALIGNMENT, |align| align.get().max(MIN_ALIGNMENT))
     }
 
+    pub fn relocations_at(&self, address: u64, size: u8) -> impl Iterator<Item = &Relocation> {
+        let start = self.relocations.partition_point(|relocation| relocation.address < address);
+        let end = address.saturating_add(size as u64);
+        self.relocations[start..]
+            .iter()
+            .take_while(move |relocation| relocation.address == address || relocation.address < end)
+    }
+
     pub fn relocation_at(&self, address: u64, size: u8) -> Option<&Relocation> {
-        match self.relocations.binary_search_by_key(&address, |r| r.address) {
-            Ok(mut i) => {
-                // Find the first relocation at the address
-                while i
-                    .checked_sub(1)
-                    .and_then(|n| self.relocations.get(n))
-                    .is_some_and(|r| r.address == address)
-                {
-                    i -= 1;
-                }
-                self.relocations.get(i)
-            }
-            Err(i) => self.relocations.get(i).filter(|r| r.address < address + size as u64),
-        }
+        self.relocations_at(address, size).next()
     }
 
     pub fn resolve_relocation_at<'obj>(

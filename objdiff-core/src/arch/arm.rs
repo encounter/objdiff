@@ -159,6 +159,19 @@ impl ArchArm {
         };
         Ok(ins)
     }
+
+    fn has_relocation_overlapping_trailing_halfword(
+        &self,
+        section: &Section,
+        end_address: u64,
+    ) -> bool {
+        let word_start = end_address.saturating_sub(4);
+        let halfword_start = end_address.saturating_sub(2);
+        section.relocations_at(word_start, 4).any(|relocation| {
+            relocation.address.saturating_add(self.data_reloc_size(relocation.flags) as u64)
+                > halfword_start
+        })
+    }
 }
 
 impl Arch for ArchArm {
@@ -490,10 +503,7 @@ impl Arch for ArchArm {
             })
             && let Some(data) = section.data_range(next_address - 2, 2)
             && data == [0u8; 2]
-            && !section.relocation_at(next_address.saturating_sub(4), 4).is_some_and(|relocation| {
-                relocation.address + self.data_reloc_size(relocation.flags) as u64
-                    > next_address - 2
-            })
+            && !self.has_relocation_overlapping_trailing_halfword(section, next_address)
         {
             next_address -= 2;
         }
@@ -661,7 +671,10 @@ impl unarm::FormatIns for ArgsFormatter<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::DisasmMode;
+    use object::elf;
+
+    use super::{ArchArm, DisasmMode};
+    use crate::obj::{Relocation, RelocationFlags, Section};
 
     #[test]
     fn complete_data_words_exclude_trailing_halfword_padding() {
@@ -671,5 +684,36 @@ mod tests {
         assert!(mapping.ends_with_complete_data_words(0x1004));
         assert!(!mapping.ends_with_complete_data_words(0x1006));
         assert!(mapping.ends_with_complete_data_words(0x1008));
+    }
+
+    #[test]
+    fn checks_every_relocation_before_trimming_trailing_halfword() {
+        let arch = ArchArm {
+            disasm_modes: Default::default(),
+            detected_version: None,
+            endianness: object::Endianness::Little,
+        };
+        let mut section = Section {
+            relocations: vec![
+                Relocation {
+                    flags: RelocationFlags::Elf(elf::R_ARM_ABS16),
+                    address: 0x1000,
+                    target_symbol: 0,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: RelocationFlags::Elf(elf::R_ARM_ABS16),
+                    address: 0x1002,
+                    target_symbol: 1,
+                    addend: 0,
+                },
+            ],
+            ..Default::default()
+        };
+
+        assert!(arch.has_relocation_overlapping_trailing_halfword(&section, 0x1004));
+
+        section.relocations.pop();
+        assert!(!arch.has_relocation_overlapping_trailing_halfword(&section, 0x1004));
     }
 }
