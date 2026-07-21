@@ -315,13 +315,26 @@ pub fn diff_view_ui(
                                 .iter()
                                 .filter(|s| s.order.is_some_and(|o| o != Ordering::Equal))
                                 .count();
-                            let first_wrong_order_symbol = left_diff
+                            let mut wrong_order_symbol_idx_to_select = left_diff
                                 .symbols
                                 .iter()
                                 .position(|s| s.order.is_some_and(|o| o != Ordering::Equal));
+                            if let Some(left_highlight) = state.symbol_state.highlighted_symbol.0 {
+                                let next_wrong_order_symbol_idx = left_diff
+                                    .symbols
+                                    .iter()
+                                    .enumerate()
+                                    .skip(left_highlight + 1)
+                                    .filter(|(_, s)| s.order.is_some_and(|o| o != Ordering::Equal))
+                                    .next()
+                                    .map(|(i, _)| i);
+                                if next_wrong_order_symbol_idx.is_some() {
+                                    wrong_order_symbol_idx_to_select = next_wrong_order_symbol_idx;
+                                }
+                            }
                             if ui
                                 .add_enabled(
-                                    first_wrong_order_symbol.is_some(),
+                                    wrong_order_symbol_idx_to_select.is_some(),
                                     egui::Button::new(format!(
                                         "Wrong order: {}/{}",
                                         wrong_order_symbols,
@@ -329,7 +342,7 @@ pub fn diff_view_ui(
                                     )),
                                 )
                                 .clicked()
-                                && let Some(left_sym_idx) = first_wrong_order_symbol
+                                && let Some(left_sym_idx) = wrong_order_symbol_idx_to_select
                             {
                                 let target_symbol = left_diff.symbols[left_sym_idx].target_symbol;
                                 ret = Some(DiffViewAction::SetSymbolHighlight(
