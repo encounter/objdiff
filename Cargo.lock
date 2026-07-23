@@ -3928,6 +3928,7 @@ dependencies = [
  "axum",
  "crossterm",
  "enable-ansi-support",
+ "futures-util",
  "memmap2",
  "mimalloc",
  "objdiff-core",
