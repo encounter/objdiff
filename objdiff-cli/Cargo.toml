@@ -18,6 +18,7 @@ argp = "0.4"
 axum = "0.8.9"
 crossterm = "0.29"
 enable-ansi-support = "0.3"
+futures-util = "0.3"
 memmap2 = "0.9"
 objdiff-core = { path = "../objdiff-core", features = ["all"] }
 prost = "0.14"
