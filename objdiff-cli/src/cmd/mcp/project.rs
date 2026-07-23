@@ -2,12 +2,14 @@
 //! target/base object paths exactly like objdiff does, merge diff options,
 //! and run the project's build command.
 
-use std::path::PathBuf;
+use std::{collections::BTreeMap, path::PathBuf};
 
 use anyhow::{Context, Result, anyhow, bail};
 use objdiff_core::{
     build::{BuildConfig, BuildStatus},
-    config::{ProjectConfig, ProjectConfigInfo, ProjectObject, apply_project_options},
+    config::{
+        ProjectConfig, ProjectConfigInfo, ProjectObject, apply_project_options, save_project_config,
+    },
     diff::DiffObjConfig,
 };
 use typed_path::Utf8PlatformPathBuf;
@@ -36,6 +38,14 @@ impl LoadedProject {
             .with_context(|| format!("Unit `{unit}` not found in project"))
     }
 
+    fn object_mut(&mut self, unit: &str) -> Result<&mut ProjectObject> {
+        self.config
+            .units
+            .as_mut()
+            .and_then(|units| units.iter_mut().find(|o| o.name() == unit))
+            .with_context(|| format!("Unit `{unit}` not found in project"))
+    }
+
     /// Resolve a unit's (target, base) object paths, mirroring objdiff's
     /// `ObjectConfig::new` path logic.
     pub fn resolve_paths(&self, unit: &str) -> Result<(Option<PathBuf>, Option<PathBuf>)> {
@@ -54,6 +64,86 @@ impl LoadedProject {
             _ => obj.base_path.as_ref().map(|p| self.dir.join(p.with_platform_encoding())),
         };
         Ok((target.map(to_std), base.map(to_std)))
+    }
+
+    /// A unit's manual symbol mappings (target name -> base name), if any.
+    pub fn symbol_mappings(&self, unit: &str) -> Result<BTreeMap<String, String>> {
+        Ok(self.object(unit)?.symbol_mappings.clone().unwrap_or_default())
+    }
+
+    /// Add, remove, or clear a unit's manual symbol mappings, persisting the
+    /// change to the project config file.
+    ///
+    /// * `target` + `base`: map the target symbol to the base symbol.
+    /// * `target` only: remove the mapping for that target symbol.
+    /// * neither: clear all mappings for the unit.
+    pub fn set_symbol_mapping(
+        &mut self,
+        unit: &str,
+        target: Option<&str>,
+        base: Option<&str>,
+    ) -> Result<String> {
+        let summary = {
+            let object = self.object_mut(unit)?;
+            let mappings = object.symbol_mappings.get_or_insert_with(BTreeMap::new);
+            let summary = match (target, base) {
+                (Some(target), Some(base)) => {
+                    // Mirrors the GUI: a symbol may only participate in one
+                    // mapping on each side, and identity mappings are implicit.
+                    mappings.retain(|l, r| l != target && r != base);
+                    if target == base {
+                        format!("`{target}` maps to itself; no mapping stored for unit `{unit}`")
+                    } else {
+                        mappings.insert(target.to_string(), base.to_string());
+                        format!("Mapped target `{target}` -> base `{base}` in unit `{unit}`")
+                    }
+                }
+                (Some(target), None) => match mappings.remove(target) {
+                    Some(base) => {
+                        format!("Removed mapping `{target}` -> `{base}` from unit `{unit}`")
+                    }
+                    None => format!("No mapping for target `{target}` in unit `{unit}`"),
+                },
+                (None, Some(base)) => {
+                    // Removing by base name, since either side identifies a mapping.
+                    let before = mappings.len();
+                    mappings.retain(|_, r| r != base);
+                    match before - mappings.len() {
+                        0 => format!("No mapping to base `{base}` in unit `{unit}`"),
+                        _ => format!("Removed mapping to base `{base}` from unit `{unit}`"),
+                    }
+                }
+                (None, None) => {
+                    let count = mappings.len();
+                    mappings.clear();
+                    format!("Cleared {count} mapping(s) from unit `{unit}`")
+                }
+            };
+            if mappings.is_empty() {
+                object.symbol_mappings = None;
+            }
+            summary
+        };
+        self.save()?;
+        Ok(summary)
+    }
+
+    /// Write the (possibly modified) project config back to disk.
+    fn save(&mut self) -> Result<()> {
+        self.info = save_project_config(&self.config, &self.info)
+            .context("Failed to save project config")?;
+        Ok(())
+    }
+
+    /// One-line-per-mapping listing for a unit.
+    pub fn list_symbol_mappings(&self, unit: &str) -> Result<String> {
+        use std::fmt::Write as _;
+        let mappings = self.symbol_mappings(unit)?;
+        let mut out = format!("{} mapping(s) in unit `{unit}` (target -> base):\n", mappings.len());
+        for (target, base) in &mappings {
+            let _ = writeln!(out, "  {target} -> {base}");
+        }
+        Ok(out)
     }
 
     /// Build the diff config for a unit: project options then unit options.

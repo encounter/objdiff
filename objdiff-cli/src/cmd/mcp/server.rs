@@ -85,6 +85,24 @@ pub struct DiffOverviewArgs {
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
+pub struct SetSymbolMappingArgs {
+    /// Unit name from the loaded project.
+    pub unit: String,
+    /// Symbol name in the target (expected/baseline) object.
+    #[serde(default)]
+    pub target_symbol: Option<String>,
+    /// Symbol name in the base (current/your build) object.
+    #[serde(default)]
+    pub base_symbol: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct ListSymbolMappingsArgs {
+    /// Unit name from the loaded project.
+    pub unit: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct SetConfigArgs {
     /// Config property id, e.g. `x86.formatter` or `spaceBetweenArgs`.
     pub key: String,
@@ -195,6 +213,35 @@ impl ObjdiffServer {
             .await
             .map_err(join_err)?;
         Ok(text(project::build_status_text(&status)))
+    }
+
+    #[tool(description = "Create, remove, or clear a unit's manual symbol mapping, pairing a \
+        target (expected) symbol with a base (your build) symbol when automatic matching fails \
+        (e.g. renamed statics or unmatched functions). Pass both `target_symbol` and \
+        `base_symbol` to create the mapping, only one of them to remove that symbol's mapping, \
+        or neither to clear every mapping for the unit. The change is saved to the project's \
+        objdiff.json and applies to subsequent diffs of that unit.")]
+    async fn set_symbol_mapping(
+        &self,
+        Parameters(args): Parameters<SetSymbolMappingArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(text(
+            self.state
+                .set_symbol_mapping(
+                    &args.unit,
+                    args.target_symbol.as_deref(),
+                    args.base_symbol.as_deref(),
+                )
+                .map_err(err)?,
+        ))
+    }
+
+    #[tool(description = "List a unit's manual symbol mappings (target -> base).")]
+    async fn list_symbol_mappings(
+        &self,
+        Parameters(args): Parameters<ListSymbolMappingsArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        Ok(text(self.state.list_symbol_mappings(&args.unit).map_err(err)?))
     }
 
     #[tool(description = "Set a persistent objdiff diff/disassembly config option (applies to \

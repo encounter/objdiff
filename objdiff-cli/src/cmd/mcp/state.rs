@@ -87,6 +87,24 @@ impl AppState {
         Ok(DiffInputs { target, base, config })
     }
 
+    /// Add/remove/clear a unit's manual symbol mappings and persist them.
+    pub fn set_symbol_mapping(
+        &self,
+        unit: &str,
+        target: Option<&str>,
+        base: Option<&str>,
+    ) -> Result<String> {
+        let mut inner = self.inner.lock().unwrap();
+        let project = inner.project.as_mut().ok_or_else(no_project)?;
+        project.set_symbol_mapping(unit, target, base)
+    }
+
+    pub fn list_symbol_mappings(&self, unit: &str) -> Result<String> {
+        let inner = self.inner.lock().unwrap();
+        let project = inner.project.as_ref().ok_or_else(no_project)?;
+        project.list_symbol_mappings(unit)
+    }
+
     /// Prepare a build invocation for a unit (off-lock execution by the caller).
     pub fn build_invocation(
         &self,
