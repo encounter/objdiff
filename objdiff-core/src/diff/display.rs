@@ -561,6 +561,7 @@ pub fn data_row_context(obj: &Object, diff_row: &DataDiffRow) -> Vec<ContextItem
 
         let reloc = resolve_relocation(&obj.symbols, reloc);
         out.append(&mut relocation_context(obj, reloc, None, None));
+        out.push(ContextItem::Separator);
     }
     out
 }
