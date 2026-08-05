@@ -6,9 +6,11 @@ use similar::{Algorithm, capture_diff_slices, diff_ratio};
 
 use super::{
     DataDiff, DataDiffKind, DataDiffRow, DataRelocationDiff, ObjectDiff, SectionDiff, SymbolDiff,
-    code::{address_eq, section_name_eq},
 };
-use crate::obj::{Object, Relocation, ResolvedRelocation, Symbol, SymbolFlag, SymbolKind};
+use crate::{
+    diff::{address_eq, section_name_eq, symbol_name_matches},
+    obj::{Object, Relocation, ResolvedRelocation, Symbol, SymbolFlag, SymbolKind},
+};
 
 pub fn diff_bss_symbol(
     left_obj: &Object,
@@ -35,33 +37,34 @@ pub fn diff_bss_symbol(
     ))
 }
 
-pub fn symbol_name_matches(left: &Symbol, right: &Symbol) -> bool {
-    if let Some(left_name) = &left.normalized_name
-        && let Some(right_name) = &right.normalized_name
-    {
-        left_name == right_name
-    } else {
-        left.name == right.name
-    }
-}
-
 fn reloc_eq(
     left_obj: &Object,
     right_obj: &Object,
-    left: ResolvedRelocation,
-    right: ResolvedRelocation,
+    left_reloc: ResolvedRelocation,
+    right_reloc: ResolvedRelocation,
 ) -> bool {
-    if left.relocation.flags != right.relocation.flags {
+    if left_reloc.relocation.flags != right_reloc.relocation.flags {
         return false;
     }
 
-    let symbol_name_addend_matches = symbol_name_matches(left.symbol, right.symbol)
-        && left.relocation.addend == right.relocation.addend;
-    match (left.symbol.section, right.symbol.section) {
+    let symbol_name_addend_matches = symbol_name_matches(left_reloc.symbol, right_reloc.symbol)
+        && left_reloc.relocation.addend == right_reloc.relocation.addend;
+    match (left_reloc.symbol.section, right_reloc.symbol.section) {
         (Some(sl), Some(sr)) => {
-            // Match if section and name+addend or address match
-            section_name_eq(left_obj, right_obj, sl, sr)
-                && (symbol_name_addend_matches || address_eq(left, right))
+            if !section_name_eq(left_obj, right_obj, sl, sr) {
+                return false;
+            };
+            let mut name_ok = false;
+            if left_reloc.symbol.flags.contains(SymbolFlag::CompilerGenerated)
+                && right_reloc.symbol.flags.contains(SymbolFlag::CompilerGenerated)
+            {
+                // Match if both symbol names are fully compiler-generated
+                name_ok = true;
+            } else if symbol_name_addend_matches || address_eq(left_reloc, right_reloc) {
+                // Match if name+addend or address match
+                name_ok = true;
+            }
+            name_ok
         }
         (Some(_), None) | (None, Some(_)) | (None, None) => symbol_name_addend_matches,
     }

@@ -12,9 +12,12 @@ use super::{
     InstructionBranchTo, InstructionDiffKind, InstructionDiffRow, PreferredStringEncoding,
     SymbolDiff, display::display_ins_data_literals,
 };
-use crate::obj::{
-    InstructionArg, InstructionArgValue, InstructionRef, Object, ResolvedInstructionRef,
-    ResolvedRelocation, ResolvedSymbol, SymbolKind,
+use crate::{
+    diff::{address_eq, section_name_eq, symbol_name_matches},
+    obj::{
+        InstructionArg, InstructionArgValue, InstructionRef, Object, ResolvedInstructionRef,
+        ResolvedRelocation, ResolvedSymbol, SymbolFlag, SymbolKind,
+    },
 };
 
 pub fn no_diff_code(
@@ -266,36 +269,6 @@ fn resolve_branches(ops: &[InstructionRef], rows: &mut [InstructionDiffRow]) {
     }
 }
 
-pub(crate) fn address_eq(left: ResolvedRelocation, right: ResolvedRelocation) -> bool {
-    if right.symbol.size == 0 && left.symbol.size != 0 {
-        // The base relocation is against a pool but the target relocation isn't.
-        // This can happen in rare cases where the compiler will generate a pool+addend relocation
-        // in the base's data, but the one detected in the target is direct with no addend.
-        // Just check that the final address is the same so these count as a match.
-        left.symbol.address as i64 + left.relocation.addend
-            == right.symbol.address as i64 + right.relocation.addend
-    } else {
-        // But otherwise, if the compiler isn't using a pool, we're more strict and check that the
-        // target symbol address and relocation addend both match exactly.
-        left.symbol.address == right.symbol.address
-            && left.relocation.addend == right.relocation.addend
-    }
-}
-
-pub(crate) fn section_name_eq(
-    left_obj: &Object,
-    right_obj: &Object,
-    left_section_index: usize,
-    right_section_index: usize,
-) -> bool {
-    left_obj.sections.get(left_section_index).is_some_and(|left_section| {
-        right_obj
-            .sections
-            .get(right_section_index)
-            .is_some_and(|right_section| left_section.name == right_section.name)
-    })
-}
-
 fn ins_data_literals_eq(
     left_obj: &Object,
     right_obj: &Object,
@@ -338,19 +311,40 @@ fn reloc_eq(
         return true;
     }
 
-    let symbol_name_addend_matches = left_reloc.symbol.name == right_reloc.symbol.name
+    let symbol_name_addend_matches = symbol_name_matches(left_reloc.symbol, right_reloc.symbol)
         && left_reloc.relocation.addend == right_reloc.relocation.addend;
-    match (&left_reloc.symbol.section, &right_reloc.symbol.section) {
+    match (left_reloc.symbol.section, right_reloc.symbol.section) {
         (Some(sl), Some(sr)) => {
-            // Match if section and name or address match
-            section_name_eq(left_obj, right_obj, *sl, *sr)
-                && (diff_config.function_reloc_diffs == FunctionRelocDiffs::DataValue
-                    || symbol_name_addend_matches
-                    || address_eq(left_reloc, right_reloc))
-                && (diff_config.function_reloc_diffs == FunctionRelocDiffs::NameAddress
-                    || left_reloc.symbol.kind != SymbolKind::Object
-                    || right_reloc.symbol.size == 0 // Likely a pool symbol like ...data, don't treat this as a diff
-                    || ins_data_literals_eq(left_obj, right_obj, left_ins, right_ins, diff_config))
+            if !section_name_eq(left_obj, right_obj, sl, sr) {
+                return false;
+            };
+            let mut name_ok = false;
+            if diff_config.function_reloc_diffs == FunctionRelocDiffs::DataValue {
+                // Ignore names entirely
+                name_ok = true;
+            } else if left_reloc.symbol.flags.contains(SymbolFlag::CompilerGenerated)
+                && right_reloc.symbol.flags.contains(SymbolFlag::CompilerGenerated)
+            {
+                // Match if both symbol names are fully compiler-generated
+                name_ok = true;
+            } else if symbol_name_addend_matches || address_eq(left_reloc, right_reloc) {
+                // Match if name+addend or address match
+                name_ok = true;
+            }
+            let mut value_ok = false;
+            if diff_config.function_reloc_diffs == FunctionRelocDiffs::NameAddress {
+                // Ignore data values entirely
+                value_ok = true;
+            } else if left_reloc.symbol.kind != SymbolKind::Object {
+                // Not a data symbol, don't diff value
+                value_ok = true;
+            } else if right_reloc.symbol.size == 0 {
+                // Likely a pool symbol like ...data, don't treat this as a diff
+                value_ok = true;
+            } else if ins_data_literals_eq(left_obj, right_obj, left_ins, right_ins, diff_config) {
+                value_ok = true;
+            }
+            name_ok && value_ok
         }
         (Some(_), None) | (None, Some(_)) | (None, None) => symbol_name_addend_matches,
     }
