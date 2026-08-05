@@ -499,18 +499,16 @@ pub fn relocation_context(
 ) -> Vec<ContextItem> {
     let mut out = Vec::new();
     out.append(&mut symbol_context(obj, reloc.relocation.target_symbol));
-    if let Some(ins) = ins {
-        let mut literals = display_ins_data_literals(obj, ins);
-        literals.retain(|lit_info| !lit_info.hidden(diff_config));
-        if !literals.is_empty() {
-            out.push(ContextItem::Separator);
-            for lit_info in literals {
-                out.push(ContextItem::Copy {
-                    value: lit_info.literal,
-                    label: lit_info.label_override,
-                    copy_string: lit_info.copy_string,
-                });
-            }
+    let mut literals = display_data_literals(obj, ins, Some(reloc));
+    literals.retain(|lit_info| !lit_info.hidden(diff_config));
+    if !literals.is_empty() {
+        out.push(ContextItem::Separator);
+        for lit_info in literals {
+            out.push(ContextItem::Copy {
+                value: lit_info.literal,
+                label: lit_info.label_override,
+                copy_string: lit_info.copy_string,
+            });
         }
     }
     out
@@ -563,6 +561,7 @@ pub fn data_row_context(obj: &Object, diff_row: &DataDiffRow) -> Vec<ContextItem
 
         let reloc = resolve_relocation(&obj.symbols, reloc);
         out.append(&mut relocation_context(obj, reloc, None, None));
+        out.push(ContextItem::Separator);
     }
     out
 }
@@ -695,7 +694,7 @@ pub fn instruction_hover(
         out.push(HoverItem::Separator);
         out.append(&mut relocation_hover(obj, reloc, None));
         let bytes = obj.symbol_data(reloc.relocation.target_symbol).unwrap_or(&[]);
-        if let Some(ty) = obj.arch.guess_data_type(resolved, bytes) {
+        if let Some(ty) = obj.arch.guess_ins_data_type(resolved, bytes) {
             let mut literals = display_ins_data_literals(obj, resolved);
             literals.retain(|lit_info| !lit_info.hidden(Some(diff_config)));
             if !literals.is_empty() {
@@ -882,16 +881,17 @@ pub fn display_ins_data_labels(obj: &Object, resolved: ResolvedInstructionRef) -
     };
     let bytes = &data[reloc.relocation.addend as usize..];
     obj.arch
-        .guess_data_type(resolved, bytes)
+        .guess_ins_data_type(resolved, bytes)
         .map(|ty| ty.display_labels(obj.endianness, bytes))
         .unwrap_or_default()
 }
 
-pub fn display_ins_data_literals(
+pub fn display_data_literals(
     obj: &Object,
-    resolved: ResolvedInstructionRef,
+    resolved: Option<ResolvedInstructionRef>,
+    reloc: Option<ResolvedRelocation>,
 ) -> Vec<LiteralInfo> {
-    let Some(reloc) = resolved.relocation else {
+    let Some(reloc) = reloc else {
         return Vec::new();
     };
     if reloc.relocation.addend < 0 || reloc.relocation.addend as u64 >= reloc.symbol.size {
@@ -902,7 +902,14 @@ pub fn display_ins_data_literals(
     };
     let bytes = &data[reloc.relocation.addend as usize..];
     obj.arch
-        .guess_data_type(resolved, bytes)
+        .guess_data_type(resolved, Some(reloc), bytes)
         .map(|ty| ty.display_literals(obj.endianness, bytes))
         .unwrap_or_default()
+}
+
+pub fn display_ins_data_literals(
+    obj: &Object,
+    resolved: ResolvedInstructionRef,
+) -> Vec<LiteralInfo> {
+    display_data_literals(obj, Some(resolved), resolved.relocation)
 }

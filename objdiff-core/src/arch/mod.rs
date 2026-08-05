@@ -20,8 +20,8 @@ use crate::{
     },
     obj::{
         FlowAnalysisResult, InstructionArg, InstructionRef, Object, ParsedInstruction, Relocation,
-        RelocationFlags, ResolvedInstructionRef, ResolvedSymbol, Section, Symbol, SymbolFlagSet,
-        SymbolKind,
+        RelocationFlags, ResolvedInstructionRef, ResolvedRelocation, ResolvedSymbol, Section,
+        Symbol, SymbolFlagSet, SymbolKind,
     },
     util::ReallySigned,
 };
@@ -464,10 +464,15 @@ pub trait Arch: Any + Debug + Send + Sync {
 
     fn guess_data_type(
         &self,
-        _resolved: ResolvedInstructionRef,
+        _ins: Option<ResolvedInstructionRef>,
+        _reloc: Option<ResolvedRelocation>,
         _bytes: &[u8],
     ) -> Option<DataType> {
         None
+    }
+
+    fn guess_ins_data_type(&self, ins: ResolvedInstructionRef, bytes: &[u8]) -> Option<DataType> {
+        self.guess_data_type(Some(ins), ins.relocation, bytes)
     }
 
     fn symbol_hover(&self, _obj: &Object, _symbol_index: usize) -> Vec<HoverItem> { Vec::new() }
