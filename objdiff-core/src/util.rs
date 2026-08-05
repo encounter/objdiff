@@ -40,6 +40,13 @@ pub fn read_u16(obj_file: &object::File, reader: &mut &[u8]) -> Result<u16> {
     Ok(obj_file.endianness().read_u16(value))
 }
 
+pub fn read_u8(reader: &mut &[u8]) -> Result<u8> {
+    ensure!(!reader.is_empty(), "Not enough bytes to read u8");
+    let value = reader[0];
+    *reader = &reader[1..];
+    Ok(value)
+}
+
 pub fn align_size_to_4(size: usize) -> usize { (size + 3) & !3 }
 
 #[cfg(feature = "std")]
