@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use egui::{Id, Layout, RichText, ScrollArea, TextEdit, Ui, Widget, text::LayoutJob};
+use egui::{Id, Layout, RichText, ScrollArea, Slider, TextEdit, Ui, Widget, text::LayoutJob};
 use objdiff_core::{
     build::BuildStatus,
     diff::{
@@ -26,7 +26,8 @@ use crate::{
         function_diff::{FunctionDiffContext, asm_col_ui},
         symbol_diff::{
             DiffViewAction, DiffViewNavigation, DiffViewState, SymbolDiffContext, SymbolRefByName,
-            View, match_color_for_symbol, symbol_context_menu_ui, symbol_hover_ui, symbol_list_ui,
+            View, match_color_for_symbol, similar_functions_col_ui, symbol_context_menu_ui,
+            symbol_hover_ui, symbol_list_ui,
         },
         write_text,
     },
@@ -187,6 +188,72 @@ pub fn diff_view_ui(
 
     let mut scroll_to_prev_diff = false;
     let mut scroll_to_next_diff = false;
+
+    // Full-width similar functions panel: skip the normal two-column layout entirely.
+    if let Some(sim) = &state.similar_functions {
+        render_header(ui, available_width, 1, |ui, _| {
+            ui.horizontal(|ui| {
+                if ui.button("⏴ Back").clicked() || hotkeys::back_pressed(ui.ctx()) {
+                    ret = Some(DiffViewAction::CloseSimilarFunctions);
+                }
+            });
+            ui.label(
+                RichText::new(format!("Similar to {}", sim.source_symbol_name))
+                    .font(appearance.code_font.clone())
+                    .color(appearance.highlight_color),
+            );
+            ui.horizontal(|ui| {
+                let mut search = sim.search.clone();
+                let response = TextEdit::singleline(&mut search).hint_text("Filter symbols").ui(ui);
+                if hotkeys::consume_symbol_filter_shortcut(ui.ctx()) {
+                    response.request_focus();
+                }
+                if response.changed() {
+                    ret = Some(DiffViewAction::SetSimilarSearch(search));
+                }
+                let mut show_target = sim.show_target;
+                if ui.checkbox(&mut show_target, "Target").changed() {
+                    ret = Some(DiffViewAction::SetSimilarShowTarget(show_target));
+                }
+                let mut show_base = sim.show_base;
+                if ui.checkbox(&mut show_base, "Base").changed() {
+                    ret = Some(DiffViewAction::SetSimilarShowBase(show_base));
+                }
+                let mut same_object_only = sim.same_object_only;
+                if ui.checkbox(&mut same_object_only, "Same object").changed() {
+                    ret = Some(DiffViewAction::SetSimilarSameObjectOnly(same_object_only));
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("Min:");
+                let mut min = sim.min_percent;
+                if ui
+                    .add(Slider::new(&mut min, 0.0..=sim.max_percent).suffix("%").fixed_decimals(0))
+                    .changed()
+                {
+                    ret =
+                        Some(DiffViewAction::SetSimilarPercentRange { min, max: sim.max_percent });
+                }
+                ui.label("Max:");
+                let mut max = sim.max_percent;
+                if ui
+                    .add(
+                        Slider::new(&mut max, sim.min_percent..=100.0)
+                            .suffix("%")
+                            .fixed_decimals(0),
+                    )
+                    .changed()
+                {
+                    ret =
+                        Some(DiffViewAction::SetSimilarPercentRange { min: sim.min_percent, max });
+                }
+            });
+        });
+        ui.push_id("similar_functions", |ui| {
+            let _ = similar_functions_col_ui(ui, sim, appearance);
+        });
+        return ret;
+    }
 
     render_header(ui, available_width, 2, |ui, column| {
         if column == 0 {

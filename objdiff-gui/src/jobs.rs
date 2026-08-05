@@ -4,7 +4,7 @@ use std::{
 };
 
 use anyhow::{Result, bail};
-use jobs::create_scratch;
+use jobs::{create_scratch, find_similar};
 use objdiff_core::{
     build::BuildConfig,
     diff::MappingConfig,
@@ -124,6 +124,40 @@ pub fn create_objdiff_config(state: &AppState) -> objdiff::ObjDiffConfig {
 
 pub fn start_build(ctx: &egui::Context, jobs: &mut JobQueue, config: objdiff::ObjDiffConfig) {
     jobs.push_once(Job::ObjDiff, || objdiff::start_build(egui_waker(ctx), config));
+}
+
+pub fn start_find_similar_job(
+    ctx: &egui::Context,
+    jobs: &mut JobQueue,
+    state: &AppState,
+    source_symbol_name: String,
+    column: usize,
+) {
+    let Some(selected_obj) = &state.config.selected_obj else { return };
+    let source_path =
+        if column == 0 { selected_obj.target_path.clone() } else { selected_obj.base_path.clone() };
+    let Some(source_path) = source_path else { return };
+    let objects = state
+        .objects
+        .iter()
+        .map(|o| find_similar::ScanObject {
+            name: o.name.clone(),
+            target_path: o.target_path.clone(),
+            base_path: o.base_path.clone(),
+        })
+        .collect();
+    let config = find_similar::FindSimilarConfig {
+        source_path,
+        source_symbol_name,
+        source_column: column,
+        objects,
+        diff_config: state.effective_diff_config(),
+        build_config: BuildConfig::from(&state.config),
+        build_base: state.config.build_base,
+        build_target: state.config.build_target,
+    };
+    jobs.cancel_kind(Job::FindSimilar);
+    jobs.push(find_similar::start_find_similar(egui_waker(ctx), config));
 }
 
 pub fn start_check_update(ctx: &egui::Context, jobs: &mut JobQueue) {

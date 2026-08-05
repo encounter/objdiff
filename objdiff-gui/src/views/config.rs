@@ -70,7 +70,7 @@ impl ConfigViewState {
             FileDialogResult::None => {}
             FileDialogResult::ProjectDir(path) => {
                 let mut guard = state.write().unwrap();
-                guard.set_project_dir(path.to_path_buf());
+                guard.set_project_dir(path.to_path_buf(), jobs);
             }
             FileDialogResult::TargetDir(path) => {
                 let mut guard = state.write().unwrap();
