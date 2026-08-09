@@ -95,7 +95,9 @@ fn is_symbol_name_compiler_generated(name: &str) -> bool {
     if name.starts_with('@') && name[1..].chars().all(char::is_numeric) {
         // Exclude @stringBase0, @GUARD@, etc.
         return true;
-    } else if name.starts_with("_$E") && name[3..].chars().all(char::is_numeric) {
+    } else if (name.starts_with("_$E") || name.starts_with("$LC"))
+        && name[3..].chars().all(char::is_numeric)
+    {
         return true;
     }
     false
