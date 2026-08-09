@@ -335,6 +335,8 @@ fn infer_symbol_sizes(arch: &dyn Arch, symbols: &mut [Symbol], sections: &[Secti
                 SymbolKind::Function | SymbolKind::Object => {
                     // For function/object symbols, find the next function/object
                     matches!(next_symbol.kind, SymbolKind::Function | SymbolKind::Object)
+                        && !next_symbol.name.starts_with("__unwind$")
+                        && !next_symbol.name.starts_with("__catch$")
                 }
                 SymbolKind::Unknown | SymbolKind::Section => {
                     // For labels (or anything else), stop at any symbol
