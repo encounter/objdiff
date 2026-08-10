@@ -26,76 +26,6 @@ Object {
             virtual_address: None,
         },
         Symbol {
-            name: "[.debug$S]",
-            demangled_name: None,
-            normalized_name: None,
-            address: 0,
-            size: 3952,
-            kind: Section,
-            section: Some(
-                1,
-            ),
-            flags: FlagSet(Local),
-            align: None,
-            virtual_address: None,
-        },
-        Symbol {
-            name: "[.XBLD$W]",
-            demangled_name: None,
-            normalized_name: None,
-            address: 0,
-            size: 0,
-            kind: Section,
-            section: Some(
-                2,
-            ),
-            flags: FlagSet(Local),
-            align: None,
-            virtual_address: None,
-        },
-        Symbol {
-            name: "__C2_11886",
-            demangled_name: None,
-            normalized_name: None,
-            address: 0,
-            size: 16,
-            kind: Object,
-            section: Some(
-                2,
-            ),
-            flags: FlagSet(Global | SizeInferred),
-            align: None,
-            virtual_address: None,
-        },
-        Symbol {
-            name: "[.XBLD$W]",
-            demangled_name: None,
-            normalized_name: None,
-            address: 0,
-            size: 0,
-            kind: Section,
-            section: Some(
-                3,
-            ),
-            flags: FlagSet(Local),
-            align: None,
-            virtual_address: None,
-        },
-        Symbol {
-            name: "__C1_11886",
-            demangled_name: None,
-            normalized_name: None,
-            address: 0,
-            size: 16,
-            kind: Object,
-            section: Some(
-                3,
-            ),
-            flags: FlagSet(Global | SizeInferred),
-            align: None,
-            virtual_address: None,
-        },
-        Symbol {
             name: "[.rdata]",
             demangled_name: None,
             normalized_name: None,
@@ -1114,6 +1044,76 @@ Object {
             demangled_name: None,
             normalized_name: None,
             address: 0,
+            size: 3952,
+            kind: Section,
+            section: Some(
+                1,
+            ),
+            flags: FlagSet(Local),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "[.XBLD$W]",
+            demangled_name: None,
+            normalized_name: None,
+            address: 0,
+            size: 0,
+            kind: Section,
+            section: Some(
+                2,
+            ),
+            flags: FlagSet(Local),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "__C2_11886",
+            demangled_name: None,
+            normalized_name: None,
+            address: 0,
+            size: 16,
+            kind: Object,
+            section: Some(
+                2,
+            ),
+            flags: FlagSet(Global | SizeInferred),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "[.XBLD$W]",
+            demangled_name: None,
+            normalized_name: None,
+            address: 0,
+            size: 0,
+            kind: Section,
+            section: Some(
+                3,
+            ),
+            flags: FlagSet(Local),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "__C1_11886",
+            demangled_name: None,
+            normalized_name: None,
+            address: 0,
+            size: 16,
+            kind: Object,
+            section: Some(
+                3,
+            ),
+            flags: FlagSet(Global | SizeInferred),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "[.debug$S]",
+            demangled_name: None,
+            normalized_name: None,
+            address: 0,
             size: 40,
             kind: Section,
             section: Some(
@@ -1335,7 +1335,7 @@ Object {
                         16,
                     ),
                     address: 92,
-                    target_symbol: 7,
+                    target_symbol: 2,
                     addend: 0,
                 },
                 Relocation {
@@ -1343,7 +1343,7 @@ Object {
                         17,
                     ),
                     address: 96,
-                    target_symbol: 7,
+                    target_symbol: 2,
                     addend: 0,
                 },
                 Relocation {
@@ -1359,7 +1359,7 @@ Object {
                         16,
                     ),
                     address: 132,
-                    target_symbol: 67,
+                    target_symbol: 62,
                     addend: 0,
                 },
                 Relocation {
@@ -1367,7 +1367,7 @@ Object {
                         17,
                     ),
                     address: 136,
-                    target_symbol: 67,
+                    target_symbol: 62,
                     addend: 0,
                 },
                 Relocation {
@@ -1375,7 +1375,7 @@ Object {
                         16,
                     ),
                     address: 144,
-                    target_symbol: 65,
+                    target_symbol: 60,
                     addend: 0,
                 },
                 Relocation {
@@ -1383,7 +1383,7 @@ Object {
                         17,
                     ),
                     address: 148,
-                    target_symbol: 65,
+                    target_symbol: 60,
                     addend: 0,
                 },
                 Relocation {
@@ -1391,7 +1391,7 @@ Object {
                         16,
                     ),
                     address: 156,
-                    target_symbol: 63,
+                    target_symbol: 58,
                     addend: 0,
                 },
                 Relocation {
@@ -1399,7 +1399,7 @@ Object {
                         17,
                     ),
                     address: 160,
-                    target_symbol: 63,
+                    target_symbol: 58,
                     addend: 0,
                 },
                 Relocation {
@@ -1407,7 +1407,7 @@ Object {
                         16,
                     ),
                     address: 168,
-                    target_symbol: 61,
+                    target_symbol: 56,
                     addend: 0,
                 },
                 Relocation {
@@ -1415,7 +1415,7 @@ Object {
                         17,
                     ),
                     address: 172,
-                    target_symbol: 61,
+                    target_symbol: 56,
                     addend: 0,
                 },
                 Relocation {
@@ -1423,7 +1423,7 @@ Object {
                         16,
                     ),
                     address: 180,
-                    target_symbol: 59,
+                    target_symbol: 54,
                     addend: 0,
                 },
                 Relocation {
@@ -1431,7 +1431,7 @@ Object {
                         17,
                     ),
                     address: 184,
-                    target_symbol: 59,
+                    target_symbol: 54,
                     addend: 0,
                 },
                 Relocation {
@@ -1439,7 +1439,7 @@ Object {
                         16,
                     ),
                     address: 192,
-                    target_symbol: 57,
+                    target_symbol: 52,
                     addend: 0,
                 },
                 Relocation {
@@ -1447,7 +1447,7 @@ Object {
                         17,
                     ),
                     address: 196,
-                    target_symbol: 57,
+                    target_symbol: 52,
                     addend: 0,
                 },
                 Relocation {
@@ -1455,7 +1455,7 @@ Object {
                         16,
                     ),
                     address: 204,
-                    target_symbol: 55,
+                    target_symbol: 50,
                     addend: 0,
                 },
                 Relocation {
@@ -1463,7 +1463,7 @@ Object {
                         17,
                     ),
                     address: 208,
-                    target_symbol: 55,
+                    target_symbol: 50,
                     addend: 0,
                 },
                 Relocation {
@@ -1471,7 +1471,7 @@ Object {
                         16,
                     ),
                     address: 216,
-                    target_symbol: 53,
+                    target_symbol: 48,
                     addend: 0,
                 },
                 Relocation {
@@ -1479,7 +1479,7 @@ Object {
                         17,
                     ),
                     address: 220,
-                    target_symbol: 53,
+                    target_symbol: 48,
                     addend: 0,
                 },
                 Relocation {
@@ -1487,7 +1487,7 @@ Object {
                         16,
                     ),
                     address: 228,
-                    target_symbol: 51,
+                    target_symbol: 46,
                     addend: 0,
                 },
                 Relocation {
@@ -1495,7 +1495,7 @@ Object {
                         17,
                     ),
                     address: 232,
-                    target_symbol: 51,
+                    target_symbol: 46,
                     addend: 0,
                 },
                 Relocation {
@@ -1503,7 +1503,7 @@ Object {
                         16,
                     ),
                     address: 240,
-                    target_symbol: 51,
+                    target_symbol: 46,
                     addend: 0,
                 },
                 Relocation {
@@ -1511,7 +1511,7 @@ Object {
                         17,
                     ),
                     address: 244,
-                    target_symbol: 51,
+                    target_symbol: 46,
                     addend: 0,
                 },
                 Relocation {
@@ -1519,7 +1519,7 @@ Object {
                         16,
                     ),
                     address: 252,
-                    target_symbol: 51,
+                    target_symbol: 46,
                     addend: 0,
                 },
                 Relocation {
@@ -1527,7 +1527,7 @@ Object {
                         17,
                     ),
                     address: 256,
-                    target_symbol: 51,
+                    target_symbol: 46,
                     addend: 0,
                 },
                 Relocation {
@@ -1535,7 +1535,7 @@ Object {
                         16,
                     ),
                     address: 264,
-                    target_symbol: 51,
+                    target_symbol: 46,
                     addend: 0,
                 },
                 Relocation {
@@ -1543,7 +1543,7 @@ Object {
                         17,
                     ),
                     address: 268,
-                    target_symbol: 51,
+                    target_symbol: 46,
                     addend: 0,
                 },
                 Relocation {
@@ -1551,7 +1551,7 @@ Object {
                         6,
                     ),
                     address: 284,
-                    target_symbol: 33,
+                    target_symbol: 28,
                     addend: 0,
                 },
                 Relocation {
@@ -1559,7 +1559,7 @@ Object {
                         6,
                     ),
                     address: 320,
-                    target_symbol: 33,
+                    target_symbol: 28,
                     addend: 0,
                 },
                 Relocation {
@@ -1567,7 +1567,7 @@ Object {
                         6,
                     ),
                     address: 356,
-                    target_symbol: 33,
+                    target_symbol: 28,
                     addend: 0,
                 },
                 Relocation {
@@ -1575,7 +1575,7 @@ Object {
                         6,
                     ),
                     address: 496,
-                    target_symbol: 34,
+                    target_symbol: 29,
                     addend: 0,
                 },
                 Relocation {
@@ -1583,7 +1583,7 @@ Object {
                         6,
                     ),
                     address: 516,
-                    target_symbol: 34,
+                    target_symbol: 29,
                     addend: 0,
                 },
                 Relocation {
@@ -1591,7 +1591,7 @@ Object {
                         16,
                     ),
                     address: 520,
-                    target_symbol: 8,
+                    target_symbol: 3,
                     addend: 0,
                 },
                 Relocation {
@@ -1599,7 +1599,7 @@ Object {
                         17,
                     ),
                     address: 524,
-                    target_symbol: 8,
+                    target_symbol: 3,
                     addend: 0,
                 },
                 Relocation {
@@ -1615,7 +1615,7 @@ Object {
                         16,
                     ),
                     address: 540,
-                    target_symbol: 9,
+                    target_symbol: 4,
                     addend: 0,
                 },
                 Relocation {
@@ -1623,7 +1623,7 @@ Object {
                         17,
                     ),
                     address: 544,
-                    target_symbol: 9,
+                    target_symbol: 4,
                     addend: 0,
                 },
                 Relocation {
@@ -1631,7 +1631,7 @@ Object {
                         6,
                     ),
                     address: 548,
-                    target_symbol: 27,
+                    target_symbol: 22,
                     addend: 0,
                 },
                 Relocation {
@@ -1639,7 +1639,7 @@ Object {
                         16,
                     ),
                     address: 560,
-                    target_symbol: 10,
+                    target_symbol: 5,
                     addend: 0,
                 },
                 Relocation {
@@ -1647,7 +1647,7 @@ Object {
                         17,
                     ),
                     address: 564,
-                    target_symbol: 10,
+                    target_symbol: 5,
                     addend: 0,
                 },
                 Relocation {
@@ -1655,7 +1655,7 @@ Object {
                         6,
                     ),
                     address: 568,
-                    target_symbol: 27,
+                    target_symbol: 22,
                     addend: 0,
                 },
                 Relocation {
@@ -1663,7 +1663,7 @@ Object {
                         16,
                     ),
                     address: 580,
-                    target_symbol: 11,
+                    target_symbol: 6,
                     addend: 0,
                 },
                 Relocation {
@@ -1671,7 +1671,7 @@ Object {
                         17,
                     ),
                     address: 584,
-                    target_symbol: 11,
+                    target_symbol: 6,
                     addend: 0,
                 },
                 Relocation {
@@ -1679,7 +1679,7 @@ Object {
                         6,
                     ),
                     address: 588,
-                    target_symbol: 27,
+                    target_symbol: 22,
                     addend: 0,
                 },
                 Relocation {
@@ -1687,7 +1687,7 @@ Object {
                         16,
                     ),
                     address: 600,
-                    target_symbol: 12,
+                    target_symbol: 7,
                     addend: 0,
                 },
                 Relocation {
@@ -1695,7 +1695,7 @@ Object {
                         17,
                     ),
                     address: 604,
-                    target_symbol: 12,
+                    target_symbol: 7,
                     addend: 0,
                 },
                 Relocation {
@@ -1703,7 +1703,7 @@ Object {
                         6,
                     ),
                     address: 608,
-                    target_symbol: 27,
+                    target_symbol: 22,
                     addend: 0,
                 },
                 Relocation {
@@ -1711,7 +1711,7 @@ Object {
                         16,
                     ),
                     address: 612,
-                    target_symbol: 13,
+                    target_symbol: 8,
                     addend: 0,
                 },
                 Relocation {
@@ -1719,7 +1719,7 @@ Object {
                         17,
                     ),
                     address: 616,
-                    target_symbol: 13,
+                    target_symbol: 8,
                     addend: 0,
                 },
                 Relocation {
@@ -1735,7 +1735,7 @@ Object {
                         16,
                     ),
                     address: 716,
-                    target_symbol: 79,
+                    target_symbol: 74,
                     addend: 0,
                 },
                 Relocation {
@@ -1743,7 +1743,7 @@ Object {
                         17,
                     ),
                     address: 720,
-                    target_symbol: 79,
+                    target_symbol: 74,
                     addend: 0,
                 },
                 Relocation {
@@ -1751,7 +1751,7 @@ Object {
                         16,
                     ),
                     address: 728,
-                    target_symbol: 77,
+                    target_symbol: 72,
                     addend: 0,
                 },
                 Relocation {
@@ -1759,7 +1759,7 @@ Object {
                         17,
                     ),
                     address: 732,
-                    target_symbol: 77,
+                    target_symbol: 72,
                     addend: 0,
                 },
                 Relocation {
@@ -1767,7 +1767,7 @@ Object {
                         16,
                     ),
                     address: 740,
-                    target_symbol: 75,
+                    target_symbol: 70,
                     addend: 0,
                 },
                 Relocation {
@@ -1775,7 +1775,7 @@ Object {
                         17,
                     ),
                     address: 744,
-                    target_symbol: 75,
+                    target_symbol: 70,
                     addend: 0,
                 },
                 Relocation {
@@ -1783,7 +1783,7 @@ Object {
                         16,
                     ),
                     address: 752,
-                    target_symbol: 73,
+                    target_symbol: 68,
                     addend: 0,
                 },
                 Relocation {
@@ -1791,7 +1791,7 @@ Object {
                         17,
                     ),
                     address: 756,
-                    target_symbol: 73,
+                    target_symbol: 68,
                     addend: 0,
                 },
                 Relocation {
@@ -1799,7 +1799,7 @@ Object {
                         16,
                     ),
                     address: 764,
-                    target_symbol: 67,
+                    target_symbol: 62,
                     addend: 0,
                 },
                 Relocation {
@@ -1807,7 +1807,7 @@ Object {
                         17,
                     ),
                     address: 768,
-                    target_symbol: 67,
+                    target_symbol: 62,
                     addend: 0,
                 },
                 Relocation {
@@ -1815,7 +1815,7 @@ Object {
                         16,
                     ),
                     address: 776,
-                    target_symbol: 71,
+                    target_symbol: 66,
                     addend: 0,
                 },
                 Relocation {
@@ -1823,7 +1823,7 @@ Object {
                         17,
                     ),
                     address: 780,
-                    target_symbol: 71,
+                    target_symbol: 66,
                     addend: 0,
                 },
                 Relocation {
@@ -1831,7 +1831,7 @@ Object {
                         16,
                     ),
                     address: 788,
-                    target_symbol: 69,
+                    target_symbol: 64,
                     addend: 0,
                 },
                 Relocation {
@@ -1839,7 +1839,7 @@ Object {
                         17,
                     ),
                     address: 792,
-                    target_symbol: 69,
+                    target_symbol: 64,
                     addend: 0,
                 },
                 Relocation {
@@ -1847,7 +1847,7 @@ Object {
                         16,
                     ),
                     address: 800,
-                    target_symbol: 73,
+                    target_symbol: 68,
                     addend: 0,
                 },
                 Relocation {
@@ -1855,7 +1855,7 @@ Object {
                         17,
                     ),
                     address: 804,
-                    target_symbol: 73,
+                    target_symbol: 68,
                     addend: 0,
                 },
                 Relocation {
@@ -1863,7 +1863,7 @@ Object {
                         6,
                     ),
                     address: 948,
-                    target_symbol: 33,
+                    target_symbol: 28,
                     addend: 0,
                 },
                 Relocation {
@@ -1871,7 +1871,7 @@ Object {
                         6,
                     ),
                     address: 984,
-                    target_symbol: 33,
+                    target_symbol: 28,
                     addend: 0,
                 },
                 Relocation {
@@ -1879,7 +1879,7 @@ Object {
                         6,
                     ),
                     address: 1020,
-                    target_symbol: 33,
+                    target_symbol: 28,
                     addend: 0,
                 },
                 Relocation {
@@ -1887,7 +1887,7 @@ Object {
                         16,
                     ),
                     address: 1196,
-                    target_symbol: 14,
+                    target_symbol: 9,
                     addend: 0,
                 },
                 Relocation {
@@ -1895,7 +1895,7 @@ Object {
                         17,
                     ),
                     address: 1200,
-                    target_symbol: 14,
+                    target_symbol: 9,
                     addend: 0,
                 },
                 Relocation {
@@ -1911,7 +1911,7 @@ Object {
                         16,
                     ),
                     address: 1216,
-                    target_symbol: 15,
+                    target_symbol: 10,
                     addend: 0,
                 },
                 Relocation {
@@ -1919,7 +1919,7 @@ Object {
                         17,
                     ),
                     address: 1220,
-                    target_symbol: 15,
+                    target_symbol: 10,
                     addend: 0,
                 },
                 Relocation {
@@ -1927,7 +1927,7 @@ Object {
                         6,
                     ),
                     address: 1224,
-                    target_symbol: 27,
+                    target_symbol: 22,
                     addend: 0,
                 },
                 Relocation {
@@ -1935,7 +1935,7 @@ Object {
                         16,
                     ),
                     address: 1236,
-                    target_symbol: 16,
+                    target_symbol: 11,
                     addend: 0,
                 },
                 Relocation {
@@ -1943,7 +1943,7 @@ Object {
                         17,
                     ),
                     address: 1240,
-                    target_symbol: 16,
+                    target_symbol: 11,
                     addend: 0,
                 },
                 Relocation {
@@ -1951,7 +1951,7 @@ Object {
                         6,
                     ),
                     address: 1244,
-                    target_symbol: 27,
+                    target_symbol: 22,
                     addend: 0,
                 },
                 Relocation {
@@ -1959,7 +1959,7 @@ Object {
                         16,
                     ),
                     address: 1256,
-                    target_symbol: 17,
+                    target_symbol: 12,
                     addend: 0,
                 },
                 Relocation {
@@ -1967,7 +1967,7 @@ Object {
                         17,
                     ),
                     address: 1260,
-                    target_symbol: 17,
+                    target_symbol: 12,
                     addend: 0,
                 },
                 Relocation {
@@ -1975,7 +1975,7 @@ Object {
                         6,
                     ),
                     address: 1264,
-                    target_symbol: 27,
+                    target_symbol: 22,
                     addend: 0,
                 },
                 Relocation {
@@ -1983,7 +1983,7 @@ Object {
                         16,
                     ),
                     address: 1276,
-                    target_symbol: 18,
+                    target_symbol: 13,
                     addend: 0,
                 },
                 Relocation {
@@ -1991,7 +1991,7 @@ Object {
                         17,
                     ),
                     address: 1280,
-                    target_symbol: 18,
+                    target_symbol: 13,
                     addend: 0,
                 },
                 Relocation {
@@ -1999,7 +1999,7 @@ Object {
                         6,
                     ),
                     address: 1284,
-                    target_symbol: 27,
+                    target_symbol: 22,
                     addend: 0,
                 },
                 Relocation {
@@ -2007,7 +2007,7 @@ Object {
                         16,
                     ),
                     address: 1296,
-                    target_symbol: 19,
+                    target_symbol: 14,
                     addend: 0,
                 },
                 Relocation {
@@ -2015,7 +2015,7 @@ Object {
                         17,
                     ),
                     address: 1300,
-                    target_symbol: 19,
+                    target_symbol: 14,
                     addend: 0,
                 },
                 Relocation {
@@ -2023,7 +2023,7 @@ Object {
                         6,
                     ),
                     address: 1304,
-                    target_symbol: 27,
+                    target_symbol: 22,
                     addend: 0,
                 },
                 Relocation {
@@ -2031,7 +2031,7 @@ Object {
                         16,
                     ),
                     address: 1308,
-                    target_symbol: 20,
+                    target_symbol: 15,
                     addend: 0,
                 },
                 Relocation {
@@ -2039,7 +2039,7 @@ Object {
                         17,
                     ),
                     address: 1312,
-                    target_symbol: 20,
+                    target_symbol: 15,
                     addend: 0,
                 },
                 Relocation {
@@ -2055,7 +2055,7 @@ Object {
                         16,
                     ),
                     address: 1548,
-                    target_symbol: 21,
+                    target_symbol: 16,
                     addend: 0,
                 },
                 Relocation {
@@ -2063,7 +2063,7 @@ Object {
                         17,
                     ),
                     address: 1552,
-                    target_symbol: 21,
+                    target_symbol: 16,
                     addend: 0,
                 },
                 Relocation {
@@ -2079,7 +2079,7 @@ Object {
                         16,
                     ),
                     address: 1568,
-                    target_symbol: 22,
+                    target_symbol: 17,
                     addend: 0,
                 },
                 Relocation {
@@ -2087,7 +2087,7 @@ Object {
                         17,
                     ),
                     address: 1572,
-                    target_symbol: 22,
+                    target_symbol: 17,
                     addend: 0,
                 },
                 Relocation {
@@ -2095,7 +2095,7 @@ Object {
                         6,
                     ),
                     address: 1576,
-                    target_symbol: 27,
+                    target_symbol: 22,
                     addend: 0,
                 },
                 Relocation {
@@ -2103,7 +2103,7 @@ Object {
                         16,
                     ),
                     address: 1580,
-                    target_symbol: 23,
+                    target_symbol: 18,
                     addend: 0,
                 },
                 Relocation {
@@ -2111,7 +2111,7 @@ Object {
                         17,
                     ),
                     address: 1584,
-                    target_symbol: 23,
+                    target_symbol: 18,
                     addend: 0,
                 },
                 Relocation {
@@ -2127,7 +2127,7 @@ Object {
                         16,
                     ),
                     address: 1620,
-                    target_symbol: 24,
+                    target_symbol: 19,
                     addend: 0,
                 },
                 Relocation {
@@ -2135,7 +2135,7 @@ Object {
                         17,
                     ),
                     address: 1624,
-                    target_symbol: 24,
+                    target_symbol: 19,
                     addend: 0,
                 },
                 Relocation {
@@ -2151,7 +2151,7 @@ Object {
                         6,
                     ),
                     address: 1632,
-                    target_symbol: 30,
+                    target_symbol: 25,
                     addend: 0,
                 },
                 Relocation {
@@ -2159,7 +2159,7 @@ Object {
                         6,
                     ),
                     address: 1636,
-                    target_symbol: 35,
+                    target_symbol: 30,
                     addend: 0,
                 },
                 Relocation {
@@ -2167,7 +2167,7 @@ Object {
                         6,
                     ),
                     address: 1640,
-                    target_symbol: 38,
+                    target_symbol: 33,
                     addend: 0,
                 },
                 Relocation {
@@ -2175,7 +2175,7 @@ Object {
                         16,
                     ),
                     address: 1644,
-                    target_symbol: 25,
+                    target_symbol: 20,
                     addend: 0,
                 },
                 Relocation {
@@ -2183,7 +2183,7 @@ Object {
                         17,
                     ),
                     address: 1648,
-                    target_symbol: 25,
+                    target_symbol: 20,
                     addend: 0,
                 },
                 Relocation {
@@ -2217,7 +2217,7 @@ Object {
                         2,
                     ),
                     address: 0,
-                    target_symbol: 27,
+                    target_symbol: 22,
                     addend: 0,
                 },
                 Relocation {
@@ -2225,7 +2225,7 @@ Object {
                         2,
                     ),
                     address: 8,
-                    target_symbol: 30,
+                    target_symbol: 25,
                     addend: 0,
                 },
                 Relocation {
@@ -2233,7 +2233,7 @@ Object {
                         2,
                     ),
                     address: 16,
-                    target_symbol: 35,
+                    target_symbol: 30,
                     addend: 0,
                 },
                 Relocation {
@@ -2241,7 +2241,7 @@ Object {
                         2,
                     ),
                     address: 24,
-                    target_symbol: 38,
+                    target_symbol: 33,
                     addend: 0,
                 },
                 Relocation {
@@ -2249,7 +2249,7 @@ Object {
                         2,
                     ),
                     address: 32,
-                    target_symbol: 41,
+                    target_symbol: 36,
                     addend: 0,
                 },
             ],
