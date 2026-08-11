@@ -24,20 +24,6 @@ Object {
             virtual_address: None,
         },
         Symbol {
-            name: "[.debug$S]",
-            demangled_name: None,
-            normalized_name: None,
-            address: 0,
-            size: 271,
-            kind: Section,
-            section: Some(
-                1,
-            ),
-            flags: FlagSet(Local),
-            align: None,
-            virtual_address: None,
-        },
-        Symbol {
             name: "[.text]",
             demangled_name: None,
             normalized_name: None,
@@ -506,6 +492,20 @@ Object {
             demangled_name: None,
             normalized_name: None,
             address: 0,
+            size: 271,
+            kind: Section,
+            section: Some(
+                1,
+            ),
+            flags: FlagSet(Local),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "[.debug$S]",
+            demangled_name: None,
+            normalized_name: None,
+            address: 0,
             size: 620,
             kind: Section,
             section: Some(
@@ -610,14 +610,6 @@ Object {
                         6,
                     ),
                     address: 59,
-                    target_symbol: 28,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 66,
                     target_symbol: 27,
                     addend: 0,
                 },
@@ -625,15 +617,15 @@ Object {
                     flags: Coff(
                         6,
                     ),
-                    address: 154,
-                    target_symbol: 30,
+                    address: 66,
+                    target_symbol: 26,
                     addend: 0,
                 },
                 Relocation {
                     flags: Coff(
                         6,
                     ),
-                    address: 161,
+                    address: 154,
                     target_symbol: 29,
                     addend: 0,
                 },
@@ -641,15 +633,15 @@ Object {
                     flags: Coff(
                         6,
                     ),
-                    address: 253,
-                    target_symbol: 32,
+                    address: 161,
+                    target_symbol: 28,
                     addend: 0,
                 },
                 Relocation {
                     flags: Coff(
                         6,
                     ),
-                    address: 260,
+                    address: 253,
                     target_symbol: 31,
                     addend: 0,
                 },
@@ -657,15 +649,15 @@ Object {
                     flags: Coff(
                         6,
                     ),
-                    address: 349,
-                    target_symbol: 34,
+                    address: 260,
+                    target_symbol: 30,
                     addend: 0,
                 },
                 Relocation {
                     flags: Coff(
                         6,
                     ),
-                    address: 356,
+                    address: 349,
                     target_symbol: 33,
                     addend: 0,
                 },
@@ -673,8 +665,16 @@ Object {
                     flags: Coff(
                         6,
                     ),
+                    address: 356,
+                    target_symbol: 32,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
                     address: 424,
-                    target_symbol: 7,
+                    target_symbol: 6,
                     addend: 0,
                 },
                 Relocation {
@@ -682,126 +682,6 @@ Object {
                         6,
                     ),
                     address: 428,
-                    target_symbol: 22,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 432,
-                    target_symbol: 8,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 436,
-                    target_symbol: 9,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 440,
-                    target_symbol: 10,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 444,
-                    target_symbol: 15,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 652,
-                    target_symbol: 11,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 656,
-                    target_symbol: 12,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 660,
-                    target_symbol: 13,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 664,
-                    target_symbol: 14,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 668,
-                    target_symbol: 15,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 824,
-                    target_symbol: 16,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 828,
-                    target_symbol: 17,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 832,
-                    target_symbol: 18,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 836,
-                    target_symbol: 19,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 840,
-                    target_symbol: 20,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 844,
                     target_symbol: 21,
                     addend: 0,
                 },
@@ -809,47 +689,7 @@ Object {
                     flags: Coff(
                         6,
                     ),
-                    address: 848,
-                    target_symbol: 26,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 1104,
-                    target_symbol: 22,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 1108,
-                    target_symbol: 23,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 1112,
-                    target_symbol: 24,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 1116,
-                    target_symbol: 25,
-                    addend: 0,
-                },
-                Relocation {
-                    flags: Coff(
-                        6,
-                    ),
-                    address: 1120,
+                    address: 432,
                     target_symbol: 7,
                     addend: 0,
                 },
@@ -857,8 +697,168 @@ Object {
                     flags: Coff(
                         6,
                     ),
+                    address: 436,
+                    target_symbol: 8,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 440,
+                    target_symbol: 9,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 444,
+                    target_symbol: 14,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 652,
+                    target_symbol: 10,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 656,
+                    target_symbol: 11,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 660,
+                    target_symbol: 12,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 664,
+                    target_symbol: 13,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 668,
+                    target_symbol: 14,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 824,
+                    target_symbol: 15,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 828,
+                    target_symbol: 16,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 832,
+                    target_symbol: 17,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 836,
+                    target_symbol: 18,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 840,
+                    target_symbol: 19,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 844,
+                    target_symbol: 20,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 848,
+                    target_symbol: 25,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 1104,
+                    target_symbol: 21,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 1108,
+                    target_symbol: 22,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 1112,
+                    target_symbol: 23,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 1116,
+                    target_symbol: 24,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
+                    address: 1120,
+                    target_symbol: 6,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: Coff(
+                        6,
+                    ),
                     address: 1124,
-                    target_symbol: 26,
+                    target_symbol: 25,
                     addend: 0,
                 },
             ],

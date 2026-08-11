@@ -208,6 +208,20 @@ fn map_symbols(
         .inspect(|sym| max_index = max_index.max(sym.index().0))
         .collect::<Vec<_>>();
     obj_symbols.sort_by(|a, b| {
+        // First sort symbols by their section names lexicographically (for COFF section groups)
+        if let Some(a_section_index) = a.section_index()
+            && let Some(b_section_index) = b.section_index()
+            && let Ok(a_section) = obj_file.section_by_index(a_section_index)
+            && let Ok(b_section) = obj_file.section_by_index(b_section_index)
+            && let Ok(a_section_name) = a_section.name()
+            && let Ok(b_section_name) = b_section.name()
+        {
+            if a_section_name.contains('$') && !b_section_name.contains('$') {
+                return Ordering::Greater;
+            } else if !a_section_name.contains('$') && b_section_name.contains('$') {
+                return Ordering::Less;
+            }
+        }
         // Sort symbols by section index, placing absolute symbols last
         a.section_index()
             .map_or(usize::MAX, |s| s.0)
@@ -964,9 +978,9 @@ fn do_combine_sections(
         let b_name = &sections[b].name;
         // .text$di < .text$mn < .text
         if a_name.contains('$') && !b_name.contains('$') {
-            return Ordering::Less;
-        } else if !a_name.contains('$') && b_name.contains('$') {
             return Ordering::Greater;
+        } else if !a_name.contains('$') && b_name.contains('$') {
+            return Ordering::Less;
         }
         a_name.cmp(b_name)
     });

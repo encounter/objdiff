@@ -38,19 +38,276 @@ expression: obj.sections
         virtual_address: None,
     },
     Section {
-        id: ".rdata-0",
+        id: ".rdata-combined",
         name: ".rdata",
         address: 0,
-        size: 0,
-        kind: Unknown,
+        size: 304,
+        kind: Data,
         data: SectionData(
-            0,
+            304,
         ),
-        flags: FlagSet(),
+        flags: FlagSet(Combined),
         align: Some(
             4,
         ),
-        relocations: [],
+        relocations: [
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 0,
+                target_symbol: 32,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 4,
+                target_symbol: 70,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 8,
+                target_symbol: 46,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 12,
+                target_symbol: 44,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 16,
+                target_symbol: 62,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 20,
+                target_symbol: 74,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 24,
+                target_symbol: 64,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 28,
+                target_symbol: 75,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 44,
+                target_symbol: 20,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 48,
+                target_symbol: 22,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 56,
+                target_symbol: 16,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 80,
+                target_symbol: 18,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 96,
+                target_symbol: 28,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 100,
+                target_symbol: 30,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 108,
+                target_symbol: 24,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 132,
+                target_symbol: 26,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 148,
+                target_symbol: 34,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 152,
+                target_symbol: 36,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 168,
+                target_symbol: 38,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 172,
+                target_symbol: 40,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 176,
+                target_symbol: 22,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 180,
+                target_symbol: 42,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 188,
+                target_symbol: 34,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 212,
+                target_symbol: 36,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 216,
+                target_symbol: 24,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 240,
+                target_symbol: 26,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 256,
+                target_symbol: 34,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 260,
+                target_symbol: 36,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 276,
+                target_symbol: 16,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 280,
+                target_symbol: 18,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 296,
+                target_symbol: 24,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 300,
+                target_symbol: 26,
+                addend: 0,
+            },
+        ],
         line_info: {},
         virtual_address: None,
     },
@@ -89,334 +346,36 @@ expression: obj.sections
         virtual_address: None,
     },
     Section {
-        id: ".data-combined",
-        name: ".data",
+        id: ".data$rs-0",
+        name: ".data$rs",
         address: 0,
-        size: 56,
-        kind: Data,
+        size: 0,
+        kind: Unknown,
         data: SectionData(
-            56,
+            0,
         ),
-        flags: FlagSet(Combined),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
-        relocations: [
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 0,
-                target_symbol: 71,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 16,
-                target_symbol: 71,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 32,
-                target_symbol: 71,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 48,
-                target_symbol: 3,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 52,
-                target_symbol: 5,
-                addend: 0,
-            },
-        ],
+        relocations: [],
         line_info: {},
         virtual_address: None,
     },
     Section {
-        id: ".rdata-combined",
-        name: ".rdata",
+        id: ".rdata$r-0",
+        name: ".rdata$r",
         address: 0,
-        size: 304,
-        kind: Data,
+        size: 0,
+        kind: Unknown,
         data: SectionData(
-            304,
+            0,
         ),
-        flags: FlagSet(Combined),
+        flags: FlagSet(),
         align: Some(
             4,
         ),
-        relocations: [
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 12,
-                target_symbol: 13,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 16,
-                target_symbol: 15,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 24,
-                target_symbol: 9,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 48,
-                target_symbol: 11,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 64,
-                target_symbol: 21,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 68,
-                target_symbol: 23,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 76,
-                target_symbol: 17,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 100,
-                target_symbol: 19,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 116,
-                target_symbol: 27,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 120,
-                target_symbol: 29,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 136,
-                target_symbol: 31,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 140,
-                target_symbol: 33,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 144,
-                target_symbol: 15,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 148,
-                target_symbol: 35,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 156,
-                target_symbol: 27,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 180,
-                target_symbol: 29,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 184,
-                target_symbol: 17,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 208,
-                target_symbol: 19,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 224,
-                target_symbol: 27,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 228,
-                target_symbol: 29,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 244,
-                target_symbol: 9,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 248,
-                target_symbol: 11,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 264,
-                target_symbol: 17,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 268,
-                target_symbol: 19,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 272,
-                target_symbol: 25,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 276,
-                target_symbol: 70,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 280,
-                target_symbol: 39,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 284,
-                target_symbol: 37,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 288,
-                target_symbol: 61,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 292,
-                target_symbol: 74,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 296,
-                target_symbol: 63,
-                addend: 0,
-            },
-            Relocation {
-                flags: Coff(
-                    6,
-                ),
-                address: 300,
-                target_symbol: 75,
-                addend: 0,
-            },
-        ],
+        relocations: [],
         line_info: {},
         virtual_address: None,
     },
@@ -762,7 +721,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 4,
-                target_symbol: 53,
+                target_symbol: 60,
                 addend: 0,
             },
             Relocation {
@@ -778,7 +737,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 43,
-                target_symbol: 45,
+                target_symbol: 52,
                 addend: 0,
             },
             Relocation {
@@ -802,7 +761,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 100,
-                target_symbol: 55,
+                target_symbol: 6,
                 addend: 0,
             },
             Relocation {
@@ -810,7 +769,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 124,
-                target_symbol: 57,
+                target_symbol: 8,
                 addend: 0,
             },
             Relocation {
@@ -818,7 +777,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 156,
-                target_symbol: 3,
+                target_symbol: 2,
                 addend: 0,
             },
             Relocation {
@@ -826,7 +785,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 166,
-                target_symbol: 5,
+                target_symbol: 4,
                 addend: 0,
             },
             Relocation {
@@ -834,7 +793,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 177,
-                target_symbol: 43,
+                target_symbol: 50,
                 addend: 0,
             },
             Relocation {
@@ -842,7 +801,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 185,
-                target_symbol: 41,
+                target_symbol: 48,
                 addend: 0,
             },
             Relocation {
@@ -850,7 +809,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 219,
-                target_symbol: 41,
+                target_symbol: 48,
                 addend: 0,
             },
             Relocation {
@@ -866,7 +825,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 267,
-                target_symbol: 43,
+                target_symbol: 50,
                 addend: 0,
             },
             Relocation {
@@ -882,7 +841,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 308,
-                target_symbol: 59,
+                target_symbol: 10,
                 addend: 0,
             },
             Relocation {
@@ -890,7 +849,7 @@ expression: obj.sections
                     20,
                 ),
                 address: 313,
-                target_symbol: 45,
+                target_symbol: 52,
                 addend: 0,
             },
         ],
@@ -949,19 +908,60 @@ expression: obj.sections
         virtual_address: None,
     },
     Section {
-        id: ".data-0",
+        id: ".data-combined",
         name: ".data",
         address: 0,
-        size: 0,
-        kind: Unknown,
+        size: 56,
+        kind: Data,
         data: SectionData(
-            0,
+            56,
         ),
-        flags: FlagSet(),
+        flags: FlagSet(Combined),
         align: Some(
             4,
         ),
-        relocations: [],
+        relocations: [
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 0,
+                target_symbol: 2,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 4,
+                target_symbol: 4,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 8,
+                target_symbol: 71,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 24,
+                target_symbol: 71,
+                addend: 0,
+            },
+            Relocation {
+                flags: Coff(
+                    6,
+                ),
+                address: 40,
+                target_symbol: 71,
+                addend: 0,
+            },
+        ],
         line_info: {},
         virtual_address: None,
     },
@@ -1018,7 +1018,7 @@ expression: obj.sections
                     6,
                 ),
                 address: 0,
-                target_symbol: 51,
+                target_symbol: 58,
                 addend: 0,
             },
         ],
