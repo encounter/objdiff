@@ -334,6 +334,14 @@ fn infer_symbol_sizes(arch: &dyn Arch, symbols: &mut [Symbol], sections: &[Secti
                 break None;
             }
             if match symbol.kind {
+                SymbolKind::Function
+                    if next_symbol.kind == SymbolKind::Function
+                        && (next_symbol.name.starts_with("__unwind$")
+                            || next_symbol.name.starts_with("__catch$")) =>
+                {
+                    // MSVC unwinds/catches count as functions, but shouldn't cut off the function they're from.
+                    false
+                }
                 SymbolKind::Function | SymbolKind::Object => {
                     // For function/object symbols, find the next function/object
                     matches!(next_symbol.kind, SymbolKind::Function | SymbolKind::Object)
