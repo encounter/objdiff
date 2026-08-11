@@ -18,7 +18,7 @@ use crate::{
     },
     obj::{
         InstructionRef, Object, Relocation, ResolvedRelocation, SectionKind, Symbol, SymbolFlag,
-        SymbolKind,
+        SymbolKind, read::get_section_base_name,
     },
 };
 
@@ -810,10 +810,8 @@ where
 
 fn symbol_section<'obj>(obj: &'obj Object, symbol: &Symbol) -> Option<(&'obj str, SectionKind)> {
     if let Some(section) = symbol.section.and_then(|section_idx| obj.sections.get(section_idx)) {
-        // Match x86 .rdata$r against .rdata$rs
-        let section_name =
-            section.name.split_once('$').map_or(section.name.as_str(), |(prefix, _)| prefix);
-        Some((section_name, section.kind))
+        let section_base_name = get_section_base_name(section);
+        Some((section_base_name, section.kind))
     } else if symbol.flags.contains(SymbolFlag::Common) {
         Some((".comm", SectionKind::Common))
     } else {

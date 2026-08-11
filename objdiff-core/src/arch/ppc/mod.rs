@@ -364,10 +364,10 @@ impl Arch for ArchPpc {
         bytes: &[u8],
     ) -> Option<DataType> {
         if reloc.is_some_and(|r| {
-            r.symbol.name.starts_with("@stringBase")
-                || r.symbol.name.starts_with("@wstringBase")
+            r.symbol.name.starts_with("@stringBase") // MWCC
+                || r.symbol.name.starts_with("@wstringBase") // MWCC
                 || r.symbol.name.starts_with("$SG")
-                || r.symbol.demangled_name == Some("`string'".to_string())
+                || r.symbol.name.starts_with("??_C") // MSVC
         }) {
             // Compiler-generated symbol name for a string or a pool of strings.
             return Some(DataType::String);
