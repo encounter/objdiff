@@ -379,6 +379,11 @@ impl Arch for ArchPpc {
                 return Some(ty);
             }
         }
+        if reloc.is_some_and(|r| r.symbol.name.starts_with("$LC")) {
+            // GCC compiler-generated symbol name for a literal.
+            // This could be a float literal instead of a string literal, so only check this after the opcode.
+            return Some(DataType::String);
+        }
         if bytes.len() >= 2 && bytes.iter().position(|&c| c == b'\0') == Some(bytes.len() - 1) {
             // It may be an unpooled string if the symbol contains exactly one null byte at the end of the symbol.
             return Some(DataType::String);
