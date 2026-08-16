@@ -32,6 +32,8 @@ pub struct DiffInputs {
     pub target: PathBuf,
     pub base: PathBuf,
     pub config: DiffObjConfig,
+    /// Manual symbol mappings (target name -> base name) from the unit config.
+    pub mappings: BTreeMap<String, String>,
 }
 
 impl AppState {
@@ -78,13 +80,17 @@ impl AppState {
         if let Some(project) = inner.project.as_ref() {
             project.apply_options(unit, &mut config)?;
         }
+        let mappings = match (inner.project.as_ref(), unit) {
+            (Some(project), Some(unit)) => project.symbol_mappings(unit)?,
+            _ => BTreeMap::new(),
+        };
         for (key, value) in overrides {
             let id = parse_property(key)?;
             config
                 .set_property_value_str(id, value)
                 .map_err(|_| anyhow!("Invalid value `{value}` for config property `{key}`"))?;
         }
-        Ok(DiffInputs { target, base, config })
+        Ok(DiffInputs { target, base, config, mappings })
     }
 
     /// Add/remove/clear a unit's manual symbol mappings and persist them.
