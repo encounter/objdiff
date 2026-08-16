@@ -12,7 +12,7 @@ use rmcp::{
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use crate::{diff, project, state::AppState};
+use super::{diff, project, state::AppState};
 
 #[derive(Clone)]
 pub struct ObjdiffServer {
@@ -104,9 +104,9 @@ fn text(s: String) -> CallToolResult { CallToolResult::success(vec![ContentBlock
 impl ObjdiffServer {
     pub fn new(state: Arc<AppState>) -> Self { Self { state, tool_router: Self::tool_router() } }
 
-    #[tool(description = "Report the objdiff-mcp / objdiff-core version.")]
+    #[tool(description = "Report the objdiff-cli / objdiff-core version.")]
     async fn version(&self) -> Result<CallToolResult, ErrorData> {
-        Ok(text(format!("objdiff-mcp {} (objdiff-core embedded)", env!("CARGO_PKG_VERSION"))))
+        Ok(text(format!("objdiff-cli mcp {} (objdiff-core embedded)", env!("CARGO_PKG_VERSION"))))
     }
 
     #[tool(

@@ -1,4 +1,4 @@
-# objdiff-mcp
+# objdiff-cli mcp
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server that exposes
 [objdiff](https://github.com/encounter/objdiff)'s diffing engine so a model can
@@ -9,7 +9,7 @@ write/adjust C/C++ → compile to an object → **`diff_function`** against the
 baseline → read the per-instruction diff → repeat until 100%.
 
 ```
-  IDA (reference)         decomp project          objdiff-mcp (this)
+  IDA (reference)         decomp project          objdiff-cli mcp (this)
   ida-bridge MCP   →   edit C++ → build     →   diff_function → match% + instr diff
         ▲                                              │
         └──────────────  agent iterates  ◀────────────┘
@@ -18,8 +18,8 @@ baseline → read the per-instruction diff → repeat until 100%.
 ## Build
 
 ```bash
-cargo build --release -p objdiff-mcp
-# binary: target/release/objdiff-mcp
+cargo build --release -p objdiff-cli
+# binary: target/release/objdiff-cli
 ```
 
 Built on `objdiff-core` (all architectures: ARM, ARM64, MIPS, PPC, SuperH,
@@ -34,14 +34,14 @@ across calls.
 the compiled objects, reached from the agent over the network):
 
 ```bash
-objdiff-mcp --transport http --bind 0.0.0.0:3001 [--project C:\path\to\project]
+objdiff-cli mcp --transport http --bind 0.0.0.0:3001 [--project C:\path\to\project]
 # MCP endpoint: http://<host>:3001/mcp
 ```
 
 **stdio** (spawned by the client via `.mcp.json`):
 
 ```bash
-objdiff-mcp                      # --transport stdio is the default
+objdiff-cli mcp                  # --transport stdio is the default
 ```
 
 Logs go to stderr; stdout is reserved for the protocol on stdio.
@@ -85,7 +85,7 @@ attack first.
 ```json
 {
   "mcpServers": {
-    "objdiff": { "command": "/path/to/objdiff-mcp" }
+    "objdiff": { "command": "/path/to/objdiff-cli", "args": ["mcp"] }
   }
 }
 ```
