@@ -3,7 +3,7 @@
 //! These are UI-free and synchronous; the MCP server layer wraps them in
 //! `spawn_blocking` and turns the results into tool responses.
 
-use std::{fmt::Write as _, path::Path};
+use std::{collections::BTreeMap, fmt::Write as _, path::Path};
 
 use anyhow::{Context, Result};
 use objdiff_core::{
@@ -16,14 +16,20 @@ use objdiff_core::{
 ///
 /// `target` is the expected/baseline object (left); `base` is your current
 /// build (right).
-pub fn run_diff(target: &Path, base: &Path, config: &DiffObjConfig) -> Result<DiffResult> {
+pub fn run_diff(
+    target: &Path,
+    base: &Path,
+    config: &DiffObjConfig,
+    mappings: &BTreeMap<String, String>,
+) -> Result<DiffResult> {
     let target_obj = read::read(target, config, DiffSide::Target)
         .with_context(|| format!("Failed to read target object {}", target.display()))?;
     let base_obj = read::read(base, config, DiffSide::Base)
         .with_context(|| format!("Failed to read base object {}", base.display()))?;
-    let result =
-        diff_objs(Some(&target_obj), Some(&base_obj), None, config, &MappingConfig::default())
-            .context("Failed to diff objects")?;
+    let mapping_config =
+        MappingConfig { mappings: mappings.clone(), selecting_left: None, selecting_right: None };
+    let result = diff_objs(Some(&target_obj), Some(&base_obj), None, config, &mapping_config)
+        .context("Failed to diff objects")?;
     DiffResult::new(
         result.left.as_ref().map(|d| (&target_obj, d)),
         result.right.as_ref().map(|d| (&base_obj, d)),
@@ -90,11 +96,21 @@ pub fn function_diff(diff: &DiffResult, symbol: &str) -> Result<String> {
     let right = diff.right.as_ref().context("No base object in diff result")?;
     let left = diff.left.as_ref();
 
+    // Look the symbol up by its base (current) name first; fall back to the
+    // target-side name and follow its pairing back to the base symbol, so
+    // mapped symbols (e.g. statics renamed between objects) resolve either way.
     let base_sym = right
         .symbols
         .iter()
         .find(|s| s.name == symbol)
-        .with_context(|| format!("Symbol `{symbol}` not found in base (current) object"))?;
+        .or_else(|| {
+            left.and_then(|l| l.symbols.iter().find(|s| s.name == symbol))
+                .and_then(|ls| ls.target_symbol)
+                .and_then(|bi| right.symbols.get(bi as usize))
+        })
+        .with_context(|| {
+            format!("Symbol `{symbol}` not found in base (current) or target object")
+        })?;
 
     let target_sym: Option<&DiffSymbol> = base_sym
         .target_symbol
