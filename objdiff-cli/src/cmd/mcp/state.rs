@@ -12,7 +12,7 @@ use objdiff_core::{
 };
 use typed_path::Utf8UnixPathBuf;
 
-use crate::project::{LoadedProject, resolve_inputs};
+use super::project::{LoadedProject, resolve_inputs};
 
 #[derive(Default)]
 pub struct AppState {

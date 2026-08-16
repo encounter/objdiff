@@ -15,6 +15,7 @@ publish = false
 [dependencies]
 anyhow = "1.0"
 argp = "0.4"
+axum = "0.8.9"
 crossterm = "0.29"
 enable-ansi-support = "0.3"
 memmap2 = "0.9"
@@ -22,10 +23,13 @@ objdiff-core = { path = "../objdiff-core", features = ["all"] }
 prost = "0.14"
 ratatui = "0.30"
 rayon = "1.11"
+rmcp = { version = "2.1.0", features = ["server", "transport-io", "transport-streamable-http-server"] }
+schemars = "1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 supports-color = "3.0"
 time = { version = "0.3", features = ["formatting", "local-offset"] }
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "io-std", "signal", "sync"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 typed-path = "0.12"
