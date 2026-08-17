@@ -89,15 +89,17 @@ fn get_normalized_symbol_name(name: &str) -> Option<String> {
     }
 }
 
-/// Check if a symbol's name is entirely compiler-generated, such as @1234 or _$E1234.
+/// Check if a symbol's name is entirely compiler-generated (e.g. for a literal).
 /// This enables pairing these symbols up by their value instead of their name.
 fn is_symbol_name_compiler_generated(name: &str) -> bool {
     if name.starts_with('@') && name[1..].chars().all(char::is_numeric) {
-        // Exclude @stringBase0, @GUARD@, etc.
+        // Match Metrowerks @1234 against @2345
         return true;
-    } else if (name.starts_with("_$E") || name.starts_with("$LC"))
-        && name[3..].chars().all(char::is_numeric)
-    {
+    } else if name.starts_with("_$E") && name[3..].chars().all(char::is_numeric) {
+        // Match MSVC _$E1234 against _$E2345
+        return true;
+    } else if name.starts_with("$LC") && name[3..].chars().all(char::is_numeric) {
+        // Match GCC $LC1234 against $LC2345
         return true;
     }
     false
@@ -926,6 +928,17 @@ fn parse_line_info_coff(
     Ok(())
 }
 
+pub fn get_section_base_name(section: &Section) -> &str {
+    // Match MSVC x86 .rdata$r against .rdata$rs
+    // Match GCC i._ZN14class_00acb578C1Ev against i [combined]
+    section
+        .name
+        .get(1..)
+        .and_then(|s| s.rfind(['$', '.']))
+        .and_then(|i| section.name.get(..i + 1))
+        .unwrap_or(&section.name)
+}
+
 fn combine_sections(
     sections: &mut [Section],
     symbols: &mut [Symbol],
@@ -934,12 +947,7 @@ fn combine_sections(
     let mut data_sections = BTreeMap::<String, Vec<usize>>::new();
     let mut text_sections = BTreeMap::<String, Vec<usize>>::new();
     for (i, section) in sections.iter().enumerate() {
-        let base_name = section
-            .name
-            .get(1..)
-            .and_then(|s| s.rfind(['$', '.']))
-            .and_then(|i| section.name.get(..i + 1))
-            .unwrap_or(&section.name);
+        let base_name = get_section_base_name(section);
         match section.kind {
             SectionKind::Data | SectionKind::Bss => {
                 data_sections.entry(base_name.to_string()).or_default().push(i);
