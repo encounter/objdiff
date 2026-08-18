@@ -159,9 +159,26 @@ impl ArchArm {
         };
         Ok(ins)
     }
+
+    fn has_relocation_overlapping_trailing_halfword(
+        &self,
+        section: &Section,
+        end_address: u64,
+    ) -> bool {
+        let word_start = end_address.saturating_sub(4);
+        let halfword_start = end_address.saturating_sub(2);
+        section.relocations_at(word_start, 4).any(|relocation| {
+            relocation.address.saturating_add(self.data_reloc_size(relocation.flags) as u64)
+                > halfword_start
+        })
+    }
 }
 
 impl Arch for ArchArm {
+    fn pre_init(&mut self, sections: &[Section], symbols: &[Symbol], _symbol_indices: &[usize]) {
+        self.disasm_modes = Self::get_mapping_symbols(sections, symbols);
+    }
+
     fn post_init(&mut self, sections: &[Section], symbols: &[Symbol], _symbol_indices: &[usize]) {
         self.disasm_modes = Self::get_mapping_symbols(sections, symbols);
     }
@@ -474,20 +491,21 @@ impl Arch for ArchArm {
         section: &Section,
         mut next_address: u64,
     ) -> Result<u64> {
-        // TODO: This should probably check the disasm mode and trim accordingly,
-        // but self.disasm_modes isn't populated until post_init, so it needs a refactor.
-
         // Trim any trailing 2-byte zeroes from the end (padding)
         while next_address >= symbol.address + 2
+            && !symbol.section.is_some_and(|section_idx| {
+                self.disasm_modes
+                    .get(&section_idx)
+                    .and_then(|mappings| {
+                        mappings.iter().rfind(|mapping| mapping.address as u64 <= next_address - 2)
+                    })
+                    .is_some_and(|mapping| mapping.ends_with_complete_data_words(next_address))
+            })
             && let Some(data) = section.data_range(next_address - 2, 2)
             && data == [0u8; 2]
+            && !self.has_relocation_overlapping_trailing_halfword(section, next_address)
         {
             next_address -= 2;
-            if let Some(relocation) = section.relocation_at(next_address, 2) {
-                // Avoid cutting trailing relocations in half.
-                next_address += self.data_reloc_size(relocation.flags) as u64;
-                break;
-            }
         }
         Ok(next_address.saturating_sub(symbol.address))
     }
@@ -500,6 +518,16 @@ struct DisasmMode {
 }
 
 impl DisasmMode {
+    fn ends_with_complete_data_words(self, end_address: u64) -> bool {
+        let data_size = end_address.saturating_sub(self.address as u64);
+        let bytes_until_word_alignment = (4 - (self.address as u64 % 4)) % 4;
+        let aligned_data_size = data_size.saturating_sub(bytes_until_word_alignment);
+        self.mapping == unarm::ParseMode::Data
+            && data_size >= bytes_until_word_alignment
+            && aligned_data_size >= 4
+            && aligned_data_size.is_multiple_of(4)
+    }
+
     fn from_object_symbol<'a>(sym: &object::Symbol<'a, '_, &'a [u8]>) -> Option<Self> {
         sym.name()
             .ok()
@@ -643,5 +671,61 @@ impl unarm::FormatIns for ArgsFormatter<'_> {
             self.write(InstructionPart::basic(")"))?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use object::elf;
+
+    use super::{ArchArm, DisasmMode};
+    use crate::obj::{Relocation, RelocationFlags, Section};
+
+    #[test]
+    fn complete_data_words_exclude_trailing_halfword_padding() {
+        let mapping = DisasmMode { address: 0x1000, mapping: unarm::ParseMode::Data };
+
+        assert!(!mapping.ends_with_complete_data_words(0x1002));
+        assert!(mapping.ends_with_complete_data_words(0x1004));
+        assert!(!mapping.ends_with_complete_data_words(0x1006));
+        assert!(mapping.ends_with_complete_data_words(0x1008));
+
+        let unaligned_mapping = DisasmMode { address: 0x1002, mapping: unarm::ParseMode::Data };
+        assert!(!unaligned_mapping.ends_with_complete_data_words(0x1004));
+        assert!(!unaligned_mapping.ends_with_complete_data_words(0x1006));
+        assert!(unaligned_mapping.ends_with_complete_data_words(0x1008));
+        assert!(!unaligned_mapping.ends_with_complete_data_words(0x100a));
+        assert!(unaligned_mapping.ends_with_complete_data_words(0x100c));
+    }
+
+    #[test]
+    fn checks_every_relocation_before_trimming_trailing_halfword() {
+        let arch = ArchArm {
+            disasm_modes: Default::default(),
+            detected_version: None,
+            endianness: object::Endianness::Little,
+        };
+        let mut section = Section {
+            relocations: vec![
+                Relocation {
+                    flags: RelocationFlags::Elf(elf::R_ARM_ABS16),
+                    address: 0x1000,
+                    target_symbol: 0,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: RelocationFlags::Elf(elf::R_ARM_ABS16),
+                    address: 0x1002,
+                    target_symbol: 1,
+                    addend: 0,
+                },
+            ],
+            ..Default::default()
+        };
+
+        assert!(arch.has_relocation_overlapping_trailing_halfword(&section, 0x1004));
+
+        section.relocations.pop();
+        assert!(!arch.has_relocation_overlapping_trailing_halfword(&section, 0x1004));
     }
 }

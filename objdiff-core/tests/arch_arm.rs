@@ -117,6 +117,28 @@ fn trim_trailing_hword() {
 
 #[test]
 #[cfg(feature = "arm")]
+fn preserve_trailing_data_directive() {
+    let diff_config = diff::DiffObjConfig::default();
+    let obj = obj::read::parse(
+        include_object!("data/arm/issue_382.o"),
+        &diff_config,
+        diff::DiffSide::Base,
+    )
+    .unwrap();
+    let symbol_idx = obj.symbols.iter().position(|s| s.name == "sub_08014184").unwrap();
+    let symbol = &obj.symbols[symbol_idx];
+    assert_eq!(symbol.size, 0xac);
+
+    let diff = diff::code::no_diff_code(&obj, symbol_idx, &diff_config).unwrap();
+    let output = common::display_diff(&obj, &diff, symbol_idx, &diff_config);
+    assert!(
+        output.contains(r#"Opcode(".word", 65534)"#),
+        "the final $d mapping symbol must preserve the 4-byte data directive:\n{output}"
+    );
+}
+
+#[test]
+#[cfg(feature = "arm")]
 fn do_not_trim_trailing_relocations() {
     let diff_config = diff::DiffObjConfig::default();
     let obj = obj::read::parse(
