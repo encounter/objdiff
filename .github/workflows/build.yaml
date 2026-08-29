@@ -152,7 +152,7 @@ jobs:
       - name: Install cargo-zigbuild
         if: matrix.build == 'zigbuild'
         run: |
-          uv tool install cargo-zigbuild==0.20.1 --with-executables-from ziglang==0.15.1
+          uv tool install cargo-zigbuild==0.23.3 --with-executables-from ziglang==0.15.1
           echo "CARGO_ZIGBUILD_ZIG_PATH=$(uv tool dir)/cargo-zigbuild/bin/python-zig" >> $GITHUB_ENV
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
