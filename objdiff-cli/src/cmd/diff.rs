@@ -212,8 +212,17 @@ fn run_oneshot(
                 .with_context(|| format!("Loading {p}"))
         })
         .transpose()?;
-    let result =
-        diff::diff_objs(target.as_ref(), base.as_ref(), None, &diff_config, &mapping_config)?;
+    let result = if let Some(symbol_name) = args.symbol.as_deref() {
+        diff::diff_objs_for_symbol(
+            target.as_ref(),
+            base.as_ref(),
+            symbol_name,
+            &diff_config,
+            &mapping_config,
+        )?
+    } else {
+        diff::diff_objs(target.as_ref(), base.as_ref(), None, &diff_config, &mapping_config)?
+    };
     let left = target.as_ref().zip(result.left.as_ref());
     let right = base.as_ref().zip(result.right.as_ref());
     let diff_result = DiffResult::new(left, right, &diff_config)?;

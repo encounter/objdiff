@@ -7,7 +7,9 @@ use objdiff_core::{
         ChangeItem, ChangeItemInfo, ChangeUnit, Changes, ChangesInput, Measures, REPORT_VERSION,
         Report, ReportCategory, ReportItem, ReportItemMetadata, ReportUnit, ReportUnitMetadata,
     },
-    config::{ProjectObject, ProjectOptions, apply_project_options, path::platform_path},
+    config::{
+        ProjectConfig, ProjectObject, ProjectOptions, apply_project_options, path::platform_path,
+    },
     diff,
     obj::{self, SectionKind, SymbolFlag, SymbolKind},
 };
@@ -37,9 +39,15 @@ pub enum SubCommand {
 }
 
 #[derive(FromArgs, PartialEq, Debug)]
-/// Generate a progress report for a project.
+/// Generate a progress report for a project or a pair of object files.
 #[argp(subcommand, name = "generate")]
 pub struct GenerateArgs {
+    #[argp(option, short = '1', from_str_fn(platform_path))]
+    /// Target object file
+    target: Option<Utf8PlatformPathBuf>,
+    #[argp(option, short = '2', from_str_fn(platform_path))]
+    /// Base object file
+    base: Option<Utf8PlatformPathBuf>,
     #[argp(option, short = 'p', from_str_fn(platform_path))]
     /// Project directory
     project: Option<Utf8PlatformPathBuf>,
@@ -92,34 +100,62 @@ fn generate(args: GenerateArgs) -> Result<()> {
     };
 
     let output_format = OutputFormat::from_option(args.format.as_deref())?;
-    let project_dir = args.project.as_deref().unwrap_or_else(|| Utf8PlatformPath::new("."));
-    info!("Loading project {}", project_dir);
+    let direct_input = args.target.is_some() || args.base.is_some();
+    if direct_input && args.project.is_some() {
+        bail!("--project cannot be combined with --target or --base");
+    }
 
-    let project = match objdiff_core::config::try_project_config(project_dir.as_ref()) {
-        Some((Ok(config), _)) => config,
-        Some((Err(err), _)) => bail!("Failed to load project configuration: {}", err),
-        None => bail!("No project configuration found"),
+    let project_dir = args.project.as_deref().unwrap_or_else(|| Utf8PlatformPath::new("."));
+    let project = if direct_input {
+        info!("Loading input objects");
+        ProjectConfig::default()
+    } else {
+        info!("Loading project {}", project_dir);
+        match objdiff_core::config::try_project_config(project_dir.as_ref()) {
+            Some((Ok(config), _)) => config,
+            Some((Err(err), _)) => bail!("Failed to load project configuration: {}", err),
+            None => bail!("No project configuration found"),
+        }
     };
     let target_obj_dir =
         project.target_dir.as_ref().map(|p| project_dir.join(p.with_platform_encoding()));
     let base_obj_dir =
         project.base_dir.as_ref().map(|p| project_dir.join(p.with_platform_encoding()));
     let project_units = project.units.as_deref().unwrap_or_default();
-    let objects = project_units
-        .iter()
-        .enumerate()
-        .map(|(idx, o)| {
-            (
-                ObjectConfig::new(
-                    o,
-                    project_dir,
-                    target_obj_dir.as_deref(),
-                    base_obj_dir.as_deref(),
-                ),
-                idx,
-            )
-        })
-        .collect::<Vec<_>>();
+    let objects = if direct_input {
+        let name = args
+            .target
+            .as_deref()
+            .or(args.base.as_deref())
+            .and_then(Utf8PlatformPath::file_name)
+            .unwrap_or("input")
+            .to_string();
+        vec![(
+            ObjectConfig {
+                name,
+                target_path: args.target.clone(),
+                base_path: args.base.clone(),
+                ..Default::default()
+            },
+            0,
+        )]
+    } else {
+        project_units
+            .iter()
+            .enumerate()
+            .map(|(idx, o)| {
+                (
+                    ObjectConfig::new(
+                        o,
+                        project_dir,
+                        target_obj_dir.as_deref(),
+                        base_obj_dir.as_deref(),
+                    ),
+                    idx,
+                )
+            })
+            .collect::<Vec<_>>()
+    };
     info!(
         "Generating report for {} units (using {} threads)",
         objects.len(),
@@ -215,7 +251,7 @@ fn report_object(
         selecting_left: None,
         selecting_right: None,
     };
-    let target = object
+    let mut target = object
         .target_path
         .as_ref()
         .map(|p| {
@@ -223,7 +259,7 @@ fn report_object(
                 .with_context(|| format!("Failed to open {p}"))
         })
         .transpose()?;
-    let base = object
+    let mut base = object
         .base_path
         .as_ref()
         .map(|p| {
@@ -231,8 +267,20 @@ fn report_object(
                 .with_context(|| format!("Failed to open {p}"))
         })
         .transpose()?;
-    let result =
-        diff::diff_objs(target.as_ref(), base.as_ref(), None, diff_config, &mapping_config)?;
+    for obj in target.iter_mut().chain(base.iter_mut()) {
+        for symbol in &mut obj.symbols {
+            if symbol.kind == SymbolKind::Section {
+                symbol.flags |= SymbolFlag::Ignored;
+            }
+        }
+    }
+    let result = diff::diff_objs_summary(
+        target.as_ref(),
+        base.as_ref(),
+        None,
+        diff_config,
+        &mapping_config,
+    )?;
 
     let metadata = ReportUnitMetadata {
         complete: object.metadata.complete,

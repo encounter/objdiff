@@ -292,13 +292,14 @@ fn add_section_symbols(sections: &[Section], symbols: &mut Vec<Symbol>) {
             })
             .map(|s| s.address + s.size)
             .max()
+            .and_then(|end| end.checked_sub(section.address))
             .unwrap_or(section.size);
 
         symbols.push(Symbol {
             name,
             demangled_name: None,
             normalized_name: None,
-            address: 0,
+            address: section.address,
             size,
             kind: SymbolKind::Section,
             section: Some(section_idx),
@@ -960,11 +961,17 @@ fn combine_sections(
     }
     if config.combine_data_sections {
         for (combined_name, mut section_indices) in data_sections {
+            if section_indices.iter().any(|&i| sections[i].address != 0) {
+                continue;
+            }
             do_combine_sections(sections, symbols, &mut section_indices, combined_name)?;
         }
     }
     if config.combine_text_sections {
         for (combined_name, mut section_indices) in text_sections {
+            if section_indices.iter().any(|&i| sections[i].address != 0) {
+                continue;
+            }
             do_combine_sections(sections, symbols, &mut section_indices, combined_name)?;
         }
     }
@@ -1311,5 +1318,66 @@ mod test {
             .unwrap();
         assert_eq!(sections[1].data.0, (1..=12).collect::<Vec<_>>());
         insta::assert_debug_snapshot!((sections, symbols));
+    }
+
+    #[test]
+    fn test_do_not_combine_linked_sections() {
+        let mut sections = vec![
+            Section {
+                id: ".got-0".to_string(),
+                name: ".got".to_string(),
+                address: 0x1000,
+                size: 4,
+                kind: SectionKind::Data,
+                data: SectionData(vec![1, 2, 3, 4]),
+                ..Default::default()
+            },
+            Section {
+                id: ".got.plt-0".to_string(),
+                name: ".got.plt".to_string(),
+                address: 0x1004,
+                size: 4,
+                kind: SectionKind::Data,
+                data: SectionData(vec![5, 6, 7, 8]),
+                ..Default::default()
+            },
+        ];
+        let original_sections = sections.clone();
+        let mut symbols = vec![];
+        let config = DiffObjConfig { combine_data_sections: true, ..Default::default() };
+
+        combine_sections(&mut sections, &mut symbols, &config).unwrap();
+
+        assert_eq!(sections[0].id, original_sections[0].id);
+        assert_eq!(sections[0].data.0, original_sections[0].data.0);
+        assert_eq!(sections[1].id, original_sections[1].id);
+        assert_eq!(sections[1].data.0, original_sections[1].data.0);
+    }
+
+    #[test]
+    fn test_add_linked_section_symbol() {
+        let sections = vec![Section {
+            id: ".rodata-0".to_string(),
+            name: ".rodata".to_string(),
+            address: 0x1000,
+            size: 0x100,
+            kind: SectionKind::Data,
+            ..Default::default()
+        }];
+        let mut symbols = vec![Symbol {
+            name: "data".to_string(),
+            address: 0x1020,
+            size: 0x10,
+            kind: SymbolKind::Object,
+            section: Some(0),
+            ..Default::default()
+        }];
+
+        add_section_symbols(&sections, &mut symbols);
+
+        let section_symbol = symbols.last().unwrap();
+        assert_eq!(section_symbol.name, "[.rodata-0]");
+        assert_eq!(section_symbol.address, 0x1000);
+        assert_eq!(section_symbol.size, 0x30);
     }
 }

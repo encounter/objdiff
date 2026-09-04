@@ -312,6 +312,66 @@ pub fn diff_data_section(
     Ok((left_section_diff, right_section_diff))
 }
 
+/// Calculate a data section's match percentage without constructing a byte-level edit script.
+///
+/// Reports only consume the percentage, so comparing fixed-size blocks avoids pathological Myers
+/// diff behavior on large linked sections while still accounting for inserted and deleted data.
+pub fn diff_data_section_summary(
+    left_obj: &Object,
+    right_obj: &Object,
+    left_diff: &ObjectDiff,
+    right_diff: &ObjectDiff,
+    left_section_idx: usize,
+    right_section_idx: usize,
+) -> Result<(SectionDiff, SectionDiff)> {
+    const BLOCK_SIZE: usize = 16;
+
+    let left_section = &left_obj.sections[left_section_idx];
+    let right_section = &right_obj.sections[right_section_idx];
+    let left_max = symbols_matching_section(&left_obj.symbols, left_section_idx)
+        .filter_map(|(_, s)| s.address.checked_sub(left_section.address).map(|a| a + s.size))
+        .max()
+        .unwrap_or(0)
+        .min(left_section.size);
+    let right_max = symbols_matching_section(&right_obj.symbols, right_section_idx)
+        .filter_map(|(_, s)| s.address.checked_sub(right_section.address).map(|a| a + s.size))
+        .max()
+        .unwrap_or(0)
+        .min(right_section.size);
+    let left_data = &left_section.data[..left_max as usize];
+    let right_data = &right_section.data[..right_max as usize];
+    let left_blocks = left_data.chunks(BLOCK_SIZE).collect::<Vec<_>>();
+    let right_blocks = right_data.chunks(BLOCK_SIZE).collect::<Vec<_>>();
+    let ops = capture_diff_slices(Algorithm::Patience, &left_blocks, &right_blocks);
+    let bytes_match_percent = diff_ratio(&ops, left_blocks.len(), right_blocks.len()) * 100.0;
+
+    let all_left_relocs_match = diff_data_relocs_for_range(
+        left_obj,
+        right_obj,
+        left_section_idx,
+        right_section_idx,
+        0..left_max as usize,
+        0..right_max as usize,
+    )
+    .iter()
+    .all(|(kind, left, _)| left.is_none() || *kind == DataDiffKind::None);
+
+    let (mut left_section_diff, right_section_diff) = diff_generic_section(
+        left_obj,
+        right_obj,
+        left_diff,
+        right_diff,
+        left_section_idx,
+        right_section_idx,
+    )?;
+    if all_left_relocs_match
+        && left_section_diff.match_percent.unwrap_or(-1.0) < bytes_match_percent
+    {
+        left_section_diff.match_percent = Some(bytes_match_percent);
+    }
+    Ok((left_section_diff, right_section_diff))
+}
+
 pub fn no_diff_data_symbol(obj: &Object, symbol_index: usize) -> Result<SymbolDiff> {
     let symbol = &obj.symbols[symbol_index];
     let section_idx = symbol.section.ok_or_else(|| anyhow!("Data symbol section not found"))?;
@@ -320,7 +380,7 @@ pub fn no_diff_data_symbol(obj: &Object, symbol_index: usize) -> Result<SymbolDi
     let start = symbol
         .address
         .checked_sub(section.address)
-        .ok_or_else(|| anyhow!("Symbol address out of section bounds"))?;
+        .ok_or_else(|| anyhow!("Symbol {} address out of section bounds", symbol.name))?;
     let end = start + symbol.size;
     if end > section.size {
         return Err(anyhow!(
@@ -383,11 +443,11 @@ pub fn diff_data_symbol(
     let left_start = left_symbol
         .address
         .checked_sub(left_section.address)
-        .ok_or_else(|| anyhow!("Symbol address out of section bounds"))?;
+        .ok_or_else(|| anyhow!("Symbol {} address out of section bounds", left_symbol.name))?;
     let right_start = right_symbol
         .address
         .checked_sub(right_section.address)
-        .ok_or_else(|| anyhow!("Symbol address out of section bounds"))?;
+        .ok_or_else(|| anyhow!("Symbol {} address out of section bounds", right_symbol.name))?;
     let left_end = left_start + left_symbol.size;
     if left_end > left_section.size {
         return Err(anyhow!(
