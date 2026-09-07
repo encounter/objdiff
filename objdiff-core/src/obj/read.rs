@@ -312,7 +312,7 @@ fn add_section_symbols(sections: &[Section], symbols: &mut Vec<Symbol>) {
 /// When inferring a symbol's size, we ignore symbols that start with specific prefixes. They are
 /// usually emitted as branch targets and do not represent the start of a function or object.
 fn is_local_label(symbol: &Symbol) -> bool {
-    const LABEL_PREFIXES: &[&str] = &[".L", "LAB_", "switchD_"];
+    const LABEL_PREFIXES: &[&str] = &[".L", "LAB_", "switchD_", "$L"];
     symbol.size == 0
         && symbol.flags.contains(SymbolFlag::Local)
         && LABEL_PREFIXES.iter().any(|p| symbol.name.starts_with(p))
