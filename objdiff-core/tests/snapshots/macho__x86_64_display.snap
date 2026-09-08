@@ -1,0 +1,28 @@
+---
+source: objdiff-core/tests/macho.rs
+expression: output
+---
+[(Address(0), Dim, 5), (Spacing(4), Normal, 0), (Opcode("push", 640), Normal, 10), (Argument(Opaque("rbp")), Normal, 0), (Eol, Normal, 0)]
+[(Address(1), Dim, 5), (Spacing(4), Normal, 0), (Opcode("mov", 414), Normal, 10), (Argument(Opaque("rbp")), Normal, 0), (Basic(","), Normal, 0), (Spacing(1), Normal, 0), (Argument(Opaque("rsp")), Normal, 0), (Eol, Normal, 0)]
+[(Address(4), Dim, 5), (Spacing(4), Normal, 0), (Opcode("push", 640), Normal, 10), (Argument(Opaque("r14")), Normal, 0), (Eol, Normal, 0)]
+[(Address(6), Dim, 5), (Spacing(4), Normal, 0), (Opcode("push", 640), Normal, 10), (Argument(Opaque("rbx")), Normal, 0), (Eol, Normal, 0)]
+[(Address(7), Dim, 5), (Spacing(4), Normal, 0), (Opcode("lea", 374), Normal, 10), (Argument(Opaque("rdi")), Normal, 0), (Basic(","), Normal, 0), (Spacing(1), Normal, 0), (Basic("["), Normal, 0), (Argument(Unsigned(136)), Normal, 0), (Basic("]"), Normal, 0), (Eol, Normal, 0)]
+[(Address(14), Dim, 5), (Spacing(4), Normal, 0), (Opcode("call", 59), Normal, 10), (Symbol(Symbol { name: "_puts", demangled_name: None, normalized_name: None, address: 0, size: 0, kind: Unknown, section: None, flags: FlagSet(Global), align: None, virtual_address: None }), Bright, 0), (Eol, Normal, 0)]
+[(Address(19), Dim, 5), (Spacing(4), Normal, 0), (Opcode("lea", 374), Normal, 10), (Argument(Opaque("rbx")), Normal, 0), (Basic(","), Normal, 0), (Spacing(1), Normal, 0), (Basic("["), Normal, 0), (Argument(Unsigned(120)), Normal, 0), (Basic("]"), Normal, 0), (Eol, Normal, 0)]
+[(Address(26), Dim, 5), (Spacing(4), Normal, 0), (Opcode("xor", 1518), Normal, 10), (Argument(Opaque("r14d")), Normal, 0), (Basic(","), Normal, 0), (Spacing(1), Normal, 0), (Argument(Opaque("r14d")), Normal, 0), (Eol, Normal, 0)]
+[(Address(29), Dim, 5), (Spacing(4), Normal, 0), (Opcode("nop", 465), Normal, 10), (Basic("["), Normal, 0), (Argument(Opaque("rax")), Normal, 0), (Basic("]"), Normal, 0), (Eol, Normal, 0)]
+[(Address(32), Dim, 5), (BranchArrow(18), Rotating(0), 0), (Opcode("mov", 414), Normal, 10), (Argument(Opaque("edi")), Normal, 0), (Basic(","), Normal, 0), (Spacing(1), Normal, 0), (Argument(Opaque("r14d")), Normal, 0), (Eol, Normal, 0)]
+[(Address(35), Dim, 5), (Spacing(4), Normal, 0), (Opcode("call", 59), Normal, 10), (Symbol(Symbol { name: "__Z9fibonaccij", demangled_name: Some("fibonacci(unsigned int)"), normalized_name: None, address: 0, size: 41, kind: Function, section: Some(0), flags: FlagSet(Global | SizeInferred), align: None, virtual_address: None }), Bright, 0), (Eol, Normal, 0)]
+[(Address(40), Dim, 5), (Spacing(4), Normal, 0), (Opcode("mov", 414), Normal, 10), (Argument(Opaque("rdi")), Normal, 0), (Basic(","), Normal, 0), (Spacing(1), Normal, 0), (Argument(Opaque("rbx")), Normal, 0), (Eol, Normal, 0)]
+[(Address(43), Dim, 5), (Spacing(4), Normal, 0), (Opcode("mov", 414), Normal, 10), (Argument(Opaque("esi")), Normal, 0), (Basic(","), Normal, 0), (Spacing(1), Normal, 0), (Argument(Opaque("r14d")), Normal, 0), (Eol, Normal, 0)]
+[(Address(46), Dim, 5), (Spacing(4), Normal, 0), (Opcode("mov", 414), Normal, 10), (Argument(Opaque("rdx")), Normal, 0), (Basic(","), Normal, 0), (Spacing(1), Normal, 0), (Argument(Opaque("rax")), Normal, 0), (Eol, Normal, 0)]
+[(Address(49), Dim, 5), (Spacing(4), Normal, 0), (Opcode("xor", 1518), Normal, 10), (Argument(Opaque("eax")), Normal, 0), (Basic(","), Normal, 0), (Spacing(1), Normal, 0), (Argument(Opaque("eax")), Normal, 0), (Eol, Normal, 0)]
+[(Address(51), Dim, 5), (Spacing(4), Normal, 0), (Opcode("call", 59), Normal, 10), (Symbol(Symbol { name: "_printf", demangled_name: None, normalized_name: None, address: 0, size: 0, kind: Unknown, section: None, flags: FlagSet(Global), align: None, virtual_address: None }), Bright, 0), (Eol, Normal, 0)]
+[(Address(56), Dim, 5), (Spacing(4), Normal, 0), (Opcode("inc", 279), Normal, 10), (Argument(Opaque("r14d")), Normal, 0), (Eol, Normal, 0)]
+[(Address(59), Dim, 5), (Spacing(4), Normal, 0), (Opcode("cmp", 93), Normal, 10), (Argument(Opaque("r14d")), Normal, 0), (Basic(","), Normal, 0), (Spacing(1), Normal, 0), (Argument(Unsigned(16)), Normal, 0), (Eol, Normal, 0)]
+[(Address(63), Dim, 5), (Spacing(4), Normal, 0), (Opcode("jne", 310), Normal, 10), (Argument(Opaque("short")), Normal, 0), (Spacing(1), Normal, 0), (BranchDest(32), Normal, 0), (BranchArrow(9), Rotating(0), 0), (Eol, Normal, 0)]
+[(Address(65), Dim, 5), (Spacing(4), Normal, 0), (Opcode("xor", 1518), Normal, 10), (Argument(Opaque("eax")), Normal, 0), (Basic(","), Normal, 0), (Spacing(1), Normal, 0), (Argument(Opaque("eax")), Normal, 0), (Eol, Normal, 0)]
+[(Address(67), Dim, 5), (Spacing(4), Normal, 0), (Opcode("pop", 590), Normal, 10), (Argument(Opaque("rbx")), Normal, 0), (Eol, Normal, 0)]
+[(Address(68), Dim, 5), (Spacing(4), Normal, 0), (Opcode("pop", 590), Normal, 10), (Argument(Opaque("r14")), Normal, 0), (Eol, Normal, 0)]
+[(Address(70), Dim, 5), (Spacing(4), Normal, 0), (Opcode("pop", 590), Normal, 10), (Argument(Opaque("rbp")), Normal, 0), (Eol, Normal, 0)]
+[(Address(71), Dim, 5), (Spacing(4), Normal, 0), (Opcode("ret", 662), Normal, 10), (Eol, Normal, 0)]

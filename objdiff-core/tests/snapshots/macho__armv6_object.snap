@@ -1,0 +1,176 @@
+---
+source: objdiff-core/tests/macho.rs
+expression: obj
+---
+Object {
+    arch: ArchArm {
+        disasm_modes: {
+            0: [
+                DisasmMode {
+                    address: 0,
+                    mapping: Arm,
+                },
+                DisasmMode {
+                    address: 92,
+                    mapping: Arm,
+                },
+            ],
+        },
+        detected_version: None,
+        endianness: Little,
+        macho_disasm_modes: Some(
+            [
+                DisasmMode {
+                    address: 0,
+                    mapping: Arm,
+                },
+                DisasmMode {
+                    address: 92,
+                    mapping: Arm,
+                },
+            ],
+        ),
+    },
+    endianness: Little,
+    symbols: [
+        Symbol {
+            name: "__Z9fibonaccij",
+            demangled_name: Some(
+                "fibonacci(unsigned int)",
+            ),
+            normalized_name: None,
+            address: 0,
+            size: 92,
+            kind: Function,
+            section: Some(
+                0,
+            ),
+            flags: FlagSet(Global | SizeInferred),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "_main",
+            demangled_name: None,
+            normalized_name: None,
+            address: 92,
+            size: 86,
+            kind: Function,
+            section: Some(
+                0,
+            ),
+            flags: FlagSet(Global | SizeInferred),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "_printf",
+            demangled_name: None,
+            normalized_name: None,
+            address: 0,
+            size: 0,
+            kind: Unknown,
+            section: None,
+            flags: FlagSet(Global),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "_puts",
+            demangled_name: None,
+            normalized_name: None,
+            address: 0,
+            size: 0,
+            kind: Unknown,
+            section: None,
+            flags: FlagSet(Global),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "[__cstring-0]",
+            demangled_name: None,
+            normalized_name: None,
+            address: 180,
+            size: 30,
+            kind: Section,
+            section: Some(
+                1,
+            ),
+            flags: FlagSet(Local),
+            align: None,
+            virtual_address: None,
+        },
+    ],
+    sections: [
+        Section {
+            id: "__text-0",
+            name: "__text",
+            address: 0,
+            size: 180,
+            kind: Code,
+            data: SectionData(
+                180,
+            ),
+            flags: FlagSet(),
+            align: Some(
+                4,
+            ),
+            relocations: [
+                Relocation {
+                    flags: MachO {
+                        r_type: 5,
+                        r_pcrel: true,
+                        r_length: 2,
+                    },
+                    address: 108,
+                    target_symbol: 3,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: MachO {
+                        r_type: 5,
+                        r_pcrel: true,
+                        r_length: 2,
+                    },
+                    address: 128,
+                    target_symbol: 0,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: MachO {
+                        r_type: 5,
+                        r_pcrel: true,
+                        r_length: 2,
+                    },
+                    address: 148,
+                    target_symbol: 2,
+                    addend: 0,
+                },
+            ],
+            line_info: {},
+            virtual_address: None,
+        },
+        Section {
+            id: "__cstring-0",
+            name: "__cstring",
+            address: 180,
+            size: 30,
+            kind: Data,
+            data: SectionData(
+                30,
+            ),
+            flags: FlagSet(),
+            align: Some(
+                1,
+            ),
+            relocations: [],
+            line_info: {},
+            virtual_address: None,
+        },
+    ],
+    split_meta: None,
+    path: None,
+    timestamp: None,
+    flow_analysis_results: {},
+}

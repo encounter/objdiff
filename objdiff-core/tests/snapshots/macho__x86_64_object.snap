@@ -1,0 +1,200 @@
+---
+source: objdiff-core/tests/macho.rs
+expression: obj
+---
+Object {
+    arch: ArchX86 {
+        arch: X86_64,
+        endianness: Little,
+    },
+    endianness: Little,
+    symbols: [
+        Symbol {
+            name: "__Z9fibonaccij",
+            demangled_name: Some(
+                "fibonacci(unsigned int)",
+            ),
+            normalized_name: None,
+            address: 0,
+            size: 41,
+            kind: Function,
+            section: Some(
+                0,
+            ),
+            flags: FlagSet(Global | SizeInferred),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "_main",
+            demangled_name: None,
+            normalized_name: None,
+            address: 48,
+            size: 72,
+            kind: Function,
+            section: Some(
+                0,
+            ),
+            flags: FlagSet(Global | SizeInferred),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "_printf",
+            demangled_name: None,
+            normalized_name: None,
+            address: 0,
+            size: 0,
+            kind: Unknown,
+            section: None,
+            flags: FlagSet(Global),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "_puts",
+            demangled_name: None,
+            normalized_name: None,
+            address: 0,
+            size: 0,
+            kind: Unknown,
+            section: None,
+            flags: FlagSet(Global),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "[__cstring-0]",
+            demangled_name: None,
+            normalized_name: None,
+            address: 120,
+            size: 30,
+            kind: Section,
+            section: Some(
+                1,
+            ),
+            flags: FlagSet(Local),
+            align: None,
+            virtual_address: None,
+        },
+        Symbol {
+            name: "[__eh_frame-0]",
+            demangled_name: None,
+            normalized_name: None,
+            address: 216,
+            size: 104,
+            kind: Section,
+            section: Some(
+                3,
+            ),
+            flags: FlagSet(Local),
+            align: None,
+            virtual_address: None,
+        },
+    ],
+    sections: [
+        Section {
+            id: "__text-0",
+            name: "__text",
+            address: 0,
+            size: 120,
+            kind: Code,
+            data: SectionData(
+                120,
+            ),
+            flags: FlagSet(),
+            align: Some(
+                16,
+            ),
+            relocations: [
+                Relocation {
+                    flags: MachO {
+                        r_type: 2,
+                        r_pcrel: true,
+                        r_length: 2,
+                    },
+                    address: 63,
+                    target_symbol: 3,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: MachO {
+                        r_type: 2,
+                        r_pcrel: true,
+                        r_length: 2,
+                    },
+                    address: 84,
+                    target_symbol: 0,
+                    addend: 0,
+                },
+                Relocation {
+                    flags: MachO {
+                        r_type: 2,
+                        r_pcrel: true,
+                        r_length: 2,
+                    },
+                    address: 100,
+                    target_symbol: 2,
+                    addend: 0,
+                },
+            ],
+            line_info: {},
+            virtual_address: None,
+        },
+        Section {
+            id: "__cstring-0",
+            name: "__cstring",
+            address: 120,
+            size: 30,
+            kind: Data,
+            data: SectionData(
+                30,
+            ),
+            flags: FlagSet(),
+            align: Some(
+                1,
+            ),
+            relocations: [],
+            line_info: {},
+            virtual_address: None,
+        },
+        Section {
+            id: "__compact_unwind-0",
+            name: "__compact_unwind",
+            address: 152,
+            size: 64,
+            kind: Unknown,
+            data: SectionData(
+                0,
+            ),
+            flags: FlagSet(),
+            align: Some(
+                8,
+            ),
+            relocations: [],
+            line_info: {},
+            virtual_address: None,
+        },
+        Section {
+            id: "__eh_frame-0",
+            name: "__eh_frame",
+            address: 216,
+            size: 104,
+            kind: Data,
+            data: SectionData(
+                104,
+            ),
+            flags: FlagSet(),
+            align: Some(
+                8,
+            ),
+            relocations: [],
+            line_info: {},
+            virtual_address: None,
+        },
+    ],
+    split_meta: None,
+    path: None,
+    timestamp: None,
+    flow_analysis_results: {},
+}

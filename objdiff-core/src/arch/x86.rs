@@ -6,10 +6,12 @@ use iced_x86::{
     Decoder, DecoderOptions, DecoratorKind, FormatterOutput, FormatterTextKind, GasFormatter,
     Instruction, IntelFormatter, MasmFormatter, NasmFormatter, NumberKind, OpKind, Register,
 };
-use object::{Endian as _, Object as _, ObjectSection as _, elf, pe};
+use object::{Endian as _, Object as _, ObjectSection as _, elf, macho, pe};
 
 use crate::{
-    arch::{Arch, OPCODE_DATA, RelocationOverride, RelocationOverrideTarget},
+    arch::{
+        Arch, OPCODE_DATA, RelocationOverride, RelocationOverrideTarget, macho_implicit_addend,
+    },
     diff::{DiffObjConfig, X86Formatter, display::InstructionPart},
     obj::{InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, Section, Symbol},
 };
@@ -97,9 +99,49 @@ impl ArchX86 {
                     elf::R_X86_64_64 => Some(8),
                     _ => None,
                 },
-                RelocationFlags::MachO { .. } => None,
+                RelocationFlags::MachO { r_length, .. } => Some(1 << r_length as usize),
             },
         }
+    }
+
+    /// Decodes the implicit addend of a Mach-O relocation.
+    fn macho_addend(
+        &self,
+        file: &object::File<'_>,
+        section: &object::Section,
+        address: u64,
+        relocation: &object::Relocation,
+        r_type: u8,
+        r_pcrel: bool,
+        r_length: u8,
+    ) -> Result<i64> {
+        let offset = address as usize;
+        let size = 1usize << r_length as usize;
+        let data = section.data()?;
+        let field = match size {
+            1 => data[offset] as i8 as i64,
+            2 => self.endianness.read_i16(data[offset..offset + 2].try_into()?) as i64,
+            4 => self.endianness.read_i32(data[offset..offset + 4].try_into()?) as i64,
+            8 => self.endianness.read_i64(data[offset..offset + 8].try_into()?),
+            _ => bail!("Unsupported Mach-O x86 relocation length: {r_length}"),
+        };
+        let pc = if r_pcrel {
+            // PC-relative relocations are relative to the end of the instruction, which for the
+            // SIGNED_N types is N bytes past the end of the relocation field.
+            let extra = match (&self.arch, r_type) {
+                (Architecture::X86_64, macho::X86_64_RELOC_SIGNED_1) => 1,
+                (Architecture::X86_64, macho::X86_64_RELOC_SIGNED_2) => 2,
+                (Architecture::X86_64, macho::X86_64_RELOC_SIGNED_4) => 4,
+                _ => 0,
+            };
+            section.address() + address + size as u64 + extra
+        } else {
+            0
+        };
+        // Unlike the generic (i386) relocations, x86-64 relocations against a symbol store the
+        // addend in the relocation field directly.
+        let symbol_field_is_addend = matches!(self.arch, Architecture::X86_64);
+        macho_implicit_addend(file, relocation, field, pc, symbol_field_is_addend)
     }
 }
 
@@ -279,13 +321,18 @@ impl Arch for ArchX86 {
 
     fn relocation_override(
         &self,
-        _file: &object::File<'_>,
+        file: &object::File<'_>,
         section: &object::Section,
         address: u64,
         relocation: &object::Relocation,
     ) -> Result<Option<RelocationOverride>> {
         if !relocation.has_implicit_addend() {
             return Ok(None);
+        }
+        if let object::RelocationFlags::MachO { r_type, r_pcrel, r_length } = relocation.flags() {
+            let addend =
+                self.macho_addend(file, section, address, relocation, r_type, r_pcrel, r_length)?;
+            return Ok(Some(RelocationOverride { target: RelocationOverrideTarget::Keep, addend }));
         }
         let addend = match self.arch {
             Architecture::X86 => match relocation.flags() {
@@ -304,22 +351,6 @@ impl Arch for ArchX86 {
                     let data =
                         section.data()?[address as usize..address as usize + 4].try_into()?;
                     self.endianness.read_i32(data) as i64
-                }
-                object::RelocationFlags::MachO { r_length, .. } => {
-                    let size = 1usize << r_length as usize;
-                    match size {
-                        4 => {
-                            let data = section.data()?[address as usize..address as usize + 4]
-                                .try_into()?;
-                            self.endianness.read_i32(data) as i64
-                        }
-                        8 => {
-                            let data = section.data()?[address as usize..address as usize + 8]
-                                .try_into()?;
-                            self.endianness.read_i64(data)
-                        }
-                        _ => bail!("Unsupported MachO x86 implicit relocation length: {r_length}"),
-                    }
                 }
                 flags => bail!("Unsupported x86 implicit relocation {flags:?}"),
             },
@@ -370,7 +401,15 @@ impl Arch for ArchX86 {
                     elf::R_386_16 => Some("R_386_16"),
                     _ => None,
                 },
-                RelocationFlags::MachO { .. } => None,
+                RelocationFlags::MachO { r_type, .. } => match r_type {
+                    macho::GENERIC_RELOC_VANILLA => Some("GENERIC_RELOC_VANILLA"),
+                    macho::GENERIC_RELOC_PAIR => Some("GENERIC_RELOC_PAIR"),
+                    macho::GENERIC_RELOC_SECTDIFF => Some("GENERIC_RELOC_SECTDIFF"),
+                    macho::GENERIC_RELOC_LOCAL_SECTDIFF => Some("GENERIC_RELOC_LOCAL_SECTDIFF"),
+                    macho::GENERIC_RELOC_PB_LA_PTR => Some("GENERIC_RELOC_PB_LA_PTR"),
+                    macho::GENERIC_RELOC_TLV => Some("GENERIC_RELOC_TLV"),
+                    _ => None,
+                },
             },
             Architecture::X86_64 => match flags {
                 RelocationFlags::Coff(typ) => match typ {
@@ -383,6 +422,19 @@ impl Arch for ArchX86 {
                     pe::IMAGE_REL_AMD64_REL32_4 => Some("IMAGE_REL_AMD64_REL32_4"),
                     pe::IMAGE_REL_AMD64_REL32_5 => Some("IMAGE_REL_AMD64_REL32_5"),
                     pe::IMAGE_REL_AMD64_SECREL => Some("IMAGE_REL_AMD64_SECREL"),
+                    _ => None,
+                },
+                RelocationFlags::MachO { r_type, .. } => match r_type {
+                    macho::X86_64_RELOC_UNSIGNED => Some("X86_64_RELOC_UNSIGNED"),
+                    macho::X86_64_RELOC_SIGNED => Some("X86_64_RELOC_SIGNED"),
+                    macho::X86_64_RELOC_BRANCH => Some("X86_64_RELOC_BRANCH"),
+                    macho::X86_64_RELOC_GOT_LOAD => Some("X86_64_RELOC_GOT_LOAD"),
+                    macho::X86_64_RELOC_GOT => Some("X86_64_RELOC_GOT"),
+                    macho::X86_64_RELOC_SUBTRACTOR => Some("X86_64_RELOC_SUBTRACTOR"),
+                    macho::X86_64_RELOC_SIGNED_1 => Some("X86_64_RELOC_SIGNED_1"),
+                    macho::X86_64_RELOC_SIGNED_2 => Some("X86_64_RELOC_SIGNED_2"),
+                    macho::X86_64_RELOC_SIGNED_4 => Some("X86_64_RELOC_SIGNED_4"),
+                    macho::X86_64_RELOC_TLV => Some("X86_64_RELOC_TLV"),
                     _ => None,
                 },
                 _ => None,
