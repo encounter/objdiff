@@ -27,6 +27,7 @@ pub const BIN_NAME_NEW: &str =
 pub const BIN_NAME_OLD: &str = formatcp!("objdiff-{}-{}{}", OS, ARCH, std::env::consts::EXE_SUFFIX);
 pub const RELEASE_URL: &str =
     formatcp!("https://github.com/{}/{}/releases/latest", GITHUB_USER, GITHUB_REPO);
+pub const SELF_UPDATE_ENABLED: bool = option_env!("OBJDIFF_DISABLE_SELF_UPDATE").is_none();
 
 pub fn build_updater() -> Result<Box<dyn ReleaseUpdate>> {
     Ok(Box::new(
