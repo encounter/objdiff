@@ -165,6 +165,37 @@ If specified, objdiff displays a list of objects in the sidebar for easy navigat
 
 ## Building
 
+### Nix (Linux)
+
+The flake supports `x86_64-linux` and `aarch64-linux`. Run the GUI or CLI directly:
+
+```shell
+nix run .
+nix run .#objdiff-cli -- --help
+```
+
+Build or install either frontend:
+
+```shell
+nix build .#objdiff
+nix build .#objdiff-cli
+nix profile install .#objdiff
+nix profile install .#objdiff-cli
+```
+
+Enter the development shell for Rust, Node.js, the WASM toolchain, and the contribution tools:
+
+```shell
+nix develop
+cargo test
+npm -C objdiff-wasm run build
+```
+
+The Nix GUI package disables the built-in self-updater because its executable is immutable. Update it
+through Nix instead.
+
+### Cargo
+
 Install Rust via [rustup](https://rustup.rs).
 
 ```shell
