@@ -203,16 +203,22 @@ fn start_job(
         error: None,
     }));
     let context = JobContext { status: status.clone(), waker: waker.clone() };
-    let context_inner = JobContext { status: status.clone(), waker };
+    let context_inner = JobContext { status: status.clone(), waker: waker.clone() };
     let (tx, rx) = std::sync::mpsc::channel();
-    let handle = std::thread::spawn(move || match run(context_inner, rx) {
-        Ok(state) => state,
-        Err(e) => {
-            if let Ok(mut w) = status.write() {
-                w.error = Some(e);
+    let handle = std::thread::spawn(move || {
+        let result = match run(context_inner, rx) {
+            Ok(state) => state,
+            Err(e) => {
+                if let Ok(mut w) = status.write() {
+                    w.error = Some(e);
+                }
+                JobResult::None
             }
-            JobResult::None
-        }
+        };
+        // Always wake on completion, so the frontend notices jobs that finished
+        // (or failed) without reporting any progress.
+        waker.wake();
+        result
     });
     let id = JOB_ID.fetch_add(1, Ordering::Relaxed);
     JobState { id, kind, handle: Some(handle), context, cancel: tx }
