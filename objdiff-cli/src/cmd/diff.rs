@@ -345,6 +345,28 @@ impl AppState {
     fn check_jobs(&mut self) -> Result<bool> {
         let mut redraw = false;
         self.jobs.collect_results();
+        // Surface job errors (e.g. a failed build) instead of silently showing nothing.
+        for job in self.jobs.iter_mut() {
+            let Some((title, error)) = job
+                .context
+                .status
+                .write()
+                .ok()
+                .and_then(|mut s| s.error.take().map(|e| (s.title.clone(), e)))
+            else {
+                continue;
+            };
+            let status = BuildStatus {
+                success: false,
+                stdout: format!("Job \"{title}\" failed"),
+                stderr: format!("{error:#}"),
+                ..Default::default()
+            };
+            self.left_status = Some(status.clone());
+            self.right_status = Some(status);
+            redraw = true;
+        }
+        self.jobs.clear_finished();
         for result in mem::take(&mut self.jobs.results) {
             match result {
                 JobResult::None => unreachable!("Unexpected JobResult::None"),
