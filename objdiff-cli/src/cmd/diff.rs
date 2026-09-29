@@ -81,12 +81,12 @@ pub struct Args {
 }
 
 pub fn run(args: Args) -> Result<()> {
-    let (target_path, base_path, project_config, unit_options, symbol_mappings) =
+    let (project_dir, target_path, base_path, project_config, unit_options, symbol_mappings) =
         match (&args.target, &args.base, &args.project, &args.unit) {
             (Some(_), Some(_), None, None)
             | (Some(_), None, None, None)
             | (None, Some(_), None, None) => {
-                (args.target.clone(), args.base.clone(), None, None, BTreeMap::new())
+                (None, args.target.clone(), args.base.clone(), None, None, BTreeMap::new())
             }
             (None, None, p, u) => {
                 let project = match p {
@@ -168,7 +168,14 @@ pub fn run(args: Args) -> Result<()> {
                 let target_path = object.target_path.clone();
                 let base_path = object.base_path.clone();
                 let symbol_mappings = object.symbol_mappings.clone();
-                (target_path, base_path, Some(project_config), unit_options, symbol_mappings)
+                (
+                    Some(project),
+                    target_path,
+                    base_path,
+                    Some(project_config),
+                    unit_options,
+                    symbol_mappings,
+                )
             }
             _ => bail!("Either target and base or project and unit must be specified"),
         };
@@ -184,7 +191,15 @@ pub fn run(args: Args) -> Result<()> {
             &symbol_mappings,
         )
     } else {
-        run_interactive(args, target_path, base_path, project_config, unit_options, symbol_mappings)
+        run_interactive(
+            args,
+            project_dir,
+            target_path,
+            base_path,
+            project_config,
+            unit_options,
+            symbol_mappings,
+        )
     }
 }
 
@@ -345,6 +360,28 @@ impl AppState {
     fn check_jobs(&mut self) -> Result<bool> {
         let mut redraw = false;
         self.jobs.collect_results();
+        // Surface job errors (e.g. a failed build) instead of silently showing nothing.
+        for job in self.jobs.iter_mut() {
+            let Some((title, error)) = job
+                .context
+                .status
+                .write()
+                .ok()
+                .and_then(|mut s| s.error.take().map(|e| (s.title.clone(), e)))
+            else {
+                continue;
+            };
+            let status = BuildStatus {
+                success: false,
+                stdout: format!("Job \"{title}\" failed"),
+                stderr: format!("{error:#}"),
+                ..Default::default()
+            };
+            self.left_status = Some(status.clone());
+            self.right_status = Some(status);
+            redraw = true;
+        }
+        self.jobs.clear_finished();
         for result in mem::take(&mut self.jobs.results) {
             match result {
                 JobResult::None => unreachable!("Unexpected JobResult::None"),
@@ -378,6 +415,7 @@ impl Wake for TermWaker {
 
 fn run_interactive(
     args: Args,
+    project_dir: Option<Utf8PlatformPathBuf>,
     target_path: Option<Utf8PlatformPathBuf>,
     base_path: Option<Utf8PlatformPathBuf>,
     project_config: Option<ProjectConfig>,
@@ -396,7 +434,7 @@ fn run_interactive(
     let mut state = AppState {
         jobs: Default::default(),
         waker: Default::default(),
-        project_dir: args.project.clone(),
+        project_dir,
         project_config,
         target_path,
         base_path,

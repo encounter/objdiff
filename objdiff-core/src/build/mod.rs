@@ -4,6 +4,7 @@ use std::process::Command;
 
 use typed_path::{Utf8PlatformPathBuf, Utf8UnixPath};
 
+#[derive(Clone)]
 pub struct BuildStatus {
     pub success: bool,
     pub cmdline: String,
