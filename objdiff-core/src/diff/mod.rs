@@ -6,7 +6,7 @@ use alloc::{
 };
 use core::{cmp::Ordering, num::NonZeroU32, ops::Range};
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 
 use crate::{
     diff::{
@@ -487,15 +487,18 @@ fn diff_order_for_section_name(
         .collect();
 
     let mut expected_right_order_idx = 0;
-    for (left_order_idx, (left_symbol_idx, _left_symbol)) in left_paired_symbols.iter().enumerate()
-    {
+    for (left_order_idx, (left_symbol_idx, left_symbol)) in left_paired_symbols.iter().enumerate() {
         let right_symbol_idx = left_sym_idx_to_right_sym_idx.get(left_symbol_idx).unwrap();
-        let right_order_idx = right_paired_symbols
-            .iter()
-            .position(|(sym_idx, _)| sym_idx == right_symbol_idx)
-            .ok_or_else(|| {
-                anyhow!("Failed to find right side symbol for paired left side symbol")
-            })?;
+        let Some(right_order_idx) =
+            right_paired_symbols.iter().position(|(sym_idx, _)| sym_idx == right_symbol_idx)
+        else {
+            log::warn!(
+                "Failed to find right side symbol for paired left side symbol {} in section {}",
+                left_symbol.name,
+                section_name
+            );
+            continue;
+        };
         if right_order_idx == left_order_idx {
             // In the correct spot.
             left_diff.symbols[*left_symbol_idx].order = Some(Ordering::Equal);
