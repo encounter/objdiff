@@ -3,11 +3,14 @@ use core::fmt::Write;
 
 use anyhow::{Result, bail};
 use arm_attr::{BuildAttrs, enums::CpuArch, tag::Tag};
-use object::{Endian as _, Object as _, ObjectSection as _, ObjectSymbol as _, elf};
+use object::{Endian as _, Object as _, ObjectSection as _, ObjectSymbol as _, elf, macho};
 use unarm::FormatValue as _;
 
 use crate::{
-    arch::{Arch, OPCODE_DATA, OPCODE_INVALID, RelocationOverride, RelocationOverrideTarget},
+    arch::{
+        Arch, OPCODE_DATA, OPCODE_INVALID, RelocationOverride, RelocationOverrideTarget,
+        macho_implicit_addend,
+    },
     diff::{ArmArchVersion, ArmR9Usage, DiffObjConfig, display::InstructionPart},
     obj::{
         InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, Section, SectionKind,
@@ -21,6 +24,9 @@ pub struct ArchArm {
     disasm_modes: BTreeMap<usize, Vec<DisasmMode>>,
     detected_version: Option<unarm::Version>,
     endianness: object::Endianness,
+    /// Mach-O objects have no mapping symbols. Thumb functions are flagged in the symbol table
+    /// instead, so their disasm modes are collected up front and matched to sections in post_init.
+    macho_disasm_modes: Option<Vec<DisasmMode>>,
 }
 
 impl ArchArm {
@@ -31,10 +37,65 @@ impl ArchArm {
                 // The disasm_modes mapping is populated later in the post_init step so that we have access to merged sections.
                 let disasm_modes = BTreeMap::new();
                 let detected_version = Self::elf_detect_arm_version(file)?;
-                Ok(Self { disasm_modes, detected_version, endianness })
+                Ok(Self { disasm_modes, detected_version, endianness, macho_disasm_modes: None })
             }
+            object::File::MachO32(_) => Ok(Self {
+                disasm_modes: BTreeMap::new(),
+                // Mach-O objects have no equivalent of the ARM build attributes, so the version is
+                // left to the user's configuration.
+                detected_version: None,
+                endianness,
+                macho_disasm_modes: Some(Self::macho_disasm_modes(file)),
+            }),
             _ => bail!("Unsupported file format {:?}", file.format()),
         }
+    }
+
+    /// Collects the disassembly mode of every function in a Mach-O object, which is Thumb when the
+    /// symbol has the `N_ARM_THUMB_DEF` flag set and ARM otherwise.
+    fn macho_disasm_modes(file: &object::File) -> Vec<DisasmMode> {
+        let mut modes = file
+            .symbols()
+            .filter(|s| s.kind() == object::SymbolKind::Text)
+            .map(|s| {
+                let thumb = matches!(
+                    s.flags(),
+                    object::SymbolFlags::MachO { n_desc } if n_desc & macho::N_ARM_THUMB_DEF != 0
+                );
+                let mapping = if thumb { unarm::ParseMode::Thumb } else { unarm::ParseMode::Arm };
+                DisasmMode { address: s.address() as u32, mapping }
+            })
+            .collect::<Vec<_>>();
+        modes.sort_unstable_by_key(|x| x.address);
+        modes
+    }
+
+    /// Matches the Mach-O disassembly modes collected in [`Self::macho_disasm_modes`] to the
+    /// section that each function ended up in.
+    fn macho_mapping_symbols(
+        sections: &[Section],
+        symbols: &[Symbol],
+        modes: &[DisasmMode],
+    ) -> BTreeMap<usize, Vec<DisasmMode>> {
+        sections
+            .iter()
+            .enumerate()
+            .filter(|(_, section)| section.kind == SectionKind::Code)
+            .map(|(index, _)| {
+                let mut mapping_symbols: Vec<_> = symbols
+                    .iter()
+                    .filter(|s| s.section == Some(index) && s.kind == SymbolKind::Function)
+                    .filter_map(|s| {
+                        modes
+                            .binary_search_by_key(&(s.address as u32), |m| m.address)
+                            .ok()
+                            .map(|i| modes[i])
+                    })
+                    .collect();
+                mapping_symbols.sort_unstable_by_key(|x| x.address);
+                (index, mapping_symbols)
+            })
+            .collect()
     }
 
     fn elf_detect_arm_version(file: &object::File) -> Result<Option<unarm::Version>> {
@@ -163,7 +224,10 @@ impl ArchArm {
 
 impl Arch for ArchArm {
     fn post_init(&mut self, sections: &[Section], symbols: &[Symbol], _symbol_indices: &[usize]) {
-        self.disasm_modes = Self::get_mapping_symbols(sections, symbols);
+        self.disasm_modes = match &self.macho_disasm_modes {
+            Some(modes) => Self::macho_mapping_symbols(sections, symbols, modes),
+            None => Self::get_mapping_symbols(sections, symbols),
+        };
     }
 
     fn scan_instructions_internal(
@@ -334,7 +398,7 @@ impl Arch for ArchArm {
 
     fn relocation_override(
         &self,
-        _file: &object::File<'_>,
+        file: &object::File<'_>,
         section: &object::Section,
         address: u64,
         relocation: &object::Relocation,
@@ -408,6 +472,54 @@ impl Arch for ArchArm {
                 } else {
                     Ok(None)
                 }
+            }
+            // Handle Mach-O implicit relocations
+            object::RelocationFlags::MachO { r_type, r_pcrel, r_length }
+                if relocation.has_implicit_addend() =>
+            {
+                let section_data = section.data()?;
+                let offset = address as usize;
+                let (field, pc) = match r_type {
+                    macho::ARM_RELOC_VANILLA => {
+                        let field = match 1usize << r_length as usize {
+                            1 => section_data[offset] as i8 as i64,
+                            2 => {
+                                let data = section_data[offset..offset + 2].try_into()?;
+                                self.endianness.read_i16(data) as i64
+                            }
+                            4 => {
+                                let data = section_data[offset..offset + 4].try_into()?;
+                                self.endianness.read_i32(data) as i64
+                            }
+                            _ => bail!("Unsupported Mach-O ARM relocation length: {r_length}"),
+                        };
+                        (field, 0)
+                    }
+                    macho::ARM_RELOC_BR24 => {
+                        let data = section_data[offset..offset + 4].try_into()?;
+                        let imm24 = self.endianness.read_i32(data) & 0xffffff;
+                        // The ARM program counter is two instructions ahead of the branch.
+                        ((((imm24 << 8) >> 8) << 2) as i64, section.address() + address + 8)
+                    }
+                    macho::ARM_THUMB_RELOC_BR22 => {
+                        let data = section_data[offset..offset + 2].try_into()?;
+                        let high = self.endianness.read_i16(data) as i32;
+                        let data = section_data[offset + 2..offset + 4].try_into()?;
+                        let low = self.endianness.read_i16(data) as i32;
+                        let imm22 = ((high & 0x7ff) << 11) | (low & 0x7ff);
+                        // The Thumb program counter is one instruction ahead of the branch.
+                        ((((imm22 << 1) << 9) >> 9) as i64, section.address() + address + 4)
+                    }
+                    _ => bail!("Unsupported Mach-O ARM relocation type: {r_type}"),
+                };
+                let addend = macho_implicit_addend(
+                    file,
+                    relocation,
+                    field,
+                    if r_pcrel { pc } else { 0 },
+                    false,
+                )?;
+                Ok(Some(RelocationOverride { target: RelocationOverrideTarget::Keep, addend }))
             }
             _ => Ok(None),
         }
@@ -562,7 +674,11 @@ impl unarm::FormatIns for ArgsFormatter<'_> {
 
     fn write_uimm(&mut self, uimm: u32) -> core::fmt::Result {
         if let Some(resolved) = self.resolved.relocation
-            && let RelocationFlags::Elf(elf::R_ARM_ABS32) = resolved.relocation.flags
+            && matches!(
+                resolved.relocation.flags,
+                RelocationFlags::Elf(elf::R_ARM_ABS32)
+                    | RelocationFlags::MachO { r_type: macho::ARM_RELOC_VANILLA, .. }
+            )
         {
             return self.write(InstructionPart::reloc());
         }
@@ -582,7 +698,11 @@ impl unarm::FormatIns for ArgsFormatter<'_> {
                 | RelocationFlags::Elf(elf::R_ARM_XPC25)
                 | RelocationFlags::Elf(elf::R_ARM_CALL)
                 | RelocationFlags::Elf(elf::R_ARM_THM_PC11)
-                | RelocationFlags::Elf(elf::R_ARM_THM_PC9) => {
+                | RelocationFlags::Elf(elf::R_ARM_THM_PC9)
+                | RelocationFlags::MachO {
+                    r_type: macho::ARM_RELOC_BR24 | macho::ARM_THUMB_RELOC_BR22,
+                    ..
+                } => {
                     return self.write(InstructionPart::reloc());
                 }
                 _ => {}

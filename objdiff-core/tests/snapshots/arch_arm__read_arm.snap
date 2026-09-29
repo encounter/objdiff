@@ -142,6 +142,7 @@ Object {
         },
         detected_version: None,
         endianness: Little,
+        macho_disasm_modes: None,
     },
     endianness: Little,
     symbols: [

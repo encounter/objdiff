@@ -505,6 +505,35 @@ pub trait Arch: Any + Debug + Send + Sync {
     }
 }
 
+/// Resolves the addend of a Mach-O relocation, which has no explicit addend field.
+///
+/// Instead, the relocation field holds the value that the assembler computed for the target, so
+/// the addend has to be recovered from it. PC-relative relocations are biased by the program
+/// counter, and relocations against a section hold the target's address rather than its offset,
+/// which is what the relocation target resolution expects for Mach-O. Newer Mach-O formats
+/// (x86-64 and arm64) instead store the addend directly when the relocation targets a symbol.
+///
+/// `field` is the value decoded from the relocation field and `pc` is the program counter that
+/// the relocation is relative to, or 0 if it isn't PC-relative.
+#[allow(dead_code)] // Only used by architectures that support Mach-O
+pub(crate) fn macho_implicit_addend(
+    file: &object::File<'_>,
+    relocation: &object::Relocation,
+    field: i64,
+    pc: u64,
+    symbol_field_is_addend: bool,
+) -> Result<i64> {
+    use object::{Object as _, ObjectSymbol as _};
+    match relocation.target() {
+        object::RelocationTarget::Symbol(index) if !symbol_field_is_addend => {
+            let symbol_address = file.symbol_by_index(index)?.address();
+            Ok(field + pc as i64 - symbol_address as i64)
+        }
+        object::RelocationTarget::Section(_) => Ok(field + pc as i64),
+        _ => Ok(field),
+    }
+}
+
 pub fn new_arch(object: &object::File, diff_side: DiffSide) -> Result<Box<dyn Arch>> {
     use object::Object as _;
     // Avoid unused warnings on non-mips builds
@@ -524,7 +553,9 @@ pub fn new_arch(object: &object::File, diff_side: DiffSide) -> Result<Box<dyn Ar
         #[cfg(feature = "arm")]
         object::Architecture::Arm => Box::new(arm::ArchArm::new(object)?),
         #[cfg(feature = "arm64")]
-        object::Architecture::Aarch64 => Box::new(arm64::ArchArm64::new(object)?),
+        object::Architecture::Aarch64 | object::Architecture::Aarch64_Ilp32 => {
+            Box::new(arm64::ArchArm64::new(object)?)
+        }
         #[cfg(feature = "superh")]
         object::Architecture::SuperH => Box::new(superh::ArchSuperH::new(object)?),
         arch => bail!("Unsupported architecture: {arch:?}"),
