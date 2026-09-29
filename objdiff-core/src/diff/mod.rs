@@ -802,7 +802,10 @@ where
     'obj: 'used,
 {
     obj.symbols.iter().enumerate().filter(move |&(symbol_idx, symbol)| {
-        !symbol.flags.contains(SymbolFlag::Ignored)
+        symbol.size != 0
+            && !symbol.flags.contains(SymbolFlag::Ignored)
+            // e.g. .line and .debug sections
+            && symbol_section_kind(obj, symbol) != SectionKind::Unknown
             // Skip symbols that have already been matched
             && !used.is_some_and(|u| u.contains(&symbol_idx))
     })
