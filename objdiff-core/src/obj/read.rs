@@ -40,20 +40,93 @@ fn map_section_kind(section: &object::Section) -> SectionKind {
     }
 }
 
+/// Metrowerks names a type declared inside a function `<name>$<unique ID><source file>`, where
+/// the unique ID is a counter shared by every compiler-generated entity in the translation unit.
+/// e.g. a local class `TSetup1` in `ShadowUtil.cpp` becomes `TSetup1$2172ShadowUtil_cpp`, and an
+/// anonymous one becomes `@class$3665d_camera_cpp`.
+///
+/// Replace each such ID with `dummy_id` so the symbols pair up. The ID's digit count can differ
+/// between objects, which also changes the Metrowerks length prefix in front of the name
+/// (`26TSetup1$2172ShadowUtil_cpp` vs `25TSetup1$874ShadowUtil_cpp`), so fix that up too.
+///
+/// Returns `None` if the name contains no such ID. IDs that run to the end of the name
+/// (`setup1$2173`) are left to the caller, as they have no length prefix to correct.
+fn normalize_mw_unique_file_names(name: &str, dummy_id: &str) -> Option<String> {
+    let bytes = name.as_bytes();
+    // (range to replace, replacement), in ascending order of range start.
+    let mut edits = Vec::new();
+    let mut search_from = 0;
+    while let Some(offset) = name[search_from..].find('$') {
+        let dollar = search_from + offset;
+        let digits_start = dollar + 1;
+        let digits_end =
+            digits_start + bytes[digits_start..].iter().take_while(|b| b.is_ascii_digit()).count();
+        search_from = digits_start;
+        // Needs at least one digit, then a source file name.
+        if digits_end == digits_start || digits_end == bytes.len() {
+            continue;
+        }
+        let delta = dummy_id.len() as isize - (digits_end - digits_start) as isize;
+        if delta != 0
+            && let Some((prefix, len)) = find_mw_length_prefix(bytes, dollar)
+        {
+            edits.push((prefix, (len as isize + delta).to_string()));
+        }
+        edits.push((digits_start..digits_end, dummy_id.to_string()));
+    }
+    if edits.is_empty() {
+        return None;
+    }
+    edits.sort_by_key(|(range, _)| range.start);
+    let mut out = String::with_capacity(name.len());
+    let mut copied_to = 0;
+    for (range, replacement) in edits {
+        out.push_str(&name[copied_to..range.start]);
+        out.push_str(&replacement);
+        copied_to = range.end;
+    }
+    out.push_str(&name[copied_to..]);
+    Some(out)
+}
+
+/// Find the Metrowerks length prefix of the name containing the `$` at `dollar`.
+///
+/// Mangled names are a series of `<length><name>` components. Walk back from the `$` looking for
+/// the start of the name: a name can't begin with a digit, must be preceded by its length, and
+/// that length has to reach past the `$` for this to be the right component.
+fn find_mw_length_prefix(bytes: &[u8], dollar: usize) -> Option<(core::ops::Range<usize>, usize)> {
+    let mut name_start = dollar;
+    while name_start > 0 {
+        name_start -= 1;
+        if bytes[name_start].is_ascii_digit() {
+            continue;
+        }
+        let mut prefix_start = name_start;
+        while prefix_start > 0 && bytes[prefix_start - 1].is_ascii_digit() {
+            prefix_start -= 1;
+        }
+        if prefix_start == name_start {
+            continue;
+        }
+        let len: usize =
+            core::str::from_utf8(&bytes[prefix_start..name_start]).ok()?.parse().ok()?;
+        let name_end = name_start.checked_add(len)?;
+        if name_end <= bytes.len() && name_end > dollar {
+            return Some((prefix_start..name_start, len));
+        }
+    }
+    None
+}
+
 /// Check if a symbol's name is partially compiler-generated, and if so normalize it for pairing.
 /// e.g. symbol$1234 and symbol$2345 will both be replaced with symbol$0000 internally.
 fn get_normalized_symbol_name(name: &str) -> Option<String> {
     const DUMMY_UNIQUE_ID: &str = "0000";
     const DUMMY_UNIQUE_MSVC_ID: &str = "00000000";
-    if let Some((prefix, suffix)) = name.split_once("@class$")
-        && let Some(idx) = suffix.chars().position(|c| !c.is_numeric())
-        && idx > 0
-    {
-        // Match Metrowerks anonymous class symbol names, ignoring the unique ID.
-        // e.g. __dt__Q29dCamera_c23@class$3665d_camera_cppFv
-        // and: __dt__Q29dCamera_c23@class$1727d_camera_cppFv
-        let suffix = &suffix[idx..];
-        Some(format!("{prefix}@class${DUMMY_UNIQUE_ID}{suffix}"))
+    if let Some(normalized) = normalize_mw_unique_file_names(name, DUMMY_UNIQUE_ID) {
+        // Match Metrowerks names for types declared inside a function, ignoring the
+        // unique ID. See normalize_mw_unique_file_names.
+        Some(normalized)
     } else if let Some((prefix, suffix)) = name.split_once('$')
         && suffix.chars().all(char::is_numeric)
     {
@@ -1204,6 +1277,54 @@ fn parse_mw_comment_syms(obj_file: &object::File) -> Result<Option<Vec<CommentSy
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn test_normalized_symbol_name() {
+        // Metrowerks class declared inside a member function. The unique ID's digit count
+        // differs, so the length prefix in front of the class name differs too.
+        assert_eq!(
+            get_normalized_symbol_name(
+                "makeDL__Q219TMBindShadowManager26TSetup1$2172ShadowUtil_cppFv"
+            ),
+            get_normalized_symbol_name(
+                "makeDL__Q219TMBindShadowManager25TSetup1$874ShadowUtil_cppFv"
+            )
+        );
+        assert_eq!(
+            get_normalized_symbol_name(
+                "makeDL__Q219TMBindShadowManager26TSetup1$2172ShadowUtil_cppFv"
+            )
+            .as_deref(),
+            Some("makeDL__Q219TMBindShadowManager26TSetup1$0000ShadowUtil_cppFv")
+        );
+        // A static inside such a class' inline member function, which nests two IDs.
+        assert_eq!(
+            get_normalized_symbol_name(
+                "vl$localstatic0$makeDL__Q219TMBindShadowManager26TSetup1$2172ShadowUtil_cppFv"
+            ),
+            get_normalized_symbol_name(
+                "vl$localstatic0$makeDL__Q219TMBindShadowManager25TSetup1$874ShadowUtil_cppFv"
+            )
+        );
+        // Anonymous classes keep working, including with differing digit counts.
+        assert_eq!(
+            get_normalized_symbol_name("__dt__Q29dCamera_c23@class$3665d_camera_cppFv").as_deref(),
+            Some("__dt__Q29dCamera_c23@class$0000d_camera_cppFv")
+        );
+        assert_eq!(
+            get_normalized_symbol_name("__dt__Q29dCamera_c23@class$3665d_camera_cppFv"),
+            get_normalized_symbol_name("__dt__Q29dCamera_c22@class$665d_camera_cppFv")
+        );
+        // A plain unique name still goes through the suffix-only path.
+        assert_eq!(get_normalized_symbol_name("setup1$2173").as_deref(), Some("setup1$0000"));
+        assert_eq!(
+            get_normalized_symbol_name("calctablex$2412"),
+            get_normalized_symbol_name("calctablex$1043")
+        );
+        // Names with no unique ID are left alone.
+        assert_eq!(get_normalized_symbol_name("makeDL__8J3DModelFv"), None);
+        assert_eq!(get_normalized_symbol_name("foo$bar"), None);
+    }
 
     #[test]
     fn test_combine_sections() {
