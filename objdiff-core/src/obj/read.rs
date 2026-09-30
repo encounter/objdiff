@@ -40,20 +40,40 @@ fn map_section_kind(section: &object::Section) -> SectionKind {
     }
 }
 
-/// Check if a symbol's name is partially compiler-generated, and if so normalize it for pairing.
-/// e.g. symbol$1234 and symbol$2345 will both be replaced with symbol$0000 internally.
-fn get_normalized_symbol_name(name: &str) -> Option<String> {
-    const DUMMY_UNIQUE_ID: &str = "0000";
-    const DUMMY_UNIQUE_MSVC_ID: &str = "00000000";
-    if let Some((prefix, suffix)) = name.split_once("@class$")
+/// Normalize Metrowerks class names that are suffixed with a unique ID and the source filename.
+/// This is done on the demangled name as the mangled names include the length of the name before
+/// the name, which varies depending on the length of the unique ID.
+fn normalize_mwcc_unique_id_with_filename(demangled_name: &str) -> Option<String> {
+    const DUMMY_UNIQUE_ID: &str = "$0000";
+    let mut parts = Vec::new();
+    let mut next = demangled_name;
+    while let Some((prefix, suffix)) = next.split_once("$")
         && let Some(idx) = suffix.chars().position(|c| !c.is_numeric())
         && idx > 0
     {
-        // Match Metrowerks anonymous class symbol names, ignoring the unique ID.
-        // e.g. __dt__Q29dCamera_c23@class$3665d_camera_cppFv
-        // and: __dt__Q29dCamera_c23@class$1727d_camera_cppFv
-        let suffix = &suffix[idx..];
-        Some(format!("{prefix}@class${DUMMY_UNIQUE_ID}{suffix}"))
+        parts.push(prefix);
+        next = &suffix[idx..];
+    }
+    parts.push(next);
+    if parts.len() >= 2 {
+        return Some(parts.join(DUMMY_UNIQUE_ID));
+    }
+    None
+}
+
+/// Check if a symbol's name is partially compiler-generated, and if so normalize it for pairing.
+/// e.g. symbol$1234 and symbol$2345 will both be replaced with symbol$0000 internally.
+fn get_normalized_symbol_name(name: &str, demangled_name: &Option<String>) -> Option<String> {
+    const DUMMY_UNIQUE_ID: &str = "0000";
+    const DUMMY_UNIQUE_MSVC_ID: &str = "00000000";
+    if let Some(demangled_name) = demangled_name
+        && let Some((_, suffix)) = name.split_once("$")
+        && let Some(idx) = suffix.chars().position(|c| !c.is_numeric())
+        && idx > 0
+    {
+        // Match Metrowerks symbols that have a class name, a unique ID, and the source filename.
+        // Unlike the other normalizations, this is done on the demangled name.
+        normalize_mwcc_unique_id_with_filename(demangled_name)
     } else if let Some((prefix, suffix)) = name.split_once('$')
         && suffix.chars().all(char::is_numeric)
     {
@@ -173,7 +193,7 @@ fn map_symbol(
         .and_then(|m| m.virtual_addresses.as_ref())
         .and_then(|v| v.get(symbol.index().0).cloned());
     let section = symbol.section_index().and_then(|i| section_indices.get(i.0).copied());
-    let normalized_name = get_normalized_symbol_name(&name);
+    let normalized_name = get_normalized_symbol_name(&name, &demangled_name);
     if is_symbol_name_compiler_generated(&name) {
         flags |= SymbolFlag::CompilerGenerated;
     }
@@ -1204,6 +1224,48 @@ fn parse_mw_comment_syms(obj_file: &object::File) -> Result<Option<Vec<CommentSy
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::diff::Demangler;
+
+    #[test]
+    fn test_get_normalized_symbol_name() {
+        // Metrowerks in-function static variable.
+        let left = "eff_scale$24884";
+        let right = "eff_scale$21920";
+        assert_eq!(
+            get_normalized_symbol_name(left, &Demangler::Codewarrior.demangle(left)),
+            get_normalized_symbol_name(right, &Demangler::Codewarrior.demangle(right))
+        );
+
+        // Metrowerks anonymous class. Uses @class prefix, unique ID, then filename suffix.
+        let left = "__dt__Q29dCamera_c23@class$3665d_camera_cppFv";
+        let right = "__dt__Q29dCamera_c23@class$1727d_camera_cppFv";
+        assert_eq!(
+            get_normalized_symbol_name(left, &Demangler::Codewarrior.demangle(left)),
+            get_normalized_symbol_name(right, &Demangler::Codewarrior.demangle(right))
+        );
+        // Metrowerks class defined in function body. Uses class name prefix, unique ID, then filename suffix.
+        let left = "makeDL__Q219TMBindShadowManager26TSetup1$2172ShadowUtil_cppFv";
+        let right = "makeDL__Q219TMBindShadowManager25TSetup1$874ShadowUtil_cppFv";
+        assert_eq!(
+            get_normalized_symbol_name(left, &Demangler::Codewarrior.demangle(left)),
+            get_normalized_symbol_name(right, &Demangler::Codewarrior.demangle(right))
+        );
+        // Metrowerks class defined in function body, but the unique ID appears again within the function parameters.
+        let left = "__as__Q210daB_ZANT_c31dZantSph_c$132966d_a_b_zant_cppFRCQ210daB_ZANT_c31dZantSph_c$132966d_a_b_zant_cpp";
+        let right = "__as__Q210daB_ZANT_c30dZantSph_c$55068d_a_b_zant_cppFRCQ210daB_ZANT_c30dZantSph_c$55068d_a_b_zant_cpp";
+        assert_eq!(
+            get_normalized_symbol_name(left, &Demangler::Codewarrior.demangle(left)),
+            get_normalized_symbol_name(right, &Demangler::Codewarrior.demangle(right))
+        );
+
+        // MSVC anonymous class.
+        let left = "?CheckContextOr@?A0x24773155@@YA_NPBVDataArray@@@Z";
+        let right = "?CheckContextOr@?A0xddf6240c@@YA_NPBVDataArray@@@Z";
+        assert_eq!(
+            get_normalized_symbol_name(left, &Demangler::Msvc.demangle(left)),
+            get_normalized_symbol_name(right, &Demangler::Msvc.demangle(right))
+        );
+    }
 
     #[test]
     fn test_combine_sections() {
