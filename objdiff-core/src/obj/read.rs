@@ -59,7 +59,7 @@ fn get_normalized_symbol_name(name: &str) -> Option<String> {
     {
         // Match Metrowerks symbol$1234 against symbol$2345
         Some(format!("{prefix}${DUMMY_UNIQUE_ID}"))
-    } else if let Some((prefix, suffix)) = name.split_once('.')
+    } else if let Some((prefix, suffix)) = name.rsplit_once('.')
         && suffix.chars().all(char::is_numeric)
     {
         // Match GCC symbol.1234 against symbol.2345
