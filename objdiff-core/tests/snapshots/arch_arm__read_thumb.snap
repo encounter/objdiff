@@ -52,7 +52,9 @@ Object {
         Symbol {
             name: ".dwarf_type.102",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 82,
             size: 6,
             kind: Object,
@@ -66,7 +68,9 @@ Object {
         Symbol {
             name: ".dwarf_type.103",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 88,
             size: 1923,
             kind: Object,
@@ -94,7 +98,9 @@ Object {
         Symbol {
             name: ".dwarf_type.104",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 2028,
             size: 6,
             kind: Object,
@@ -108,7 +114,9 @@ Object {
         Symbol {
             name: ".dwarf_type.105",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 2034,
             size: 666,
             kind: Object,
@@ -136,7 +144,9 @@ Object {
         Symbol {
             name: ".dwarf_type.106",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 2717,
             size: 6,
             kind: Object,
@@ -150,7 +160,9 @@ Object {
         Symbol {
             name: ".dwarf_type.107",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 2723,
             size: 39,
             kind: Object,
@@ -234,7 +246,9 @@ Object {
         Symbol {
             name: ".dwarf_type.108",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 2819,
             size: 6,
             kind: Object,
@@ -248,7 +262,9 @@ Object {
         Symbol {
             name: ".dwarf_type.109",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 2825,
             size: 6,
             kind: Object,
@@ -262,7 +278,9 @@ Object {
         Symbol {
             name: ".dwarf_type.110",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 2831,
             size: 1517,
             kind: Object,
@@ -290,7 +308,9 @@ Object {
         Symbol {
             name: ".dwarf_type.111",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 4370,
             size: 6,
             kind: Object,
@@ -304,7 +324,9 @@ Object {
         Symbol {
             name: ".dwarf_type.112",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 4376,
             size: 1199,
             kind: Object,
@@ -402,7 +424,9 @@ Object {
         Symbol {
             name: ".dwarf_type.113",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5672,
             size: 17,
             kind: Object,
@@ -514,7 +538,9 @@ Object {
         Symbol {
             name: ".dwarf_type.114",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5797,
             size: 6,
             kind: Object,
@@ -528,7 +554,9 @@ Object {
         Symbol {
             name: ".dwarf_type.115",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5803,
             size: 17,
             kind: Object,
@@ -542,7 +570,9 @@ Object {
         Symbol {
             name: ".dwarf_type.116",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5820,
             size: 6,
             kind: Object,
@@ -556,7 +586,9 @@ Object {
         Symbol {
             name: ".dwarf_type.117",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5826,
             size: 17,
             kind: Object,
@@ -570,7 +602,9 @@ Object {
         Symbol {
             name: ".dwarf_type.118",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5843,
             size: 6,
             kind: Object,
@@ -584,7 +618,9 @@ Object {
         Symbol {
             name: ".dwarf_type.119",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5849,
             size: 17,
             kind: Object,
@@ -598,7 +634,9 @@ Object {
         Symbol {
             name: ".dwarf_type.120",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5866,
             size: 17,
             kind: Object,
@@ -612,7 +650,9 @@ Object {
         Symbol {
             name: ".dwarf_type.121",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5883,
             size: 6,
             kind: Object,
@@ -626,7 +666,9 @@ Object {
         Symbol {
             name: ".dwarf_type.122",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5889,
             size: 17,
             kind: Object,
@@ -640,7 +682,9 @@ Object {
         Symbol {
             name: ".dwarf_type.123",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5906,
             size: 6,
             kind: Object,
@@ -654,7 +698,9 @@ Object {
         Symbol {
             name: ".dwarf_type.124",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5912,
             size: 6,
             kind: Object,
@@ -668,7 +714,9 @@ Object {
         Symbol {
             name: ".dwarf_type.125",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5918,
             size: 6,
             kind: Object,
@@ -682,7 +730,9 @@ Object {
         Symbol {
             name: ".dwarf_type.126",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5924,
             size: 6,
             kind: Object,
@@ -696,7 +746,9 @@ Object {
         Symbol {
             name: ".dwarf_type.127",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5930,
             size: 6,
             kind: Object,
@@ -710,7 +762,9 @@ Object {
         Symbol {
             name: ".dwarf_type.128",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5936,
             size: 6,
             kind: Object,
@@ -724,7 +778,9 @@ Object {
         Symbol {
             name: ".dwarf_type.129",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5942,
             size: 17,
             kind: Object,
@@ -738,7 +794,9 @@ Object {
         Symbol {
             name: ".dwarf_type.130",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5959,
             size: 17,
             kind: Object,
@@ -752,7 +810,9 @@ Object {
         Symbol {
             name: ".dwarf_type.131",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5976,
             size: 17,
             kind: Object,
@@ -766,7 +826,9 @@ Object {
         Symbol {
             name: ".dwarf_type.132",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 5993,
             size: 6,
             kind: Object,
@@ -808,7 +870,9 @@ Object {
         Symbol {
             name: ".dwarf_type.133",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 6090,
             size: 17,
             kind: Object,
@@ -822,7 +886,9 @@ Object {
         Symbol {
             name: ".dwarf_type.134",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 6107,
             size: 289,
             kind: Object,
@@ -850,7 +916,9 @@ Object {
         Symbol {
             name: ".dwarf_type.135",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 6423,
             size: 17,
             kind: Object,
@@ -864,7 +932,9 @@ Object {
         Symbol {
             name: ".dwarf_type.136",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 6440,
             size: 17,
             kind: Object,
@@ -878,7 +948,9 @@ Object {
         Symbol {
             name: ".dwarf_type.137",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 6457,
             size: 6,
             kind: Object,
@@ -892,7 +964,9 @@ Object {
         Symbol {
             name: ".dwarf_type.138",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 6463,
             size: 17,
             kind: Object,
@@ -906,7 +980,9 @@ Object {
         Symbol {
             name: ".dwarf_type.139",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 6480,
             size: 6,
             kind: Object,
@@ -920,7 +996,9 @@ Object {
         Symbol {
             name: ".dwarf_type.140",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 6486,
             size: 17,
             kind: Object,
@@ -934,7 +1012,9 @@ Object {
         Symbol {
             name: ".dwarf_type.141",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 6503,
             size: 360,
             kind: Object,
@@ -962,7 +1042,9 @@ Object {
         Symbol {
             name: ".dwarf_type.142",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 6882,
             size: 6,
             kind: Object,
@@ -976,7 +1058,9 @@ Object {
         Symbol {
             name: ".dwarf_type.143",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 6888,
             size: 6,
             kind: Object,
@@ -990,7 +1074,9 @@ Object {
         Symbol {
             name: ".dwarf_type.144",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 6894,
             size: 6,
             kind: Object,
@@ -1004,7 +1090,9 @@ Object {
         Symbol {
             name: ".dwarf_type.145",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 6900,
             size: 17,
             kind: Object,
@@ -1018,7 +1106,9 @@ Object {
         Symbol {
             name: ".dwarf_type.146",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 6917,
             size: 6,
             kind: Object,
@@ -1032,7 +1122,9 @@ Object {
         Symbol {
             name: ".dwarf_type.147",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 6923,
             size: 17,
             kind: Object,
@@ -1046,7 +1138,9 @@ Object {
         Symbol {
             name: ".dwarf_type.148",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 6940,
             size: 127,
             kind: Object,
@@ -1074,7 +1168,9 @@ Object {
         Symbol {
             name: ".dwarf_type.149",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7081,
             size: 6,
             kind: Object,
@@ -1088,7 +1184,9 @@ Object {
         Symbol {
             name: ".dwarf_type.150",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7087,
             size: 17,
             kind: Object,
@@ -1102,7 +1200,9 @@ Object {
         Symbol {
             name: ".dwarf_type.151",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7104,
             size: 102,
             kind: Object,
@@ -1130,7 +1230,9 @@ Object {
         Symbol {
             name: ".dwarf_type.152",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7222,
             size: 17,
             kind: Object,
@@ -1144,7 +1246,9 @@ Object {
         Symbol {
             name: ".dwarf_type.153",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7239,
             size: 6,
             kind: Object,
@@ -1158,7 +1262,9 @@ Object {
         Symbol {
             name: ".dwarf_type.154",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7245,
             size: 17,
             kind: Object,
@@ -1172,7 +1278,9 @@ Object {
         Symbol {
             name: ".dwarf_type.155",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7262,
             size: 6,
             kind: Object,
@@ -1186,7 +1294,9 @@ Object {
         Symbol {
             name: ".dwarf_type.156",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7268,
             size: 82,
             kind: Object,
@@ -1214,7 +1324,9 @@ Object {
         Symbol {
             name: ".dwarf_type.157",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7366,
             size: 17,
             kind: Object,
@@ -1228,7 +1340,9 @@ Object {
         Symbol {
             name: ".dwarf_type.158",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7383,
             size: 6,
             kind: Object,
@@ -1242,7 +1356,9 @@ Object {
         Symbol {
             name: ".dwarf_type.159",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7389,
             size: 17,
             kind: Object,
@@ -1256,7 +1372,9 @@ Object {
         Symbol {
             name: ".dwarf_type.160",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7406,
             size: 6,
             kind: Object,
@@ -1270,7 +1388,9 @@ Object {
         Symbol {
             name: ".dwarf_type.161",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7412,
             size: 17,
             kind: Object,
@@ -1284,7 +1404,9 @@ Object {
         Symbol {
             name: ".dwarf_type.162",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7429,
             size: 6,
             kind: Object,
@@ -1298,7 +1420,9 @@ Object {
         Symbol {
             name: ".dwarf_type.163",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7435,
             size: 17,
             kind: Object,
@@ -1312,7 +1436,9 @@ Object {
         Symbol {
             name: ".dwarf_type.164",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7452,
             size: 6,
             kind: Object,
@@ -1326,7 +1452,9 @@ Object {
         Symbol {
             name: ".dwarf_type.165",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7458,
             size: 6,
             kind: Object,
@@ -1340,7 +1468,9 @@ Object {
         Symbol {
             name: ".dwarf_type.166",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7464,
             size: 6,
             kind: Object,
@@ -1354,7 +1484,9 @@ Object {
         Symbol {
             name: ".dwarf_type.167",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7470,
             size: 6,
             kind: Object,
@@ -1368,7 +1500,9 @@ Object {
         Symbol {
             name: ".dwarf_type.168",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7476,
             size: 6,
             kind: Object,
@@ -1382,7 +1516,9 @@ Object {
         Symbol {
             name: ".dwarf_type.169",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7482,
             size: 22,
             kind: Object,
@@ -1410,7 +1546,9 @@ Object {
         Symbol {
             name: ".dwarf_type.170",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7517,
             size: 17,
             kind: Object,
@@ -1424,7 +1562,9 @@ Object {
         Symbol {
             name: ".dwarf_type.171",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7534,
             size: 17,
             kind: Object,
@@ -1438,7 +1578,9 @@ Object {
         Symbol {
             name: ".dwarf_type.172",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7551,
             size: 17,
             kind: Object,
@@ -1452,7 +1594,9 @@ Object {
         Symbol {
             name: ".dwarf_type.173",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7568,
             size: 204,
             kind: Object,
@@ -1480,7 +1624,9 @@ Object {
         Symbol {
             name: ".dwarf_type.174",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7798,
             size: 17,
             kind: Object,
@@ -1494,7 +1640,9 @@ Object {
         Symbol {
             name: ".dwarf_type.175",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7815,
             size: 48,
             kind: Object,
@@ -1522,7 +1670,9 @@ Object {
         Symbol {
             name: ".dwarf_type.176",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7880,
             size: 17,
             kind: Object,
@@ -1536,7 +1686,9 @@ Object {
         Symbol {
             name: ".dwarf_type.177",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7897,
             size: 81,
             kind: Object,
@@ -1564,7 +1716,9 @@ Object {
         Symbol {
             name: ".dwarf_type.178",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 7999,
             size: 6,
             kind: Object,
@@ -1578,7 +1732,9 @@ Object {
         Symbol {
             name: ".dwarf_type.179",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8005,
             size: 39,
             kind: Object,
@@ -1592,7 +1748,9 @@ Object {
         Symbol {
             name: ".dwarf_type.180",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8044,
             size: 6,
             kind: Object,
@@ -1606,7 +1764,9 @@ Object {
         Symbol {
             name: ".dwarf_type.181",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8050,
             size: 6,
             kind: Object,
@@ -1620,7 +1780,9 @@ Object {
         Symbol {
             name: ".dwarf_type.182",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8056,
             size: 39,
             kind: Object,
@@ -1634,7 +1796,9 @@ Object {
         Symbol {
             name: ".dwarf_type.183",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8095,
             size: 6,
             kind: Object,
@@ -1648,7 +1812,9 @@ Object {
         Symbol {
             name: ".dwarf_type.184",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8101,
             size: 6,
             kind: Object,
@@ -1662,7 +1828,9 @@ Object {
         Symbol {
             name: ".dwarf_type.185",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8107,
             size: 9,
             kind: Object,
@@ -1676,7 +1844,9 @@ Object {
         Symbol {
             name: ".dwarf_type.186",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8116,
             size: 6,
             kind: Object,
@@ -1690,7 +1860,9 @@ Object {
         Symbol {
             name: ".dwarf_type.187",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8122,
             size: 61,
             kind: Object,
@@ -1746,7 +1918,9 @@ Object {
         Symbol {
             name: ".dwarf_type.188",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8231,
             size: 6,
             kind: Object,
@@ -1760,7 +1934,9 @@ Object {
         Symbol {
             name: ".dwarf_type.189",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8237,
             size: 17,
             kind: Object,
@@ -1774,7 +1950,9 @@ Object {
         Symbol {
             name: ".dwarf_type.190",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8254,
             size: 142,
             kind: Object,
@@ -1802,7 +1980,9 @@ Object {
         Symbol {
             name: ".dwarf_type.191",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8412,
             size: 6,
             kind: Object,
@@ -1816,7 +1996,9 @@ Object {
         Symbol {
             name: ".dwarf_type.192",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8418,
             size: 6,
             kind: Object,
@@ -1830,7 +2012,9 @@ Object {
         Symbol {
             name: ".dwarf_type.193",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8424,
             size: 6,
             kind: Object,
@@ -1844,7 +2028,9 @@ Object {
         Symbol {
             name: ".dwarf_type.194",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8430,
             size: 17,
             kind: Object,
@@ -1858,7 +2044,9 @@ Object {
         Symbol {
             name: ".dwarf_type.195",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8447,
             size: 53,
             kind: Object,
@@ -1886,7 +2074,9 @@ Object {
         Symbol {
             name: ".dwarf_type.196",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8525,
             size: 6,
             kind: Object,
@@ -1900,7 +2090,9 @@ Object {
         Symbol {
             name: ".dwarf_type.197",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8531,
             size: 45,
             kind: Object,
@@ -1928,7 +2120,9 @@ Object {
         Symbol {
             name: ".dwarf_type.198",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8594,
             size: 17,
             kind: Object,
@@ -1942,7 +2136,9 @@ Object {
         Symbol {
             name: ".dwarf_type.199",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8611,
             size: 17,
             kind: Object,
@@ -1956,7 +2152,9 @@ Object {
         Symbol {
             name: ".dwarf_type.200",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8628,
             size: 120,
             kind: Object,
@@ -1984,7 +2182,9 @@ Object {
         Symbol {
             name: ".dwarf_type.201",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8771,
             size: 55,
             kind: Object,
@@ -1998,7 +2198,9 @@ Object {
         Symbol {
             name: ".dwarf_type.202",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8826,
             size: 116,
             kind: Object,
@@ -2012,7 +2214,9 @@ Object {
         Symbol {
             name: ".dwarf_type.203",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 8942,
             size: 195,
             kind: Object,
@@ -2026,7 +2230,9 @@ Object {
         Symbol {
             name: ".dwarf_type.204",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9137,
             size: 75,
             kind: Object,
@@ -2040,7 +2246,9 @@ Object {
         Symbol {
             name: ".dwarf_type.205",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9212,
             size: 132,
             kind: Object,
@@ -2054,7 +2262,9 @@ Object {
         Symbol {
             name: ".dwarf_type.206",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9344,
             size: 17,
             kind: Object,
@@ -2068,7 +2278,9 @@ Object {
         Symbol {
             name: ".dwarf_type.207",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9361,
             size: 70,
             kind: Object,
@@ -2096,7 +2308,9 @@ Object {
         Symbol {
             name: ".dwarf_type.208",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9443,
             size: 17,
             kind: Object,
@@ -2110,7 +2324,9 @@ Object {
         Symbol {
             name: ".dwarf_type.209",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9460,
             size: 6,
             kind: Object,
@@ -2124,7 +2340,9 @@ Object {
         Symbol {
             name: ".dwarf_type.210",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9466,
             size: 17,
             kind: Object,
@@ -2138,7 +2356,9 @@ Object {
         Symbol {
             name: ".dwarf_type.211",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9483,
             size: 6,
             kind: Object,
@@ -2152,7 +2372,9 @@ Object {
         Symbol {
             name: ".dwarf_type.212",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9489,
             size: 6,
             kind: Object,
@@ -2166,7 +2388,9 @@ Object {
         Symbol {
             name: ".dwarf_type.213",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9495,
             size: 6,
             kind: Object,
@@ -2180,7 +2404,9 @@ Object {
         Symbol {
             name: ".dwarf_type.214",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9501,
             size: 48,
             kind: Object,
@@ -2208,7 +2434,9 @@ Object {
         Symbol {
             name: ".dwarf_type.215",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9563,
             size: 17,
             kind: Object,
@@ -2222,7 +2450,9 @@ Object {
         Symbol {
             name: ".dwarf_type.216",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9580,
             size: 89,
             kind: Object,
@@ -2236,7 +2466,9 @@ Object {
         Symbol {
             name: ".dwarf_type.217",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9669,
             size: 33,
             kind: Object,
@@ -2264,7 +2496,9 @@ Object {
         Symbol {
             name: ".dwarf_type.218",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9716,
             size: 17,
             kind: Object,
@@ -2278,7 +2512,9 @@ Object {
         Symbol {
             name: ".dwarf_type.219",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9733,
             size: 73,
             kind: Object,
@@ -2306,7 +2542,9 @@ Object {
         Symbol {
             name: ".dwarf_type.220",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9817,
             size: 17,
             kind: Object,
@@ -2320,7 +2558,9 @@ Object {
         Symbol {
             name: ".dwarf_type.221",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9834,
             size: 17,
             kind: Object,
@@ -2334,7 +2574,9 @@ Object {
         Symbol {
             name: ".dwarf_type.222",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9851,
             size: 6,
             kind: Object,
@@ -2348,7 +2590,9 @@ Object {
         Symbol {
             name: ".dwarf_type.223",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 9857,
             size: 202,
             kind: Object,
@@ -2376,7 +2620,9 @@ Object {
         Symbol {
             name: ".dwarf_type.224",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10078,
             size: 234,
             kind: Object,
@@ -2390,7 +2636,9 @@ Object {
         Symbol {
             name: ".dwarf_type.225",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10312,
             size: 197,
             kind: Object,
@@ -2404,7 +2652,9 @@ Object {
         Symbol {
             name: ".dwarf_type.226",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10509,
             size: 6,
             kind: Object,
@@ -2418,7 +2668,9 @@ Object {
         Symbol {
             name: ".dwarf_type.227",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10515,
             size: 6,
             kind: Object,
@@ -2432,7 +2684,9 @@ Object {
         Symbol {
             name: ".dwarf_type.228",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10521,
             size: 107,
             kind: Object,
@@ -2460,7 +2714,9 @@ Object {
         Symbol {
             name: ".dwarf_type.229",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10649,
             size: 17,
             kind: Object,
@@ -2474,7 +2730,9 @@ Object {
         Symbol {
             name: ".dwarf_type.230",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10666,
             size: 17,
             kind: Object,
@@ -2488,7 +2746,9 @@ Object {
         Symbol {
             name: ".dwarf_type.231",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10683,
             size: 17,
             kind: Object,
@@ -2502,7 +2762,9 @@ Object {
         Symbol {
             name: ".dwarf_type.232",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10700,
             size: 17,
             kind: Object,
@@ -2516,7 +2778,9 @@ Object {
         Symbol {
             name: ".dwarf_type.233",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10717,
             size: 17,
             kind: Object,
@@ -2530,7 +2794,9 @@ Object {
         Symbol {
             name: ".dwarf_type.234",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10734,
             size: 66,
             kind: Object,
@@ -2558,7 +2824,9 @@ Object {
         Symbol {
             name: ".dwarf_type.235",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10819,
             size: 17,
             kind: Object,
@@ -2572,7 +2840,9 @@ Object {
         Symbol {
             name: ".dwarf_type.236",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10836,
             size: 25,
             kind: Object,
@@ -2600,7 +2870,9 @@ Object {
         Symbol {
             name: ".dwarf_type.237",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10896,
             size: 17,
             kind: Object,
@@ -2614,7 +2886,9 @@ Object {
         Symbol {
             name: ".dwarf_type.238",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10913,
             size: 17,
             kind: Object,
@@ -2628,7 +2902,9 @@ Object {
         Symbol {
             name: ".dwarf_type.239",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10930,
             size: 17,
             kind: Object,
@@ -2642,7 +2918,9 @@ Object {
         Symbol {
             name: ".dwarf_type.240",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10947,
             size: 17,
             kind: Object,
@@ -2656,7 +2934,9 @@ Object {
         Symbol {
             name: ".dwarf_type.241",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10964,
             size: 17,
             kind: Object,
@@ -2670,7 +2950,9 @@ Object {
         Symbol {
             name: ".dwarf_type.242",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10981,
             size: 17,
             kind: Object,
@@ -2684,7 +2966,9 @@ Object {
         Symbol {
             name: ".dwarf_type.243",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 10998,
             size: 17,
             kind: Object,
@@ -2698,7 +2982,9 @@ Object {
         Symbol {
             name: ".dwarf_type.244",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11015,
             size: 17,
             kind: Object,
@@ -2712,7 +2998,9 @@ Object {
         Symbol {
             name: ".dwarf_type.245",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11032,
             size: 17,
             kind: Object,
@@ -2726,7 +3014,9 @@ Object {
         Symbol {
             name: ".dwarf_type.246",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11049,
             size: 149,
             kind: Object,
@@ -2754,7 +3044,9 @@ Object {
         Symbol {
             name: ".dwarf_type.247",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11222,
             size: 6,
             kind: Object,
@@ -2768,7 +3060,9 @@ Object {
         Symbol {
             name: ".dwarf_type.248",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11228,
             size: 83,
             kind: Object,
@@ -2796,7 +3090,9 @@ Object {
         Symbol {
             name: ".dwarf_type.249",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11331,
             size: 6,
             kind: Object,
@@ -2810,7 +3106,9 @@ Object {
         Symbol {
             name: ".dwarf_type.250",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11337,
             size: 6,
             kind: Object,
@@ -2824,7 +3122,9 @@ Object {
         Symbol {
             name: ".dwarf_type.251",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11343,
             size: 6,
             kind: Object,
@@ -2838,7 +3138,9 @@ Object {
         Symbol {
             name: ".dwarf_type.252",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11349,
             size: 6,
             kind: Object,
@@ -2852,7 +3154,9 @@ Object {
         Symbol {
             name: ".dwarf_type.253",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11355,
             size: 17,
             kind: Object,
@@ -2866,7 +3170,9 @@ Object {
         Symbol {
             name: ".dwarf_type.254",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11372,
             size: 17,
             kind: Object,
@@ -2880,7 +3186,9 @@ Object {
         Symbol {
             name: ".dwarf_type.255",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11389,
             size: 243,
             kind: Object,
@@ -2908,7 +3216,9 @@ Object {
         Symbol {
             name: ".dwarf_type.256",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11646,
             size: 17,
             kind: Object,
@@ -2922,7 +3232,9 @@ Object {
         Symbol {
             name: ".dwarf_type.257",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11663,
             size: 6,
             kind: Object,
@@ -2936,7 +3248,9 @@ Object {
         Symbol {
             name: ".dwarf_type.258",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11669,
             size: 17,
             kind: Object,
@@ -2950,7 +3264,9 @@ Object {
         Symbol {
             name: ".dwarf_type.259",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11686,
             size: 17,
             kind: Object,
@@ -2964,7 +3280,9 @@ Object {
         Symbol {
             name: ".dwarf_type.260",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11703,
             size: 17,
             kind: Object,
@@ -2978,7 +3296,9 @@ Object {
         Symbol {
             name: ".dwarf_type.261",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11720,
             size: 17,
             kind: Object,
@@ -2992,7 +3312,9 @@ Object {
         Symbol {
             name: ".dwarf_type.262",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11737,
             size: 6,
             kind: Object,
@@ -3006,7 +3328,9 @@ Object {
         Symbol {
             name: ".dwarf_type.263",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 11743,
             size: 355,
             kind: Object,
@@ -3034,7 +3358,9 @@ Object {
         Symbol {
             name: ".dwarf_type.264",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 12114,
             size: 161,
             kind: Object,
@@ -3048,7 +3374,9 @@ Object {
         Symbol {
             name: ".dwarf_type.265",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 12275,
             size: 122,
             kind: Object,
@@ -3062,7 +3390,9 @@ Object {
         Symbol {
             name: ".dwarf_type.266",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 12397,
             size: 6,
             kind: Object,
@@ -3076,7 +3406,9 @@ Object {
         Symbol {
             name: ".dwarf_type.267",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 12403,
             size: 55,
             kind: Object,
@@ -3104,7 +3436,9 @@ Object {
         Symbol {
             name: ".dwarf_type.268",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 12472,
             size: 17,
             kind: Object,
@@ -3118,7 +3452,9 @@ Object {
         Symbol {
             name: ".dwarf_type.269",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 12489,
             size: 75,
             kind: Object,
@@ -3146,7 +3482,9 @@ Object {
         Symbol {
             name: ".dwarf_type.270",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 12576,
             size: 17,
             kind: Object,
@@ -3160,7 +3498,9 @@ Object {
         Symbol {
             name: ".dwarf_type.271",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 12593,
             size: 17,
             kind: Object,
@@ -3174,7 +3514,9 @@ Object {
         Symbol {
             name: ".dwarf_type.272",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 12610,
             size: 145,
             kind: Object,
@@ -3202,7 +3544,9 @@ Object {
         Symbol {
             name: ".dwarf_type.273",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 12783,
             size: 17,
             kind: Object,
@@ -3216,7 +3560,9 @@ Object {
         Symbol {
             name: ".dwarf_type.274",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 12800,
             size: 17,
             kind: Object,
@@ -3230,7 +3576,9 @@ Object {
         Symbol {
             name: ".dwarf_type.275",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 12817,
             size: 65,
             kind: Object,
@@ -3258,7 +3606,9 @@ Object {
         Symbol {
             name: ".dwarf_type.276",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 12903,
             size: 17,
             kind: Object,
@@ -3272,7 +3622,9 @@ Object {
         Symbol {
             name: ".dwarf_type.277",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 12920,
             size: 17,
             kind: Object,
@@ -3286,7 +3638,9 @@ Object {
         Symbol {
             name: ".dwarf_type.278",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 12937,
             size: 33,
             kind: Object,
@@ -3314,7 +3668,9 @@ Object {
         Symbol {
             name: ".dwarf_type.279",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 12986,
             size: 17,
             kind: Object,
@@ -3328,7 +3684,9 @@ Object {
         Symbol {
             name: ".dwarf_type.280",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 13003,
             size: 17,
             kind: Object,
@@ -3342,7 +3700,9 @@ Object {
         Symbol {
             name: ".dwarf_type.281",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 13020,
             size: 174,
             kind: Object,
@@ -3370,7 +3730,9 @@ Object {
         Symbol {
             name: ".dwarf_type.282",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 13211,
             size: 17,
             kind: Object,
@@ -3384,7 +3746,9 @@ Object {
         Symbol {
             name: ".dwarf_type.283",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 13228,
             size: 17,
             kind: Object,
@@ -3398,7 +3762,9 @@ Object {
         Symbol {
             name: ".dwarf_type.284",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 13245,
             size: 17,
             kind: Object,
@@ -3412,7 +3778,9 @@ Object {
         Symbol {
             name: ".dwarf_type.285",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 13262,
             size: 6,
             kind: Object,
@@ -3426,7 +3794,9 @@ Object {
         Symbol {
             name: ".dwarf_type.286",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 13268,
             size: 183,
             kind: Object,
@@ -3454,7 +3824,9 @@ Object {
         Symbol {
             name: ".dwarf_type.287",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 13468,
             size: 6,
             kind: Object,
@@ -3468,7 +3840,9 @@ Object {
         Symbol {
             name: ".dwarf_type.288",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                ".dwarf_type.0000",
+            ),
             address: 13474,
             size: 6,
             kind: Object,
