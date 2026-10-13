@@ -2229,9 +2229,9 @@ dependencies = [
 
 [[package]]
 name = "gnuv2_demangle"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f4eda49d36ceaaaf3af38940a636b0514472cdba8b2158b20b58e91e50df4c7"
+checksum = "a23f1910c8ce35af420fd38df369874af9d0980e3b8c8e9ee9d54a9f9f568df1"
 
 [[package]]
 name = "gpu-alloc"
