@@ -560,6 +560,35 @@ impl unarm::FormatIns for ArgsFormatter<'_> {
 
     fn write_separator(&mut self) -> core::fmt::Result { self.write(InstructionPart::separator()) }
 
+    fn write_deref_start(&mut self) -> core::fmt::Result {
+        self.write(InstructionPart::opaque("["))
+    }
+
+    fn write_deref_end(&mut self) -> core::fmt::Result { self.write(InstructionPart::opaque("]")) }
+
+    fn write_wb(&mut self, wb: bool) -> core::fmt::Result {
+        if wb {
+            self.write(InstructionPart::opaque("!"))?;
+        }
+        Ok(())
+    }
+
+    fn write_rrx(&mut self) -> core::fmt::Result { self.write(InstructionPart::opaque("rrx")) }
+
+    fn write_user_mode(&mut self, user_mode: bool) -> core::fmt::Result {
+        if user_mode {
+            self.write(InstructionPart::opaque("^"))?;
+        }
+        Ok(())
+    }
+
+    fn write_subtract(&mut self, subtract: bool) -> core::fmt::Result {
+        if subtract {
+            self.write(InstructionPart::opaque("-"))?;
+        }
+        Ok(())
+    }
+
     fn write_uimm(&mut self, uimm: u32) -> core::fmt::Result {
         if let Some(resolved) = self.resolved.relocation
             && let RelocationFlags::Elf(elf::R_ARM_ABS32) = resolved.relocation.flags
