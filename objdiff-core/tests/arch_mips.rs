@@ -127,3 +127,29 @@ fn ee_gcc_mdebug_line_numbers() {
     assert_eq!(text_section.line_info.get(&144), Some(&13));
     assert_eq!(text_section.line_info.len(), 10);
 }
+
+#[test]
+#[cfg(feature = "mips")]
+fn filter_non_matching_with_undef_symbol() {
+    let diff_config = diff::DiffObjConfig::default();
+    let obj = obj::read::parse(
+        include_object!("data/mips/non_matching_undef.o"),
+        &diff_config,
+        diff::DiffSide::Base,
+    )
+    .unwrap();
+
+    let defined_foo = obj
+        .symbols
+        .iter()
+        .find(|s| s.name == "foo" && s.section.is_some())
+        .expect("defined foo symbol present");
+    assert!(
+        defined_foo.flags.contains(obj::SymbolFlag::Ignored),
+        "defined foo symbol should be ignored when a same-named undefined symbol exists"
+    );
+
+    let marker =
+        obj.symbols.iter().find(|s| s.name == "foo.NON_MATCHING").expect("marker symbol present");
+    assert!(marker.flags.contains(obj::SymbolFlag::Ignored));
+}
