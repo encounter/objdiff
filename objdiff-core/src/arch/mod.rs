@@ -390,6 +390,9 @@ impl dyn Arch {
 }
 
 pub trait Arch: Any + Debug + Send + Sync {
+    /// Performs arch-specific initialization needed before inferring zero-sized symbols.
+    fn pre_init(&mut self, _sections: &[Section], _symbols: &[Symbol], _symbol_indices: &[usize]) {}
+
     /// Finishes arch-specific initialization that must be done after sections have been combined.
     fn post_init(&mut self, _sections: &[Section], _symbols: &[Symbol], _symbol_indices: &[usize]) {
     }
