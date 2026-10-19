@@ -130,10 +130,13 @@ impl ArchMips {
                 ignored_symbols.insert(obj_symbol.index().0);
                 // Only remove the prefixless symbols if we are on the Base side of the diff,
                 // to allow diffing against target objects that contain `.NON_MATCHING` markers.
-                if diff_side == DiffSide::Base
-                    && let Some(target_symbol) = object.symbol_by_name(prefix)
-                {
-                    ignored_symbols.insert(target_symbol.index().0);
+                if diff_side == DiffSide::Base {
+                    for candidate in object.symbols() {
+                        let Ok(candidate_name) = candidate.name() else { continue };
+                        if candidate_name == prefix {
+                            ignored_symbols.insert(candidate.index().0);
+                        }
+                    }
                 }
             }
         }
