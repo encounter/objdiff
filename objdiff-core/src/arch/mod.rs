@@ -420,6 +420,16 @@ pub trait Arch: Any + Debug + Send + Sync {
         cb: &mut dyn FnMut(InstructionPart) -> Result<()>,
     ) -> Result<()>;
 
+    /// Return formatting-token structure that must match for two instructions to be considered equal.
+    /// Architectures that encode operand structure in their formatted output can override this.
+    fn instruction_comparison_key(
+        &self,
+        _resolved: ResolvedInstructionRef,
+        _diff_config: &DiffObjConfig,
+    ) -> Result<Option<Vec<String>>> {
+        Ok(None)
+    }
+
     /// Generate a list of fake relocations from the given code that represent pooled data accesses.
     fn generate_pooled_relocations(
         &self,

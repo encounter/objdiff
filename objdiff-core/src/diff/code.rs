@@ -513,6 +513,15 @@ fn diff_instruction(
                 result.right_args_diff.push(InstructionArgDiffIndex::new(b_diff));
             }
         }
+        if let (Some(left_key), Some(right_key)) = (
+            left_obj.arch.instruction_comparison_key(left_resolved, diff_config)?,
+            right_obj.arch.instruction_comparison_key(right_resolved, diff_config)?,
+        ) && left_key != right_key
+            && result.kind == InstructionDiffKind::None
+        {
+            state.diff_score += PENALTY_REG_DIFF;
+            result.kind = InstructionDiffKind::ArgMismatch;
+        }
         if result.kind == InstructionDiffKind::None
             && left_resolved.code.len() != right_resolved.code.len()
         {

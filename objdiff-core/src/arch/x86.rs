@@ -102,6 +102,25 @@ impl ArchX86 {
 }
 
 impl Arch for ArchX86 {
+    fn instruction_comparison_key(
+        &self,
+        resolved: ResolvedInstructionRef,
+        diff_config: &DiffObjConfig,
+    ) -> Result<Option<Vec<String>>> {
+        let mut key = Vec::new();
+        self.display_instruction(resolved, diff_config, &mut |part| {
+            match part {
+                InstructionPart::Basic(text) if !text.trim().is_empty() => {
+                    key.push(format!("basic:{text}"));
+                }
+                InstructionPart::Arg(_) => key.push("arg".into()),
+                _ => {}
+            }
+            Ok(())
+        })?;
+        Ok(Some(key))
+    }
+
     fn scan_instructions_internal(
         &self,
         address: u64,
@@ -890,5 +909,32 @@ mod test {
             InstructionPart::opcode(".byte", OPCODE_DATA),
             InstructionPart::unsigned(0xABu64),
         ]);
+    }
+
+    #[test]
+    fn test_reported_mov_operand_pair_has_distinct_argument_structure() {
+        let concrete_arch =
+            ArchX86 { arch: Architecture::X86, endianness: object::Endianness::Little };
+        let arch: &dyn Arch = &concrete_arch;
+        let left_code = [0x8b, 0x03]; // mov eax, [ebx]
+        let right_code = [0x89, 0x18]; // mov [eax], ebx
+        let comparison_key = |code: &[u8]| {
+            arch.instruction_comparison_key(
+                ResolvedInstructionRef {
+                    ins_ref: InstructionRef {
+                        address: 0,
+                        size: 2,
+                        opcode: iced_x86::Mnemonic::Mov as u16,
+                        branch_dest: None,
+                    },
+                    code,
+                    ..Default::default()
+                },
+                &DiffObjConfig::default(),
+            )
+            .unwrap()
+            .unwrap()
+        };
+        assert_ne!(comparison_key(&left_code), comparison_key(&right_code));
     }
 }
