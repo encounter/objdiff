@@ -1,4 +1,4 @@
-use alloc::{format, vec::Vec};
+use alloc::{format, string::String, vec::Vec};
 use core::fmt;
 
 use anyhow::{Result, ensure};
