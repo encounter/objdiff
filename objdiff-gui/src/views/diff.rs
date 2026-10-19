@@ -12,7 +12,7 @@ use objdiff_core::{
         },
     },
     obj::{InstructionArgValue, Object, Symbol},
-    util::ReallySigned,
+    util::{ReallySigned, format_percent},
 };
 use time::format_description;
 
@@ -535,7 +535,7 @@ pub fn diff_view_ui(
                     let mut needs_separator = false;
                     if let Some(match_percent) = symbol_diff.match_percent {
                         let response = ui.label(
-                            RichText::new(format!("{match_percent:.2}%"))
+                            RichText::new(format_percent(match_percent))
                                 .font(appearance.code_font.clone())
                                 .color(match_color_for_symbol(match_percent, appearance)),
                         );

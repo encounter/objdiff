@@ -10,6 +10,7 @@ use objdiff_core::{
         display::{DiffText, DiffTextColor, HighlightKind, display_row},
     },
     obj::Object,
+    util::format_percent,
 };
 use ratatui::{
     Frame,
@@ -88,7 +89,7 @@ impl UiView for FunctionDiffUi {
             .and_then(|(_, _, d)| d.match_percent)
         {
             line_r.spans.push(Span::styled(
-                format!("{percent:.2}% "),
+                format!("{} ", format_percent(percent)),
                 Style::new().fg(match_percent_color(percent)),
             ));
         }
