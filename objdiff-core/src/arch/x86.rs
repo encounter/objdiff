@@ -1,4 +1,4 @@
-use alloc::{boxed::Box, format, vec::Vec};
+use alloc::{boxed::Box, format, string::String, vec::Vec};
 use core::cmp::Ordering;
 
 use anyhow::{Context, Result, anyhow, bail};
