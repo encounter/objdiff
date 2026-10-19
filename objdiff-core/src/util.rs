@@ -1,4 +1,4 @@
-use alloc::{format, vec::Vec};
+use alloc::{format, string::String, vec::Vec};
 use core::fmt;
 
 use anyhow::{Result, ensure};
@@ -24,6 +24,15 @@ impl<N: PrimInt> fmt::UpperHex for ReallySigned<N> {
         let bare_hex = format!("{:X}", num.abs());
         f.pad_integral(num >= 0, prefix, &bare_hex)
     }
+}
+
+/// Formats a progress percentage as a string, and prevents partial matches from being rounded to 0.00% or 100.00%.
+pub fn format_percent(value: f32) -> String {
+    let mut value = value;
+    if value > 0.0 && value < 100.0 {
+        value = value.clamp(0.01, 99.99);
+    }
+    format!("{value:.2}%")
 }
 
 pub fn read_u32(obj_file: &object::File, reader: &mut &[u8]) -> Result<u32> {
