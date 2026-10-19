@@ -895,7 +895,7 @@ fn config_property_ui(
 ) -> bool {
     let mut changed = false;
     let is_overridden = state.current_project_config.as_ref().is_some_and(|config| {
-        let key = property_id.name();
+        let key = property_id.as_str();
         if let Some(selected) = state.config.selected_obj.as_ref()
             && let Some(units) = config.units.as_deref()
             && let Some(unit) = units.iter().find(|unit| unit.name() == selected.name)
