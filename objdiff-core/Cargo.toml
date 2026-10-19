@@ -161,7 +161,7 @@ rabbitizer = { version = "2.0.0-alpha.9", default-features = false, features = [
 iced-x86 = { version = "1.21", default-features = false, features = ["decoder", "intel", "gas", "masm", "nasm", "exhaustive_enums", "no_std"], optional = true }
 
 # arm
-unarm = { version = "2.1", optional = true }
+unarm = { version = "2.3", optional = true }
 arm-attr = { version = "0.2", optional = true }
 
 # arm64
