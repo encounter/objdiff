@@ -458,7 +458,7 @@ impl FormatterOutput for InstructionFormatterOutput<'_> {
             }
         }
         match kind {
-            FormatterTextKind::Text | FormatterTextKind::Punctuation => {
+            FormatterTextKind::Text => {
                 if let Err(e) = (self.cb)(InstructionPart::basic(text)) {
                     self.error = Some(e);
                 }
@@ -468,6 +468,17 @@ impl FormatterOutput for InstructionFormatterOutput<'_> {
             | FormatterTextKind::Operator => {
                 if let Err(e) = (self.cb)(InstructionPart::opaque(text)) {
                     self.error = Some(e);
+                }
+            }
+            FormatterTextKind::Punctuation => {
+                if text == "[" || text == "]" {
+                    if let Err(e) = (self.cb)(InstructionPart::opaque(text)) {
+                        self.error = Some(e);
+                    }
+                } else {
+                    if let Err(e) = (self.cb)(InstructionPart::basic(text)) {
+                        self.error = Some(e);
+                    }
                 }
             }
             _ => self.error = Some(anyhow!("x86: Unsupported FormatterTextKind {:?}", kind)),
@@ -624,11 +635,11 @@ mod test {
             InstructionPart::basic(" "),
             InstructionPart::opaque("ptr"),
             InstructionPart::basic(" "),
-            InstructionPart::basic("["),
+            InstructionPart::opaque("["),
             InstructionPart::opaque("ebp"),
             InstructionPart::opaque("-"),
             InstructionPart::signed(152i64),
-            InstructionPart::basic("]"),
+            InstructionPart::opaque("]"),
             InstructionPart::basic(","),
             InstructionPart::basic(" "),
             InstructionPart::unsigned(0u64),
@@ -669,11 +680,11 @@ mod test {
             InstructionPart::basic(" "),
             InstructionPart::opaque("ptr"),
             InstructionPart::basic(" "),
-            InstructionPart::basic("["),
+            InstructionPart::opaque("["),
             InstructionPart::opaque("ebp"),
             InstructionPart::opaque("-"),
             InstructionPart::signed(152i64),
-            InstructionPart::basic("]"),
+            InstructionPart::opaque("]"),
             InstructionPart::basic(","),
             InstructionPart::basic(" "),
             InstructionPart::reloc(),
@@ -713,13 +724,13 @@ mod test {
             InstructionPart::opaque("eax"),
             InstructionPart::basic(","),
             InstructionPart::basic(" "),
-            InstructionPart::basic("["),
+            InstructionPart::opaque("["),
             InstructionPart::opaque("eax"),
             InstructionPart::opaque("*"),
             InstructionPart::signed(4),
             InstructionPart::opaque("+"),
             InstructionPart::reloc(),
-            InstructionPart::basic("]"),
+            InstructionPart::opaque("]"),
         ]);
     }
 
@@ -787,9 +798,9 @@ mod test {
             InstructionPart::opaque("edx"),
             InstructionPart::basic(","),
             InstructionPart::basic(" "),
-            InstructionPart::basic("["),
+            InstructionPart::opaque("["),
             InstructionPart::reloc(),
-            InstructionPart::basic("]"),
+            InstructionPart::opaque("]"),
         ]);
     }
 
@@ -826,9 +837,9 @@ mod test {
             InstructionPart::opaque("rax"),
             InstructionPart::basic(","),
             InstructionPart::basic(" "),
-            InstructionPart::basic("["),
+            InstructionPart::opaque("["),
             InstructionPart::reloc(),
-            InstructionPart::basic("]"),
+            InstructionPart::opaque("]"),
         ]);
     }
 
