@@ -72,6 +72,37 @@ jobs:
         with:
           command: check ${{ matrix.checks }}
 
+  nix:
+    name: Nix (${{ matrix.system }})
+    strategy:
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-24.04
+          - system: aarch64-linux
+            runner: ubuntu-24.04-arm
+      fail-fast: false
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Free disk space for the Nix store
+        uses: wimpysworld/nothing-but-nix@v9
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+      - name: Restore and save Nix store
+        uses: nix-community/cache-nix-action@v7
+        with:
+          primary-key: nix-${{ matrix.system }}-${{ hashFiles('flake.lock', '**/*.nix', 'Cargo.toml', 'Cargo.lock') }}
+          restore-prefixes-first-match: nix-${{ matrix.system }}-
+          gc-max-store-size-linux: 5G
+      - name: Evaluate flake
+        run: nix flake check --no-build
+      - name: Build packages
+        run: nix build .#objdiff .#objdiff-cli --print-build-logs
+      - name: Check development shell
+        run: nix develop --command cargo +nightly --version
+
   test:
     name: Test
     strategy:

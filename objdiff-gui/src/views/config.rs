@@ -24,7 +24,7 @@ use crate::{
     config::ProjectObjectNode,
     hotkeys,
     jobs::{start_check_update, start_update},
-    update::RELEASE_URL,
+    update::{RELEASE_URL, SELF_UPDATE_ENABLED},
     views::{
         appearance::Appearance,
         file::{FileDialogResult, FileDialogState},
@@ -175,15 +175,21 @@ pub fn config_ui(
     } = &mut *state_guard;
 
     ui.heading("Updates");
-    ui.checkbox(auto_update_check, "Check for updates on startup");
-    if ui.add_enabled(!config_state.check_update_running, egui::Button::new("Check now")).clicked()
-    {
-        config_state.queue_check_update = true;
+    if SELF_UPDATE_ENABLED {
+        ui.checkbox(auto_update_check, "Check for updates on startup");
+        if ui
+            .add_enabled(!config_state.check_update_running, egui::Button::new("Check now"))
+            .clicked()
+        {
+            config_state.queue_check_update = true;
+        }
+    } else {
+        ui.label("Updates are managed by your package manager");
     }
     ui.label(format!("Current version: {}", env!("CARGO_PKG_VERSION")));
     if let Some(result) = &config_state.check_update {
         ui.label(format!("Latest version: {}", result.latest_release.version()));
-        if result.update_available {
+        if SELF_UPDATE_ENABLED && result.update_available {
             ui.colored_label(appearance.insert_color, "Update available");
             ui.horizontal(|ui| {
                 if let Some(bin_name) = &result.found_binary

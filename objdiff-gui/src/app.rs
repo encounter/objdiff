@@ -31,6 +31,7 @@ use crate::{
     app_config::{AppConfigVersion, deserialize_config},
     config::{ProjectObjectNode, load_project_config},
     jobs::{create_objdiff_config, egui_waker, start_build},
+    update::SELF_UPDATE_ENABLED,
     views::{
         appearance::{Appearance, appearance_window},
         config::{
@@ -507,7 +508,8 @@ impl App {
             if state.config.selected_obj.is_some() {
                 state.queue_build = true;
             }
-            app.view_state.config_state.queue_check_update = state.config.auto_update_check;
+            app.view_state.config_state.queue_check_update =
+                SELF_UPDATE_ENABLED && state.config.auto_update_check;
         }
         app.appearance.init_fonts(&cc.egui_ctx);
         app.appearance.utc_offset = utc_offset;
