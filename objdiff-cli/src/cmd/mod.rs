@@ -1,4 +1,5 @@
 pub mod diff;
+pub mod mcp;
 pub mod report;
 
 use std::str::FromStr;
