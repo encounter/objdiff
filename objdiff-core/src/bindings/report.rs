@@ -243,7 +243,9 @@ impl Report {
 impl Measures {
     /// Average the fuzzy match percentage over total code bytes.
     pub fn calc_fuzzy_match_percent(&mut self) {
-        if self.total_code == 0 {
+        if self.total_code == 0 || self.matched_code == self.total_code {
+            // Weighted f32 accumulation can drift even when every function matches.
+            // Use the exact byte counts to preserve a fully matched result.
             self.fuzzy_match_percent = 100.0;
         } else {
             self.fuzzy_match_percent /= self.total_code as f32;
@@ -283,6 +285,59 @@ impl Measures {
 impl From<&ReportItem> for ChangeItemInfo {
     fn from(value: &ReportItem) -> Self {
         Self { fuzzy_match_percent: value.fuzzy_match_percent, size: value.size }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Measures;
+
+    #[test]
+    fn fully_matched_fuzzy_percent_ignores_accumulation_error() {
+        for weighted_sum in [388_203_008.0, 388_203_392.0] {
+            let mut measures = Measures {
+                total_code: 3_882_032,
+                matched_code: 3_882_032,
+                fuzzy_match_percent: weighted_sum,
+                ..Default::default()
+            };
+            measures.calc_fuzzy_match_percent();
+            assert_eq!(measures.fuzzy_match_percent, 100.0);
+        }
+    }
+
+    #[test]
+    fn partially_matched_fuzzy_percent_preserves_weighted_score() {
+        let mut measures = Measures {
+            total_code: 3_882_032,
+            matched_code: 3_882_028,
+            fuzzy_match_percent: 388_203_008.0,
+            ..Default::default()
+        };
+        measures.calc_fuzzy_match_percent();
+        assert_eq!(measures.fuzzy_match_percent, 388_203_008.0 / 3_882_032.0_f32);
+        assert!(measures.fuzzy_match_percent < 100.0);
+    }
+
+    #[test]
+    fn fully_matched_units_aggregate_to_exactly_one_hundred() {
+        let measures: Measures = (0..1130)
+            .map(|_| Measures {
+                total_code: 3436,
+                matched_code: 3436,
+                fuzzy_match_percent: 100.0,
+                ..Default::default()
+            })
+            .collect();
+        assert_eq!(measures.fuzzy_match_percent, 100.0);
+        assert_eq!(measures.matched_code_percent, 100.0);
+    }
+
+    #[test]
+    fn empty_code_is_fully_matched() {
+        let mut measures = Measures::default();
+        measures.calc_fuzzy_match_percent();
+        assert_eq!(measures.fuzzy_match_percent, 100.0);
     }
 }
 
