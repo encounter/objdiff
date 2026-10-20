@@ -1,0 +1,356 @@
+---
+source: objdiff-core/tests/macho.rs
+expression: diff.instruction_rows
+---
+[
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 48,
+                size: 1,
+                opcode: 640,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 49,
+                size: 3,
+                opcode: 414,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 52,
+                size: 2,
+                opcode: 640,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 54,
+                size: 1,
+                opcode: 640,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 55,
+                size: 7,
+                opcode: 374,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 62,
+                size: 5,
+                opcode: 59,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 67,
+                size: 7,
+                opcode: 374,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 74,
+                size: 3,
+                opcode: 1518,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 77,
+                size: 3,
+                opcode: 465,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 80,
+                size: 3,
+                opcode: 414,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: Some(
+            InstructionBranchFrom {
+                ins_idx: [
+                    18,
+                ],
+                branch_idx: 0,
+            },
+        ),
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 83,
+                size: 5,
+                opcode: 59,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 88,
+                size: 3,
+                opcode: 414,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 91,
+                size: 3,
+                opcode: 414,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 94,
+                size: 3,
+                opcode: 414,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 97,
+                size: 2,
+                opcode: 1518,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 99,
+                size: 5,
+                opcode: 59,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 104,
+                size: 3,
+                opcode: 279,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 107,
+                size: 4,
+                opcode: 93,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 111,
+                size: 2,
+                opcode: 310,
+                branch_dest: Some(
+                    80,
+                ),
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: Some(
+            InstructionBranchTo {
+                ins_idx: 9,
+                branch_idx: 0,
+            },
+        ),
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 113,
+                size: 2,
+                opcode: 1518,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 115,
+                size: 1,
+                opcode: 590,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 116,
+                size: 2,
+                opcode: 590,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 118,
+                size: 1,
+                opcode: 590,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+    InstructionDiffRow {
+        ins_ref: Some(
+            InstructionRef {
+                address: 119,
+                size: 1,
+                opcode: 662,
+                branch_dest: None,
+            },
+        ),
+        kind: None,
+        branch_from: None,
+        branch_to: None,
+        arg_diff: [],
+    },
+]

@@ -294,6 +294,7 @@ fn relocation_type(flags: obj::RelocationFlags) -> u32 {
     match flags {
         obj::RelocationFlags::Elf(r_type) => r_type,
         obj::RelocationFlags::Coff(typ) => typ as u32,
+        obj::RelocationFlags::MachO { r_type, .. } => r_type as u32,
     }
 }
 

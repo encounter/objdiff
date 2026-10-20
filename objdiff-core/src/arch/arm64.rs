@@ -1,8 +1,8 @@
 use alloc::{format, string::ToString, vec::Vec};
 use core::cmp::Ordering;
 
-use anyhow::Result;
-use object::elf;
+use anyhow::{Result, bail};
+use object::{Endian as _, ObjectSection as _, elf, macho};
 use yaxpeax_arch::{Arch as YaxpeaxArch, Decoder, Reader, U8Reader};
 use yaxpeax_arm::armv8::a64::{
     ARMv8, DecodeError, InstDecoder, Instruction, Opcode, Operand, SIMDSizeCode, ShiftStyle,
@@ -10,7 +10,9 @@ use yaxpeax_arm::armv8::a64::{
 };
 
 use crate::{
-    arch::{Arch, OPCODE_INVALID},
+    arch::{
+        Arch, OPCODE_INVALID, RelocationOverride, RelocationOverrideTarget, macho_implicit_addend,
+    },
     diff::{DiffObjConfig, display::InstructionPart},
     obj::{
         InstructionRef, Relocation, RelocationFlags, ResolvedInstructionRef, ResolvedRelocation,
@@ -22,7 +24,64 @@ pub struct ArchArm64 {}
 
 impl ArchArm64 {
     pub fn new(_file: &object::File) -> Result<Self> { Ok(Self {}) }
+
+    /// Decodes the implicit addend of a Mach-O relocation.
+    fn macho_addend(
+        &self,
+        file: &object::File<'_>,
+        section: &object::Section,
+        address: u64,
+        relocation: &object::Relocation,
+        r_type: u8,
+        r_pcrel: bool,
+        r_length: u8,
+    ) -> Result<i64> {
+        let offset = address as usize;
+        let data = section.data()?;
+        // arm64 relocations are always little endian.
+        let endian = object::LittleEndian;
+        let (field, pc) = match r_type {
+            macho::ARM64_RELOC_UNSIGNED | macho::ARM64_RELOC_SUBTRACTOR => {
+                let field = match 1usize << r_length as usize {
+                    4 => endian.read_i32(data[offset..offset + 4].try_into()?) as i64,
+                    8 => endian.read_i64(data[offset..offset + 8].try_into()?),
+                    _ => bail!("Unsupported Mach-O arm64 relocation length: {r_length}"),
+                };
+                (field, 0)
+            }
+            _ => {
+                let ins = endian.read_u32(data[offset..offset + 4].try_into()?);
+                let pc = section.address() + address;
+                match r_type {
+                    macho::ARM64_RELOC_BRANCH26 => {
+                        (sign_extend(((ins & 0x03ff_ffff) << 2) as i64, 28), pc)
+                    }
+                    macho::ARM64_RELOC_PAGE21
+                    | macho::ARM64_RELOC_GOT_LOAD_PAGE21
+                    | macho::ARM64_RELOC_TLVP_LOAD_PAGE21 => {
+                        let imm = (((ins >> 5) & 0x0007_ffff) << 2) | ((ins >> 29) & 0x3);
+                        // The addend of a section relocation can only be recovered to page
+                        // granularity, since the low 12 bits live in the paired PAGEOFF12.
+                        (sign_extend((imm as i64) << 12, 33), pc & !0xfff)
+                    }
+                    macho::ARM64_RELOC_PAGEOFF12
+                    | macho::ARM64_RELOC_GOT_LOAD_PAGEOFF12
+                    | macho::ARM64_RELOC_TLVP_LOAD_PAGEOFF12 => {
+                        let imm12 = ((ins >> 10) & 0xfff) as i64;
+                        // Load/store instructions scale the immediate by the access size.
+                        let is_load_store = ins & 0x3b00_0000 == 0x3900_0000;
+                        (if is_load_store { imm12 << (ins >> 30) } else { imm12 }, 0)
+                    }
+                    _ => bail!("Unsupported Mach-O arm64 relocation type: {r_type}"),
+                }
+            }
+        };
+        // arm64 relocations against a symbol store the addend in the relocation field directly.
+        macho_implicit_addend(file, relocation, field, if r_pcrel { pc } else { 0 }, true)
+    }
 }
+
+fn sign_extend(value: i64, bits: u32) -> i64 { (value << (64 - bits)) >> (64 - bits) }
 
 impl Arch for ArchArm64 {
     fn scan_instructions_internal(
@@ -104,8 +163,41 @@ impl Arch for ArchArm64 {
         Ok(())
     }
 
+    fn relocation_override(
+        &self,
+        file: &object::File<'_>,
+        section: &object::Section,
+        address: u64,
+        relocation: &object::Relocation,
+    ) -> Result<Option<RelocationOverride>> {
+        if !relocation.has_implicit_addend() {
+            return Ok(None);
+        }
+        let object::RelocationFlags::MachO { r_type, r_pcrel, r_length } = relocation.flags()
+        else {
+            return Ok(None);
+        };
+        let addend =
+            self.macho_addend(file, section, address, relocation, r_type, r_pcrel, r_length)?;
+        Ok(Some(RelocationOverride { target: RelocationOverrideTarget::Keep, addend }))
+    }
+
     fn reloc_name(&self, flags: RelocationFlags) -> Option<&'static str> {
         match flags {
+            RelocationFlags::MachO { r_type, .. } => match r_type {
+                macho::ARM64_RELOC_UNSIGNED => Some("ARM64_RELOC_UNSIGNED"),
+                macho::ARM64_RELOC_SUBTRACTOR => Some("ARM64_RELOC_SUBTRACTOR"),
+                macho::ARM64_RELOC_BRANCH26 => Some("ARM64_RELOC_BRANCH26"),
+                macho::ARM64_RELOC_PAGE21 => Some("ARM64_RELOC_PAGE21"),
+                macho::ARM64_RELOC_PAGEOFF12 => Some("ARM64_RELOC_PAGEOFF12"),
+                macho::ARM64_RELOC_GOT_LOAD_PAGE21 => Some("ARM64_RELOC_GOT_LOAD_PAGE21"),
+                macho::ARM64_RELOC_GOT_LOAD_PAGEOFF12 => Some("ARM64_RELOC_GOT_LOAD_PAGEOFF12"),
+                macho::ARM64_RELOC_POINTER_TO_GOT => Some("ARM64_RELOC_POINTER_TO_GOT"),
+                macho::ARM64_RELOC_TLVP_LOAD_PAGE21 => Some("ARM64_RELOC_TLVP_LOAD_PAGE21"),
+                macho::ARM64_RELOC_TLVP_LOAD_PAGEOFF12 => Some("ARM64_RELOC_TLVP_LOAD_PAGEOFF12"),
+                macho::ARM64_RELOC_ADDEND => Some("ARM64_RELOC_ADDEND"),
+                _ => None,
+            },
             RelocationFlags::Elf(r_type) => match r_type {
                 elf::R_AARCH64_NONE => Some("R_AARCH64_NONE"),
                 elf::R_AARCH64_ABS64 => Some("R_AARCH64_ABS64"),
@@ -129,6 +221,9 @@ impl Arch for ArchArm64 {
 
     fn data_reloc_size(&self, flags: RelocationFlags) -> usize {
         match flags {
+            RelocationFlags::MachO { r_type: macho::ARM64_RELOC_UNSIGNED, r_length, .. } => {
+                1 << r_length as usize
+            }
             RelocationFlags::Elf(r_type) => match r_type {
                 elf::R_AARCH64_ABS64 => 8,
                 elf::R_AARCH64_ABS32 => 4,
@@ -2075,12 +2170,21 @@ where Cb: FnMut(InstructionPart<'static>) {
 /// Relocations that appear in Operand::PCOffset.
 fn is_pc_offset_reloc(reloc: Option<ResolvedRelocation>) -> Option<ResolvedRelocation> {
     if let Some(resolved) = reloc
-        && let RelocationFlags::Elf(
-            elf::R_AARCH64_ADR_PREL_PG_HI21
-            | elf::R_AARCH64_JUMP26
-            | elf::R_AARCH64_CALL26
-            | elf::R_AARCH64_ADR_GOT_PAGE,
-        ) = resolved.relocation.flags
+        && matches!(
+            resolved.relocation.flags,
+            RelocationFlags::Elf(
+                elf::R_AARCH64_ADR_PREL_PG_HI21
+                    | elf::R_AARCH64_JUMP26
+                    | elf::R_AARCH64_CALL26
+                    | elf::R_AARCH64_ADR_GOT_PAGE,
+            ) | RelocationFlags::MachO {
+                r_type: macho::ARM64_RELOC_BRANCH26
+                    | macho::ARM64_RELOC_PAGE21
+                    | macho::ARM64_RELOC_GOT_LOAD_PAGE21
+                    | macho::ARM64_RELOC_TLVP_LOAD_PAGE21,
+                ..
+            }
+        )
     {
         return Some(resolved);
     }
@@ -2090,7 +2194,11 @@ fn is_pc_offset_reloc(reloc: Option<ResolvedRelocation>) -> Option<ResolvedReloc
 /// Relocations that appear in Operand::Immediate.
 fn is_imm_reloc(resolved: Option<ResolvedRelocation>) -> bool {
     resolved.is_some_and(|r| {
-        matches!(r.relocation.flags, RelocationFlags::Elf(elf::R_AARCH64_ADD_ABS_LO12_NC))
+        matches!(
+            r.relocation.flags,
+            RelocationFlags::Elf(elf::R_AARCH64_ADD_ABS_LO12_NC)
+                | RelocationFlags::MachO { r_type: macho::ARM64_RELOC_PAGEOFF12, .. }
+        )
     })
 }
 
@@ -2101,7 +2209,12 @@ fn is_reg_index_reloc(resolved: Option<ResolvedRelocation>) -> bool {
             r.relocation.flags,
             RelocationFlags::Elf(
                 elf::R_AARCH64_LDST32_ABS_LO12_NC | elf::R_AARCH64_LD64_GOT_LO12_NC
-            )
+            ) | RelocationFlags::MachO {
+                r_type: macho::ARM64_RELOC_PAGEOFF12
+                    | macho::ARM64_RELOC_GOT_LOAD_PAGEOFF12
+                    | macho::ARM64_RELOC_TLVP_LOAD_PAGEOFF12,
+                ..
+            }
         )
     })
 }
