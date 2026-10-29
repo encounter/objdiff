@@ -15,7 +15,7 @@ use notify_debouncer_full::{DebounceEventResult, new_debouncer_opt};
 
 pub type Watcher = notify_debouncer_full::Debouncer<
     notify::RecommendedWatcher,
-    notify_debouncer_full::RecommendedCache,
+    notify_debouncer_full::NoCache,
 >;
 
 pub struct WatcherState {
@@ -68,7 +68,7 @@ pub fn create_watcher(
             }
             Err(errors) => errors.iter().for_each(|e| log::error!("Watch error: {e:?}")),
         },
-        notify_debouncer_full::RecommendedCache::new(),
+        notify_debouncer_full::NoCache,
         config,
     )?;
     debouncer.watch(base_dir, RecursiveMode::Recursive)?;
