@@ -67,7 +67,9 @@ Object {
         Symbol {
             name: "l_.str.1",
             demangled_name: None,
-            normalized_name: None,
+            normalized_name: Some(
+                "l_.str.0000",
+            ),
             address: 148,
             size: 16,
             kind: Object,
