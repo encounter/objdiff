@@ -6,7 +6,7 @@ use objdiff_core::{
     config::ScratchConfig,
     diff::{
         ArmArchVersion, ArmR9Usage, DiffObjConfig, FunctionRelocDiffs, MipsAbi, MipsInstrCategory,
-        ShowSymbolSizes, X86Formatter,
+        PreferredMatchingPercentSeparator, ShowSymbolSizes, X86Formatter,
     },
 };
 use typed_path::{Utf8PlatformPathBuf, Utf8UnixPathBuf};
@@ -228,6 +228,8 @@ pub struct DiffObjConfigV1 {
     #[serde(default = "bool_true")]
     pub space_between_args: bool,
     pub show_symbol_sizes: ShowSymbolSizes,
+    pub preferred_matching_percent_separator: PreferredMatchingPercentSeparator,
+    pub spaced_matching_percent: bool,
     pub combine_data_sections: bool,
     // x86
     pub x86_formatter: X86Formatter,
@@ -250,6 +252,8 @@ impl Default for DiffObjConfigV1 {
             relax_reloc_diffs: false,
             space_between_args: true,
             show_symbol_sizes: Default::default(),
+            preferred_matching_percent_separator: Default::default(),
+            spaced_matching_percent: true,
             combine_data_sections: false,
             x86_formatter: Default::default(),
             mips_abi: Default::default(),
@@ -275,6 +279,8 @@ impl DiffObjConfigV1 {
             },
             space_between_args: self.space_between_args,
             show_symbol_sizes: self.show_symbol_sizes,
+            preferred_matching_percent_separator: self.preferred_matching_percent_separator,
+            spaced_matching_percent: self.spaced_matching_percent,
             combine_data_sections: self.combine_data_sections,
             x86_formatter: self.x86_formatter,
             mips_abi: self.mips_abi,

@@ -104,6 +104,34 @@
       ]
     },
     {
+      "id": "preferredMatchingPercentSeparator",
+      "type": "choice",
+      "default": "parenthesis",
+      "name": "Change matching percent seperator",
+      "description": "Change the separator between a symbol's name and its matching percent.",
+      "items": [
+        {
+          "value": "parenthesis",
+          "name": "()"
+        },
+        {
+          "value": "pipe",
+          "name": "|"
+        },
+        {
+          "value": "dash",
+          "name": "-"
+        }
+      ]
+    },
+    {
+      "id": "spacedMatchingPercent",
+      "type": "boolean",
+      "default": true,
+      "name": "Spaced Matching Percent",
+      "description": "Add spaces to align every matching percent on the right."
+    },
+    {
       "id": "combineDataSections",
       "type": "boolean",
       "default": false,
@@ -394,6 +422,8 @@
         "functionRelocDiffs",
         "demangler",
         "showSymbolSizes",
+        "preferredMatchingPercentSeparator",
+        "spacedMatchingPercent",
         "spaceBetweenArgs",
         "combineDataSections",
         "combineTextSections"
