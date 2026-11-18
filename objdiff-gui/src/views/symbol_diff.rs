@@ -7,7 +7,7 @@ use egui::{
 use egui_extras::{Column, TableBuilder};
 use objdiff_core::{
     diff::{
-        DiffObjConfig, ObjectDiff, ShowSymbolSizes, SymbolDiff,
+        DiffObjConfig, ObjectDiff, PreferredMatchingPercentSeparator, ShowSymbolSizes, SymbolDiff,
         display::{
             HighlightKind, SectionDisplay, SymbolFilter, SymbolNavigationKind, display_sections,
             symbol_context, symbol_hover,
@@ -722,14 +722,33 @@ fn symbol_ui(
         write_text("] ", appearance.text_color, &mut job, appearance.code_font.clone());
     }
     if let Some(match_percent) = symbol_diff.match_percent {
-        write_text("(", appearance.text_color, &mut job, appearance.code_font.clone());
+        if diff_config.preferred_matching_percent_separator
+            == PreferredMatchingPercentSeparator::Parenthesis
+        {
+            write_text("(", appearance.text_color, &mut job, appearance.code_font.clone());
+        }
+        let formatted_percent = if diff_config.spaced_matching_percent {
+            &format!("{:3.0}%", match_percent.floor())
+        } else {
+            &format!("{:.0}%", match_percent.floor())
+        };
         write_text(
-            &format!("{:.0}%", match_percent.floor()),
+            formatted_percent,
             match_color_for_symbol(match_percent, appearance),
             &mut job,
             appearance.code_font.clone(),
         );
-        write_text(") ", appearance.text_color, &mut job, appearance.code_font.clone());
+        let seperator = match diff_config.preferred_matching_percent_separator {
+            PreferredMatchingPercentSeparator::Parenthesis => ")",
+            PreferredMatchingPercentSeparator::Dash => " -",
+            PreferredMatchingPercentSeparator::Pipe => " |",
+        };
+        write_text(
+            &format!("{} ", seperator),
+            appearance.text_color,
+            &mut job,
+            appearance.code_font.clone(),
+        );
     }
     write_text(name, appearance.highlight_color, &mut job, appearance.code_font.clone());
     if diff_config.show_symbol_sizes == ShowSymbolSizes::Decimal {
