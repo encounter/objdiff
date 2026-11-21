@@ -45,10 +45,7 @@ pub fn is_win_networkfs_path(path: &Path) -> bool {
     let mut components = path.components();
     let first_component = components.next().expect("Path should not be empty");
     match first_component {
-        Component::Prefix(prefix) => match prefix.kind() {
-            Prefix::VerbatimUNC(_, _) => true,
-            _ => false,
-        },
+        Component::Prefix(prefix) => matches!(prefix.kind(), Prefix::VerbatimUNC(_, _)),
         _ => panic!("Path should have a prefix (use canonicalize)"),
     }
 }
