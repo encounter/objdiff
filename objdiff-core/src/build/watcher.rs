@@ -32,13 +32,6 @@ impl AnyDebouncer {
             Self::NetworkFSDebouncer(d) => d.watch(path, mode),
         }
     }
-
-    pub fn unwatch(&mut self, path: impl AsRef<Path>) -> notify::Result<()> {
-        match self {
-            Self::NativeDebouncer(d) => d.unwatch(path),
-            Self::NetworkFSDebouncer(d) => d.unwatch(path),
-        }
-    }
 }
 
 pub struct WatcherState {
