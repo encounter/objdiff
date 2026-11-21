@@ -1,4 +1,5 @@
 use std::{
+    error::Error,
     fs,
     path::{Component, Path, PathBuf, Prefix},
     sync::{
@@ -41,12 +42,17 @@ pub struct WatcherState {
     pub patterns: GlobSet,
 }
 
-pub fn is_win_networkfs_path(path: &Path) -> bool {
+pub fn is_win_networkfs_path(path: &Path) -> Result<bool, Box<dyn Error>> {
     let mut components = path.components();
-    let first_component = components.next().expect("Path should not be empty");
+    let Some(first_component) = components.next() else {
+        return Err("Path should not be empty")?;
+    };
     match first_component {
-        Component::Prefix(prefix) => matches!(prefix.kind(), Prefix::VerbatimUNC(_, _)),
-        _ => panic!("Path should have a prefix (use canonicalize)"),
+        Component::Prefix(prefix) => Ok(matches!(prefix.kind(), Prefix::VerbatimUNC(..))),
+        _ => {
+            log::error!("Path should have a prefix (use canonicalize)");
+            Err("Path should have a prefix (use canonicalize)")?
+        }
     }
 }
 
@@ -108,7 +114,8 @@ pub fn create_watcher(
     // On Windows (only), check if base_dir is inside a network fs, if so switch to polling watcher
     #[cfg(windows)]
     {
-        if is_win_networkfs_path(base_dir.as_path()) {
+        let use_polling = is_win_networkfs_path(base_dir.as_path()).unwrap_or_default();
+        if use_polling {
             // Use more frequent polling to compensate the slow polls
             let poll_config = config.with_poll_interval(Duration::from_secs(1));
             log::debug!("Using NetworkFS debouncer");
