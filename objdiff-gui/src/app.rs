@@ -15,7 +15,7 @@ use egui::text::LayoutJob;
 use filetime::FileTime;
 use globset::Glob;
 use objdiff_core::{
-    build::watcher::{Watcher, create_watcher},
+    build::watcher::{AnyDebouncer, create_watcher},
     config::{
         ProjectConfig, ProjectConfigInfo, ProjectObject, ScratchConfig, apply_project_options,
         build_globset, default_ignore_patterns, default_watch_patterns,
@@ -461,7 +461,7 @@ pub struct App {
     view_state: ViewState,
     state: AppStateRef,
     modified: Arc<AtomicBool>,
-    watcher: Option<Watcher>,
+    watcher: Option<AnyDebouncer>,
     app_path: Option<PathBuf>,
     relaunch_path: Rc<Mutex<Option<PathBuf>>>,
     should_relaunch: bool,

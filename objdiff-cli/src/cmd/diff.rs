@@ -24,7 +24,7 @@ use objdiff_core::{
     bindings::diff::DiffResult,
     build::{
         BuildConfig, BuildStatus,
-        watcher::{Watcher, create_watcher},
+        watcher::{AnyDebouncer, create_watcher},
     },
     config::{
         ProjectConfig, ProjectObject, ProjectObjectMetadata, ProjectOptions, apply_project_options,
@@ -271,7 +271,7 @@ pub struct AppState {
     pub prev_obj: Option<(Object, ObjectDiff)>,
     pub reload_time: Option<time::OffsetDateTime>,
     pub time_format: Vec<time::format_description::FormatItem<'static>>,
-    pub watcher: Option<Watcher>,
+    pub watcher: Option<AnyDebouncer>,
     pub modified: Arc<AtomicBool>,
     pub diff_obj_config: DiffObjConfig,
     pub mapping_config: MappingConfig,
