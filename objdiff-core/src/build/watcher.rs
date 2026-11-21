@@ -49,10 +49,7 @@ pub fn is_win_networkfs_path(path: &Path) -> Result<bool, Box<dyn Error>> {
     };
     match first_component {
         Component::Prefix(prefix) => Ok(matches!(prefix.kind(), Prefix::VerbatimUNC(..))),
-        _ => {
-            log::error!("Path should have a prefix (use canonicalize)");
-            Err("Path should have a prefix (use canonicalize)")?
-        }
+        _ => Err("Path should have a prefix (use canonicalize)")?,
     }
 }
 
